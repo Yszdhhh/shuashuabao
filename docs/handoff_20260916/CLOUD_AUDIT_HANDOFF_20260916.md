@@ -14,7 +14,7 @@
 |---|---|---|
 | **目标分支** | `fix/solo-live-regression-20260915` | 单人模式回归与收敛专用分支 |
 | **远端仓库** | `github.com/Yszdhhh/shuashuabao` | 已完全同步至远端 `origin` |
-| **Main 最新远端** | `7ebf4b2` | 生产主线最新提交（Merge PR #28，`7ebf4b205a1fd3acd8d9d64fd84d184db6447ebc`） |
+| **Main 最新远端** | `7ebf4b2` | 生产主线最新提交（Merge PR #26，`7ebf4b205a1fd3acd8d9d64fd84d184db6447ebc`） |
 | **当前代码 HEAD** | `origin/fix/solo-live-regression-20260915` | 本分支核心代码冻结点 |
 | **Harness 基线** | `7a6c36b` | 严格保持冻结，**未 Rebaseline** |
 | **验证总状态** | **CODE AUDIT GO / READY FOR CLOUD RE-AUDIT** | 单元测试全绿，P1 阻断项全面修复，实机 GT 处于 HOLD |
@@ -84,18 +84,18 @@
   - `wood < _bond_next_price()`：禁止打开 F 面板，避免无意义空开；
   - `draw_price <= wood < 300`：允许开启 F，但单次最大选卡上限 `cap = 1`；
   - `300 <= wood < 1000`：单次最大选卡上限 `cap = 2`；
-  - `wood >= 1000`：高木材狂暴模式，单次访问上限 `cap = 15`（**历史依据**：提交 `2884df2`，2026-09-16 02:23:52，作者为解决高木材木头烧不掉的问题，在 `_l1_step_visit_exhausted` 与 `_visit_capped` 中将上限提升为 15，注释：`F: wood >= 1000 -> 15 (狂暴抽卡，充分转化木材资源)`；本轮保持代码现状，如实记录该依据）。
+  - `wood >= 1000`：高木材狂暴模式，单次访问上限 `cap = 15`（**历史依据**：提交 `2884df2`，真实 commit message 为 `fix(solo): optimize wood expenditure, skill refresh accuracy, merchant cycle and equipment gates`，2026-09-16 02:23:52，作者为解决高木材木头烧不掉的问题，在 `_l1_step_visit_exhausted` 与 `_visit_capped` 中将上限提升为 15，注释：`F: wood >= 1000 -> 15 (狂暴抽卡，充分转化木材资源)`；**口径说明**：当前实现及历史代码意图 = 15；owner contract 的 5/15 最终决策仍待明确，本轮保持代码现状与待定状态）。
 * **对称测试与退避保护**：
   - `wood >= 1000` 时，若因为候选卡均不在预设而主动关闭 F 面板，**严禁设置 30s 的 `_bond_idle_until`**，避免因候选不合规导致大量积压木材被饿死 30 秒；保留 `wood < 1000` 下的普通冷却。
 * **技能积压紧急调度**：
   - 技能积压点数 $\ge 8$ 视为战斗力坍塌极危状态，强制从主发育循环中抢占 1 次技能提升；
   - 积压 4~7 档提供优先调度；加入 aging 时间衰减机制，防止非核心步骤永久饿死。
 
-### 3.5 传家宝 120s 超时与 Boss ALIVE 否决权
+### 3.5 传家宝 120s 局部超时与 Boss ALIVE 否决权
 * **分层治理架构与语义严密性**：
-  - **业务证据层（ALIVE Veto）**：若 `_solo_boss_is_alive(frame)` 检测到明确的 Boss 血条存活证据，属于正面存活证据，**一票否决**判定为通关或盲目转场大秘境，超时到达时禁止将存活 Boss 误当做通关；
-  - **顶层兜底硬截止（120s Timeout）**：120s 超时属于全局硬截止兜底机制，仅在超时且证据为 `TIMEOUT-UNKNOWN`（既无 CLEAR 也无 ALIVE 明确阳性证据）时触发安全退避与大秘境回退逻辑；
-  - **严格分层**：必须严格区分 **CLEAR（击杀清空）**、**ALIVE（明确存活，一票否决秘境）** 与 **TIMEOUT-UNKNOWN（超时未定兜底）**，120s 超时绝不等于 Boss CLEAR。
+  - **业务证据层（ALIVE Veto）**：若 `_solo_boss_is_alive(frame)` 检测到明确的 Boss 血条存活证据，属于正面存活证据，**一票否决**判定为通关或盲目转场大秘境，局部超时到达时禁止将存活 Boss 误当做通关；
+  - **局部兜底硬截止（120s Timeout）**：120s 超时仅属于单人传家宝 Boss 结算分支局部的兜底等待上限（系统全局单局硬截止是 `round_timeout_s=900`），仅在局部等待超时且证据为 `TIMEOUT-UNKNOWN`（既无 CLEAR 也无 ALIVE 明确阳性证据）时触发安全退避与大秘境回退逻辑；
+  - **严格分层**：必须严格区分 **CLEAR（击杀清空）**、**ALIVE（明确存活，一票否决秘境输入）** 与 **TIMEOUT-UNKNOWN（传家宝局部超时未定兜底）**，传家宝 120s 局部超时绝不等于 Boss CLEAR。
 
 ### 3.6 海岛/海盗卡组与悬赏令专项只读审计
 * **审计范围**：卡牌模板、策略配置、背包道具、OCR 字典、Git 历史。
@@ -125,12 +125,27 @@
 
 ### 4.3 全量测试套件（Full Pytest Suite）
 * 命令：`python -m pytest tests/ --ignore=tests/test_live_harness_refresh.py -q`
-* 结论：除已知未 rebaseline 的 harness 测试外，全工程测试套件无任何失败。
+* 耗时：859.05 秒（14 分 19 秒）
+* 结果：**2324 passed, 3 skipped, 2 xfailed, 6 warnings, 250 subtests passed**（100% 通过，0 失败）。
+* 归档日志：[`docs/reviews/evidence_20260916/test_reports/full_pytest_2324_pass_20260916.log`](file:///G:/刷刷宝/GameScript-Local/docs/reviews/evidence_20260916/test_reports/full_pytest_2324_pass_20260916.log)
 
 ### 4.4 Live Harness 独立验证与说明
 * 命令：`pytest tests/test_live_harness_refresh.py -v`
 * 结果：15 passed, 3 failed（`production_code_diff == NOT_CLEAN`、`status == NOT_CLEAN`、`production_diff_status == NOT_CLEAN`）；
 * 原因说明：当前分支工作区包含本轮三个 P1 阻断项的生产代码修复，尚未进行 Rebaseline（Harness 基线冻结在 `7a6c36b`），因此 Harness 的防篡改门禁准确报出 NOT_CLEAN，这是预期的守护行为，严禁私自 Rebaseline 或篡改 Harness 基准。
+
+### 4.5 Candidate Injection 零输入 Preflight 验证
+* 命令：
+  ```bash
+  python tools/live_scenario_capture.py identity --repo-root . --production-source-root . --production-source-sha <HEAD_SHA> --json
+  python tools/live_scenario_capture.py readiness --repo-root . --production-source-root . --production-source-sha <HEAD_SHA> --quick --json
+  ```
+* 结果：
+  - `candidate_source_injection: ACTIVE`
+  - `production_source_clean: true`
+  - `ready_for_gt: true`
+  - `match: READY`
+  - 零硬件物理输入，闭环验证通过。
 
 ---
 
@@ -143,4 +158,4 @@
 3. **极简主义（Karpathy Principles）**：
    - 零新增沉重第三方依赖；零新增抽象框架；所有修复均在既有 FSM 与 Mediator 内做紧致最小收口。
 4. **远端同步状态**：
-   - 本地与远端 `origin/fix/solo-live-regression-20260915` 处于完全一致的提交点 `c977ab6`。
+   - 本地与远端 `origin/fix/solo-live-regression-20260915` 完全同步，所有修复均严格在被审计版本上原子演进。

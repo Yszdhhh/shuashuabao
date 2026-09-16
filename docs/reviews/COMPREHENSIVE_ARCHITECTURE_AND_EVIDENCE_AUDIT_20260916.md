@@ -1,7 +1,7 @@
 # 刷刷宝全架构与全证据云端深度审计报告（2026-09-16）
 
 > **审计执行属性**：全维度架构、机制、证据与代码审查（涵盖单人 `normal_farm` 与蹭车 `lobby_hitch` 双链路）  
-> **审计代码基线**：`origin/main` (`7ebf4b2`，Merge PR #28) $\to$ 当前分支 HEAD [`fix/solo-live-regression-20260915`](file:///G:/刷刷宝/GameScript-Local)  
+> **审计代码基线**：`origin/main` (`7ebf4b2`，Merge PR #26) $\to$ 当前分支 HEAD [`fix/solo-live-regression-20260915`](file:///G:/刷刷宝/GameScript-Local)  
 > **目标分支**：`origin/fix/solo-live-regression-20260915`  
 > **证据仓库路径**：[`docs/reviews/evidence_20260916/`](file:///G:/刷刷宝/GameScript-Local/docs/reviews/evidence_20260916)  
 
@@ -61,7 +61,7 @@
    * `wood < _bond_next_price()`：绝对禁止开启 F 面板，消除盲开消耗；
    * `draw_price <= wood < 300`：轻度发育档，单次面板最大选卡数 `cap = 1`；
    * `300 <= wood < 1000`：中度发育档，单次面板最大选卡数 `cap = 2`；
-   * `wood >= 1000`：狂暴发育档，单次面板最大选卡数 `cap = 15`（**历史依据**：提交 `2884df2`，2026-09-16 02:23:52，作者为了解决单人局中后期高木材大量积压、无法充分转化为战力的问题，在 `_l1_step_visit_exhausted` 与 `_visit_capped` 中将抽卡上限显式提升至 15，代码注释标明 `F: wood >= 1000 -> 15 (狂暴抽卡，充分转化木材资源)`；本轮严格遵守收敛原则保持代码现状，如实记录该历史渊源）。
+   * `wood >= 1000`：狂暴发育档，单次面板最大选卡数 `cap = 15`（**历史依据**：提交 `2884df2`，真实 commit message 为 `fix(solo): optimize wood expenditure, skill refresh accuracy, merchant cycle and equipment gates`，2026-09-16 02:23:52，作者为了解决单人局中后期高木材大量积压、无法充分转化为战力的问题，在 `_l1_step_visit_exhausted` 与 `_visit_capped` 中将抽卡上限显式提升至 15，代码注释标明 `F: wood >= 1000 -> 15 (狂暴抽卡，充分转化木材资源)`；**口径说明**：当前实现及历史代码意图 = 15；owner contract 的 5/15 最终决策仍待明确，本轮严格遵守收敛原则保持代码现状，如实记录该历史渊源与待定状态）。
 2. **高木材对称防饿死退避合同**：
    * `wood >= 1000` 时，若因为所有候选卡均不在预设白名单中而关闭面板，**绝对不设置 30s 的 `_bond_idle_until` 惩罚**；
    * 确保高额木材储备时，下一次循环或资源刷新后可立即再次尝试，避免千万木材被活活饿死；
@@ -106,11 +106,11 @@
 * **Slot 1 授权控制**：
   第 1 格装备升级动作必须取得 EquipmentFSM 显式授权，禁止绕过状态机盲目触发右键。
 
-### 2.5 传家宝 120s 超时与 Boss ALIVE 否决权
+### 2.5 传家宝 120s 局部超时与 Boss ALIVE 否决权
 * **分层治理架构与语义严密性**：
   - **业务证据层（ALIVE Veto）**：若 `_solo_boss_is_alive(frame)` 检测到明确的 Boss 血条存活证据，属于正面存活证据，**一票否决**判定为通关或盲目转场大秘境，超时到达时禁止将存活 Boss 误当做通关；
-  - **顶层兜底硬截止（120s Timeout）**：120s 超时属于全局硬截止兜底机制，仅在超时且证据为 `TIMEOUT-UNKNOWN`（既无 CLEAR 也无 ALIVE 明确阳性证据）时触发安全退避与大秘境回退逻辑；
-  - **严格分层**：必须严格区分 **CLEAR（击杀清空）**、**ALIVE（明确存活，一票否决秘境）** 与 **TIMEOUT-UNKNOWN（超时未定兜底）**，120s 超时绝不等于 Boss CLEAR。
+  - **局部兜底硬截止（120s Timeout）**：120s 超时仅属于单人传家宝 Boss 结算分支局部的兜底等待上限（系统全局单局硬截止是 `round_timeout_s=900`），仅在局部等待超时且证据为 `TIMEOUT-UNKNOWN`（既无 CLEAR 也无 ALIVE 明确阳性证据）时触发安全退避与大秘境回退逻辑；
+  - **严格分层**：必须严格区分 **CLEAR（击杀清空）**、**ALIVE（明确存活，一票否决秘境输入）** 与 **TIMEOUT-UNKNOWN（传家宝局部超时未定兜底）**，传家宝 120s 局部超时绝不等于 Boss CLEAR。
 
 ### 2.6 无人值守自愈与失败自动降级
 * 支持 `settings.downgrade_after_failures`（0=关闭）：
@@ -227,7 +227,7 @@
 | **历史逻辑考古** | [`docs/reviews/evidence_20260916/solo_orchestration/LOST_LOGIC_ARCHAEOLOGY.md`](file:///G:/刷刷宝/GameScript-Local/docs/reviews/evidence_20260916/solo_orchestration/LOST_LOGIC_ARCHAEOLOGY.md) | 1.3.8 至 1.4.7 历史代码深度考古与丢失逻辑清点（26KB） |
 | **结构化运行 CSV** | [`docs/reviews/evidence_20260916/solo_orchestration/live_data_csv/`](file:///G:/刷刷宝/GameScript-Local/docs/reviews/evidence_20260916/solo_orchestration/live_data_csv) | `badges.csv`, `bond_offers.csv`, `economy_timeline.csv`, `hud_ocr.csv` |
 | **规范与契约文档** | [`docs/reviews/evidence_20260916/spec_contracts/`](file:///G:/刷刷宝/GameScript-Local/docs/reviews/evidence_20260916/spec_contracts) | 单人 Round 2 规格、Boss 永不停机规范、蹭车战后时序规范 |
-| **全量测试日志** | [`docs/reviews/evidence_20260916/test_reports/full_pytest_2312_pass_20260916.log`](file:///G:/刷刷宝/GameScript-Local/docs/reviews/evidence_20260916/test_reports/full_pytest_2312_pass_20260916.log) | 全量 2312 个 pytest 用例全部通过的原始执行日志 |
+| **全量测试日志** | [`docs/reviews/evidence_20260916/test_reports/full_pytest_2324_pass_20260916.log`](file:///G:/刷刷宝/GameScript-Local/docs/reviews/evidence_20260916/test_reports/full_pytest_2324_pass_20260916.log) | 全量 2324 个 pytest 用例全部通过的原始执行日志（覆盖 P1-01~03 修复与完整回归） |
 
 ### 6.2 Quant-Auditor 13 项核心契约核验
 
@@ -236,7 +236,7 @@
 2. **Data leakage（数据泄漏）**：PASS。测试日志重定向至系统 tmp，实机生产环境零日志泄漏；
 3. **Survivorship bias（幸存者偏差）**：PASS。覆盖 1-1 关卡触底保护、未持有卡 1/4 跳过、完成态 4/4 释放等极端边界；
 4. **Timestamp alignment（时钟对齐）**：PASS。全局统一使用基于系统 `time.time()` 的**墙上时钟（wall clock）**进行超时与周期推进判定（非游戏内部时钟或帧数时钟），消除时区与字符串解析抖动；
-5. **Resource exhaustion（资源饥饿控制）**：PASS。高木材退避保护、木材 1/2/5 阶梯、技能积压 $\ge 8$ 强抢占全面达标；
+5. **Resource exhaustion（资源饥饿控制）**：PASS。高木材退避保护、木材阶梯抽卡调度（当前实现与历史意图 cap=15，5/15 owner 决策待定）、技能积压 $\ge 8$ 强抢占全面达标；
 6. **Fees & slippage（动作滑点）**：PASS。面板重开冷却与全局间隔解耦，动作时延大幅降低；
 7. **Precision & rounding（精度阈值）**：PASS。免二次确认强制要求置信度 $\ge 0.95$；细体传家宝模板命中置信度高达 0.83~1.00；
 8. **Partial fills（碎片状态处理）**：PASS。步骤切换通过 `PanelState.CLOSING` 驱动物理面板平滑关闭；
@@ -255,8 +255,9 @@
    * 结果：**`180 passed, 18 subtests passed in 18.25s`**
 2. **全量测试套件**：
    * 命令：`python -m pytest tests/ --ignore=tests/test_live_harness_refresh.py -q`
-   * 耗时：909.40 秒（15 分 09 秒）
-   * 结果：**`2312 passed, 3 skipped, 2 xfailed, 1 warning, 250 subtests passed`**（**0 failed，100% 通过**）
+   * 耗时：859.05 秒（14 分 19 秒）
+   * 结果：**`2324 passed, 3 skipped, 2 xfailed, 6 warnings, 250 subtests passed`**（**0 failed，100% 通过**）
+   * 归档日志：[`docs/reviews/evidence_20260916/test_reports/full_pytest_2324_pass_20260916.log`](file:///G:/刷刷宝/GameScript-Local/docs/reviews/evidence_20260916/test_reports/full_pytest_2324_pass_20260916.log)
 3. **Live Harness 基准**：
    * 保持基准为 `7a6c36b`，**未 Rebaseline**；
 4. **Git 工作区**：
