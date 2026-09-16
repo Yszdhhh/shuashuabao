@@ -195,21 +195,16 @@ def test_08_high_wood_burst_cap_does_not_set_idle_backoff() -> None:
 
 
 def test_09_burst_cap_with_high_wood_stays_in_core_dev() -> None:
-    """9. Wood >= 1000 preserves natural cycle progression and does not permanently starve other steps."""
+    """9. F burst reaches cap with wood >= 1000 -> strictly F <-> G, no side branches."""
     med = _med()
     med._wood_balance = 3000
     med._l1_cycle_step = "bond"
-    steps = [med._l1_cycle_step]
-    for _ in range(9):
-        med._advance_l1_cycle(med._l1_cycle_step)
-        steps.append(med._l1_cycle_step)
-    # All 10 cycle steps are naturally visited in order
-    assert "treasure" in steps
-    assert "evolve" in steps
-    assert "equipment" in steps
-    assert "pickup" in steps
-    assert "merchant" in steps
-    assert "artifact" in steps
+    med._advance_l1_cycle("bond")
+    assert med._l1_cycle_step == "skill"
+    med._advance_l1_cycle("skill")
+    assert med._l1_cycle_step == "bond"
+    # Never enters treasure / evolve / equipment when wood >= 1000
+    assert med._l1_cycle_step not in ("treasure", "evolve", "equipment", "pickup", "merchant", "artifact")
 
 
 # =========================================================================
