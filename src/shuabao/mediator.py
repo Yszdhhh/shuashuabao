@@ -989,8 +989,15 @@ class Mediator:
         self._heirloom_boss_confirm_unconfirmed: bool = False
         self._hitch_heirloom_exit_since: float | None = None
         self._solo_heirloom_boss_waiting: bool = False
+        self._solo_heirloom_boss_waiting_since: float | None = None
+        self._heirloom_boss_result_confirmed: bool = False
         self._solo_heirloom_boss_clear_frames: int = 0
         self._solo_heirloom_boss_clear_last_frame: Frame | None = None
+        self._post_game_hero_focus_lost_count: int = 0
+        self._post_game_hero_focus_last_frame: Frame | None = None
+        self._post_game_hero_focus_next_check_at: float = 0.0
+        self._opportunistic_merchant_next_at: float = 0.0
+        self._opportunistic_hero_card_next_at: float = 0.0
         self._passenger_heirloom_for_secret = False
         # Heirloom label OCR fallback: last (box, frame) sighting + throttle.
         self._hub_label_ocr_last: tuple | None = None
@@ -4394,18 +4401,28 @@ class Mediator:
     def _stall_combat_bond_slots(
         self, slots: tuple[SlotCandidate, ...]
     ) -> tuple[SlotCandidate, ...]:
-        """Keep only documented combat bonds after a main-line stall."""
+        """Keep documented combat bonds and confirmed owned bonds after a main-line stall."""
+        owned = getattr(self, "_confirmed_bond_cards", lambda: ())()
         return tuple(
             slot for slot in slots
             if matches_bond_preset(slot.name, self._STALL_COMBAT_BOND_PRESETS)
+            or (owned and matches_bond_preset(slot.name, owned))
         )
 
-    @staticmethod
-    def _stall_combat_bond_policy(policy: PolicySettings) -> PolicySettings:
-        """Remove the economic/base-card gates while stalled."""
+    def _stall_combat_bond_policy(self_or_policy: Any, policy: PolicySettings | None = None) -> PolicySettings:
+        """Remove the economic/base-card gates while stalled, keeping combat and owned bonds."""
+        if policy is None:
+            pol = self_or_policy
+            owned = ()
+        else:
+            pol = policy
+            owned = getattr(self_or_policy, "_confirmed_bond_cards", lambda: ())()
+        presets = Mediator._STALL_COMBAT_BOND_PRESETS + tuple(
+            p for p in owned if p not in Mediator._STALL_COMBAT_BOND_PRESETS
+        )
         return replace(
-            policy,
-            bond_presets=Mediator._STALL_COMBAT_BOND_PRESETS,
+            pol,
+            bond_presets=presets,
             bond_base_presets=(),
             bond_advanced_presets=(),
             bond_advanced_groups=(),
@@ -4733,8 +4750,10 @@ class Mediator:
         rows = (240, 285, 330, 375)
         for y in rows:
             rx1, ry1, rx2, ry2 = transform.logical_roi(650, y, 950, y + 40)
-            min_text = int(450 * transform.scale * transform.scale)
-            if int((gray[ry1:ry2, rx1:rx2] > 140).sum()) < max(15, min_text):
+            min_text = int(350 * transform.scale * transform.scale)
+            bright = gray[ry1:ry2, rx1:rx2] > 120
+            colored = (hsv[ry1:ry2, rx1:rx2, 1] > 50) & (hsv[ry1:ry2, rx1:rx2, 2] > 60)
+            if int((bright | colored).sum()) < max(15, min_text):
                 return None
 
         def row_rank(y: int) -> int:
@@ -6245,7 +6264,7 @@ class Mediator:
             print(f"[L1] 黑商{action}需要 {required} 杀敌数，当前 {balance}，本轮跳过")
         return False
 
-    def _maybe_black_merchant(self, frame: Frame) -> MatchResult | None:
+    def _maybe_black_merchant(self, frame: Frame, allow_reroll: bool = True) -> LoopAction | None:
         """Buy only mode-authorized merchant stock, then use the existing refresh path."""
         now = time.time()
         present = self._black_merchant_present(frame)
@@ -6374,9 +6393,12 @@ class Mediator:
                 self._merchant_next_at = now + retry_s
             return LoopAction.Continue
 
+        if not allow_reroll:
+            return None
+
         # Nothing left to buy, or purchase budget exhausted: refresh this
         # encounter's remaining stock. Empty strip uses the same path.
-        if refresh_available and self._merchant_fsm.can_reroll(reroll_cap):
+        if allow_reroll and refresh_available and self._merchant_fsm.can_reroll(reroll_cap):
             if not self._merchant_kill_budget_allows(
                 frame,
                 now,
@@ -6410,6 +6432,51 @@ class Mediator:
             # 且没有可刷新控件时必须把控制权交给宝物步骤。
             return None
         return LoopAction.Continue if (present and (detected_slots or ranked or refresh_available)) else None
+
+    def _maybe_opportunistic_merchant(self, frame: Frame, now: float) -> LoopAction | None:
+        """HUD_ONLY opportunistic single high-value merchant buy without rerolls."""
+        if getattr(self.settings, "merchant_enabled", True) is False:
+            return None
+        if now < getattr(self, "_opportunistic_merchant_next_at", 0.0):
+            return None
+        if not self._black_merchant_present(frame):
+            return None
+        action = self._maybe_black_merchant(frame, allow_reroll=False)
+        if action is not None:
+            self._opportunistic_merchant_next_at = now + 8.0
+            return action
+        return None
+
+    def _maybe_opportunistic_hero_card(self, frame: Frame, now: float) -> LoopAction | None:
+        """HUD_ONLY opportunistic hero card usage during core development."""
+        if now < getattr(self, "_opportunistic_hero_card_next_at", 0.0):
+            return None
+        if self._has_evolve_button(frame):
+            return None
+        if getattr(self, "_evolve_awaiting_hero_pick", False) or getattr(self, "_evolve_feedback_pending", False):
+            return None
+        inventory_roi = (0.65, 0.78, 0.82, 0.98)
+        hero_card = self.find(
+            frame,
+            ["hero_card_item"],
+            threshold=0.65,
+            roi=inventory_roi,
+            scales=(0.8, 0.9, 1.0, 1.1, 1.2),
+        )
+        if hero_card is not None:
+            self._opportunistic_hero_card_next_at = now + 4.0
+            if self.act_click(hero_card, "Opportunistic-hero-card"):
+                print(f"[L1] 核心发育期机会使用英雄卡 @ {hero_card.center}")
+                self._pending_action = PendingAction(
+                    kind="WAIT_HERO_CHOICE",
+                    target_id="hero_card_item",
+                    deadline=now + 3.0,
+                    verifier=lambda f: bool(self._find_evolution_choice(f, anchor=self._selection_anchor(f)) is not None),
+                )
+                self._evolve_awaiting_hero_pick = True
+                self._evolve_awaiting_hero_pick_at = now
+                return LoopAction.Continue
+        return None
 
     def _find_compact_skill_choice(self, frame: Frame) -> MatchResult | None:
         """Find a configured skill in the live bottom-right G quick panel."""
@@ -8344,6 +8411,47 @@ class Mediator:
         self._hero_focus_last_frame_id = None
         self._hero_focus_next_check_at = now + 1.5
         return LoopAction.Continue
+
+    def _maybe_ensure_post_game_hero_focus(self, frame: Frame, now: float) -> LoopAction | None:
+        """In post-game NPC hub, recover hero focus via F1 if target focus was lost to mobs/bosses."""
+        if self._panel_state != PanelState.CLOSED:
+            return None
+        if not getattr(self, "_post_game_pending", False):
+            return None
+        if self._has_active_transaction(frame):
+            return None
+        if now < getattr(self, "_post_game_hero_focus_next_check_at", 0.0):
+            return None
+
+        # UNKNOWN/transition frames have zero input authority.
+        post_game = self._post_game_state(frame)
+        if post_game != "NPC_HUB":
+            self._post_game_hero_focus_lost_count = 0
+            self._post_game_hero_focus_last_frame = None
+            return None
+
+        hero_indicators = ["jihuo", "shortKey", "hc", "artifact_slot_e", "pingfu1"]
+        hit = self.find(frame, hero_indicators, threshold=0.75, roi=(0.60, 0.60, 0.98, 0.98))
+        if hit is not None:
+            self._post_game_hero_focus_lost_count = 0
+            self._post_game_hero_focus_last_frame = None
+            return None
+
+        if frame is getattr(self, "_post_game_hero_focus_last_frame", None):
+            return None
+        self._post_game_hero_focus_last_frame = frame
+        self._post_game_hero_focus_lost_count = getattr(self, "_post_game_hero_focus_lost_count", 0) + 1
+        if self._post_game_hero_focus_lost_count < 2:
+            print("[med] 战后广场英雄焦点丢失候选第 1 帧，等待不同帧确认（零动作）")
+            return None
+
+        print("[med] 战后广场连续 2 帧丢失英雄焦点，按 F1 重新选定自身英雄")
+        if not getattr(self.settings, "dry_run", False):
+            self.act_key("F1", "PostGameSelectHeroFocus")
+        self._post_game_hero_focus_lost_count = 0
+        self._post_game_hero_focus_last_frame = None
+        self._post_game_hero_focus_next_check_at = now + 1.0
+        return LoopAction.Continue
     # Icon centre sits 48px above the caption centre at 900px height.
     _TQTZ_ICON_LIFT = 48 / 900
     # The icon opens 「是否确认提前挑战？」 with the same grey 是/否 buttons as
@@ -9975,9 +10083,16 @@ class Mediator:
             self._archive_challenge_confirm_attempts = 0
             self._heirloom_boss_clicked_at = None
             self._heirloom_boss_confirm_unconfirmed = False
+            self._heirloom_boss_result_confirmed = False
             self._solo_heirloom_boss_waiting = False
+            self._solo_heirloom_boss_waiting_since = None
             self._solo_heirloom_boss_clear_frames = 0
             self._solo_heirloom_boss_clear_last_frame = None
+            self._post_game_hero_focus_lost_count = 0
+            self._post_game_hero_focus_last_frame = None
+            self._post_game_hero_focus_next_check_at = 0.0
+            self._opportunistic_merchant_next_at = 0.0
+            self._opportunistic_hero_card_next_at = 0.0
             self._passenger_heirloom_for_secret = False
             self._time_cave_boss_search_attempts = 0
             self._hitch_postgame_hero_selected = False
@@ -16056,18 +16171,25 @@ class Mediator:
             and getattr(self, "_solo_heirloom_boss_waiting", False)
             and post_game != "POST_VICTORY"
         ):
-            # Solo owns the Boss damage. Do not borrow the passenger's
-            # loot-or-timer exit: a live Boss still shares the plaza HUD.
-            # Two fresh reward frames are only a conservative proxy here;
-            # a true Boss-absence detector needs paired live evidence.
-            if not self._solo_heirloom_boss_is_clear(frame):
-                print("[med] 单人传家宝 Boss 仍未确认结束，保持零输入观察")
+            waiting_since = getattr(self, "_solo_heirloom_boss_waiting_since", None)
+            if waiting_since is None:
+                self._solo_heirloom_boss_waiting_since = now
+                waiting_since = now
+            is_clear = self._solo_heirloom_boss_is_clear(frame)
+            timeout = (now - waiting_since) >= self._SOLO_HEIRLOOM_EXIT_S
+            if not is_clear and not timeout:
+                print(f"[med] 单人传家宝 Boss 仍未确认结束，保持零输入观察 (已等待 {now - waiting_since:.1f}s/{self._SOLO_HEIRLOOM_EXIT_S:.0f}s)")
                 return LoopAction.Continue
             self._solo_heirloom_boss_waiting = False
+            self._solo_heirloom_boss_waiting_since = None
             self._hitch_heirloom_exit_since = None
             self._hitch_postgame_started_at = now
+            if timeout and not is_clear:
+                print(f"[med] 单人传家宝 Boss 等待 {self._SOLO_HEIRLOOM_EXIT_S:.0f}s 超时未见掉落，兜底流转")
+            else:
+                print("[med] 单人传家宝 Boss 已清除")
             if self.settings.auto_secret_realm:
-                print("[med] 单人传家宝 Boss 已清除，进入大秘境路线")
+                print("[med] 进入大秘境路线")
                 self._post_game_pending = True
                 self._post_game_route = "secret"
                 self._secret_realm_request_pending = False
@@ -16075,7 +16197,7 @@ class Mediator:
                 self._secret_realm_request_attempts = 0
                 self._secret_realm_next_observe_at = 0.0
                 return LoopAction.Continue
-            print("[med] 单人传家宝 Boss 已清除，退出当前局")
+            print("[med] 退出当前局")
             self._record_round_outcome(RoundOutcome.VICTORY, "solo heirloom boss clear")
             self.set_phase(Phase.QUIT, "solo heirloom boss clear")
             return LoopAction.Continue
@@ -16544,8 +16666,9 @@ class Mediator:
                     self.set_phase(Phase.ERROR, "great rift entry remained on npc hub")
                     self.stop()
                     return LoopAction.Break
-                print("[med] 大秘境确认后挑战广场过渡帧，零动作等待局内 HUD")
-                return LoopAction.Continue
+            f1_action = self._maybe_ensure_post_game_hero_focus(frame, now)
+            if f1_action is not None:
+                return f1_action
             route = getattr(self, "_post_game_route", "secret")
             if route == "boss_postgame" and self._team_mode_enabled():
                 if not self._hitch_postgame_returned_to_base:
@@ -16665,6 +16788,7 @@ class Mediator:
                 # and continue the already-selected post-game route; before
                 # then the configured-Boss handler is observation-only.
                 if self._heirloom_boss_result_visible(frame):
+                    self._heirloom_boss_result_confirmed = True
                     print("[med] 传家宝 Boss 业务后置确认成功，关闭传家宝面板")
                 elif self._heirloom_boss_confirm_expired(now):
                     # 有界收敛：允许关闭，但明确记成未确认，绝不当成功上报。
@@ -16687,26 +16811,39 @@ class Mediator:
                 return LoopAction.Continue
             self._aux_dialog_attempts[post_game] = attempts + 1
             print(f"[med] 关闭传家宝弹窗 @ {close_hit.center} (尝试 {attempts + 1}/3)")
+            confirmed_boss = bool(
+                self._heirloom_boss_result_visible(frame)
+                or getattr(self, "_heirloom_boss_result_confirmed", False)
+            )
             if self.act_click(close_hit, "DismissHeirloomDialog"):
                 if getattr(self, "_post_game_route", "") == "heirloom_active":
-                    self._post_game_route = "boss_active"
-                    self._post_game_pending = False
-                    self._post_game_close_attempts = 0
-                    if self._passenger_mode() and self._unattended_recovery_enabled():
-                        self._hitch_heirloom_exit_since = now
-                        self._hitch_instance_seen = False
-                        self._hitch_instance_frames = 0
-                        self._hitch_instance_announced = False
-                        then = "进入秘境" if self._solo_heirloom_secret() else "退出"
-                        print(
-                            f"[med] 传家宝 Boss 已点：广场上识别到装备获取信息立刻{then}，"
-                            f"否则 {self._heirloom_exit_window_s():.0f}s 后{then}；进入秘境/团本则等失败再退"
-                        )
+                    if confirmed_boss:
+                        self._post_game_route = "boss_active"
+                        self._post_game_pending = False
+                        self._post_game_close_attempts = 0
+                        self._heirloom_boss_result_confirmed = False
+                        if self._passenger_mode() and self._unattended_recovery_enabled():
+                            self._hitch_heirloom_exit_since = now
+                            self._hitch_instance_seen = False
+                            self._hitch_instance_frames = 0
+                            self._hitch_instance_announced = False
+                            then = "进入秘境" if self._solo_heirloom_secret() else "退出"
+                            print(
+                                f"[med] 传家宝 Boss 已确认发起：广场上识别到装备获取信息立刻{then}，"
+                                f"否则 {self._heirloom_exit_window_s():.0f}s 后{then}；进入秘境/团本则等失败再退"
+                            )
+                        else:
+                            self._solo_heirloom_boss_waiting = True
+                            self._solo_heirloom_boss_waiting_since = now
+                            self._solo_heirloom_boss_clear_frames = 0
+                            self._solo_heirloom_boss_clear_last_frame = None
+                            print("[med] 单人传家宝 Boss 已确认发起，等待掉落代理证据（零动作）")
                     else:
-                        self._solo_heirloom_boss_waiting = True
-                        self._solo_heirloom_boss_clear_frames = 0
-                        self._solo_heirloom_boss_clear_last_frame = None
-                        print("[med] 单人传家宝 Boss 已点，等待两帧掉落代理证据（当前无 Boss 血条模板，零动作）")
+                        print("[med] 传家宝 Boss 未确认成功，关闭面板后重置路由（不假冒 boss_active）")
+                        if self._boss_challenge_attempts >= 3 or getattr(self, "_heirloom_boss_confirm_unconfirmed", False):
+                            self._post_game_route = "secret" if self.settings.auto_secret_realm else "npc_hub"
+                        else:
+                            self._post_game_route = "heirloom"
             self._main_line_since = now
             return LoopAction.Continue
 
@@ -17190,6 +17327,18 @@ class Mediator:
                 if evolve_res is not None:
                     self._main_line_since = now
                     return evolve_res
+
+            # 机会使用英雄卡：在 HUD 空闲、无点击进化按钮时使用背包英雄卡（4s CD）
+            hero_card_res = self._maybe_opportunistic_hero_card(frame, now)
+            if hero_card_res is not None:
+                self._main_line_since = now
+                return hero_card_res
+
+            # 机会黑商单次购买：在 HUD 空闲、黑商在场时单次购买高价值物品（8s CD）
+            merchant_res = self._maybe_opportunistic_merchant(frame, now)
+            if merchant_res is not None:
+                self._main_line_since = now
+                return merchant_res
 
         if self._passenger_mode() and self._l1_cycle_step == "hitch_idle":
             # legacy 停车位：新环不再产生这个步，留作旧状态的安全落点。

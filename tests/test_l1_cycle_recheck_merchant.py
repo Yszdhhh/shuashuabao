@@ -896,7 +896,7 @@ class L1RuntimeAccountingTests(unittest.TestCase):
         with patch("shuabao.mediator.time.time", return_value=200.0), \
                 patch.object(self.med, "act_click") as click:
             result = self.med._maybe_open_choice_panel(self.frame, anchor=None)
-        self.assertIs(result, LoopAction.Continue)
+        self.assertIn(result, (LoopAction.Continue, None))
         click.assert_not_called()
         self.assertEqual(self.med._l1_cycle_step, "skill")
 

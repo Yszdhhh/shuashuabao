@@ -1302,7 +1302,7 @@ def _decide_collectible(
                         or matches_bond_preset(slot.name, settings.bond_chain_presets)
                         # A past run may already contain an advanced card. Let
                         # its duplicate finish/merge, but never start another.
-                        or str(slot.name or "").strip() in owned_bonds
+                        or matches_bond_preset(slot.name, tuple(owned_bonds))
                     )
                 )
                 if not eligible:
@@ -1322,7 +1322,7 @@ def _decide_collectible(
                             matches_bond_preset(slot.name, settings.bond_base_presets)
                             or matches_bond_preset(slot.name, settings.bond_chain_presets)
                             or matches_bond_preset(slot.name, active_adv)
-                            or str(slot.name or "").strip() in owned_bonds
+                            or matches_bond_preset(slot.name, tuple(owned_bonds))
                         )
                     )
                     if not eligible:
@@ -1338,6 +1338,7 @@ def _decide_collectible(
                     slot for slot in eligible
                     if _is_must_take(slot.name, settings.bond_must_take)
                     or matches_bond_preset(slot.name, settings.bond_presets)
+                    or matches_bond_preset(slot.name, tuple(owned_bonds))
                 )
         if kind == PANEL_BOND:
             for slot in eligible:
@@ -1354,7 +1355,7 @@ def _decide_collectible(
             for slot in eligible:
                 if (
                     slot.confidence >= settings.min_confidence
-                    and slot.name in owned_bonds_set
+                    and (slot.name in owned_bonds_set or matches_bond_preset(slot.name, tuple(owned_bonds_set)))
                 ):
                     return PolicyDecision.select(
                         slot.index, f"羁绊已持有合成优先：{slot.name} @ slot {slot.index}"

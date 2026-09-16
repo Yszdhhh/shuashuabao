@@ -650,7 +650,7 @@ class Mediator(CoreMediator):
     def _stage_bond_card(self, name: str | None) -> None:
         canonical = self._canonical_bond_name(name)
         configured = self._configured_bond_presets()
-        if not matches_bond_preset(canonical, configured):
+        if not matches_bond_preset(canonical, configured) and not matches_bond_preset(canonical, self._confirmed_bond_cards()):
             return
         # 重复卡必须保留次数，供“已拿卡优先合成”决策使用。
         self._bond_cards_pending.append(canonical)
@@ -785,7 +785,7 @@ class Mediator(CoreMediator):
 
         canonical = self._canonical_bond_name(hit_name)
         remaining = set(self._remaining_bond_presets())
-        if matches_bond_preset(canonical, tuple(remaining)):
+        if matches_bond_preset(canonical, tuple(remaining)) or matches_bond_preset(canonical, self._confirmed_bond_cards()):
             return result
 
         close_hit = self._verified_panel_close(frame, "bond")
