@@ -109,6 +109,7 @@ from shuabao.choice_policy import (
     PolicySettings,
     SessionState,
     SlotCandidate,
+    _is_uncompleted_merge_upgrade,
     assemble_policy_settings,
     choose_action,
     hitch_treasure_pick,
@@ -3716,26 +3717,25 @@ class Mediator:
             else:
                 # 末段没有刷新次数时不能把面板关掉：关闭会让主循环再次
                 # 看到同一张 V 面板并重开/隐藏，造成“空宝物堆积”和重复开关。
-                # 此时接受一个确定可点的候选；优先非负面、再退化到任意
-                # 已识别槽位，OCR 完全没名字时也允许点第一格，符合蹭车
-                # 末段“随便拿一个继续流程”的容错要求。
+                # 末段没有刷新次数时：只允许选择已确认非负面的合法宝物；
+                # 若无非负面有效候选（全负面、全未识别、低置信），严格安全关闭，
+                # 绝不盲选负面卡或 slot 0。
                 candidates = [
                     s for s in slots
                     if s.name and str(s.name).strip()
                     and s.confidence >= policy_settings.min_confidence
                 ]
-                candidates = candidates or list(slots)
-                if candidates:
-                    positive = [s for s in candidates if not is_negative_treasure(s, policy_settings)]
-                    fallback = positive[0] if positive else candidates[0]
+                positive = [s for s in candidates if not is_negative_treasure(s, policy_settings)]
+                if positive:
+                    fallback = positive[0]
                     self._treasure_consecutive_no_pick = 0
                     decision = PolicyDecision.select(
                         fallback.index,
-                        f"蹭车宝物末段兜底选择【{fallback.name or 'slot '+str(fallback.index)}】（刷新预算耗尽）",
+                        f"蹭车宝物末段兜底选择非负面卡【{fallback.name}】（刷新预算耗尽）",
                     )
                 else:
                     self._treasure_consecutive_no_pick += 1
-                    decision = PolicyDecision.close("蹭车宝物无可点击槽位，安全关闭")
+                    decision = PolicyDecision.close("蹭车宝物末段无非负面有效候选，安全关闭（禁止选择负面或未识别卡）")
         else:
             decision = choose_action(
                 PanelCandidates(
@@ -4206,9 +4206,14 @@ class Mediator:
     # Open ground above the hero: no HUD element, so no tooltip.
     _POINTER_PARK = (0.62, 0.30)
 
+    def _l1_cycle_order(self) -> tuple[str, ...]:
+        """蹭车和单人是两条完全不同的环，统一由 Mediator 提供单一真源。"""
+        return self._HITCH_L1_CYCLE_ORDER if self._passenger_mode() else self._L1_CYCLE_ORDER
+
     def _advance_l1_cycle(self, completed: str | None = None) -> None:
-        current = completed or self._l1_cycle_step
-        order = self._HITCH_L1_CYCLE_ORDER if self._passenger_mode() else self._L1_CYCLE_ORDER
+        """Advance by position, not tuple.index(), so duplicate bond/skill steps work."""
+        order = self._l1_cycle_order()
+        current = completed or getattr(self, "_l1_cycle_step", order[0])
         if current == "hitch_idle" and self._passenger_mode():
             # 旧状态落点：直接回到环首，不再永久停车。
             self._l1_cycle_step = order[0]
@@ -4220,6 +4225,11 @@ class Mediator:
             # 核心发育期（wood >= 1000）：严格优先 F ↔ G 轮转快速消耗木材转化为战力，
             # 绝不落入完整支线大环（treasure/evolve/equipment/pickup/merchant/artifact）。
             nxt = "skill" if current == "bond" else "bond"
+            idx = int(getattr(self, "_l1_cycle_index", 0) or 0)
+            matches = [i for i, step in enumerate(order) if step == nxt]
+            if matches:
+                forward = [i for i in matches if i >= idx]
+                self._l1_cycle_index = forward[0] if forward else matches[0]
             self._l1_cycle_step = nxt
             self._l1_cycle_last_advance_at = time.time()
             self._l1_cycle_step_successes = 0
@@ -4228,28 +4238,28 @@ class Mediator:
             elif nxt == "skill":
                 self._skill_priority_suspended_at = None
             return
-        # The order repeats bond/skill, so the name alone does not say where we
-        # are: order.index() always found the first pair and skill -> bond ->
-        # skill looped forever, never reaching treasure/evolve/equipment/
-        # pickup/merchant/artifact (live solo 2026-09-14/15).
-        index = getattr(self, "_l1_cycle_index", None)
-        if index is None or not (0 <= index < len(order)) or order[index] != current:
-            try:
-                index = order.index(current)
-            except ValueError:
-                index = -1
-        self._l1_cycle_index = (index + 1) % len(order)
-        nxt = order[self._l1_cycle_index]
+        # Advance by position, not tuple.index(), so duplicate bond/skill steps work.
+        idx = int(getattr(self, "_l1_cycle_index", 0) or 0)
+        if not (0 <= idx < len(order) and order[idx] == current):
+            matches = [i for i, step in enumerate(order) if step == current]
+            if matches:
+                forward = [i for i in matches if i >= idx]
+                idx = forward[0] if forward else matches[0]
+            else:
+                idx = -1
+        next_idx = (idx + 1) % len(order)
+        nxt = order[next_idx]
         if nxt == "evolve":
             self._evolve_ok_this_cycle = False
             self._evolve_awaiting_hero_pick = False
             self._devour_dan_consecutive_clicks = 0
-        if nxt in ("equipment", "pickup"):
+        if nxt in ("equipment", "pickup") or completed == "evolve":
             self._inventory_clicks_this_visit = 0
             self._inventory_last_pt = None
             self._inventory_same_pt_hits = 0
             self._inventory_next_at = 0.0
             self._devour_dan_consecutive_clicks = 0
+        self._l1_cycle_index = next_idx
         self._l1_cycle_step = nxt
         self._l1_cycle_last_advance_at = time.time()
         self._l1_cycle_step_successes = 0
@@ -4401,25 +4411,21 @@ class Mediator:
     def _stall_combat_bond_slots(
         self, slots: tuple[SlotCandidate, ...]
     ) -> tuple[SlotCandidate, ...]:
-        """Keep documented combat bonds and confirmed owned bonds after a main-line stall."""
+        """Keep documented combat bonds and confirmed uncompleted owned bonds after a main-line stall."""
         owned = getattr(self, "_confirmed_bond_cards", lambda: ())()
         return tuple(
             slot for slot in slots
             if matches_bond_preset(slot.name, self._STALL_COMBAT_BOND_PRESETS)
-            or (owned and matches_bond_preset(slot.name, owned))
+            or (owned and _is_uncompleted_merge_upgrade(slot, owned))
         )
 
     def _stall_combat_bond_policy(self_or_policy: Any, policy: PolicySettings | None = None) -> PolicySettings:
-        """Remove the economic/base-card gates while stalled, keeping combat and owned bonds."""
+        """Remove economic/base-card gates while stalled, keeping documented combat presets only."""
         if policy is None:
             pol = self_or_policy
-            owned = ()
         else:
             pol = policy
-            owned = getattr(self_or_policy, "_confirmed_bond_cards", lambda: ())()
-        presets = Mediator._STALL_COMBAT_BOND_PRESETS + tuple(
-            p for p in owned if p not in Mediator._STALL_COMBAT_BOND_PRESETS
-        )
+        presets = Mediator._STALL_COMBAT_BOND_PRESETS
         return replace(
             pol,
             bond_presets=presets,

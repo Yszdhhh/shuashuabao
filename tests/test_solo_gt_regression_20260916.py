@@ -54,10 +54,11 @@ def test_stall_preserves_and_synthesizes_owned_bond():
     assert "急速" in names, "Documented combat bond 急速 must be kept"
     assert "未知卡" not in names
 
-    # 2. Mediator._stall_combat_bond_policy includes owned bonds in presets
+    # 2. Mediator._stall_combat_bond_policy keeps only documented combat presets without injecting owned cards
     base_policy = PolicySettings(bond_presets=("经济",), bond_whitelist_mode=WHITELIST_HARD)
     stall_pol = med._stall_combat_bond_policy(base_policy)
-    assert "智力" in stall_pol.bond_presets
+    assert stall_pol.bond_presets == med._STALL_COMBAT_BOND_PRESETS
+    assert "智力" not in stall_pol.bond_presets
 
     # 3. choose_action with WHITELIST_HARD prioritizes owned bond for synthesis
     cands = PanelCandidates(

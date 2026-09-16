@@ -1,7 +1,7 @@
 # 刷刷宝全架构与全证据云端深度审计报告（2026-09-16）
 
 > **审计执行属性**：全维度架构、机制、证据与代码审查（涵盖单人 `normal_farm` 与蹭车 `lobby_hitch` 双链路）  
-> **审计代码基线**：`origin/main` (`3c4c594`) $\to$ 当前分支 HEAD [`52e5394`](file:///G:/刷刷宝/GameScript-Local)（实现提交 [`c977ab6`](file:///G:/刷刷宝/GameScript-Local)）  
+> **审计代码基线**：`origin/main` (`7ebf4b2`，Merge PR #28) $\to$ 当前分支 HEAD [`fix/solo-live-regression-20260915`](file:///G:/刷刷宝/GameScript-Local)  
 > **目标分支**：`origin/fix/solo-live-regression-20260915`  
 > **证据仓库路径**：[`docs/reviews/evidence_20260916/`](file:///G:/刷刷宝/GameScript-Local/docs/reviews/evidence_20260916)  
 
@@ -57,11 +57,11 @@
 ### 2.1 核心发育（Core Development）与资源水位阶梯调度
 单人模式的核心战力源于主线局内的持续发育。历史版本中存在低木材频繁开面板、高木材因候选不在预设而被锁死 30 秒的“饥饿与阻塞”隐患。本轮收口全面落地 **资源水位阶梯调度**：
 
-1. **木材消耗阶梯合同** ([`src/shuabao/mediator.py#L4350-L4420`](file:///G:/刷刷宝/GameScript-Local/src/shuabao/mediator.py#L4350-L4420))：
+1. **木材消耗阶梯合同** ([`src/shuabao/mediator.py#L4273-L4395`](file:///G:/刷刷宝/GameScript-Local/src/shuabao/mediator.py#L4273-L4395))：
    * `wood < _bond_next_price()`：绝对禁止开启 F 面板，消除盲开消耗；
    * `draw_price <= wood < 300`：轻度发育档，单次面板最大选卡数 `cap = 1`；
    * `300 <= wood < 1000`：中度发育档，单次面板最大选卡数 `cap = 2`；
-   * `wood >= 1000`：狂暴发育档，单次面板最大选卡数 `cap = 5`。
+   * `wood >= 1000`：狂暴发育档，单次面板最大选卡数 `cap = 15`（**历史依据**：提交 `2884df2`，2026-09-16 02:23:52，作者为了解决单人局中后期高木材大量积压、无法充分转化为战力的问题，在 `_l1_step_visit_exhausted` 与 `_visit_capped` 中将抽卡上限显式提升至 15，代码注释标明 `F: wood >= 1000 -> 15 (狂暴抽卡，充分转化木材资源)`；本轮严格遵守收敛原则保持代码现状，如实记录该历史渊源）。
 2. **高木材对称防饿死退避合同**：
    * `wood >= 1000` 时，若因为所有候选卡均不在预设白名单中而关闭面板，**绝对不设置 30s 的 `_bond_idle_until` 惩罚**；
    * 确保高额木材储备时，下一次循环或资源刷新后可立即再次尝试，避免千万木材被活活饿死；
@@ -96,7 +96,7 @@
 * **业务状态机闭环**：
   - 必须由进化状态机明确确认 `_evolve_ok_this_cycle == True`；
   - 未确认进化成功前，即使个人背包第 1 格存在英雄卡，也**绝对产生 0 次点击**；
-  - 进化确认成功后，向英雄卡发送右键动作，并立即建立 `WAIT_HERO_CHOICE` 独占事务，锁定前台防止被拾取或神器打断。
+  - 进化确认成功后，向个人背包英雄卡发送**左键**动作（`act_click`，即 `self.act_click(hero_pt, "use_hero_card")`，严禁使用右键），并立即建立 `WAIT_HERO_CHOICE` 独占事务，锁定前台防止被拾取或神器打断。
 
 ### 2.4 装备升星时序与词缀弹窗互斥
 * **时序推进解耦**：
@@ -107,11 +107,10 @@
   第 1 格装备升级动作必须取得 EquipmentFSM 显式授权，禁止绕过状态机盲目触发右键。
 
 ### 2.5 传家宝 120s 超时与 Boss ALIVE 否决权
-* **语义严密性**：
-  在单人 50 级传家宝 Boss 结算中，120s 超时属于安全保护，绝不能在日志或逻辑中被断言为“Boss CLEAR”。
-* **存活一票否决权（ALIVE Veto）**：
-  - 若 `_solo_boss_is_alive(frame)` 检测到明确的 Boss 血条存活证据，即使 120s 超时到达，也**绝对否决**退出或秘境转场动作；
-  - 必须严格区分：**CLEAR（击杀清空）**、**ALIVE（明确存活）** 与 **TIMEOUT-UNKNOWN（超时未定）**。
+* **分层治理架构与语义严密性**：
+  - **业务证据层（ALIVE Veto）**：若 `_solo_boss_is_alive(frame)` 检测到明确的 Boss 血条存活证据，属于正面存活证据，**一票否决**判定为通关或盲目转场大秘境，超时到达时禁止将存活 Boss 误当做通关；
+  - **顶层兜底硬截止（120s Timeout）**：120s 超时属于全局硬截止兜底机制，仅在超时且证据为 `TIMEOUT-UNKNOWN`（既无 CLEAR 也无 ALIVE 明确阳性证据）时触发安全退避与大秘境回退逻辑；
+  - **严格分层**：必须严格区分 **CLEAR（击杀清空）**、**ALIVE（明确存活，一票否决秘境）** 与 **TIMEOUT-UNKNOWN（超时未定兜底）**，120s 超时绝不等于 Boss CLEAR。
 
 ### 2.6 无人值守自愈与失败自动降级
 * 支持 `settings.downgrade_after_failures`（0=关闭）：
@@ -236,7 +235,7 @@
 1. **Look-ahead bias（前瞻偏见）**：PASS。彻底废除基于固定秒数猜测状态的逻辑，全部依赖真实 OCR 文本与状态机断言；
 2. **Data leakage（数据泄漏）**：PASS。测试日志重定向至系统 tmp，实机生产环境零日志泄漏；
 3. **Survivorship bias（幸存者偏差）**：PASS。覆盖 1-1 关卡触底保护、未持有卡 1/4 跳过、完成态 4/4 释放等极端边界；
-4. **Timestamp alignment（时钟对齐）**：PASS。全局统一使用 `time.time()` 单调秒数比较，消除时区与字符串解析抖动；
+4. **Timestamp alignment（时钟对齐）**：PASS。全局统一使用基于系统 `time.time()` 的**墙上时钟（wall clock）**进行超时与周期推进判定（非游戏内部时钟或帧数时钟），消除时区与字符串解析抖动；
 5. **Resource exhaustion（资源饥饿控制）**：PASS。高木材退避保护、木材 1/2/5 阶梯、技能积压 $\ge 8$ 强抢占全面达标；
 6. **Fees & slippage（动作滑点）**：PASS。面板重开冷却与全局间隔解耦，动作时延大幅降低；
 7. **Precision & rounding（精度阈值）**：PASS。免二次确认强制要求置信度 $\ge 0.95$；细体传家宝模板命中置信度高达 0.83~1.00；
@@ -289,3 +288,33 @@
   - 确认代码库无针对海盗悬赏令的盲点点击逻辑。
 - [ ] **核验 7：阅读实机证据与真实局时序**
   - 检阅 [`docs/reviews/evidence_20260916/`](file:///G:/刷刷宝/GameScript-Local/docs/reviews/evidence_20260916) 目录下的真实 Trace 与分析报告。
+
+---
+
+## 9. 云端审计 NO-GO 裁决针对性 P1 修复闭环（2026-09-16）
+
+针对云端独立审计指出的三个生产级阻断缺陷，本轮实施了原子收敛修复，范围严格限定在三个 P1 项及其测试与事实口径，零框架扩建，零实机侵入，未修改基准：
+
+### 9.1 P1-01：RuntimeMediator / CoreMediator 调度单一真源建立
+1. **统一单一实现**：将按当前位置向前查找重复 bond/skill 的正确正向推进逻辑吸收到 Core `Mediator._advance_l1_cycle()`；
+2. **状态推进统一管理**：Core `Mediator` 统一负责 `wood >= 1000` 时的 F ↔ G 轮转保持、`_l1_cycle_last_advance_at` 刷新、`_l1_cycle_step_successes = 0` 清零以及 evolve/equipment 步骤状态复位；
+3. **消除分叉**：彻底删除 `RuntimeMediator._advance_l1_cycle()` override，正式运行类直接继承 Core 实现；`_l1_cycle_order()` 统一委托 super，消除两套调度逻辑分叉的结构性隐患。
+
+### 9.2 P1-02：停滞恢复禁止模糊预设并保持严格卡牌同一性
+1. **严格同一性过滤**：修改 `Mediator._stall_combat_bond_slots()`，彻底废除 `matches_bond_preset(slot.name, owned)`，改为严格卡牌同一性与未完成态判定 `_is_uncompleted_merge_upgrade(slot, owned)`；
+2. **阻断白名单污染**：修改 `Mediator._stall_combat_bond_policy()`，严禁将 `owned` 注入 `bond_presets`；停滞恢复仅保留固定的 `Mediator._STALL_COMBAT_BOND_PRESETS`（`挑战`、`法术`、`急速` 等）；
+3. **同一性与完成态边界闭环**：
+   - 持有 `智力` 时，候选 `智力祝福(2/3)` 等同系异名卡绝不会被误认为同一卡，直接被停滞过滤拦截；
+   - 处于未完成债务的 `智力(1/4~3/4)` 仍正常进入补债合成；
+   - 已完成态的 `智力(4/4)` 债务释放，绝不因历史持有而重新秒选。
+
+### 9.3 P1-03：蹭车宝物全负面/全未识别安全关闭
+1. **删除危险兜底**：彻底删除 `fallback = positive[0] if positive else candidates[0]`；
+2. **非负面硬门禁**：末段兜底 `positive[0]` 仅允许选择已确认非负面的合法宝物；
+3. **全负面/全未识别安全关闭**：当有效非负面候选为空时（全为负面卡，或全部未识别/低置信/空名），严禁盲选 `candidates[0]` 或 `slot 0`，必须执行 `PolicyDecision.close(...)` 安全关闭面板，并累加连续未选计数；
+4. **共享道具不受影响**：绿色神符、吞噬丹、英雄卡等可共享道具依然在预算内或兜底前正常优先选走。
+
+### 9.4 验证与测试套件
+* **定向复现用例**：[`tests/test_p1_blockers_reproduction_20260916.py`](file:///G:/刷刷宝/GameScript-Local/tests/test_p1_blockers_reproduction_20260916.py)（12 用例覆盖调度推进、高木材保留、停滞卡牌同一性、全负面关闭、全空名关闭等，**12 passed in 0.55s**）；
+* **定向回归套件**：82 用例全绿（含 `test_solo_gt_regression_20260916.py`、`test_solo_core_development_20260916.py`、`test_hitch_treasure_v_gate_20260913.py` 等）；
+* **Live Harness 独立验证说明**：`test_live_harness_refresh.py` 报告 `production_diff_status == NOT_CLEAN`，因当前工作区包含了本轮 P1 生产代码修复且未 Rebaseline（基准冻结在 `7a6c36b`），这是 Harness 的预期守护行为，完全合规。

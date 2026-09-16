@@ -215,40 +215,8 @@ class Mediator(CoreMediator):
         self._last_runtime_progress_at = float(now if now is not None else time.time())
 
     def _l1_cycle_order(self) -> tuple[str, ...]:
-        """蹭车和单人是两条完全不同的环，LIVE 必须和核心 Mediator 选同一条。
-
-        20260910 实机复盘：本方法此前写死 ``_L1_CYCLE_ORDER``，于是蹭车局在
-        LIVE 下照样走 bond/skill/evolve/equipment（点了进化、升了 1 号装备
-        —— 全是发育自己的动作），而蹭车专属步一次都没到，公共背包流转因此
-        从未被调用。bundle 里 ``l1_cycle_step`` 只出现 solo 步就是这个原因。
-        """
-        return self._HITCH_L1_CYCLE_ORDER if self._hitch_enabled() else self._L1_CYCLE_ORDER
-
-    def _advance_l1_cycle(self, completed: str | None = None) -> None:
-        """Advance by position, not tuple.index(), so duplicate bond/skill steps work."""
-        order = self._l1_cycle_order()
-        current = completed or getattr(self, "_l1_cycle_step", order[0])
-        idx = int(getattr(self, "_l1_cycle_index", 0) or 0)
-        if not (0 <= idx < len(order) and order[idx] == current):
-            matches = [i for i, step in enumerate(order) if step == current]
-            if matches:
-                forward = [i for i in matches if i >= idx]
-                idx = forward[0] if forward else matches[0]
-            else:
-                idx = -1
-        next_idx = (idx + 1) % len(order)
-        nxt = order[next_idx]
-        if nxt == "evolve":
-            self._evolve_ok_this_cycle = False
-            self._evolve_awaiting_hero_pick = False
-        if nxt == "equipment" or completed == "evolve":
-            self._inventory_clicks_this_visit = 0
-            self._inventory_last_pt = None
-            self._inventory_same_pt_hits = 0
-            self._inventory_next_at = 0.0
-            self._devour_dan_consecutive_clicks = 0
-        self._l1_cycle_index = next_idx
-        self._l1_cycle_step = nxt
+        """蹭车和单人是两条完全不同的环，LIVE 必须和核心 Mediator 选同一条。"""
+        return super()._l1_cycle_order()
 
     def _runtime_watchdog_allowed(self, now: float) -> bool:
         if getattr(self, "phase", None) != Phase.MAIN_LINE:

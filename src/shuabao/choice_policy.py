@@ -1204,6 +1204,13 @@ def _is_uncompleted_merge_upgrade(
     ]
     if not matching:
         return False
+    # 若已持有卡中已明确为完成态（如 4/4、已满张），不再视为未完成待补债
+    for b in matching:
+        hit = _BOND_PROGRESS_RE.search(str(b))
+        if hit:
+            have_o, need_o = int(hit.group(1)), int(hit.group(2))
+            if need_o > 1 and have_o >= need_o:
+                return False
     prog = _slot_stack_progress(slot)
     if prog is not None:
         have, need = prog

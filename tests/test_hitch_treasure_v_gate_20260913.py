@@ -158,8 +158,8 @@ class TestHitchTreasureVGate:
         assert res is not None
         assert res.name == "ocr_treasure:力量提升"
 
-    def test_2c_no_refresh_charge_with_unread_names_picks_first_slot(self) -> None:
-        """刷新耗尽且 OCR 名称不可用时，仍点击第一张可定位卡而非隐藏。"""
+    def test_2c_no_refresh_charge_with_unread_names_safely_closes_never_blind_picks(self) -> None:
+        """P1-03: 刷新耗尽且 OCR 名称不可用时，严格安全关闭，严禁盲选第一张未识别卡。"""
         med = make_mediator()
         fr = make_frame()
         slots = [{"index": 0, "name": "", "confidence": 0.1}]
@@ -167,8 +167,10 @@ class TestHitchTreasureVGate:
              patch.object(med, "_panel_can_refresh", return_value=False):
             med._hitch_treasure_total_refreshes = 3
             res = med._ocr_reward_choice(fr, "treasure")
-        assert res is not None
-        assert res.name == "ocr_treasure:slot0"
+        if res is not None:
+            assert not res.name.startswith("ocr_treasure:"), (
+                f"Must safely close instead of blind picking slot! Got {res.name}"
+            )
 
     def test_3_ocr_no_candidates_safe_close_never_refresh(self) -> None:
         """Requirement 3: OCR failure / no valid candidates safely closes, never refreshes."""
