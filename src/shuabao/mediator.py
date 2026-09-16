@@ -4221,6 +4221,23 @@ class Mediator:
             self._l1_cycle_last_advance_at = time.time()
             self._l1_cycle_step_successes = 0
             return
+        if not self._passenger_mode() and self._should_hold_core_development():
+            # 核心发育期（wood >= 1000）：严格优先 F ↔ G 轮转快速消耗木材转化为战力，
+            # 绝不落入完整支线大环（treasure/evolve/equipment/pickup/merchant/artifact）。
+            nxt = "skill" if current == "bond" else "bond"
+            idx = int(getattr(self, "_l1_cycle_index", 0) or 0)
+            matches = [i for i, step in enumerate(order) if step == nxt]
+            if matches:
+                forward = [i for i in matches if i >= idx]
+                self._l1_cycle_index = forward[0] if forward else matches[0]
+            self._l1_cycle_step = nxt
+            self._l1_cycle_last_advance_at = time.time()
+            self._l1_cycle_step_successes = 0
+            if nxt == "bond":
+                self._bond_priority_suspended_at = None
+            elif nxt == "skill":
+                self._skill_priority_suspended_at = None
+            return
         # Advance by position, not tuple.index(), so duplicate bond/skill steps work.
         idx = int(getattr(self, "_l1_cycle_index", 0) or 0)
         if not (0 <= idx < len(order) and order[idx] == current):
@@ -4473,13 +4490,10 @@ class Mediator:
             return "skill", f"技能积压 {skill} ≥ 8（紧急强抢占），先点技能"
 
         # 2. 狂暴发育期/基础羁绊：木材 >= 1000 优先消耗木材转战力，或基础羁绊未满 80% 且木材充足
-        # 自然轮换到 treasure 且有待拿宝物时，宝物必须获得服务（V 不被永久饿死）
         bond_blocked = self._bond_step_blocked(frame, now)
         bond_priority_affordable = wood is None or wood >= self._BOND_HIGH_WOOD
-        treasure_has_pending = (treasure is None or treasure > 0)
         if (
-            not (step == "treasure" and treasure_has_pending)
-            and bond_blocked is None
+            bond_blocked is None
             and not bond_held
             and bond_priority_affordable
             and (self._bond_base_progress_pending() or (wood is not None and wood >= self._BOND_HIGH_WOOD))
@@ -13781,43 +13795,33 @@ class Mediator:
 
         target_hwnd = self._last_frame.hwnd if self._last_frame else None
 
-        if self._room_form_step == 0:
-            if self.settings.room_name:
-                if not self.act_click(boxes[0], "CreateRoom-focus-name"):
-                    return False
-                res_hk = self.executor.hotkey("ctrl", "a", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-                if not getattr(res_hk, "success", bool(res_hk)):
-                    print(f"[L0] 建房弹窗 hotkey ctrl+a 失败/取消: {res_hk.message}")
-                    return False
-                res_paste = self.executor.paste_text(self.settings.room_name, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-                if not getattr(res_paste, "success", bool(res_paste)):
-                    print(f"[L0] 建房弹窗 paste_text 失败/取消: {res_paste.message}")
-                    return False
-                self._room_form_step = 1
+        if self.settings.room_name:
+            if not self.act_click(boxes[0], "CreateRoom-focus-name"):
                 return False
-            self._room_form_step = 1
-
-        if self._room_form_step == 1:
-            if self.settings.room_password:
-                if not self.act_click(boxes[1], "CreateRoom-focus-pwd"):
-                    return False
-                res_hk = self.executor.hotkey("ctrl", "a", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-                if not getattr(res_hk, "success", bool(res_hk)):
-                    print(f"[L0] 建房弹窗 hotkey ctrl+a 失败/取消: {res_hk.message}")
-                    return False
-                res_paste = self.executor.paste_text(self.settings.room_password, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-                if not getattr(res_paste, "success", bool(res_paste)):
-                    print(f"[L0] 建房弹窗 paste_text 失败/取消: {res_paste.message}")
-                    return False
-                self._room_form_step = 2
+            res_hk = self.executor.hotkey("ctrl", "a", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+            if not getattr(res_hk, "success", bool(res_hk)):
+                print(f"[L0] 建房弹窗 hotkey ctrl+a 失败/取消: {getattr(res_hk, 'message', '')}")
                 return False
-            self._room_form_step = 2
+            res_paste = self.executor.paste_text(self.settings.room_name, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+            if not getattr(res_paste, "success", bool(res_paste)):
+                print(f"[L0] 建房弹窗 paste_text 失败/取消: {getattr(res_paste, 'message', '')}")
+                return False
 
-        if self._room_form_step >= 2:
-            self._room_form_step = 0
-            print("[L0] 建房弹窗已分步完成房间名与密码填写")
-            return True
-        return False
+        if self.settings.room_password:
+            if not self.act_click(boxes[1], "CreateRoom-focus-pwd"):
+                return False
+            res_hk = self.executor.hotkey("ctrl", "a", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+            if not getattr(res_hk, "success", bool(res_hk)):
+                print(f"[L0] 建房弹窗 hotkey ctrl+a 失败/取消: {getattr(res_hk, 'message', '')}")
+                return False
+            res_paste = self.executor.paste_text(self.settings.room_password, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+            if not getattr(res_paste, "success", bool(res_paste)):
+                print(f"[L0] 建房弹窗 paste_text 失败/取消: {getattr(res_paste, 'message', '')}")
+                return False
+
+        self.invalidate_evidence("input")
+        print("[L0] 建房弹窗已填写房间名/密码")
+        return True
 
     def _l0_transition_timeout(self) -> float:
         """Macro timeout for recoverable L0 alignment episodes."""
@@ -17179,11 +17183,6 @@ class Mediator:
             self.set_phase(Phase.STAGE_SELECT, "guarded stage page detected from MAIN_LINE")
             return LoopAction.Continue
 
-        # P1 正证据门禁：进入局内动作分支前，必须存在正向 HUD 证据。
-        # 未知画面 / 无正向 HUD 证据时保持严格零输入，绝不盲目点击或按键。
-        if not self._is_in_game_hud(frame):
-            return LoopAction.Continue
-
         # 右侧“自动任务”复选框（左键点击）
         auto_res = self._ensure_auto_task_enabled(frame)
         if auto_res is not None:
@@ -17530,8 +17529,8 @@ class Mediator:
                     self._longzhu_deadline = None
                     self._f1_fallback_done = False
                     return LoopAction.Continue
-                if self._unattended_recovery_enabled() and self._is_in_game_hud(frame):
-                    print("[med] 局内退出按钮观察窗到期，HUD 依然可见，重新武装重试")
+                if self._unattended_recovery_enabled():
+                    print("[med] 局内退出按钮观察窗到期，重新武装并继续等待专用锚点")
                     self._exit_button_attempts = 0
                     self._exit_since = time.time()
                     return LoopAction.Continue
@@ -17586,7 +17585,6 @@ class Mediator:
 
             # confirm_hit is None:
             if elapsed >= timeout or self._exit_confirm_attempts >= 3:
-                # 重新分类 surface
                 if self._find_room_start(frame):
                     print("[med] 确认按钮消失且已在房间界面，退出完成")
                     self._awaiting_room_return = True
@@ -17595,14 +17593,10 @@ class Mediator:
                     self._longzhu_deadline = None
                     self._f1_fallback_done = False
                     return LoopAction.Continue
-                if self._is_in_game_hud(frame):
-                    print("[med] 确认按钮消失但仍在局内 HUD，退回 Phase.QUIT 重新打开退出确认")
-                    self.set_phase(Phase.QUIT, "confirm disappeared, fallback to quit")
-                    self._exit_button_attempts = 0
+                if self._unattended_recovery_enabled():
+                    print("[med] 退出确认观察窗到期，重新武装并继续等待专用按钮")
+                    self._exit_confirm_attempts = 0
                     self._exit_since = time.time()
-                    return LoopAction.Continue
-                if self._unattended_recovery_enabled() and elapsed < timeout * 2:
-                    print("[med] 退出后过渡中/未知界面，零输入有限等待")
                     return LoopAction.Continue
                 print("[med] 退出确认框未能安全确认，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "exit confirmation timeout")

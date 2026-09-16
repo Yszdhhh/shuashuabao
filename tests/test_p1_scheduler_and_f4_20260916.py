@@ -17,12 +17,12 @@ def _make_frame() -> Frame:
     return Frame(bgr=np.zeros((900, 1600, 3), dtype=np.uint8))
 
 
-def test_high_wood_scheduler_reaches_all_subsystems() -> None:
-    """Continuous wood >= 1000 must visit all 10 cycle steps without starving V, evolve, equipment, etc."""
+def test_low_wood_scheduler_reaches_all_subsystems() -> None:
+    """When wood < 1000, scheduler progresses through all 10 cycle steps."""
     med = RuntimeMediator(Settings(), Path("."))
     med.phase = Phase.MAIN_LINE
-    med.wood = 5000
-    med._wood_balance = 5000
+    med.wood = 200
+    med._wood_balance = 200
 
     order = med._l1_cycle_order()
     visited: list[str] = []
@@ -45,19 +45,40 @@ def test_high_wood_scheduler_reaches_all_subsystems() -> None:
     assert "artifact" in visited
 
 
-def test_high_wood_treasure_backlog_enters_treasure_service() -> None:
-    """wood >= 1000 and treasure badge = 11 must enter treasure service when scheduled, not hijacked by F."""
+def test_high_wood_scheduler_retains_core_development() -> None:
+    """Continuous wood >= 1000 retains in core development (bond <-> skill)."""
     med = RuntimeMediator(Settings(), Path("."))
     med.phase = Phase.MAIN_LINE
     med.wood = 5000
     med._wood_balance = 5000
+
+    order = med._l1_cycle_order()
+    visited: list[str] = []
+
+    med._l1_cycle_step = order[0]
+    med._l1_cycle_index = 0
+    visited.append(med._l1_cycle_step)
+
+    for _ in range(6):
+        med._advance_l1_cycle(med._l1_cycle_step)
+        visited.append(med._l1_cycle_step)
+
+    assert set(visited) == {"bond", "skill"}
+
+
+def test_low_wood_treasure_scheduled_enters_treasure_service() -> None:
+    """When scheduled for treasure and wood < 1000, enters treasure service."""
+    med = RuntimeMediator(Settings(), Path("."))
+    med.phase = Phase.MAIN_LINE
+    med.wood = 200
+    med._wood_balance = 200
     med._treasure_pending_seen = 11
 
     frame = _make_frame()
     now = time.time()
 
     with patch.object(med, "_refresh_solo_signals"), \
-         patch.object(med, "_bond_step_blocked", return_value=None):
+         patch.object(med, "_bond_base_progress_pending", return_value=False):
         planned, why = med._solo_plan_panel(frame, now, "treasure")
         assert planned == "treasure", f"Expected treasure service, got {planned} ({why})"
 

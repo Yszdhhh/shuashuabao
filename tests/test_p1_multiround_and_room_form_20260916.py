@@ -45,40 +45,39 @@ def test_next_phase_detects_already_in_room() -> None:
         assert med.phase == Phase.PREPARE
 
 
-def test_next_phase_falls_back_to_quit_if_confirm_disappears_on_hud() -> None:
-    """Phase.NEXT: if confirm button disappears but still on game HUD, fall back to QUIT to re-open."""
+def test_next_phase_unattended_rearms_on_timeout() -> None:
+    """Phase.NEXT: in unattended mode (default), timeout rearms attempts and stays in NEXT."""
     med = RuntimeMediator(Settings(), Path("."))
     med.phase = Phase.NEXT
     med._exit_since = time.time() - 20.0  # Timed out
-    med._exit_confirm_attempts = 1
-    frame = _make_frame()
-
-    with patch.object(med, "_find_room_start", return_value=None), \
-         patch.object(med, "_find_exit_confirm", return_value=None), \
-         patch.object(med, "_is_in_game_hud", return_value=True):
-        res = med._tick_l1_tail(frame)
-        assert res == LoopAction.Continue
-        assert med.phase == Phase.QUIT
-
-
-def test_next_phase_fails_closed_on_unknown_timeout() -> None:
-    """Phase.NEXT: if unknown screen persists past bounded budget, fail-closed ERROR."""
-    med = RuntimeMediator(Settings(), Path("."))
-    med.phase = Phase.NEXT
-    med._exit_since = time.time() - 40.0  # Expired past 2x timeout
     med._exit_confirm_attempts = 3
     frame = _make_frame()
 
     with patch.object(med, "_find_room_start", return_value=None), \
-         patch.object(med, "_find_exit_confirm", return_value=None), \
-         patch.object(med, "_is_in_game_hud", return_value=False):
+         patch.object(med, "_find_exit_confirm", return_value=None):
+        res = med._tick_l1_tail(frame)
+        assert res == LoopAction.Continue
+        assert med.phase == Phase.NEXT
+        assert med._exit_confirm_attempts == 0
+
+
+def test_next_phase_fails_closed_on_unknown_timeout() -> None:
+    """Phase.NEXT: in non-unattended (lab) mode, timeout fails-closed to ERROR."""
+    med = RuntimeMediator(Settings(mode_id="lab"), Path("."))
+    med.phase = Phase.NEXT
+    med._exit_since = time.time() - 40.0  # Expired past timeout
+    med._exit_confirm_attempts = 3
+    frame = _make_frame()
+
+    with patch.object(med, "_find_room_start", return_value=None), \
+         patch.object(med, "_find_exit_confirm", return_value=None):
         res = med._tick_l1_tail(frame)
         assert res == LoopAction.Break
         assert med.phase == Phase.ERROR
 
 
-def test_staged_room_form_filling_two_steps() -> None:
-    """_fill_room_dialog fills name and pwd over separate ticks obeying single-input gate."""
+def test_room_form_filling_uses_executor() -> None:
+    """_fill_room_dialog fills name and pwd using executor without livelock."""
     settings = Settings()
     settings.room_name = "Room123"
     settings.room_password = "Pwd456"
@@ -101,24 +100,11 @@ def test_staged_room_form_filling_two_steps() -> None:
     med.executor.paste_text = lambda text, **kw: pastes.append(text) or MagicMock(success=True)
 
     with patch("shuabao.mediator.find_input_boxes", return_value=boxes):
-        # Tick 1: Step 0 (name)
-        res1 = med._fill_room_dialog(frame, confirm_hit)
-        assert res1 is False
-        assert med._room_form_step == 1
+        res = med._fill_room_dialog(frame, confirm_hit)
+        assert res is True
         assert "CreateRoom-focus-name" in clicked_reasons
-        assert "Room123" in pastes
-
-        # Tick 2: Step 1 (pwd)
-        res2 = med._fill_room_dialog(frame, confirm_hit)
-        assert res2 is False
-        assert med._room_form_step == 2
         assert "CreateRoom-focus-pwd" in clicked_reasons
-        assert "Pwd456" in pastes
-
-        # Tick 3: Step 2 (completed)
-        res3 = med._fill_room_dialog(frame, confirm_hit)
-        assert res3 is True
-        assert med._room_form_step == 0
+        assert pastes == ["Room123", "Pwd456"]
 
 
 def test_positive_hud_evidence_blocks_input_on_unknown_frame() -> None:
