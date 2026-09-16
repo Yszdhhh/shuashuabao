@@ -1159,6 +1159,13 @@ def same_bond_identity(name1: str | None, name2: str | None) -> bool:
     return bool(c1 and c2 and c1 == c2)
 
 
+def _is_bond_must_take(name: str | None, must_take: tuple[str, ...]) -> bool:
+    if not name or not must_take:
+        return False
+    return any(token and same_bond_identity(name, token) for token in must_take)
+
+
+
 def _near_complete_bond_slots(
     cands: PanelCandidates, settings: PolicySettings
 ) -> tuple[SlotCandidate, ...]:
@@ -1278,7 +1285,7 @@ def _bond_capacity_candidates(
     kept: list[SlotCandidate] = []
     for slot in slots:
         merge = bool(slot.name and _is_uncompleted_merge_upgrade(slot, owned))
-        core = _is_must_take(slot.name, settings.bond_must_take) or matches_bond_preset(
+        core = _is_bond_must_take(slot.name, settings.bond_must_take) or matches_bond_preset(
             slot.name, settings.bond_presets
         )
         if free <= 0:
@@ -1415,7 +1422,7 @@ def _decide_collectible(
             if settings.bond_whitelist_mode == WHITELIST_HARD:
                 eligible = tuple(
                     slot for slot in eligible
-                    if _is_must_take(slot.name, settings.bond_must_take)
+                    if _is_bond_must_take(slot.name, settings.bond_must_take)
                     or matches_bond_preset(slot.name, settings.bond_presets)
                     or _is_uncompleted_merge_upgrade(slot, owned_bonds)
                 )
@@ -1423,7 +1430,7 @@ def _decide_collectible(
             for slot in eligible:
                 if (
                     slot.confidence >= settings.min_confidence
-                    and _is_must_take(slot.name, settings.bond_must_take)
+                    and _is_bond_must_take(slot.name, settings.bond_must_take)
                 ):
                     return PolicyDecision.select(
                         slot.index, f"羁绊系统必拿【{slot.name}】 @ slot {slot.index}"
@@ -1498,7 +1505,7 @@ def _bond_base_ready(cands: PanelCandidates, settings: PolicySettings) -> bool:
     required = math.ceil(len(bases) * settings.bond_base_completion_ratio)
     owned = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
     completed = sum(
-        any(matches_bond_preset(name, (base,)) for name in owned)
+        any(same_bond_identity(name, base) for name in owned)
         for base in bases
     )
     return completed >= required
@@ -1513,7 +1520,7 @@ def _active_advanced_presets(cands: PanelCandidates, settings: PolicySettings) -
     for group in groups:
         required = max(1, math.ceil(len(group) * settings.bond_base_completion_ratio))
         have = sum(
-            any(matches_bond_preset(name, (card,)) for name in owned)
+            any(same_bond_identity(name, card) for name in owned)
             for card in group
         )
         if have < required:
@@ -1618,9 +1625,11 @@ def _rarity_rank(rarity: str | None, quality_order: tuple[str, ...]) -> int:
     return len(quality_order)
 
 
-def _is_must_take(name: str | None, must_take: tuple[str, ...]) -> bool:
+def _is_must_take(name: str | None, must_take: tuple[str, ...], is_bond: bool = False) -> bool:
     if not name or not must_take:
         return False
+    if is_bond:
+        return _is_bond_must_take(name, must_take)
     lowered = name.lower()
     return any(token and token.lower() in lowered for token in must_take)
 

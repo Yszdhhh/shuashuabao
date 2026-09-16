@@ -115,6 +115,7 @@ from shuabao.choice_policy import (
     hitch_treasure_pick,
     is_negative_treasure,
     matches_bond_preset,
+    same_bond_identity,
     slot_fingerprint,
 )
 from shuabao.interaction_surface import (
@@ -3346,7 +3347,7 @@ class Mediator:
         required = math.ceil(len(bases) * policy.bond_base_completion_ratio)
         owned = self._confirmed_bond_cards()
         completed = sum(
-            any(matches_bond_preset(name, (base,)) for name in owned)
+            any(same_bond_identity(name, base) for name in owned)
             for base in bases
         )
         return completed < required

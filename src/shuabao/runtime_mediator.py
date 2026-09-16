@@ -14,7 +14,7 @@ from typing import Any
 from shuabao.interaction_surface import PendingAction
 from shuabao.log_sink import emit_print as print  # noqa: A001
 from shuabao.loop_action import LoopAction
-from shuabao.choice_policy import matches_bond_preset
+from shuabao.choice_policy import matches_bond_preset, same_bond_identity
 from shuabao.mediator import Mediator as CoreMediator
 from shuabao.mediator import PanelState, Phase
 from shuabao.vision.matcher import MatchResult
@@ -618,7 +618,7 @@ class Mediator(CoreMediator):
     def _stage_bond_card(self, name: str | None) -> None:
         canonical = self._canonical_bond_name(name)
         configured = self._configured_bond_presets()
-        if not matches_bond_preset(canonical, configured) and not matches_bond_preset(canonical, self._confirmed_bond_cards()):
+        if not matches_bond_preset(canonical, configured) and not any(same_bond_identity(canonical, c) for c in self._confirmed_bond_cards()):
             return
         # 重复卡必须保留次数，供“已拿卡优先合成”决策使用。
         self._bond_cards_pending.append(canonical)
@@ -753,7 +753,7 @@ class Mediator(CoreMediator):
 
         canonical = self._canonical_bond_name(hit_name)
         remaining = set(self._remaining_bond_presets())
-        if matches_bond_preset(canonical, tuple(remaining)) or matches_bond_preset(canonical, self._confirmed_bond_cards()):
+        if matches_bond_preset(canonical, tuple(remaining)) or any(same_bond_identity(canonical, c) for c in self._confirmed_bond_cards()):
             return result
 
         close_hit = self._verified_panel_close(frame, "bond")
