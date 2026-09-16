@@ -220,8 +220,8 @@ class TestEquipmentPeriodicInspection(unittest.TestCase):
             mock_rclick.assert_called_once()
 
     @patch("shuabao.mediator.time.time", return_value=100.0)
-    def test_equipment_slots_2_to_6_sequential_inspection(self, mock_time):
-        """Slots 2 through 6 are sequentially clicked per tick every 30s."""
+    def test_equipment_slots_2_to_6_blind_inspection_disabled(self, mock_time):
+        """P0-02 invariant: slots 2 through 6 blind inspection is disabled, producing 0 click input."""
         self.med._equipment_next_at = 200.0  # Slot 1 on cooldown
         self.med._equipment_round_next_at = 0.0
         self.med._equipment_round_current_slot = 2
@@ -230,34 +230,9 @@ class TestEquipmentPeriodicInspection(unittest.TestCase):
              patch.object(self.med, "_maybe_use_inventory_item", return_value=None), \
              patch.object(self.med, "act_click", return_value=True) as mock_click:
             
-            # Tick 1: slot 2
-            action1 = self.med._maybe_upgrade_equipment(self.frame)
-            self.assertEqual(action1, LoopAction.Continue)
-            self.assertEqual(self.med._equipment_round_current_slot, 3)
-
-            # Advance time for next slot tick
-            self.med._equipment_pending_until = 0.0
-            
-            # Tick 2: slot 3
-            action2 = self.med._maybe_upgrade_equipment(self.frame)
-            self.assertEqual(action2, LoopAction.Continue)
-            self.assertEqual(self.med._equipment_round_current_slot, 4)
-
-    @patch("shuabao.mediator.time.time", return_value=100.0)
-    def test_equipment_slot_advances_only_if_click_succeeds(self, mock_time):
-        """B6 invariant: advance _equipment_round_current_slot ONLY if self.act_click(...) succeeds."""
-        self.med._equipment_next_at = 200.0
-        self.med._equipment_round_next_at = 0.0
-        self.med._equipment_round_current_slot = 2
-
-        with patch.object(self.med, "_black_merchant_present", return_value=False), \
-             patch.object(self.med, "_maybe_use_inventory_item", return_value=None), \
-             patch.object(self.med, "act_click", return_value=False) as mock_click:
-            
-            # act_click fails -> slot does not advance
             action = self.med._maybe_upgrade_equipment(self.frame)
             self.assertEqual(action, LoopAction.Continue)
-            self.assertEqual(self.med._equipment_round_current_slot, 2)
+            mock_click.assert_not_called()
 
 
 class TestPendingActionAndSurfaceMediatorIntegration(unittest.TestCase):

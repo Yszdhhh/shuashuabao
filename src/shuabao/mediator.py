@@ -5158,29 +5158,7 @@ class Mediator:
                 self._equipment_next_at = now + 8.0
                 return LoopAction.Continue
 
-        # 2-6号格巡检 (每 30s 一轮，每 tick 左键一个格子 2->3->4->5->6)
-        if now >= self._equipment_round_next_at:
-            slot_idx = self._equipment_round_current_slot
-            # 标准 6 格坐标 (1600x900)
-            slot_coords = {
-                2: (1145 / 1600, 737 / 900),
-                3: (1087 / 1600, 785 / 900),
-                4: (1145 / 1600, 785 / 900),
-                5: (1087 / 1600, 833 / 900),
-                6: (1145 / 1600, 833 / 900),
-            }
-            if slot_idx in slot_coords:
-                hit_slot = self._hud_button_hit(frame, f"equipment_slot_{slot_idx}", slot_coords[slot_idx])
-                eq_fp_base = self._equipment_slot_fingerprint(frame, slot_idx)
-                if self.act_click(hit_slot, f"UpgradeEquipmentSlot{slot_idx}-check"):
-                    self._equipment_fsm = self._equipment_fsm.begin(
-                        slot_idx, now, lease_s=float(self.settings.ui_action_interval_s), fingerprint=eq_fp_base
-                    )
-                    self._equipment_round_current_slot += 1
-                    if self._equipment_round_current_slot > 6:
-                        self._equipment_round_current_slot = 2
-                        self._equipment_round_next_at = now + 30.0
-                    self._equipment_pending_until = now + float(self.settings.ui_action_interval_s)
+        # P0-02: 禁用 2-6 格盲目左键巡检。在具备可靠 item identity 与动作语义前保持零输入。
         return LoopAction.Continue
 
     @staticmethod
@@ -16970,15 +16948,6 @@ class Mediator:
                     self._post_game_route = "heirloom_active"
                     self._main_line_since = now
                 return LoopAction.Continue
-
-        # 已过 5-5 且 tqtz 出现时，提前挑战是游戏内最高优先级。
-        early_res = self._maybe_click_tqtz(frame, now)
-        if early_res is not None:
-            return early_res
-        pending_early = self._tick_early_challenge(frame, now)
-        if pending_early is not None:
-            return pending_early
-
         # ---- 单界面交互仲裁 (InteractionSurface Arbitration) ----
         has_recovery = (self.phase == Phase.RECOVER_FAILURE) or bool(getattr(self, "_recovery_step", None) and self._recovery_step != "DONE")
         has_affix = self._find_equipment_affix_choice(frame) is not None
@@ -17222,10 +17191,14 @@ class Mediator:
         f1_res = self._maybe_ensure_hero_panel_focus(frame, now)
         if f1_res is not None:
             return f1_res
-        # 局内提前挑战图标扫描（tqtz.png：5-5 打完后 10/8/6 分钟出现，只认图标）
-        tqtz_res = self._maybe_click_tqtz(frame, now)
-        if tqtz_res is not None:
-            return tqtz_res
+        # P0-01 仲裁：提前挑战服从单界面仲裁，仅在 HUD_ONLY 且无活跃事务时执行
+        if self._is_in_game_hud(frame) and not self._has_active_transaction(frame):
+            pending_early = self._tick_early_challenge(frame, now)
+            if pending_early is not None:
+                return pending_early
+            tqtz_res = self._maybe_click_tqtz(frame, now)
+            if tqtz_res is not None:
+                return tqtz_res
 
         # B3's taskbar OCR also drives the stalled-main-line recovery path.
         # The close-after-5-5 helper performs this same scan when enabled.
