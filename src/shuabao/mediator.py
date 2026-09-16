@@ -4937,17 +4937,30 @@ class Mediator:
                 return LoopAction.Continue
         return None
 
+    def _slot1_upgrade_authorized(self, frame: Frame, now: float) -> bool:
+        """Shared authorization rule for slot 1 right-click upgrade across normal and opportunistic paths.
+
+        Strict contract:
+        1. 8s cadence interval (now >= _equipment_next_at)
+        2. Slot 1 occupied in HUD inventory ROI
+        3. EquipmentFSM authorization (can_use(1, now) == True)
+        Zero input if any condition fails.
+        """
+        if now < getattr(self, "_equipment_next_at", 0.0):
+            return False
+        if not self._equipment_slot_one_occupied(frame):
+            return False
+        if getattr(self, "_equipment_fsm", None) is not None and not self._equipment_fsm.can_use(1, now):
+            return False
+        return True
+
     def _maybe_opportunistic_upgrade_slot1(self, frame: Frame, now: float) -> LoopAction | None:
         """HUD_ONLY 机会动作：1号格武器右键最大升级（仅在 Core Development 下低频 8s CD 触发，走现有 equipment_fsm）。"""
         if not self._should_hold_core_development():
             return None
-        if self._equipment_fsm.pending_slot is not None:
-            return None
         if self._merchant_fsm.phase is MerchantPhase.VERIFYING:
             return None
-        if now < getattr(self, "_equipment_next_at", 0.0):
-            return None
-        if not self._equipment_slot_one_occupied(frame):
+        if not self._slot1_upgrade_authorized(frame, now):
             return None
         hit = self._hud_button_hit(frame, "equipment_slot_1", (1087 / 1600, 737 / 900))
         eq_fp_base = self._equipment_slot_fingerprint(frame, 1)
@@ -5111,8 +5124,8 @@ class Mediator:
             if self._find_equipment_affix_choice(frame) is not None:
                 print("[L1] 装备词缀弹窗待处理，装备步骤暂不推进循环")
                 return LoopAction.Continue
-        # 1号格升级 (右键最大升级，8s 间隔)
-        if now >= self._equipment_next_at and self._equipment_slot_one_occupied(frame):
+        # 1号格升级 (右键最大升级，8s 间隔，需 FSM can_use 授权)
+        if self._slot1_upgrade_authorized(frame, now):
             hit = self._hud_button_hit(frame, "equipment_slot_1", (1087 / 1600, 737 / 900))
             eq_fp_base = self._equipment_slot_fingerprint(frame, 1)
             if self.act_right_click(hit, "UpgradeEquipmentSlot1-max"):

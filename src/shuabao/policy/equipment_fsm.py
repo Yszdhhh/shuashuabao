@@ -32,7 +32,12 @@ class EquipmentFSM:
             return False
         if now < self.quarantine_until:
             return False
-        return self.slot_state(slot) in (EquipmentSlotState.READY, EquipmentSlotState.CONFIRMED, EquipmentSlotState.EXPIRED)
+        return self.slot_state(slot) in (
+            EquipmentSlotState.READY,
+            EquipmentSlotState.CONFIRMED,
+            EquipmentSlotState.EXPIRED,
+            EquipmentSlotState.QUARANTINED,
+        )
 
     def begin(self, slot: int, now: float, *, lease_s: float = 1.0, fingerprint: str = "") -> "EquipmentFSM":
         if not self.can_use(slot, now):

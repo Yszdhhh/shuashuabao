@@ -50,6 +50,7 @@ from shuabao.choice_policy import (
     PANEL_SKILL,
 )
 from shuabao.mediator import LoopAction, Mediator, PanelState, Phase
+from shuabao.policy.equipment_fsm import EquipmentFSM, EquipmentSlotState
 from shuabao.policy.merchant_fsm import MerchantFSM, MerchantPhase
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
@@ -591,19 +592,45 @@ def test_23_opportunistic_slot1_upgrade_during_core_development() -> None:
          patch.object(med, "_hud_wood_balance", return_value=5000), \
          patch.object(med, "_equipment_slot_one_occupied", return_value=True), \
          patch.object(med, "_equipment_slot_fingerprint", return_value="fp_slot1"):
+        # 1. Initial click authorizes and begins lease
         res = med._tick_main_line(frame_hud)
         assert res == LoopAction.Continue
-        assert any("UpgradeEquipmentSlot1-max" in c for c in right_clicks)
+        assert len(right_clicks) == 1
+        assert "UpgradeEquipmentSlot1-max" in right_clicks[0]
         assert med._equipment_fsm.pending_slot == 1
+        assert med._equipment_fsm.slot_state(1) == EquipmentSlotState.LEASED
         assert med._has_active_transaction() is True
         # Stays in core step
         assert med._l1_cycle_step == "bond"
 
-        # Advance past lease (2.0s, lease is 1.5s) -> settles lease cleanly
-        now += 2.0
+        # 2. Advance past lease (2.0s, lease is 1.0s or 1.5s): fingerprint unchanged -> QUARANTINED
+        now += 2.0  # 1002.0
         med._tick_main_line(frame_hud)
         assert med._equipment_fsm.pending_slot is None
+        assert med._equipment_fsm.slot_state(1) == EquipmentSlotState.QUARANTINED
+        assert med._equipment_fsm.quarantine_until == 1004.0  # 1002.0 + 2.0s quarantine
         assert med._has_active_transaction() is False
+        assert len(right_clicks) == 1
+
+        # 3. Quarantine active: at t=1003.0 (< 1004.0), even if equipment_next_at expired, zero input
+        now = 1003.0
+        med._equipment_next_at = 1000.0
+        med._tick_main_line(frame_hud)
+        assert len(right_clicks) == 1
+        assert med._equipment_fsm.slot_state(1) == EquipmentSlotState.QUARANTINED
+        assert med._equipment_fsm.pending_slot is None
+
+        # 4. Quarantine + 8s cadence expired: allows exactly one retry and rebuilds pending lease
+        now = 1008.5
+        med._equipment_next_at = 1008.0
+        med._panel_cooldown_until["bond"] = now + 5.0
+        res = med._tick_main_line(frame_hud)
+        assert res == LoopAction.Continue
+        assert len(right_clicks) == 2
+        assert med._equipment_fsm.pending_slot == 1
+        assert med._equipment_fsm.slot_state(1) == EquipmentSlotState.LEASED
+        assert med._has_active_transaction() is True
+        assert med._l1_cycle_step == "bond"
 
 
 def test_24_skill_refresh_failed_attempts_resets_on_new_episode() -> None:
@@ -613,4 +640,234 @@ def test_24_skill_refresh_failed_attempts_resets_on_new_episode() -> None:
     anchor = MatchResult("skill_hide_btn", 1.0, 20, 20, 40, 40, 40, 40)
     med._enter_panel_episode(_blank_frame(), anchor, "skill", opened=True)
     assert med._skill_refresh_failed_attempts == 0
+
+
+def test_25_slot1_normal_equipment_path_quarantine_and_retry() -> None:
+    """Normal equipment path obeys shared authorization, QUARANTINED semantics, and retry."""
+    med = _med()
+    frame = _blank_frame()
+    med._l1_cycle_step = "equipment"
+    med._panel_state = PanelState.CLOSED
+    now = 1000.0
+    med._equipment_next_at = 0.0
+
+    right_clicks: list[str] = []
+    with patch("shuabao.mediator.time.time", side_effect=lambda: now), \
+         patch.object(med, "_equipment_slot_one_occupied", return_value=True), \
+         patch.object(med, "_equipment_slot_fingerprint", return_value="fp_slot1"), \
+         patch.object(med, "act_right_click", side_effect=lambda hit, reason: right_clicks.append(reason) or True):
+        # 1. First upgrade click at t=1000.0
+        res = med._maybe_upgrade_equipment(frame)
+        assert res == LoopAction.Continue
+        assert len(right_clicks) == 1
+        assert "UpgradeEquipmentSlot1-max" in right_clicks[0]
+        assert med._equipment_fsm.pending_slot == 1
+        assert med._equipment_fsm.slot_state(1) == EquipmentSlotState.LEASED
+
+        # 2. Advance past lease to t=1002.0 with unchanged fingerprint -> QUARANTINED
+        now = 1002.0
+        res2 = med._maybe_upgrade_equipment(frame)
+        assert med._equipment_fsm.pending_slot is None
+        assert med._equipment_fsm.slot_state(1) == EquipmentSlotState.QUARANTINED
+        assert med._equipment_fsm.quarantine_until == 1004.0
+        assert len(right_clicks) == 1  # zero input during settlement
+
+        # 3. During quarantine (t=1003.0 < 1004.0), even if equipment_next_at expired, zero input
+        now = 1003.0
+        med._equipment_next_at = 1000.0
+        res3 = med._maybe_upgrade_equipment(frame)
+        assert len(right_clicks) == 1  # Zero input!
+        assert med._equipment_fsm.slot_state(1) == EquipmentSlotState.QUARANTINED
+
+        # 4. Quarantine + 8s cadence expired (t=1008.5): allows one retry, rebuilds pending lease
+        now = 1008.5
+        med._equipment_next_at = 1008.0
+        res4 = med._maybe_upgrade_equipment(frame)
+        assert res4 == LoopAction.Continue
+        assert len(right_clicks) == 2
+        assert med._equipment_fsm.pending_slot == 1
+        assert med._equipment_fsm.slot_state(1) == EquipmentSlotState.LEASED
+
+
+def test_26_slot1_mutation_confirmed_path_both_opportunistic_and_normal() -> None:
+    """Fingerprint mutation confirmed path works normally in both opportunistic and normal paths."""
+    # --- Path A: Opportunistic path ---
+    med = _med()
+    med.settings.skip_pre_wave_delay = True
+    med.settings.pre_wave_protection = False
+    med._auto_task_done = True
+    med._main_line_started_at = 100.0
+    med._l1_cycle_step = "bond"
+    med._wood_balance = 5000
+    med._panel_state = PanelState.CLOSED
+    med._equipment_next_at = 0.0
+    now = 1000.0
+    med._panel_cooldown_until["bond"] = now + 5.0
+    frame_hud = _blank_frame()
+    current_fp = "fp_initial"
+
+    right_clicks: list[str] = []
+    with patch("shuabao.mediator.time.time", side_effect=lambda: now), \
+         patch.object(med, "act_right_click", side_effect=lambda hit, reason: right_clicks.append(reason) or True), \
+         patch.object(med, "_is_in_game_hud", return_value=True), \
+         patch.object(med, "_selection_anchor", return_value=None), \
+         patch.object(med, "_post_game_state", return_value=None), \
+         patch.object(med, "_ensure_auto_task_enabled", return_value=None), \
+         patch.object(med, "_ensure_challenge_buttons", return_value=None), \
+         patch.object(med, "_maybe_ensure_hero_panel_focus", return_value=None), \
+         patch.object(med, "_maybe_click_tqtz", return_value=None), \
+         patch.object(med, "_maybe_clear_pressure_monsters", return_value=None), \
+         patch.object(med, "_handle_self_opened_compact_panel", return_value=None), \
+         patch.object(med, "_find_equipment_affix_choice", return_value=None), \
+         patch.object(med, "_hud_wood_balance", return_value=5000), \
+         patch.object(med, "_equipment_slot_one_occupied", return_value=True), \
+         patch.object(med, "_equipment_slot_fingerprint", side_effect=lambda f, slot: current_fp):
+        # Click initiates lease
+        med._tick_main_line(frame_hud)
+        assert len(right_clicks) == 1
+        assert med._equipment_fsm.pending_slot == 1
+        assert med._equipment_fsm.slot_state(1) == EquipmentSlotState.LEASED
+        assert med._has_active_transaction() is True
+
+        # Mutation occurs on next frame after lease
+        now = 1002.0
+        current_fp = "fp_mutated_level2"
+        med._tick_main_line(frame_hud)
+        assert med._equipment_fsm.pending_slot is None
+        assert med._equipment_fsm.slot_state(1) == EquipmentSlotState.CONFIRMED
+        assert med._has_active_transaction() is False
+
+    # --- Path B: Normal equipment path ---
+    med2 = _med()
+    frame2 = _blank_frame()
+    med2._l1_cycle_step = "equipment"
+    med2._panel_state = PanelState.CLOSED
+    now2 = 1000.0
+    med2._equipment_next_at = 0.0
+    current_fp2 = "fp_initial_normal"
+
+    right_clicks2: list[str] = []
+    with patch("shuabao.mediator.time.time", side_effect=lambda: now2), \
+         patch.object(med2, "_equipment_slot_one_occupied", return_value=True), \
+         patch.object(med2, "_equipment_slot_fingerprint", side_effect=lambda f, slot: current_fp2), \
+         patch.object(med2, "act_right_click", side_effect=lambda hit, reason: right_clicks2.append(reason) or True):
+        # Click initiates lease
+        med2._maybe_upgrade_equipment(frame2)
+        assert len(right_clicks2) == 1
+        assert med2._equipment_fsm.pending_slot == 1
+        assert med2._equipment_fsm.slot_state(1) == EquipmentSlotState.LEASED
+
+        # Mutation occurs
+        now2 = 1002.0
+        current_fp2 = "fp_mutated_normal"
+        med2._maybe_upgrade_equipment(frame2)
+        assert med2._equipment_fsm.pending_slot is None
+        assert med2._equipment_fsm.slot_state(1) == EquipmentSlotState.CONFIRMED
+
+
+def test_27_slot1_can_use_false_enforces_zero_input_both_paths() -> None:
+    """When equipment_fsm.can_use(1, now) is False, act_right_click is never called (zero input)."""
+    frame = _blank_frame()
+    now = 1000.0
+
+    # Path A: Opportunistic path with can_use returning False
+    med = _med()
+    med.settings.skip_pre_wave_delay = True
+    med.settings.pre_wave_protection = False
+    med._auto_task_done = True
+    med._main_line_started_at = 100.0
+    med._l1_cycle_step = "bond"
+    med._wood_balance = 5000
+    med._panel_state = PanelState.CLOSED
+    med._equipment_next_at = 0.0
+
+    # Put FSM in quarantine until future
+    med._equipment_fsm = EquipmentFSM(quarantine_until=now + 50.0)
+    assert med._equipment_fsm.can_use(1, now) is False
+
+    right_clicks: list[str] = []
+    with patch("shuabao.mediator.time.time", side_effect=lambda: now), \
+         patch.object(med, "act_right_click", side_effect=lambda hit, reason: right_clicks.append(reason) or True), \
+         patch.object(med, "_is_in_game_hud", return_value=True), \
+         patch.object(med, "_selection_anchor", return_value=None), \
+         patch.object(med, "_post_game_state", return_value=None), \
+         patch.object(med, "_ensure_auto_task_enabled", return_value=None), \
+         patch.object(med, "_ensure_challenge_buttons", return_value=None), \
+         patch.object(med, "_maybe_ensure_hero_panel_focus", return_value=None), \
+         patch.object(med, "_maybe_click_tqtz", return_value=None), \
+         patch.object(med, "_maybe_clear_pressure_monsters", return_value=None), \
+         patch.object(med, "_handle_self_opened_compact_panel", return_value=None), \
+         patch.object(med, "_find_equipment_affix_choice", return_value=None), \
+         patch.object(med, "_hud_wood_balance", return_value=5000), \
+         patch.object(med, "_equipment_slot_one_occupied", return_value=True), \
+         patch.object(med, "_equipment_slot_fingerprint", return_value="fp_slot1"):
+        # Directly call helper
+        assert med._slot1_upgrade_authorized(frame, now) is False
+        assert med._maybe_opportunistic_upgrade_slot1(frame, now) is None
+        assert len(right_clicks) == 0
+
+        # Also verify via _tick_main_line
+        med._panel_cooldown_until["bond"] = now + 5.0
+        med._tick_main_line(frame)
+        assert len(right_clicks) == 0
+
+    # Path B: Normal equipment path with can_use returning False
+    med2 = _med()
+    med2._l1_cycle_step = "equipment"
+    med2._panel_state = PanelState.CLOSED
+    med2._equipment_next_at = 0.0
+    med2._equipment_fsm = EquipmentFSM(quarantine_until=now + 50.0)
+    assert med2._equipment_fsm.can_use(1, now) is False
+
+    right_clicks2: list[str] = []
+    with patch("shuabao.mediator.time.time", side_effect=lambda: now), \
+         patch.object(med2, "_equipment_slot_one_occupied", return_value=True), \
+         patch.object(med2, "_equipment_slot_fingerprint", return_value="fp_slot1"), \
+         patch.object(med2, "act_right_click", side_effect=lambda hit, reason: right_clicks2.append(reason) or True):
+        assert med2._slot1_upgrade_authorized(frame, now) is False
+        med2._maybe_upgrade_equipment(frame)
+        assert len(right_clicks2) == 0
+
+
+def test_28_equipment_fsm_quarantined_semantics_pure_contract() -> None:
+    """Pure EquipmentFSM unit contract for 2s quarantine cooldown and re-entry to LEASED."""
+    fsm = EquipmentFSM()
+    now = 100.0
+
+    # Initial state is READY -> can_use is True
+    assert fsm.can_use(1, now) is True
+
+    # Begin lease
+    fsm = fsm.begin(1, now, lease_s=1.0, fingerprint="fp_v1")
+    assert fsm.slot_state(1) == EquipmentSlotState.LEASED
+    assert fsm.pending_slot == 1
+    assert fsm.lease_until == 101.0
+    # In-flight lease rejects new use
+    assert fsm.can_use(1, 100.5) is False
+
+    # Timeout unconfirmed: observe at 101.0 with same fingerprint -> QUARANTINED
+    fsm = fsm.observe(101.0, current_fingerprint="fp_v1")
+    assert fsm.slot_state(1) == EquipmentSlotState.QUARANTINED
+    assert fsm.pending_slot is None
+    assert fsm.quarantine_until == 103.0  # 101.0 + 2.0s
+
+    # During quarantine (now < quarantine_until): can_use is False, begin() returns unchanged
+    assert fsm.can_use(1, 102.0) is False
+    assert fsm.begin(1, 102.0) == fsm
+
+    # Quarantine expired (now >= quarantine_until): can_use is True, begin() enters LEASED
+    assert fsm.can_use(1, 103.0) is True
+    fsm = fsm.begin(1, 103.0, lease_s=1.0, fingerprint="fp_v2")
+    assert fsm.slot_state(1) == EquipmentSlotState.LEASED
+    assert fsm.pending_slot == 1
+    assert fsm.lease_until == 104.0
+
+    # Confirmed mutation at 104.0 -> CONFIRMED with 0.5s cooldown
+    fsm = fsm.observe(104.0, current_fingerprint="fp_v3")
+    assert fsm.slot_state(1) == EquipmentSlotState.CONFIRMED
+    assert fsm.pending_slot is None
+    assert fsm.quarantine_until == 104.5
+    assert fsm.can_use(1, 104.2) is False
+    assert fsm.can_use(1, 105.0) is True
+
 
