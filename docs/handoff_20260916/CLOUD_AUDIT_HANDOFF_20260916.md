@@ -1,6 +1,10 @@
 # 刷刷宝全量收口与云端审计交接文档（2026-09-16）
 
 > 本文档由本地开发/收敛会话生成，用于向云端外部审计员及技术负责人全面交接单人回归收口（`fix/solo-live-regression-20260915`）的全部代码改动、架构演进、测试结果与安全边界。
+> 
+> **配套深度文档与实机证据**：
+> - 📘 **主审底册**：[`docs/reviews/COMPREHENSIVE_ARCHITECTURE_AND_EVIDENCE_AUDIT_20260916.md`](file:///G:/刷刷宝/GameScript-Local/docs/reviews/COMPREHENSIVE_ARCHITECTURE_AND_EVIDENCE_AUDIT_20260916.md)（单人与蹭车全链路机制、隔离矩阵、实机证据索引与量化契约核验）
+> - 📁 **实机证据库**：[`docs/reviews/evidence_20260916/`](file:///G:/刷刷宝/GameScript-Local/docs/reviews/evidence_20260916)（包含 2026-09-16 单人实机 Trace、2026-09-14 蹭车实机 Trace、真实局 CSV、历史考古分析与全量测试日志）
 
 ---
 
