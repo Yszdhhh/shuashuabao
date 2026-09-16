@@ -4531,6 +4531,8 @@ class Mediator:
             anchor = self._selection_anchor(frame)
         if anchor:
             return None
+        if self._has_active_transaction(frame):
+            return None
         if self._panel_state != PanelState.CLOSED:
             # 已有面板会话进行中（WAIT_VISIBLE/ACTIVE/…）：不再发起新打开
             return LoopAction.Continue
@@ -4644,7 +4646,7 @@ class Mediator:
                 return LoopAction.Continue
             if now < reopen_at:
                 print(f"[L1] {target} 隐藏后冷却 {reopen_at - now:.1f}s，仍留在本步（不跳到下一步）")
-                return LoopAction.Continue
+                return None
         if target == "skill":
             if self.act_click(self._hud_button_hit(frame, "skill_button", self.CHOICE_BUTTON_RATIOS["skill"]), "OpenSkillPanel"):
                 self._last_skill_panel = now
@@ -4891,21 +4893,35 @@ class Mediator:
             return roi is not None  # 尺寸变化本身即画面异变
         return self._hero_changed_pixels(baseline, roi) >= 2000
 
+    def _tick_evolve_feedback_pending(self, frame: Frame, now: float) -> LoopAction | None:
+        """检查 evolve 点击后的反馈确认或超时。"""
+        if not getattr(self, "_evolve_feedback_pending", False):
+            return None
+        if self._evolve_feedback_seen(frame):
+            print("[L1] 进化反馈已确认，等待英雄选择")
+            self._evolve_feedback_pending = False
+            self._evolve_fail_count = 0
+            self._evolve_baseline = None
+            self._evolve_awaiting_hero_pick = True
+            self._evolve_awaiting_hero_pick_at = now
+            self._main_line_since = now
+            return LoopAction.Continue
+        timeout_s = getattr(self, "_evolve_feedback_window_s", 2.0)
+        if now - getattr(self, "_evolve_click_at", 0.0) >= timeout_s:
+            self._evolve_feedback_pending = False
+            self._evolve_baseline = None
+            self._evolve_fail_count = getattr(self, "_evolve_fail_count", 0) + 1
+            print(f"[L1] 点击进化无反馈（第 {self._evolve_fail_count} 次失败），等待冷却后重试")
+            if self._evolve_fail_count >= 3:
+                print("[L1] 进化连续 3 次无反馈，放弃本轮进化（不连续空点）")
+                self._evolve_fail_count = 0
+                if self._l1_cycle_step == "evolve":
+                    self._advance_l1_cycle("evolve")
+            return LoopAction.Continue
+        return LoopAction.Continue
+
     def _maybe_opportunistic_evolve(self, frame: Frame, now: float) -> LoopAction | None:
         """HUD_ONLY 机会动作：当金色点击进化高亮且不在冷却中时执行快速事务。"""
-        if getattr(self, "_evolve_feedback_pending", False):
-            if self._evolve_feedback_seen(frame):
-                print("[L1] 机会进化反馈已确认")
-                self._evolve_feedback_pending = False
-                self._evolve_fail_count = 0
-                return LoopAction.Continue
-            if now - getattr(self, "_evolve_click_at", 0.0) >= 2.0:
-                self._evolve_feedback_pending = False
-                self._evolve_fail_count = getattr(self, "_evolve_fail_count", 0) + 1
-                print(f"[L1] 机会点击进化无反馈（第 {self._evolve_fail_count} 次失败）")
-                return LoopAction.Continue
-            return LoopAction.Continue
-
         if now < getattr(self, "_evolve_click_cooldown_until", 0.0):
             return None
         if not self._has_evolve_button(frame):
@@ -4920,6 +4936,44 @@ class Mediator:
                 self._evolve_baseline = self._panel_roi_region(frame)
                 return LoopAction.Continue
         return None
+
+    def _maybe_opportunistic_upgrade_slot1(self, frame: Frame, now: float) -> LoopAction | None:
+        """HUD_ONLY 机会动作：1号格武器右键最大升级（仅在 Core Development 下低频 8s CD 触发，走现有 equipment_fsm）。"""
+        if not self._should_hold_core_development():
+            return None
+        if self._equipment_fsm.pending_slot is not None:
+            return None
+        if self._merchant_fsm.phase is MerchantPhase.VERIFYING:
+            return None
+        if now < getattr(self, "_equipment_next_at", 0.0):
+            return None
+        if not self._equipment_slot_one_occupied(frame):
+            return None
+        hit = self._hud_button_hit(frame, "equipment_slot_1", (1087 / 1600, 737 / 900))
+        eq_fp_base = self._equipment_slot_fingerprint(frame, 1)
+        if self.act_right_click(hit, "UpgradeEquipmentSlot1-max"):
+            lease_s = float(self.settings.ui_action_interval_s)
+            self._equipment_fsm = self._equipment_fsm.begin(1, now, lease_s=lease_s, fingerprint=eq_fp_base)
+            self._equipment_pending_until = now + lease_s
+            self._equipment_next_at = now + 8.0
+            return LoopAction.Continue
+        return None
+
+    def _tick_equipment_pending(self, frame: Frame, now: float) -> bool:
+        """Settle pending equipment verification lease. Returns True if still pending."""
+        if getattr(self, "_equipment_fsm", None) is None:
+            return False
+        if self._equipment_fsm.pending_slot is None:
+            return False
+        if now < getattr(self, "_equipment_pending_until", 0.0):
+            return True
+        eq_fp = self._equipment_slot_fingerprint(frame, self._equipment_fsm.pending_slot)
+        self._equipment_fsm = self._equipment_fsm.observe(
+            now,
+            current_fingerprint=eq_fp,
+        )
+        self._equipment_pending_until = 0.0
+        return False
 
     def _maybe_use_inventory_item(self, frame: Frame) -> LoopAction | None:
         """Use inventory consumables in the verified bottom-right inventory ROI (HUD_ONLY)."""
@@ -5052,14 +5106,8 @@ class Mediator:
             return LoopAction.Continue
         now = time.time()
         if self._equipment_fsm.pending_slot is not None:
-            if now < self._equipment_pending_until:
+            if self._tick_equipment_pending(frame, now):
                 return LoopAction.Continue
-            eq_fp = self._equipment_slot_fingerprint(frame, self._equipment_fsm.pending_slot)
-            self._equipment_fsm = self._equipment_fsm.observe(
-                now,
-                current_fingerprint=eq_fp
-            )
-            self._equipment_pending_until = 0.0
             if self._find_equipment_affix_choice(frame) is not None:
                 print("[L1] 装备词缀弹窗待处理，装备步骤暂不推进循环")
                 return LoopAction.Continue
@@ -15151,6 +15199,7 @@ class Mediator:
         self._panel_pending_choice_action = None
         self._panel_pending_choice_fingerprint = None
         self._panel_f1_used_this_episode = False
+        self._skill_refresh_failed_attempts = 0
         self._clear_pending_skill_cards()
         self._reset_choice_session()
         if kind == "bond":
@@ -16861,10 +16910,14 @@ class Mediator:
                     self._complete_evolve_hero_pick()
                 return LoopAction.Continue
         elif surface == InteractionSurface.CENTER_CARD_MODAL:
+            prev_st = self._panel_state
             res = self._tick_panel_fsm(frame, anchor, now)
             if res is not None:
                 self._main_line_since = now
                 return res
+            if prev_st != PanelState.CLOSED and self._panel_state == PanelState.CLOSED:
+                self._main_line_since = now
+                return LoopAction.Continue
             if self._passenger_mode() and anchor is not None:
                 # 蹭车模式：面板未消失严禁穿透到主线 HUD 动作（防止面板遮挡结算/继续游戏）
                 return LoopAction.Continue
@@ -17040,6 +17093,22 @@ class Mediator:
             self._main_line_since = now
             return compact_res
 
+        # 推进装备租约观察确认（使得非 equipment 步骤下的机会强化能够正常结算）
+        self._tick_equipment_pending(frame, now)
+
+        # 进化事务管理：feedback_pending 或 awaiting_hero_pick 时独占主线，严禁启动 G/F/V 等新动作
+        if self._evolve_hero_choice_pending():
+            feedback_res = self._tick_evolve_feedback_pending(frame, now)
+            if feedback_res is not None:
+                self._main_line_since = now
+                return feedback_res
+            if getattr(self, "_evolve_awaiting_hero_pick", False):
+                if now - getattr(self, "_evolve_awaiting_hero_pick_at", now) >= 15.0:
+                    print("[L1] 等待英雄模态弹窗超时(15s)，释放 evolve 事务锁")
+                    self._evolve_awaiting_hero_pick = False
+                else:
+                    return LoopAction.Continue
+
         if (
             not self._passenger_mode()
             and self._panel_state == PanelState.CLOSED
@@ -17094,12 +17163,20 @@ class Mediator:
             and anchor is None
             and not self._has_active_transaction(frame)
             and surface == InteractionSurface.HUD_ONLY
-            and self._l1_cycle_step != "evolve"
         ):
-            evolve_res = self._maybe_opportunistic_evolve(frame, now)
-            if evolve_res is not None:
-                self._main_line_since = now
-                return evolve_res
+            # 机会强化武器 1 号格：在 HUD_ONLY 且无活跃事务、非 equipment 步骤时低频右键最大升级（8s CD）
+            if self._l1_cycle_step != "equipment":
+                slot1_res = self._maybe_opportunistic_upgrade_slot1(frame, now)
+                if slot1_res is not None:
+                    self._main_line_since = now
+                    return slot1_res
+
+            # 机会点击进化：在 HUD 空闲时触发
+            if self._l1_cycle_step != "evolve":
+                evolve_res = self._maybe_opportunistic_evolve(frame, now)
+                if evolve_res is not None:
+                    self._main_line_since = now
+                    return evolve_res
 
         if self._passenger_mode() and self._l1_cycle_step == "hitch_idle":
             # legacy 停车位：新环不再产生这个步，留作旧状态的安全落点。
@@ -17123,26 +17200,7 @@ class Mediator:
             # 画面反馈才算成功；无反馈计失败并重试（5s 冷却保留），每轮 ≤3 次后
             # 放弃本轮进化，绝不连续空点。
             if getattr(self, "_evolve_feedback_pending", False):
-                if self._evolve_feedback_seen(frame):
-                    # 反馈出现 → 停在 evolve 等英雄三选一完成（不推进、不再空点）
-                    self._evolve_feedback_pending = False
-                    self._evolve_fail_count = 0
-                    self._evolve_baseline = None
-                    self._evolve_awaiting_hero_pick = True
-                    self._main_line_since = now
-                    return LoopAction.Continue
-                if now - self._evolve_click_at >= self._evolve_feedback_window_s:
-                    # 反馈窗超时：无反馈计失败（等冷却后重试）
-                    self._evolve_feedback_pending = False
-                    self._evolve_baseline = None
-                    self._evolve_fail_count += 1
-                    print(f"[L1] 点击进化无反馈（第 {self._evolve_fail_count} 次失败），等待冷却后重试")
-                    if self._evolve_fail_count >= 3:
-                        print("[L1] 进化连续 3 次无反馈，放弃本轮进化（不连续空点）")
-                        self._evolve_fail_count = 0
-                        self._advance_l1_cycle("evolve")
-                        return LoopAction.Continue
-                return LoopAction.Continue
+                return self._tick_evolve_feedback_pending(frame, now) or LoopAction.Continue
             if now < getattr(self, "_evolve_click_cooldown_until", 0.0):
                 return LoopAction.Continue
             if self._has_evolve_button(frame):

@@ -273,7 +273,8 @@ def test_third_run_real_frames_cover_every_l1_step_without_twenty_second_input_g
         stack.enter_context(patch.object(med, "_maybe_close_main_line_after_5_5", return_value=None))
         stack.enter_context(patch.object(med, "_maybe_clear_pressure_monsters", return_value=None))
         stack.enter_context(patch.object(med, "_handle_self_opened_compact_panel", return_value=None))
-        stack.enter_context(patch.object(med, "_hud_wood_balance", return_value=1111))
+        current_wood = [1111]
+        stack.enter_context(patch.object(med, "_hud_wood_balance", side_effect=lambda _f: current_wood[0]))
         stack.enter_context(patch.object(med, "_bond_base_progress_pending", return_value=True))
         stack.enter_context(patch.object(med, "_has_evolve_button", return_value=False))
         stack.enter_context(patch.object(
@@ -290,12 +291,18 @@ def test_third_run_real_frames_cover_every_l1_step_without_twenty_second_input_g
         stack.enter_context(patch.object(med, "act_right_click", side_effect=record_input))
         stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
         start_at = frames[0][0]
+        high_wood_visits: set[str] = set()
         for elapsed in np.arange(0.0, 601.5, 1.5):
+            if elapsed > 90.0:
+                current_wood[0] = 500
             current = max((item for item in frames if item[0] - start_at <= elapsed), key=lambda item: item[0])
+            if elapsed <= 90.0:
+                high_wood_visits.add(med._l1_cycle_step)
             visits.add(med._l1_cycle_step)
             med._tick_main_line(current[1])
             clock[0] += 1.5
 
+    assert high_wood_visits <= {"bond", "skill"}
     expected = {"skill", "treasure", "evolve", "equipment", "pickup", "merchant", "artifact"}
     assert expected <= visits
     assert input_times

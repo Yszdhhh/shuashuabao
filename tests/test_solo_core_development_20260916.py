@@ -368,11 +368,9 @@ def test_17_merchant_verifying_does_not_advance_holds_ownership() -> None:
 def test_18_real_merchant_frame_detects_merchant_wood() -> None:
     """18. Real merchant frame recognizes merchant_wood with threshold >= 0.95."""
     med = _med()
-    # Check if frame exists in fixtures or captures
-    capture_path = Path(r"C:\Users\10639\AppData\Local\Temp\shuabao-captures\solo_ingame_chain_20260915_232202_461360\frames\f0085_action_after.png")
-    if not capture_path.exists():
-        pytest.skip("Replay capture frames not present locally")
-    bgr = cv2.imread(str(capture_path))
+    fixture_path = ROOT / "tests" / "fixtures" / "solo_round2_b1_20260915" / "merchant_wood_f0085.png"
+    assert fixture_path.exists(), f"Fixture not found at {fixture_path}"
+    bgr = cv2.imdecode(np.fromfile(str(fixture_path), dtype=np.uint8), cv2.IMREAD_COLOR)
     assert bgr is not None
     frame = Frame(bgr)
     hit = med.find(frame, ["merchant_wood"], threshold=0.95, scales=(0.9, 1.0, 1.1), roi=(0.70, 0.66, 0.90, 0.76))
@@ -424,25 +422,195 @@ def test_20_merchant_verifying_blocks_equipment_upgrade() -> None:
     assert len(clicked) == 0
 
 
-def test_21_opportunistic_evolve_fires_during_core_development() -> None:
-    """Opportunistic evolve triggers on HUD during core development (wood >= 1000) without advancing cycle."""
+def test_21_opportunistic_evolve_full_multi_frame_lifecycle_from_tick_main_line() -> None:
+    """Multi-frame lifecycle from _tick_main_line():
+    click evolve -> transition frame/no hero anchor -> prohibit F/G -> feedback confirmed ->
+    hero-choice ownership maintained -> hero modal -> select -> complete -> return to core step.
+    """
     med = _med()
-    frame = _blank_frame()
+    med.settings.skip_pre_wave_delay = True
+    med.settings.pre_wave_protection = False
+    med._auto_task_done = True
+    med._main_line_started_at = 100.0
     med._l1_cycle_step = "bond"
     med._wood_balance = 5000
     med._panel_state = PanelState.CLOSED
-    now = time.time()
+    now = 1000.0
+    med._panel_cooldown_until["bond"] = now + 5.0
 
-    clicked: list[str] = []
+    frame_hud = _blank_frame()
     evolve_btn = MatchResult("evolve_hud", 1.0, 800, 700, 40, 12, 800, 700)
-    with patch.object(med, "_has_evolve_button", return_value=True), \
-         patch.object(med, "_evolve_button_hit", return_value=evolve_btn), \
-         patch.object(med, "act_click", side_effect=lambda hit, reason: clicked.append(reason) or True):
-        res = med._maybe_opportunistic_evolve(frame, now)
+    hero_anchor = MatchResult("evolution_anchor", 1.0, 800, 300, 100, 50, 800, 300)
+    hero_choice = MatchResult("evolution_card_0_rank_3", 1.0, 666, 300, 100, 100, 666, 300)
 
-    assert res == LoopAction.Continue
-    assert "ClickEvolve" in clicked
-    assert med._evolve_feedback_pending is True
-    # Cycle step remains bond (core development not disrupted)
-    assert med._l1_cycle_step == "bond"
+    clicks: list[str] = []
+    keys: list[str] = []
+
+    with patch("shuabao.mediator.time.time", side_effect=lambda: now), \
+         patch.object(med, "act_click", side_effect=lambda hit, reason, *a, **k: clicks.append(reason) or True), \
+         patch.object(med, "act_key", side_effect=lambda key, reason, *a, **k: keys.append(reason) or True), \
+         patch.object(med, "_is_in_game_hud", return_value=True), \
+         patch.object(med, "_post_game_state", return_value=None), \
+         patch.object(med, "_ensure_auto_task_enabled", return_value=None), \
+         patch.object(med, "_ensure_challenge_buttons", return_value=None), \
+         patch.object(med, "_maybe_ensure_hero_panel_focus", return_value=None), \
+         patch.object(med, "_maybe_click_tqtz", return_value=None), \
+         patch.object(med, "_maybe_clear_pressure_monsters", return_value=None), \
+         patch.object(med, "_handle_self_opened_compact_panel", return_value=None), \
+         patch.object(med, "_find_equipment_affix_choice", return_value=None), \
+         patch.object(med, "_hud_wood_balance", return_value=5000):
+
+        # Frame 1: HUD idle (bond on cooldown), evolve button present -> clicks evolve
+        with patch.object(med, "_selection_anchor", return_value=None), \
+             patch.object(med, "_has_evolve_button", return_value=True), \
+             patch.object(med, "_evolve_button_hit", return_value=evolve_btn):
+            res1 = med._tick_main_line(frame_hud)
+            assert res1 == LoopAction.Continue
+            assert "ClickEvolve" in clicks
+            assert med._evolve_feedback_pending is True
+            assert med._has_active_transaction() is True
+            assert med._l1_cycle_step == "bond"
+
+        # Frame 2: Transition frame (bond cooldown expired, but evolve transaction blocks F/G)
+        med._panel_cooldown_until["bond"] = 0.0
+        now += 0.5
+        with patch.object(med, "_selection_anchor", return_value=None), \
+             patch.object(med, "_has_evolve_button", return_value=False), \
+             patch.object(med, "_evolve_feedback_seen", return_value=False):
+            res2 = med._tick_main_line(frame_hud)
+            assert res2 == LoopAction.Continue
+            # No panel opened (no G/F/V pressed, clicks stay with only ClickEvolve)
+            assert not any("G" in k or "F" in k or "V" in k for k in keys)
+            assert not any("OpenBondPanel" in c or "OpenSkillPanel" in c for c in clicks)
+            assert med._has_active_transaction() is True
+            assert med._evolve_feedback_pending is True
+
+        # Frame 3: Feedback confirmed on frame
+        now += 0.5
+        with patch.object(med, "_selection_anchor", return_value=None), \
+             patch.object(med, "_has_evolve_button", return_value=False), \
+             patch.object(med, "_evolve_feedback_seen", return_value=True):
+            res3 = med._tick_main_line(frame_hud)
+            assert res3 == LoopAction.Continue
+            assert med._evolve_feedback_pending is False
+            assert med._evolve_awaiting_hero_pick is True
+            assert med._has_active_transaction() is True
+            # F/G still prohibited
+            assert med._maybe_open_choice_panel(frame_hud) is None
+
+        # Frame 4: Hero choice modal appears -> routes to HERO_CHOICE_MODAL -> selects card
+        now += 0.5
+        with patch.object(med, "_selection_anchor", return_value=hero_anchor), \
+             patch.object(med, "_classify_choice_panel", return_value=None), \
+             patch.object(med, "_find_evolution_choice", return_value=hero_choice):
+            res4 = med._tick_main_line(frame_hud)
+            assert res4 == LoopAction.Continue
+            assert "SelectEvolutionCard" in clicks
+            # Hero pick completed: transaction ownership released
+            assert med._evolve_awaiting_hero_pick is False
+            assert med._has_active_transaction() is False
+            # Remained in original core step (bond)
+            assert med._l1_cycle_step == "bond"
+
+
+def test_22_opportunistic_evolve_no_feedback_timeout_releases_transaction() -> None:
+    """Evolve click with no feedback expires within window without permanently hanging transaction."""
+    med = _med()
+    med.settings.skip_pre_wave_delay = True
+    med.settings.pre_wave_protection = False
+    med._auto_task_done = True
+    med._main_line_started_at = 100.0
+    med._l1_cycle_step = "bond"
+    med._wood_balance = 5000
+    med._panel_state = PanelState.CLOSED
+    now = 1000.0
+    med._panel_cooldown_until["bond"] = now + 5.0
+
+    frame_hud = _blank_frame()
+    evolve_btn = MatchResult("evolve_hud", 1.0, 800, 700, 40, 12, 800, 700)
+
+    with patch("shuabao.mediator.time.time", side_effect=lambda: now), \
+         patch.object(med, "act_click", return_value=True), \
+         patch.object(med, "_is_in_game_hud", return_value=True), \
+         patch.object(med, "_selection_anchor", return_value=None), \
+         patch.object(med, "_post_game_state", return_value=None), \
+         patch.object(med, "_ensure_auto_task_enabled", return_value=None), \
+         patch.object(med, "_ensure_challenge_buttons", return_value=None), \
+         patch.object(med, "_maybe_ensure_hero_panel_focus", return_value=None), \
+         patch.object(med, "_maybe_click_tqtz", return_value=None), \
+         patch.object(med, "_maybe_clear_pressure_monsters", return_value=None), \
+         patch.object(med, "_handle_self_opened_compact_panel", return_value=None), \
+         patch.object(med, "_find_equipment_affix_choice", return_value=None), \
+         patch.object(med, "_hud_wood_balance", return_value=5000), \
+         patch.object(med, "_has_evolve_button", return_value=True), \
+         patch.object(med, "_evolve_button_hit", return_value=evolve_btn):
+        # Click evolve
+        med._tick_main_line(frame_hud)
+        assert med._evolve_feedback_pending is True
+        assert med._has_active_transaction() is True
+
+        # Timeout expires (3.5s later, window is 3.0s)
+        now += 3.5
+        with patch.object(med, "_evolve_feedback_seen", return_value=False):
+            res = med._tick_main_line(frame_hud)
+            assert res == LoopAction.Continue
+            # Transaction released
+            assert med._evolve_feedback_pending is False
+            assert med._evolve_awaiting_hero_pick is False
+            assert med._has_active_transaction() is False
+
+
+def test_23_opportunistic_slot1_upgrade_during_core_development() -> None:
+    """Slot 1 right-click upgrade runs opportunistically during Core Development (wood >= 1000)."""
+    med = _med()
+    med.settings.skip_pre_wave_delay = True
+    med.settings.pre_wave_protection = False
+    med._auto_task_done = True
+    med._main_line_started_at = 100.0
+    med._l1_cycle_step = "bond"
+    med._wood_balance = 5000
+    med._panel_state = PanelState.CLOSED
+    med._equipment_next_at = 0.0
+    now = 1000.0
+    med._panel_cooldown_until["bond"] = now + 5.0
+    frame_hud = _blank_frame()
+
+    right_clicks: list[str] = []
+    with patch("shuabao.mediator.time.time", side_effect=lambda: now), \
+         patch.object(med, "act_right_click", side_effect=lambda hit, reason: right_clicks.append(reason) or True), \
+         patch.object(med, "_is_in_game_hud", return_value=True), \
+         patch.object(med, "_selection_anchor", return_value=None), \
+         patch.object(med, "_post_game_state", return_value=None), \
+         patch.object(med, "_ensure_auto_task_enabled", return_value=None), \
+         patch.object(med, "_ensure_challenge_buttons", return_value=None), \
+         patch.object(med, "_maybe_ensure_hero_panel_focus", return_value=None), \
+         patch.object(med, "_maybe_click_tqtz", return_value=None), \
+         patch.object(med, "_maybe_clear_pressure_monsters", return_value=None), \
+         patch.object(med, "_handle_self_opened_compact_panel", return_value=None), \
+         patch.object(med, "_find_equipment_affix_choice", return_value=None), \
+         patch.object(med, "_hud_wood_balance", return_value=5000), \
+         patch.object(med, "_equipment_slot_one_occupied", return_value=True), \
+         patch.object(med, "_equipment_slot_fingerprint", return_value="fp_slot1"):
+        res = med._tick_main_line(frame_hud)
+        assert res == LoopAction.Continue
+        assert any("UpgradeEquipmentSlot1-max" in c for c in right_clicks)
+        assert med._equipment_fsm.pending_slot == 1
+        assert med._has_active_transaction() is True
+        # Stays in core step
+        assert med._l1_cycle_step == "bond"
+
+        # Advance past lease (2.0s, lease is 1.5s) -> settles lease cleanly
+        now += 2.0
+        med._tick_main_line(frame_hud)
+        assert med._equipment_fsm.pending_slot is None
+        assert med._has_active_transaction() is False
+
+
+def test_24_skill_refresh_failed_attempts_resets_on_new_episode() -> None:
+    """_skill_refresh_failed_attempts resets to 0 at the start of each new panel episode."""
+    med = _med()
+    med._skill_refresh_failed_attempts = 1
+    anchor = MatchResult("skill_hide_btn", 1.0, 20, 20, 40, 40, 40, 40)
+    med._enter_panel_episode(_blank_frame(), anchor, "skill", opened=True)
+    assert med._skill_refresh_failed_attempts == 0
 
