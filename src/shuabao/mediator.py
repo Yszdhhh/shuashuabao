@@ -4219,23 +4219,6 @@ class Mediator:
             self._l1_cycle_last_advance_at = time.time()
             self._l1_cycle_step_successes = 0
             return
-        if not self._passenger_mode() and self._should_hold_core_development():
-            # 核心发育期（wood >= 1000）：严格优先 F ↔ G 轮转快速消耗木材转化为战力，
-            # 绝不落入完整支线大环（treasure/evolve/equipment/pickup/merchant/artifact）。
-            nxt = "skill" if current == "bond" else "bond"
-            idx = int(getattr(self, "_l1_cycle_index", 0) or 0)
-            matches = [i for i, step in enumerate(order) if step == nxt]
-            if matches:
-                forward = [i for i in matches if i >= idx]
-                self._l1_cycle_index = forward[0] if forward else matches[0]
-            self._l1_cycle_step = nxt
-            self._l1_cycle_last_advance_at = time.time()
-            self._l1_cycle_step_successes = 0
-            if nxt == "bond":
-                self._bond_priority_suspended_at = None
-            elif nxt == "skill":
-                self._skill_priority_suspended_at = None
-            return
         # Advance by position, not tuple.index(), so duplicate bond/skill steps work.
         idx = int(getattr(self, "_l1_cycle_index", 0) or 0)
         if not (0 <= idx < len(order) and order[idx] == current):
@@ -4488,10 +4471,13 @@ class Mediator:
             return "skill", f"技能积压 {skill} ≥ 8（紧急强抢占），先点技能"
 
         # 2. 狂暴发育期/基础羁绊：木材 >= 1000 优先消耗木材转战力，或基础羁绊未满 80% 且木材充足
+        # 自然轮换到 treasure 且有待拿宝物时，宝物必须获得服务（V 不被永久饿死）
         bond_blocked = self._bond_step_blocked(frame, now)
         bond_priority_affordable = wood is None or wood >= self._BOND_HIGH_WOOD
+        treasure_has_pending = (treasure is None or treasure > 0)
         if (
-            bond_blocked is None
+            not (step == "treasure" and treasure_has_pending)
+            and bond_blocked is None
             and not bond_held
             and bond_priority_affordable
             and (self._bond_base_progress_pending() or (wood is not None and wood >= self._BOND_HIGH_WOOD))
@@ -8791,8 +8777,13 @@ class Mediator:
 
 
     def _maybe_clear_pressure_monsters(self, frame: Frame, now: float) -> LoopAction | None:
-        """周期性触发 F4 清除挑怪（压力转移）。"""
-        if not getattr(self.settings, "auto_pressure", True):
+        """周期性触发 F4 清除挑怪（压力转移）。
+
+        P1 安全收口：单人模式（normal_farm）禁用纯定时自动按 F4（避免清除进行中的挑战）。
+        """
+        if not self._passenger_mode():
+            return None
+        if not getattr(self.settings, "auto_pressure", False):
             return None
         if now < getattr(self, "_pressure_next_at", 0.0):
             return None
