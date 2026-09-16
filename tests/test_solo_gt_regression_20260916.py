@@ -29,7 +29,7 @@ from shuabao.choice_policy import (
     choose_action,
     WHITELIST_HARD,
 )
-from shuabao.mediator import Mediator, PanelState, LoopAction
+from shuabao.mediator import Mediator, PanelState, LoopAction, RoundOutcome, Phase
 from shuabao.vision.matcher import MatchResult
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
@@ -97,6 +97,20 @@ def test_bond_refresh_and_close_backoff():
     now = time.time()
     med._finish_panel_episode()
     assert med._bond_idle_until >= now + 25.0, "Must back off after unselected panel close when wood < 1000"
+
+
+def test_high_wood_bond_unselected_close_does_not_set_idle_backoff():
+    """wood>=1000 + 未选卡关闭 F 后不得设置 30s _bond_idle_until（高木材对称测试）。"""
+    med = Mediator(Settings(), ROOT)
+    med._wood_balance = 5000  # wood >= 1000
+    med._panel_kind = "bond"
+    med._l1_cycle_owned_panel = True
+    med._l1_cycle_step = "bond"
+    med._l1_cycle_selected = False
+    now = time.time()
+    med._bond_idle_until = 0.0
+    med._finish_panel_episode()
+    assert med._bond_idle_until < now + 1.0, "High wood (>=1000) must not set 30s idle backoff"
 
 
 def test_equipment_affix_modal_real_fixture():
@@ -171,16 +185,17 @@ def test_dismiss_heirloom_dialog_unconfirmed_decouple():
         assert med._post_game_route == "secret"  # Cleanly fell back to secret realm!
 
 
-def test_solo_heirloom_boss_waiting_bounded_timeout():
-    """单人传家宝等待 120s 超时后，安全流转到大秘境路线，杜绝死锁。"""
+def test_solo_heirloom_boss_clear_success():
+    """掉落代理确认 (is_clear=True) 时，正常进入大秘境路线并记为 clear。"""
     med = Mediator(Settings(auto_secret_realm=True), ROOT)
     med._solo_heirloom_boss_waiting = True
     med._solo_heirloom_boss_waiting_since = 1000.0
-    now = 1000.0 + med._SOLO_HEIRLOOM_EXIT_S + 1.0  # 121s elapsed
+    now = 1050.0  # within 120s
     frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
 
     with patch.object(med, "_unattended_recovery_enabled", return_value=True), \
-         patch.object(med, "_solo_heirloom_boss_is_clear", return_value=False), \
+         patch.object(med, "_solo_heirloom_boss_is_clear", return_value=True), \
+         patch.object(med, "_solo_boss_is_alive", return_value=False), \
          patch.object(med, "_post_game_state", return_value=None), \
          patch.object(med, "_is_in_game_hud", return_value=True):
         with patch("shuabao.mediator.time.time", return_value=now):
@@ -188,6 +203,53 @@ def test_solo_heirloom_boss_waiting_bounded_timeout():
             assert act == LoopAction.Continue
             assert med._solo_heirloom_boss_waiting is False
             assert med._post_game_route == "secret"
+
+
+def test_solo_heirloom_boss_alive_vetos_secret_at_timeout():
+    """即使到达 120s 超时窗口，若画面仍有明确 ALIVE 证据，必须否决流转保持零输入等待。"""
+    med = Mediator(Settings(auto_secret_realm=True), ROOT)
+    med._post_game_route = "boss_active"
+    med._post_game_pending = False
+    med._solo_heirloom_boss_waiting = True
+    med._solo_heirloom_boss_waiting_since = 1000.0
+    now = 1000.0 + med._SOLO_HEIRLOOM_EXIT_S + 5.0  # 125s elapsed, timeout reached
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
+
+    with patch.object(med, "_unattended_recovery_enabled", return_value=True), \
+         patch.object(med, "_solo_boss_is_alive", return_value=True), \
+         patch.object(med, "_solo_heirloom_boss_is_clear", return_value=False), \
+         patch.object(med, "_post_game_state", return_value=None), \
+         patch.object(med, "_is_in_game_hud", return_value=True):
+        with patch("shuabao.mediator.time.time", return_value=now):
+            act = med._tick_main_line(frame)
+            # ALIVE vetos transition: returns Continue, keeps waiting True, post_game_pending remains False
+            assert act == LoopAction.Continue
+            assert med._solo_heirloom_boss_waiting is True
+            assert med._post_game_pending is False
+            assert med._post_game_route == "boss_active"
+
+
+def test_solo_heirloom_boss_timeout_fallback_distinguished_from_clear():
+    """单人传家宝等待 120s 超时且无 ALIVE 时流转到秘境，但不得记为 Boss CLEAR。"""
+    med = Mediator(Settings(auto_secret_realm=False), ROOT)
+    med._solo_heirloom_boss_waiting = True
+    med._solo_heirloom_boss_waiting_since = 1000.0
+    now = 1000.0 + med._SOLO_HEIRLOOM_EXIT_S + 1.0  # 121s elapsed
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
+
+    with patch.object(med, "_unattended_recovery_enabled", return_value=True), \
+         patch.object(med, "_solo_boss_is_alive", return_value=False), \
+         patch.object(med, "_solo_heirloom_boss_is_clear", return_value=False), \
+         patch.object(med, "_post_game_state", return_value=None), \
+         patch.object(med, "_is_in_game_hud", return_value=True), \
+         patch.object(med, "_record_round_outcome") as mock_record:
+        with patch("shuabao.mediator.time.time", return_value=now):
+            act = med._tick_main_line(frame)
+            assert act == LoopAction.Continue
+            assert med._solo_heirloom_boss_waiting is False
+            # Verifies outcome reason is timeout fallback, NOT clear
+            mock_record.assert_called_once_with(RoundOutcome.VICTORY, "solo heirloom boss timeout fallback")
+            assert med.phase == Phase.QUIT
 
 
 def test_opportunistic_merchant_single_buy():
@@ -205,13 +267,24 @@ def test_opportunistic_merchant_single_buy():
         assert med._opportunistic_merchant_next_at >= now + 7.5
 
 
-def test_opportunistic_hero_card():
-    """无点击进化按钮时机会使用背包英雄卡，并进入 WAIT_HERO_CHOICE 事务。"""
+def test_opportunistic_hero_card_evolve_gate_enforcement():
+    """未确认进化完成 (_evolve_ok_this_cycle=False) 时绝对零输入；进化确认后才允许使用英雄卡。"""
     med = Mediator(Settings(), ROOT)
     frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
     now = time.time()
     hero_card_hit = MatchResult("hero_card_item", 0.9, 1100, 750, 30, 30, 1100, 750)
 
+    # 1. 未进化 + 无 evolve button + 背包有 hero card -> act_click 必须 0 次，返回 None
+    med._evolve_ok_this_cycle = False
+    with patch.object(med, "_has_evolve_button", return_value=False), \
+         patch.object(med, "find", return_value=hero_card_hit), \
+         patch.object(med, "act_click") as mock_click:
+        res = med._maybe_opportunistic_hero_card(frame, now)
+        assert res is None
+        mock_click.assert_not_called()
+
+    # 2. 进化确认后 (_evolve_ok_this_cycle=True) -> 允许点击并建立 WAIT_HERO_CHOICE
+    med._evolve_ok_this_cycle = True
     with patch.object(med, "_has_evolve_button", return_value=False), \
          patch.object(med, "find", return_value=hero_card_hit), \
          patch.object(med, "act_click", return_value=True) as mock_click:

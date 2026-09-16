@@ -6451,6 +6451,10 @@ class Mediator:
         """HUD_ONLY opportunistic hero card usage during core development."""
         if now < getattr(self, "_opportunistic_hero_card_next_at", 0.0):
             return None
+        # 严格复用现有英雄卡业务门禁：未确认进化完成前（_evolve_ok_this_cycle=True）绝对零输入；
+        # 不能用“当前没识别到 evolve button”代替“进化已成功”
+        if not getattr(self, "_evolve_ok_this_cycle", False):
+            return None
         if self._has_evolve_button(frame):
             return None
         if getattr(self, "_evolve_awaiting_hero_pick", False) or getattr(self, "_evolve_feedback_pending", False):
@@ -16176,7 +16180,20 @@ class Mediator:
                 self._solo_heirloom_boss_waiting_since = now
                 waiting_since = now
             is_clear = self._solo_heirloom_boss_is_clear(frame)
+            is_alive = self._solo_boss_is_alive(frame)
             timeout = (now - waiting_since) >= self._SOLO_HEIRLOOM_EXIT_S
+            if is_alive:
+                if timeout:
+                    print(
+                        f"[med] 单人传家宝 Boss 达到 {self._SOLO_HEIRLOOM_EXIT_S:.0f}s 但画面仍有明确 ALIVE 证据，"
+                        f"否决秘境流转，保持零输入观察"
+                    )
+                else:
+                    print(
+                        f"[med] 单人传家宝 Boss 处于 ALIVE 战斗中，保持零输入观察 "
+                        f"(已等待 {now - waiting_since:.1f}s/{self._SOLO_HEIRLOOM_EXIT_S:.0f}s)"
+                    )
+                return LoopAction.Continue
             if not is_clear and not timeout:
                 print(f"[med] 单人传家宝 Boss 仍未确认结束，保持零输入观察 (已等待 {now - waiting_since:.1f}s/{self._SOLO_HEIRLOOM_EXIT_S:.0f}s)")
                 return LoopAction.Continue
@@ -16185,11 +16202,13 @@ class Mediator:
             self._hitch_heirloom_exit_since = None
             self._hitch_postgame_started_at = now
             if timeout and not is_clear:
-                print(f"[med] 单人传家宝 Boss 等待 {self._SOLO_HEIRLOOM_EXIT_S:.0f}s 超时未见掉落，兜底流转")
+                outcome_reason = "solo heirloom boss timeout fallback"
+                print(f"[med] 单人传家宝 Boss 等待 {self._SOLO_HEIRLOOM_EXIT_S:.0f}s 超时未见掉落且无 ALIVE 证据，超时兜底流转（非 Boss CLEAR）")
             else:
-                print("[med] 单人传家宝 Boss 已清除")
+                outcome_reason = "solo heirloom boss clear"
+                print("[med] 单人传家宝 Boss 已清除（掉落代理确认）")
             if self.settings.auto_secret_realm:
-                print("[med] 进入大秘境路线")
+                print(f"[med] 进入大秘境路线 ({outcome_reason})")
                 self._post_game_pending = True
                 self._post_game_route = "secret"
                 self._secret_realm_request_pending = False
@@ -16197,9 +16216,9 @@ class Mediator:
                 self._secret_realm_request_attempts = 0
                 self._secret_realm_next_observe_at = 0.0
                 return LoopAction.Continue
-            print("[med] 退出当前局")
-            self._record_round_outcome(RoundOutcome.VICTORY, "solo heirloom boss clear")
-            self.set_phase(Phase.QUIT, "solo heirloom boss clear")
+            print(f"[med] 退出当前局 ({outcome_reason})")
+            self._record_round_outcome(RoundOutcome.VICTORY, outcome_reason)
+            self.set_phase(Phase.QUIT, outcome_reason)
             return LoopAction.Continue
         if (
             not secret_entry_observation
