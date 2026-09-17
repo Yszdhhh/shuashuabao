@@ -170,23 +170,15 @@ def test_solo_secret_realm_unclassified_request_keeps_zero_input_wait() -> None:
     assert med._post_game_pending and med._secret_realm_request_pending
 
 
-def test_solo_exit_chain_timeouts_rearm() -> None:
+def test_solo_exit_chain_unknown_timeouts_fail_closed() -> None:
     med = _med()
     med.set_phase(Phase.QUIT)
     med._exit_button_attempts = 3
     med._exit_since = time.time() - 60.0
     with patch.object(med, "stop") as stop, patch.object(med, "_find_exit_confirm", return_value=None):
-        assert _quiet(med._tick_l1_tail, _frame()) is LoopAction.Continue
-    stop.assert_not_called()
-    assert med._exit_button_attempts == 0 and med.phase is Phase.QUIT
-
-    med.set_phase(Phase.NEXT)
-    med._exit_confirm_attempts = 3
-    med._exit_since = time.time() - 60.0
-    with patch.object(med, "stop") as stop:
-        assert _quiet(med._tick_l1_tail, _frame()) is LoopAction.Continue
-    stop.assert_not_called()
-    assert med._exit_confirm_attempts == 0 and med.phase is Phase.NEXT
+        assert _quiet(med._tick_l1_tail, _frame()) is LoopAction.Break
+    stop.assert_called_once()
+    assert med.phase is Phase.ERROR
 
 
 def test_solo_unverified_archive_entry_is_zero_input_observation() -> None:

@@ -153,6 +153,7 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_f_draw_fingerprint": "polluted-draw",
         "_f_draw_reopen_count": 11,
         "_f_draw_backoff_until": 1.0e9,
+        "_exit_rearm_attempts": 2,
         "_panel_f1_used_this_episode": True,
         "_merchant_next_at": 1.0e9,
         "_merchant_budget_retry_at": 1.0e9,

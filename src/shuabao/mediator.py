@@ -1044,6 +1044,7 @@ class Mediator:
         self._exit_button_attempts: int = 0
         self._exit_confirm_attempts: int = 0
         self._exit_since: float | None = None
+        self._exit_rearm_attempts: int = 0
         self._awaiting_room_return: bool = False
         # G0 P0 contract #7：同房返回后先离开旧房（语义控件 request→fresh 证据）。
         self._room_leave_pending: bool = False
@@ -4260,6 +4261,7 @@ class Mediator:
     _L1_STEP_VISIT_MAX_SECONDS = 30.0
     _F_DRAW_REOPEN_LIMIT = 2
     _F_DRAW_BACKOFF_S = 30.0
+    _EXIT_REARM_LIMIT = 2
 
     def _l1_step_visit_exhausted(self, now: float) -> bool:
         # One visit rule with the solo planner:
@@ -10180,6 +10182,10 @@ class Mediator:
             self._inventory_same_pt_hits = 0
             self._inventory_next_at = 0.0
             self._devour_dan_consecutive_clicks = 0
+        # Keep the exit-chain retry budget across QUIT -> NEXT -> QUIT, but
+        # clear it at a real room/round boundary or when a new chain starts.
+        if phase not in (Phase.QUIT, Phase.NEXT) or self.phase not in (Phase.QUIT, Phase.NEXT):
+            self._exit_rearm_attempts = 0
         if phase == Phase.QUIT:
             self._exit_button_attempts = 0
             self._exit_since = time.time()
@@ -17548,6 +17554,28 @@ class Mediator:
         print("[med] 主线 idle（等待局内选择/挑战 UI）")
         return LoopAction.Continue
 
+    def _classify_exit_surface(self, frame: Frame) -> str:
+        """Reclassify a disappeared exit confirmation without inferring HUD."""
+        if self._find_room_start(frame):
+            return "room"
+        if self._is_in_game_hud(frame):
+            return "hud"
+        if self._is_game_client_frame(frame):
+            return "transition"
+        return "unknown"
+
+    def _rearm_exit_chain(self, reason: str) -> bool:
+        """Re-arm QUIT once within the session budget; never reset forever."""
+        if self._exit_rearm_attempts >= self._EXIT_REARM_LIMIT:
+            return False
+        self._exit_rearm_attempts += 1
+        print(
+            f"[med] 退出链 {reason}，有界重新进入 QUIT "
+            f"({self._exit_rearm_attempts}/{self._EXIT_REARM_LIMIT})"
+        )
+        self.set_phase(Phase.QUIT, reason)
+        return True
+
     def _tick_l1_tail(self, frame: Frame) -> LoopAction:
         if self.phase in (Phase.EARLY_CHALLENGE, Phase.ANCHOR_BOSS, Phase.LONGZHU):
             # S0 ⑧：longzhu 色相检查只在 LONGZHU 阶段执行（N2 waiver 复评：
@@ -17578,7 +17606,8 @@ class Mediator:
                 self.set_phase(Phase.NEXT, "exit confirmation already visible")
                 return LoopAction.Continue
             if self._exit_button_attempts >= 3 or elapsed >= timeout:
-                if self._find_room_start(frame):
+                surface = self._classify_exit_surface(frame)
+                if surface == "room":
                     print("[med] 局内退出超时但检测到房间准备界面，退出完成")
                     self._awaiting_room_return = True
                     self.set_phase(Phase.PREPARE, "room detected after quit timeout")
@@ -17586,10 +17615,10 @@ class Mediator:
                     self._longzhu_deadline = None
                     self._f1_fallback_done = False
                     return LoopAction.Continue
-                if self._unattended_recovery_enabled():
-                    print("[med] 局内退出按钮观察窗到期，重新武装并继续等待专用锚点")
-                    self._exit_button_attempts = 0
-                    self._exit_since = time.time()
+                if surface == "hud" and self._rearm_exit_chain("quit surface still HUD"):
+                    return LoopAction.Continue
+                if surface == "transition" and elapsed < timeout * 2:
+                    print("[med] 局内退出处于转场/加载，继续有界等待（零动作）")
                     return LoopAction.Continue
                 print("[med] 未能打开专用退出确认框，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "exit button timeout")
@@ -17641,19 +17670,38 @@ class Mediator:
                 return LoopAction.Continue
 
             # confirm_hit is None:
+            surface = self._classify_exit_surface(frame)
+            if surface == "room":
+                print("[med] 退出确认按钮消失且已在房间界面，退出完成")
+                self._awaiting_room_return = True
+                self.set_phase(Phase.PREPARE, "room detected after confirm disappeared")
+                self._room_action_deadline = time.time() + min(self.settings.query_timeout, 30)
+                self._longzhu_deadline = None
+                self._f1_fallback_done = False
+                return LoopAction.Continue
+            if surface == "hud" and self._exit_confirm_attempts > 0:
+                if self._rearm_exit_chain("confirm disappeared on HUD"):
+                    return LoopAction.Continue
+                print("[med] 退出确认消失后仍为 HUD 且重试预算耗尽，Fail-Closed 停止")
+                self.set_phase(Phase.ERROR, "exit confirmation HUD rearm exhausted")
+                self.stop()
+                return LoopAction.Break
+            if surface == "transition":
+                if elapsed < timeout * 2:
+                    print("[med] 退出确认消失，处于转场/加载，继续有界等待（零动作）")
+                    return LoopAction.Continue
+                print("[med] 退出确认转场等待超时，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, "exit confirmation transition timeout")
+                self.stop()
+                return LoopAction.Break
             if elapsed >= timeout or self._exit_confirm_attempts >= 3:
-                if self._find_room_start(frame):
+                if surface == "room":
                     print("[med] 确认按钮消失且已在房间界面，退出完成")
                     self._awaiting_room_return = True
                     self.set_phase(Phase.PREPARE, "room detected after confirm disappeared")
                     self._room_action_deadline = time.time() + min(self.settings.query_timeout, 30)
                     self._longzhu_deadline = None
                     self._f1_fallback_done = False
-                    return LoopAction.Continue
-                if self._unattended_recovery_enabled():
-                    print("[med] 退出确认观察窗到期，重新武装并继续等待专用按钮")
-                    self._exit_confirm_attempts = 0
-                    self._exit_since = time.time()
                     return LoopAction.Continue
                 print("[med] 退出确认框未能安全确认，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "exit confirmation timeout")
