@@ -502,23 +502,13 @@ class Mediator(CoreMediator):
                         kind="WAIT_DEVOUR_DAN",
                         target_id="danGif",
                         deadline=now + 2.0,
-                        verifier=lambda f: bool(
-                            (
-                                baseline_occ is not None
-                                and getattr(self, "_bond_bar_occupancy", lambda _: None)(f) is not None
-                                and getattr(self, "_bond_bar_occupancy", lambda _: None)(f) < baseline_occ
-                            )
-                            or (not self._bond_bar_nonempty(f))
-                            or (
-                                self.find(
-                                    f,
-                                    ["danGif"],
-                                    threshold=0.55,
-                                    scales=self._hot_scales(),
-                                    roi=inventory_roi,
-                                )
-                                is None
-                            )
+                        # 消耗的唯一证据是羁绊格数真的变少：模板掉帧、背包
+                        # 重排、羁绊栏读不出来都会让"丹不见了/栏空了"成立，
+                        # 那是丢失识别而不是吞噬成功。
+                        verifier=lambda f: (
+                            baseline_occ is not None
+                            and (occ := self._bond_bar_occupancy(f)) is not None
+                            and occ < baseline_occ
                         ),
                     )
                     return LoopAction.Continue

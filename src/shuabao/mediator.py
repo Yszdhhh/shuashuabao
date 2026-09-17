@@ -5259,9 +5259,11 @@ class Mediator:
         return int(colored.sum()) >= min_colored
 
     def _can_consume_inventory_swallow_pill(self, frame: Frame) -> bool:
-        """Do not spend a pill until the live bond bar contains more than three cards."""
-        occupancy = self._bond_bar_occupancy(frame)
-        return occupancy is not None and occupancy > 3
+        """Fail-closed: ordinary random devouring is forbidden without reliable
+        per-slot card identities — occupancy and the saved opt-in cannot prove
+        protected cards are absent.
+        """
+        return False
 
     def _bag_page_swallow_pill(self, frame: Frame) -> MatchResult | None:
         """Devour pill inside an open bag page's 物品栏, aimed at the slot center.
