@@ -2256,6 +2256,42 @@ class Mediator:
         self._trace_actions.append({"intent": f"key:{key}", "reason": reason, "ok": res.success, "action_ms": round(action_ms, 1)})
         return self._finish_input(res, reason, action_ms)
 
+    def act_hotkey(self, *keys: str, reason: str = "") -> bool:
+        """Dispatch a hotkey through the same one-input-per-tick transaction."""
+        if self._action_forbidden(reason):
+            return False
+        if not self._action_gate_ok(reason):
+            return False
+        target_hwnd = self._last_frame.hwnd if self._last_frame else None
+        print(f"[med] hotkey {keys!r} ({reason})")
+        t0 = time.perf_counter()
+        res = self.executor.hotkey(
+            *keys,
+            target_hwnd=target_hwnd,
+            dry_run=self.settings.dry_run,
+        )
+        action_ms = (time.perf_counter() - t0) * 1000.0
+        self._trace_actions.append({"intent": f"hotkey:{keys}", "reason": reason, "ok": res.success, "action_ms": round(action_ms, 1)})
+        return self._finish_input(res, reason, action_ms)
+
+    def act_paste_text(self, text: str, reason: str = "") -> bool:
+        """Paste text through the same gated input transaction as clicks/keys."""
+        if self._action_forbidden(reason):
+            return False
+        if not self._action_gate_ok(reason):
+            return False
+        target_hwnd = self._last_frame.hwnd if self._last_frame else None
+        print(f"[med] paste_text len={len(text)} ({reason})")
+        t0 = time.perf_counter()
+        res = self.executor.paste_text(
+            text,
+            target_hwnd=target_hwnd,
+            dry_run=self.settings.dry_run,
+        )
+        action_ms = (time.perf_counter() - t0) * 1000.0
+        self._trace_actions.append({"intent": "paste_text", "reason": reason, "ok": res.success, "action_ms": round(action_ms, 1)})
+        return self._finish_input(res, reason, action_ms)
+
     def _note_pointer_on_hud(self, hit: MatchResult) -> None:
         """After an in-game click the pointer rests on what it clicked.
 
@@ -13798,34 +13834,40 @@ class Mediator:
             print("[L0] 建房弹窗未安全识别到房间名/密码输入框，拒绝盲填")
             return False
 
-        target_hwnd = self._last_frame.hwnd if self._last_frame else None
-
+        # One field operation per call/tick.  The caller only sets
+        # _room_dialog_filled after this sequence completes, so confirmation
+        # is necessarily dispatched on a later tick as well.
+        steps: list[tuple[MatchResult, str, str | None]] = []
         if self.settings.room_name:
-            if not self.act_click(boxes[0], "CreateRoom-focus-name"):
-                return False
-            res_hk = self.executor.hotkey("ctrl", "a", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-            if not getattr(res_hk, "success", bool(res_hk)):
-                print(f"[L0] 建房弹窗 hotkey ctrl+a 失败/取消: {getattr(res_hk, 'message', '')}")
-                return False
-            res_paste = self.executor.paste_text(self.settings.room_name, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-            if not getattr(res_paste, "success", bool(res_paste)):
-                print(f"[L0] 建房弹窗 paste_text 失败/取消: {getattr(res_paste, 'message', '')}")
-                return False
-
+            steps.extend((
+                (boxes[0], "CreateRoom-focus-name", None),
+                (boxes[0], "CreateRoom-select-name", "hotkey"),
+                (boxes[0], "CreateRoom-paste-name", self.settings.room_name),
+            ))
         if self.settings.room_password:
-            if not self.act_click(boxes[1], "CreateRoom-focus-pwd"):
-                return False
-            res_hk = self.executor.hotkey("ctrl", "a", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-            if not getattr(res_hk, "success", bool(res_hk)):
-                print(f"[L0] 建房弹窗 hotkey ctrl+a 失败/取消: {getattr(res_hk, 'message', '')}")
-                return False
-            res_paste = self.executor.paste_text(self.settings.room_password, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-            if not getattr(res_paste, "success", bool(res_paste)):
-                print(f"[L0] 建房弹窗 paste_text 失败/取消: {getattr(res_paste, 'message', '')}")
-                return False
+            steps.extend((
+                (boxes[1], "CreateRoom-focus-pwd", None),
+                (boxes[1], "CreateRoom-select-pwd", "hotkey"),
+                (boxes[1], "CreateRoom-paste-pwd", self.settings.room_password),
+            ))
 
-        self.invalidate_evidence("input")
-        print("[L0] 建房弹窗已填写房间名/密码")
+        step = int(getattr(self, "_room_form_step", 0) or 0)
+        if step >= len(steps):
+            return True
+        hit, reason, payload = steps[step]
+        if payload == "hotkey":
+            ok = self.act_hotkey("ctrl", "a", reason=reason)
+        elif payload is None:
+            ok = self.act_click(hit, reason)
+        else:
+            ok = self.act_paste_text(payload, reason)
+        if not ok:
+            print(f"[L0] 建房弹窗步骤失败/取消: {reason}")
+            return False
+        self._room_form_step = step + 1
+        if self._room_form_step < len(steps):
+            return False
+        print("[L0] 建房弹窗已分阶段填写房间名/密码")
         return True
 
     def _l0_transition_timeout(self) -> float:
