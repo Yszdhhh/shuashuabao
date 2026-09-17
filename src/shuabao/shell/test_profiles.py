@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import math
 import re
 from dataclasses import asdict
 from pathlib import Path
@@ -27,6 +28,10 @@ PROFILE_SETTING_FIELDS = frozenset(
         "auto_secret_realm",
         "skills",
         "cards",
+        "bonds",
+        "attributes",
+        "bond_must_take",
+        "bond_advanced_unlock_s",
         "treasure_allow_negative",
     }
 )
@@ -78,9 +83,18 @@ def validate_profile_document(document: Any) -> dict[str, Any]:
     for key in ("room_name",):
         if key in settings:
             _require(isinstance(settings[key], str), f"{key} 必须是字符串")
-    for key in ("skills", "cards"):
+    for key in ("skills", "cards", "bonds", "attributes", "bond_must_take"):
         if key in settings:
             _require(isinstance(settings[key], list) and all(isinstance(item, str) for item in settings[key]), f"{key} 必须是字符串数组")
+    if "bond_advanced_unlock_s" in settings:
+        value = settings["bond_advanced_unlock_s"]
+        _require(
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and math.isfinite(value)
+            and value >= 0,
+            "bond_advanced_unlock_s 必须是有限非负数（0 = 关闭时间兜底）",
+        )
     if "treasure_allow_negative" in settings:
         _require(
             isinstance(settings["treasure_allow_negative"], list)
@@ -112,6 +126,8 @@ def export_profile(settings: Settings, name: str = "当前看板配置") -> dict
     selected = {key: copy.deepcopy(raw[key]) for key in PROFILE_SETTING_FIELDS if key in raw}
     if "treasure_allow_negative" in selected and selected["treasure_allow_negative"] != []:
         selected["treasure_allow_negative"] = []
+    if selected.get("bond_advanced_unlock_s") is None:
+        selected.pop("bond_advanced_unlock_s", None)
     return {
         "schema_version": SCHEMA_VERSION,
         "name": name,

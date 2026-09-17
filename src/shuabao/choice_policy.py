@@ -563,6 +563,8 @@ def assemble_policy_settings(
                 break
 
     min_conf = raw.get("min_confidence")
+    # 高级组时间兜底：Settings 显式覆盖优先（含 0 = 关闭），否则读 policy 文档。
+    unlock_override = getattr(settings, "bond_advanced_unlock_s", None)
     return PolicySettings.from_mapping(
         {
             "skill_presets": expand_skill_preset_names(tuple(skill_families)),
@@ -577,7 +579,11 @@ def assemble_policy_settings(
             "bond_chain_presets": tuple(chain_presets),
             "bond_advanced_groups": tuple(selected_groups),
             "bond_base_completion_ratio": bond_cfg.get("base_completion_ratio", 0.80),
-            "bond_advanced_unlock_s": bond_cfg.get("advanced_unlock_s", 0.0),
+            "bond_advanced_unlock_s": (
+                bond_cfg.get("advanced_unlock_s", 0.0)
+                if unlock_override is None
+                else float(unlock_override)
+            ),
             "treasure_presets": (),
             "quality_order": raw.get("quality_order"),
             "min_confidence": 0.60 if min_conf is None else min_conf,

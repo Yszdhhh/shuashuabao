@@ -1888,5 +1888,93 @@ class DesktopPanelTests(unittest.TestCase):
         finally:
             hud.close()
 
+    def test_test_profile_replaces_stale_shell_state_and_overrides_unlock(self):
+        """测试方案应用：旧 bonds/属性线/高级组不回灌，海盗→亡灵组序与时间覆盖进入装配。"""
+        from shuabao.choice_policy import assemble_policy_settings
+        from shuabao.shell.test_profiles import TestProfileError, validate_profile_document
+
+        w = self.window
+        w.apply_settings_to_ui(Settings(stage_targets=["1-10"], attributes=["int"]))
+        w._shell_extras["advanced_packs"] = ["fengshen", "xiuxian"]
+        w._shell_extras["attr_route"] = ["intelligence"]
+        polluted_cards = w.collect_settings_from_ui().cards
+        self.assertIn("封神", polluted_cards)
+        self.assertIn("mfs", polluted_cards)
+
+        partial = {
+            "schema_version": 1,
+            "name": "V1 连续两局",
+            "mode_id": "normal_farm",
+            "settings": {
+                "stage_targets": ["1-12"],
+                "auto_create_room": True,
+                "new_room_every_times": False,
+                "cycle_num": 2,
+                "auto_secret_realm": False,
+            },
+        }
+        self.assertTrue(w._apply_test_profile_document(partial, confirm=False))
+        self.assertEqual(["fengshen", "xiuxian"], w._shell_extras["advanced_packs"])
+        self.assertEqual(["intelligence"], w._shell_extras["attr_route"])
+
+        document = {
+            "schema_version": 1,
+            "name": "海盗→亡灵 GT",
+            "mode_id": "normal_farm",
+            "settings": {
+                "stage_targets": ["1-12"],
+                "cycle_num": 1,
+                "auto_secret_realm": False,
+                "bonds": ["经济"],
+                "attributes": [],
+                "bond_must_take": ["藏宝图(三)"],
+                "bond_advanced_unlock_s": 60.0,
+                "cards": ["zhufu", "jj", "藏宝图(三)", "海盗", "亡灵"],
+            },
+        }
+        self.assertTrue(w._apply_test_profile_document(document, confirm=False))
+        self.assertEqual(["haidao", "wangling"], w._shell_extras["advanced_packs"])
+        self.assertEqual([], w._shell_extras["attr_route"])
+
+        collected = w.collect_settings_from_ui()
+        self.assertEqual(["经济"], collected.bonds)
+        self.assertEqual([], collected.attributes)
+        self.assertEqual(["藏宝图(三)"], collected.bond_must_take)
+        self.assertEqual(60.0, collected.bond_advanced_unlock_s)
+        for leaked in ("封神", "修仙", "mfs", "yanmiezhe", "chengzhang", "tanlan"):
+            self.assertNotIn(leaked, collected.cards)
+        self.assertIn("藏宝图(三)", collected.cards)
+        self.assertLess(collected.cards.index("海盗"), collected.cards.index("亡灵"))
+
+        policy_doc = json.loads((ROOT / "config" / "choice_policy.json").read_text(encoding="utf-8"))
+        assembled = assemble_policy_settings(
+            settings=collected,
+            skill_labels={},
+            fetter_labels=main_window_module.FETTER_LABELS,
+            policy_doc=policy_doc,
+        )
+        self.assertEqual(60.0, assembled.bond_advanced_unlock_s)
+        self.assertEqual(
+            [("海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏"), ("亡灵", "亡灵天灾", "白骨复生", "魂火收割", "巫妖之躯")],
+            list(assembled.bond_advanced_groups),
+        )
+        for leaked in ("封神", "修仙", "秘法师", "湮灭者", "成长", "贪婪"):
+            self.assertNotIn(leaked, assembled.bond_presets)
+        self.assertIn("藏宝图(三)", assembled.bond_must_take)
+        # 生产默认零变化：无覆盖仍取 choice_policy.json 的 advanced_unlock_s。
+        self.assertEqual(
+            policy_doc["bond"]["advanced_unlock_s"],
+            assemble_policy_settings(
+                settings=Settings(), skill_labels={}, fetter_labels={}, policy_doc=policy_doc,
+            ).bond_advanced_unlock_s,
+        )
+        # 非法时间覆盖：profile 层直接报错，Settings 层按缺损丢弃。
+        with self.assertRaises(TestProfileError):
+            validate_profile_document(
+                {**document, "settings": {**document["settings"], "bond_advanced_unlock_s": -1}}
+            )
+        self.assertIsNone(Settings._from_dict({"bond_advanced_unlock_s": -1}).bond_advanced_unlock_s)
+        self.assertIsNone(Settings._from_dict({"bond_advanced_unlock_s": True}).bond_advanced_unlock_s)
+
 if __name__ == "__main__":
     unittest.main()

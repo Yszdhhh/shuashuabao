@@ -2421,6 +2421,23 @@ class MainWindow(QMainWindow):
             return "没有可应用的差异。"
         return "\n".join(f"{key}: {old!r} → {new!r}" for key, (old, new) in diff.items())
 
+    @staticmethod
+    def _advanced_packs_from_cards(cards) -> list[str]:
+        """按卡名首次出现顺序反推已有 ADVANCED_PACKS 的勾选序（勾选序 = 装配的组优先序）。"""
+        out: list[str] = []
+        for item in cards or ():
+            stem = Path(str(item or "").strip()).stem
+            name = str(FETTER_LABELS.get(stem, stem) or "").strip()
+            if not name:
+                continue
+            for pack_id, spec in ADVANCED_PACKS.items():
+                if pack_id in out:
+                    continue
+                if name in (spec.get("cards") or ()):
+                    out.append(pack_id)
+                    break
+        return out
+
     def _apply_test_profile_document(self, document: dict, *, confirm: bool = True) -> bool:
         try:
             current = self.collect_settings_from_ui()
@@ -2439,6 +2456,12 @@ class MainWindow(QMainWindow):
             )
             if answer != QMessageBox.Yes:
                 return False
+        # 仅当测试方案显式声明 cards/attributes 时同步 _shell；V1/秘境等 partial overlay 不得清属性路线。
+        declared = document.get("settings") or {}
+        if "cards" in declared:
+            self._shell_extras["advanced_packs"] = self._advanced_packs_from_cards(updated.cards)
+        if "attributes" in declared:
+            self._shell_extras["attr_route"] = []
         self.apply_settings_to_ui(updated)
         self._schedule_auto_save()
         self.log(f"[测试配置] 已应用 {document['name']}", "info")

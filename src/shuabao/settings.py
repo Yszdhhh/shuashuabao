@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
@@ -162,6 +163,10 @@ class Settings:
     # Unknown bond cards must not bypass the declared strategy.
     bond_whitelist_mode: str = "hard"
     bond_must_take: list[str] = field(default_factory=list)
+    # 高级卡组时间兜底覆盖（秒）。None = 沿用 config/choice_policy.json 的
+    # bond.advanced_unlock_s（生产 480），生产默认零变化；0 = 显式关闭时间兜底。
+    # 看板测试方案可覆盖；非有限/负数视为缺损丢弃（profile 层直接报错）。
+    bond_advanced_unlock_s: float | None = None
     # 负面宝物放行名单（拿了会断资源/断成长的卡，默认一张都不选）。
     # 面板『宝物 · 负面卡』折叠区逐张打勾后写入；放行是逐卡的，不是全局开关。
     # 语义与判定见 config/choice_policy.json 与 shuabao.choice_policy。
@@ -334,7 +339,11 @@ class Settings:
             "recovery_retry_interval_s", "panel_visible_timeout_s", "panel_hard_deadline_s",
             "ui_action_interval_s", "panel_reopen_cooldown_s", "incident_sample_rate",
             "challenge_recheck_interval_s", "auto_task_unknown_timeout_s",
+            "bond_advanced_unlock_s",
         }
+        # 新字段独有：bool 不是合法秒数（True 会被 float() 吞成 1.0），与 profile 层同样拒绝。
+        if isinstance(clean.get("bond_advanced_unlock_s"), bool):
+            clean.pop("bond_advanced_unlock_s")
         for k in float_fields:
             if k in clean:
                 if isinstance(clean[k], (list, dict)) or clean[k] is None:
@@ -344,6 +353,9 @@ class Settings:
                         clean[k] = float(clean[k])
                     except (TypeError, ValueError):
                         clean.pop(k)
+        unlock = clean.get("bond_advanced_unlock_s")
+        if unlock is not None and (not math.isfinite(unlock) or unlock < 0):
+            clean.pop("bond_advanced_unlock_s")
         for k in int_fields:
             if k in clean:
                 if isinstance(clean[k], (list, dict)) or clean[k] is None:
