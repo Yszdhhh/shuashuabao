@@ -171,8 +171,10 @@ def _typed_user32():
     # EnumWindows' callback must return a 4-byte BOOL, not ctypes' 1-byte
     # c_bool: a c_bool callback leaves the upper 3 bytes of EAX untouched, so
     # the loop stops on whatever garbage the last callee left there.
-    WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, HWND, wintypes.LPARAM)
-    user32.EnumWindows.argtypes = [WNDENUMPROC, wintypes.LPARAM]
+    # Keep the DLL entry point callback slot generic: ctypes shares the
+    # function prototype across windll.user32 callers, and an exact
+    # WNDENUMPROC here would reject otherwise valid callback declarations.
+    user32.EnumWindows.argtypes = [ctypes.c_void_p, wintypes.LPARAM]
     user32.EnumWindows.restype = wintypes.BOOL
     _user32_typed = True
     return user32
