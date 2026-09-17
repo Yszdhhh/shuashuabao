@@ -1044,6 +1044,7 @@ class Mediator:
         self._exit_button_attempts: int = 0
         self._exit_confirm_attempts: int = 0
         self._exit_since: float | None = None
+        self._exit_rearm_attempts: int = 0
         self._awaiting_room_return: bool = False
         # G0 P0 contract #7：同房返回后先离开旧房（语义控件 request→fresh 证据）。
         self._room_leave_pending: bool = False
@@ -1121,6 +1122,12 @@ class Mediator:
         self._panel_cooldown_until: dict[str, float] = {}
         self._panel_fingerprint: tuple | None = None
         self._panel_fingerprint_attempts = 0
+        # F draw liveness must survive generic panel episode resets.
+        self._f_draw_fingerprint: str | None = None
+        self._f_draw_first_seen_at: float | None = None
+        self._f_draw_last_reopen_at: float | None = None
+        self._f_draw_reopen_count: int = 0
+        self._f_draw_backoff_until: float = 0.0
         # WAIT_MUTATION proves a panel mutation/disappearance.
         self._panel_pending_choice_action: str | None = None  # select/close/refresh
         self._panel_pending_choice_fingerprint: tuple | None = None
@@ -2247,6 +2254,42 @@ class Mediator:
         )
         action_ms = (time.perf_counter() - t0) * 1000.0
         self._trace_actions.append({"intent": f"key:{key}", "reason": reason, "ok": res.success, "action_ms": round(action_ms, 1)})
+        return self._finish_input(res, reason, action_ms)
+
+    def act_hotkey(self, *keys: str, reason: str = "") -> bool:
+        """Dispatch a hotkey through the same one-input-per-tick transaction."""
+        if self._action_forbidden(reason):
+            return False
+        if not self._action_gate_ok(reason):
+            return False
+        target_hwnd = self._last_frame.hwnd if self._last_frame else None
+        print(f"[med] hotkey {keys!r} ({reason})")
+        t0 = time.perf_counter()
+        res = self.executor.hotkey(
+            *keys,
+            target_hwnd=target_hwnd,
+            dry_run=self.settings.dry_run,
+        )
+        action_ms = (time.perf_counter() - t0) * 1000.0
+        self._trace_actions.append({"intent": f"hotkey:{keys}", "reason": reason, "ok": res.success, "action_ms": round(action_ms, 1)})
+        return self._finish_input(res, reason, action_ms)
+
+    def act_paste_text(self, text: str, reason: str = "") -> bool:
+        """Paste text through the same gated input transaction as clicks/keys."""
+        if self._action_forbidden(reason):
+            return False
+        if not self._action_gate_ok(reason):
+            return False
+        target_hwnd = self._last_frame.hwnd if self._last_frame else None
+        print(f"[med] paste_text len={len(text)} ({reason})")
+        t0 = time.perf_counter()
+        res = self.executor.paste_text(
+            text,
+            target_hwnd=target_hwnd,
+            dry_run=self.settings.dry_run,
+        )
+        action_ms = (time.perf_counter() - t0) * 1000.0
+        self._trace_actions.append({"intent": "paste_text", "reason": reason, "ok": res.success, "action_ms": round(action_ms, 1)})
         return self._finish_input(res, reason, action_ms)
 
     def _note_pointer_on_hud(self, hit: MatchResult) -> None:
@@ -4221,23 +4264,6 @@ class Mediator:
             self._l1_cycle_last_advance_at = time.time()
             self._l1_cycle_step_successes = 0
             return
-        if not self._passenger_mode() and self._should_hold_core_development():
-            # 核心发育期（wood >= 1000）：严格优先 F ↔ G 轮转快速消耗木材转化为战力，
-            # 绝不落入完整支线大环（treasure/evolve/equipment/pickup/merchant/artifact）。
-            nxt = "skill" if current == "bond" else "bond"
-            idx = int(getattr(self, "_l1_cycle_index", 0) or 0)
-            matches = [i for i, step in enumerate(order) if step == nxt]
-            if matches:
-                forward = [i for i in matches if i >= idx]
-                self._l1_cycle_index = forward[0] if forward else matches[0]
-            self._l1_cycle_step = nxt
-            self._l1_cycle_last_advance_at = time.time()
-            self._l1_cycle_step_successes = 0
-            if nxt == "bond":
-                self._bond_priority_suspended_at = None
-            elif nxt == "skill":
-                self._skill_priority_suspended_at = None
-            return
         # Advance by position, not tuple.index(), so duplicate bond/skill steps work.
         idx = int(getattr(self, "_l1_cycle_index", 0) or 0)
         if not (0 <= idx < len(order) and order[idx] == current):
@@ -4269,6 +4295,9 @@ class Mediator:
     # 时把整环卡死在同一步，饿死其余步骤（live 000229 复盘）。
     _L1_STEP_VISIT_MAX_SUCCESSES = 3
     _L1_STEP_VISIT_MAX_SECONDS = 30.0
+    _F_DRAW_REOPEN_LIMIT = 2
+    _F_DRAW_BACKOFF_S = 30.0
+    _EXIT_REARM_LIMIT = 2
 
     def _l1_step_visit_exhausted(self, now: float) -> bool:
         # One visit rule with the solo planner:
@@ -4492,8 +4521,12 @@ class Mediator:
         # 2. 狂暴发育期/基础羁绊：木材 >= 1000 优先消耗木材转战力，或基础羁绊未满 80% 且木材充足
         bond_blocked = self._bond_step_blocked(frame, now)
         bond_priority_affordable = wood is None or wood >= self._BOND_HIGH_WOOD
+        # A pending V draw gets one explicit service opportunity.  F/G retain
+        # priority on the other steps without starving treasure forever.
+        treasure_has_pending = treasure is None or treasure > 0
         if (
-            bond_blocked is None
+            not (step == "treasure" and treasure_has_pending)
+            and bond_blocked is None
             and not bond_held
             and bond_priority_affordable
             and (self._bond_base_progress_pending() or (wood is not None and wood >= self._BOND_HIGH_WOOD))
@@ -4538,6 +4571,8 @@ class Mediator:
             return "羁绊 episode 已达上限"
         if self._panel_cooldown_until.get("bond", 0.0) - now > self._BOND_LONG_COOLDOWN_S:
             return "羁绊长冷却中"
+        if now < getattr(self, "_f_draw_backoff_until", 0.0):
+            return "同一 F 抽卡无候选，进入有界退避"
         if now < getattr(self, "_bond_idle_until", 0.0):
             return "上次开 F 没有可拿的卡"
         return None
@@ -9926,6 +9961,7 @@ class Mediator:
             self._panel_fingerprint = None
             self._panel_fingerprint_attempts = 0
             self._panel_anchor_candidate = None
+            self._reset_f_draw_guard()
         is_reentry_or_attach = any(
             marker in note for marker in (
                 "already in game",
@@ -9955,6 +9991,7 @@ class Mediator:
             self._hitch_treasure_total_refreshes = 0
             self._hitch_last_treasure_unconfirmed_fp = None
             self._treasure_consecutive_no_pick = 0
+            self._reset_f_draw_guard()
         if phase == Phase.RECOVER_FAILURE and self.phase != Phase.RECOVER_FAILURE:
             # 进入恢复：清面板许可与待输入 token（抢占后 panel FSM 全部状态让位）
             self._panel_state = PanelState.CLOSED
@@ -10181,6 +10218,10 @@ class Mediator:
             self._inventory_same_pt_hits = 0
             self._inventory_next_at = 0.0
             self._devour_dan_consecutive_clicks = 0
+        # Keep the exit-chain retry budget across QUIT -> NEXT -> QUIT, but
+        # clear it at a real room/round boundary or when a new chain starts.
+        if phase not in (Phase.QUIT, Phase.NEXT) or self.phase not in (Phase.QUIT, Phase.NEXT):
+            self._exit_rearm_attempts = 0
         if phase == Phase.QUIT:
             self._exit_button_attempts = 0
             self._exit_since = time.time()
@@ -13793,34 +13834,40 @@ class Mediator:
             print("[L0] 建房弹窗未安全识别到房间名/密码输入框，拒绝盲填")
             return False
 
-        target_hwnd = self._last_frame.hwnd if self._last_frame else None
-
+        # One field operation per call/tick.  The caller only sets
+        # _room_dialog_filled after this sequence completes, so confirmation
+        # is necessarily dispatched on a later tick as well.
+        steps: list[tuple[MatchResult, str, str | None]] = []
         if self.settings.room_name:
-            if not self.act_click(boxes[0], "CreateRoom-focus-name"):
-                return False
-            res_hk = self.executor.hotkey("ctrl", "a", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-            if not getattr(res_hk, "success", bool(res_hk)):
-                print(f"[L0] 建房弹窗 hotkey ctrl+a 失败/取消: {getattr(res_hk, 'message', '')}")
-                return False
-            res_paste = self.executor.paste_text(self.settings.room_name, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-            if not getattr(res_paste, "success", bool(res_paste)):
-                print(f"[L0] 建房弹窗 paste_text 失败/取消: {getattr(res_paste, 'message', '')}")
-                return False
-
+            steps.extend((
+                (boxes[0], "CreateRoom-focus-name", None),
+                (boxes[0], "CreateRoom-select-name", "hotkey"),
+                (boxes[0], "CreateRoom-paste-name", self.settings.room_name),
+            ))
         if self.settings.room_password:
-            if not self.act_click(boxes[1], "CreateRoom-focus-pwd"):
-                return False
-            res_hk = self.executor.hotkey("ctrl", "a", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-            if not getattr(res_hk, "success", bool(res_hk)):
-                print(f"[L0] 建房弹窗 hotkey ctrl+a 失败/取消: {getattr(res_hk, 'message', '')}")
-                return False
-            res_paste = self.executor.paste_text(self.settings.room_password, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-            if not getattr(res_paste, "success", bool(res_paste)):
-                print(f"[L0] 建房弹窗 paste_text 失败/取消: {getattr(res_paste, 'message', '')}")
-                return False
+            steps.extend((
+                (boxes[1], "CreateRoom-focus-pwd", None),
+                (boxes[1], "CreateRoom-select-pwd", "hotkey"),
+                (boxes[1], "CreateRoom-paste-pwd", self.settings.room_password),
+            ))
 
-        self.invalidate_evidence("input")
-        print("[L0] 建房弹窗已填写房间名/密码")
+        step = int(getattr(self, "_room_form_step", 0) or 0)
+        if step >= len(steps):
+            return True
+        hit, reason, payload = steps[step]
+        if payload == "hotkey":
+            ok = self.act_hotkey("ctrl", "a", reason=reason)
+        elif payload is None:
+            ok = self.act_click(hit, reason)
+        else:
+            ok = self.act_paste_text(payload, reason)
+        if not ok:
+            print(f"[L0] 建房弹窗步骤失败/取消: {reason}")
+            return False
+        self._room_form_step = step + 1
+        if self._room_form_step < len(steps):
+            return False
+        print("[L0] 建房弹窗已分阶段填写房间名/密码")
         return True
 
     def _l0_transition_timeout(self) -> float:
@@ -15310,11 +15357,40 @@ class Mediator:
         self._panel_pending_choice_fingerprint = None
         return action
 
+    def _reset_f_draw_guard(self) -> None:
+        self._f_draw_fingerprint = None
+        self._f_draw_first_seen_at = None
+        self._f_draw_last_reopen_at = None
+        self._f_draw_reopen_count = 0
+        self._f_draw_backoff_until = 0.0
+
+    def _track_f_draw_episode(self, frame: Frame, kind: str, now: float) -> None:
+        """Track one physical F draw across generic panel episode resets."""
+        if self._passenger_mode() or kind != "bond":
+            return
+        fingerprint = self._panel_physical_fingerprint(frame)
+        if fingerprint is None:
+            return
+        if fingerprint != self._f_draw_fingerprint:
+            self._f_draw_fingerprint = fingerprint
+            self._f_draw_first_seen_at = now
+            self._f_draw_last_reopen_at = None
+            self._f_draw_reopen_count = 0
+            self._f_draw_backoff_until = 0.0
+            return
+        self._f_draw_reopen_count += 1
+        self._f_draw_last_reopen_at = now
+        print(
+            f"[L1] 同一 F 抽卡重新打开 {self._f_draw_reopen_count} 次 "
+            f"（fingerprint={fingerprint[:12]}）"
+        )
+
     def _enter_panel_episode(self, frame: Frame, anchor: MatchResult, kind: str, opened: bool) -> None:
         """进入 ACTIVE 会话：记录 kind/指纹起点；不消耗异常重开预算。"""
         now = time.time()
         self._panel_state = PanelState.ACTIVE
         self._panel_kind = kind
+        self._track_f_draw_episode(frame, kind, now)
         self._panel_episode_id = f"ep_{int(now * 1000)}"
         self._panel_first_seen_at = now
         self._panel_last_progress_at = now
@@ -15342,6 +15418,24 @@ class Mediator:
         cycle_owned = self._l1_cycle_owned_panel
         cycle_selected = self._l1_cycle_selected
         force_advance = getattr(self, "_panel_visit_force_advance", False)
+        stale_f_draw = (
+            cycle_owned
+            and cycle_kind == "bond"
+            and not cycle_selected
+            and self._f_draw_reopen_count >= self._F_DRAW_REOPEN_LIMIT
+        )
+        if stale_f_draw:
+            until = time.time() + self._F_DRAW_BACKOFF_S
+            self._f_draw_backoff_until = max(self._f_draw_backoff_until, until)
+            self._bond_idle_until = max(getattr(self, "_bond_idle_until", 0.0), until)
+            print(
+                f"[L1] 同一 F 抽卡无合法选择且连续重开已达上限，"
+                f"进入 {self._F_DRAW_BACKOFF_S:.0f}s 有界退避"
+            )
+        elif cycle_kind == "bond" and cycle_selected:
+            # A confirmed selection consumes this draw.  A future draw with
+            # identical pixels must still get a fresh liveness budget.
+            self._reset_f_draw_guard()
         self._panel_visit_force_advance = False
         self._panel_state = PanelState.CLOSED
         self._panel_kind = None
@@ -15424,6 +15518,11 @@ class Mediator:
             "stale_duration": stale_duration,
             "current_fingerprint": self._panel_fingerprint,
             "fingerprint_attempts": self._panel_fingerprint_attempts,
+            "f_draw_fingerprint": self._f_draw_fingerprint,
+            "f_draw_first_seen_at": self._f_draw_first_seen_at,
+            "f_draw_last_reopen_at": self._f_draw_last_reopen_at,
+            "f_draw_reopen_count": self._f_draw_reopen_count,
+            "f_draw_backoff_until": self._f_draw_backoff_until,
             "executed_actions": self._panel_executed_actions,
             "confirmed_actions": self._panel_confirmed_actions,
             "closing_attempts": self._panel_closing_attempts,
@@ -17088,31 +17187,6 @@ class Mediator:
         elif surface not in (InteractionSurface.HUD_ONLY, InteractionSurface.MERCHANT):
             return LoopAction.Continue
 
-        # Everything below reads the HUD (auto-task box, challenges, merchant
-        # strip, item bar).  A tooltip left by our own last click must not
-        # decide those reads.
-        park = self._maybe_park_pointer(frame)
-        if park is not None:
-            return park
-
-        # ---- Boss 提前挑战（中段 HUD 入口，30s 节流 + 有界尝试）----
-        # 20260822：boosIcon 等入口图标只出现在 idle HUD 上（无中央面板），
-        # 与四挑战开关同一 cadence 纪律；配置了 cjb_boss/sgzx_boss 才扫描。
-        if (
-            surface == InteractionSurface.HUD_ONLY
-            and not anchor
-            and not self._post_game_pending
-            and getattr(self, "_post_game_route", "") != "boss_active"
-            and self._configured_boss_challenge_names()
-            and self._boss_challenge_attempts < 3
-            and now >= self._boss_challenge_next_at
-            and getattr(self, "scenes", None)
-            and "boss_entry" in self.scenes
-            and self.find_scene(frame, "boss_entry")
-        ):
-            return self._maybe_challenge_configured_boss(frame, now)
-
-
         # ---- S0 ⑧ 阶段门控：未验证战后入口检查只在局尾窗口触发 ----
         # 正常中段 idle HUD 不再每 tick 支付 archive/boss/longzhu 全帧扫描
         # （N2 waiver 复评项）；longzhu 色相检查已移至 LONGZHU 阶段（_tick_l1_tail）。
@@ -17182,6 +17256,36 @@ class Mediator:
         ):
             self.set_phase(Phase.STAGE_SELECT, "guarded stage page detected from MAIN_LINE")
             return LoopAction.Continue
+
+        if surface == InteractionSurface.HUD_ONLY and not self._is_in_game_hud(frame):
+            # No modal is not HUD evidence.  Every opportunistic MAIN_LINE
+            # input below must be backed by a positive in-game HUD anchor.
+            print("[L1] MAIN_LINE 当前画面无正向 HUD 证据，严格零输入等待")
+            return LoopAction.Continue
+
+        # Everything below reads the HUD (auto-task box, challenges, merchant
+        # strip, item bar).  A tooltip left by our own last click must not
+        # decide those reads.
+        park = self._maybe_park_pointer(frame)
+        if park is not None:
+            return park
+
+        # ---- Boss 提前挑战（中段 HUD 入口，30s 节流 + 有界尝试）----
+        # 20260822：boosIcon 等入口图标只出现在 idle HUD 上（无中央面板），
+        # 与四挑战开关同一 cadence 纪律；配置了 cjb_boss/sgzx_boss 才扫描。
+        if (
+            surface == InteractionSurface.HUD_ONLY
+            and not anchor
+            and not self._post_game_pending
+            and getattr(self, "_post_game_route", "") != "boss_active"
+            and self._configured_boss_challenge_names()
+            and self._boss_challenge_attempts < 3
+            and now >= self._boss_challenge_next_at
+            and getattr(self, "scenes", None)
+            and "boss_entry" in self.scenes
+            and self.find_scene(frame, "boss_entry")
+        ):
+            return self._maybe_challenge_configured_boss(frame, now)
 
         # 右侧“自动任务”复选框（左键点击）
         auto_res = self._ensure_auto_task_enabled(frame)
@@ -17491,6 +17595,28 @@ class Mediator:
         print("[med] 主线 idle（等待局内选择/挑战 UI）")
         return LoopAction.Continue
 
+    def _classify_exit_surface(self, frame: Frame) -> str:
+        """Reclassify a disappeared exit confirmation without inferring HUD."""
+        if self._find_room_start(frame):
+            return "room"
+        if self._is_in_game_hud(frame):
+            return "hud"
+        if self._is_game_client_frame(frame):
+            return "transition"
+        return "unknown"
+
+    def _rearm_exit_chain(self, reason: str) -> bool:
+        """Re-arm QUIT once within the session budget; never reset forever."""
+        if self._exit_rearm_attempts >= self._EXIT_REARM_LIMIT:
+            return False
+        self._exit_rearm_attempts += 1
+        print(
+            f"[med] 退出链 {reason}，有界重新进入 QUIT "
+            f"({self._exit_rearm_attempts}/{self._EXIT_REARM_LIMIT})"
+        )
+        self.set_phase(Phase.QUIT, reason)
+        return True
+
     def _tick_l1_tail(self, frame: Frame) -> LoopAction:
         if self.phase in (Phase.EARLY_CHALLENGE, Phase.ANCHOR_BOSS, Phase.LONGZHU):
             # S0 ⑧：longzhu 色相检查只在 LONGZHU 阶段执行（N2 waiver 复评：
@@ -17521,7 +17647,8 @@ class Mediator:
                 self.set_phase(Phase.NEXT, "exit confirmation already visible")
                 return LoopAction.Continue
             if self._exit_button_attempts >= 3 or elapsed >= timeout:
-                if self._find_room_start(frame):
+                surface = self._classify_exit_surface(frame)
+                if surface == "room":
                     print("[med] 局内退出超时但检测到房间准备界面，退出完成")
                     self._awaiting_room_return = True
                     self.set_phase(Phase.PREPARE, "room detected after quit timeout")
@@ -17529,10 +17656,10 @@ class Mediator:
                     self._longzhu_deadline = None
                     self._f1_fallback_done = False
                     return LoopAction.Continue
-                if self._unattended_recovery_enabled():
-                    print("[med] 局内退出按钮观察窗到期，重新武装并继续等待专用锚点")
-                    self._exit_button_attempts = 0
-                    self._exit_since = time.time()
+                if surface == "hud" and self._rearm_exit_chain("quit surface still HUD"):
+                    return LoopAction.Continue
+                if surface == "transition" and elapsed < timeout * 2:
+                    print("[med] 局内退出处于转场/加载，继续有界等待（零动作）")
                     return LoopAction.Continue
                 print("[med] 未能打开专用退出确认框，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "exit button timeout")
@@ -17584,19 +17711,38 @@ class Mediator:
                 return LoopAction.Continue
 
             # confirm_hit is None:
+            surface = self._classify_exit_surface(frame)
+            if surface == "room":
+                print("[med] 退出确认按钮消失且已在房间界面，退出完成")
+                self._awaiting_room_return = True
+                self.set_phase(Phase.PREPARE, "room detected after confirm disappeared")
+                self._room_action_deadline = time.time() + min(self.settings.query_timeout, 30)
+                self._longzhu_deadline = None
+                self._f1_fallback_done = False
+                return LoopAction.Continue
+            if surface == "hud" and self._exit_confirm_attempts > 0:
+                if self._rearm_exit_chain("confirm disappeared on HUD"):
+                    return LoopAction.Continue
+                print("[med] 退出确认消失后仍为 HUD 且重试预算耗尽，Fail-Closed 停止")
+                self.set_phase(Phase.ERROR, "exit confirmation HUD rearm exhausted")
+                self.stop()
+                return LoopAction.Break
+            if surface == "transition":
+                if elapsed < timeout * 2:
+                    print("[med] 退出确认消失，处于转场/加载，继续有界等待（零动作）")
+                    return LoopAction.Continue
+                print("[med] 退出确认转场等待超时，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, "exit confirmation transition timeout")
+                self.stop()
+                return LoopAction.Break
             if elapsed >= timeout or self._exit_confirm_attempts >= 3:
-                if self._find_room_start(frame):
+                if surface == "room":
                     print("[med] 确认按钮消失且已在房间界面，退出完成")
                     self._awaiting_room_return = True
                     self.set_phase(Phase.PREPARE, "room detected after confirm disappeared")
                     self._room_action_deadline = time.time() + min(self.settings.query_timeout, 30)
                     self._longzhu_deadline = None
                     self._f1_fallback_done = False
-                    return LoopAction.Continue
-                if self._unattended_recovery_enabled():
-                    print("[med] 退出确认观察窗到期，重新武装并继续等待专用按钮")
-                    self._exit_confirm_attempts = 0
-                    self._exit_since = time.time()
                     return LoopAction.Continue
                 print("[med] 退出确认框未能安全确认，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "exit confirmation timeout")

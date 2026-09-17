@@ -45,8 +45,8 @@ def test_next_phase_detects_already_in_room() -> None:
         assert med.phase == Phase.PREPARE
 
 
-def test_next_phase_unattended_rearms_on_timeout() -> None:
-    """Phase.NEXT: in unattended mode (default), timeout rearms attempts and stays in NEXT."""
+def test_next_phase_unknown_timeout_fails_closed_even_in_unattended_mode() -> None:
+    """Phase.NEXT: an unclassified surface cannot be re-armed forever."""
     med = RuntimeMediator(Settings(), Path("."))
     med.phase = Phase.NEXT
     med._exit_since = time.time() - 20.0  # Timed out
@@ -56,9 +56,54 @@ def test_next_phase_unattended_rearms_on_timeout() -> None:
     with patch.object(med, "_find_room_start", return_value=None), \
          patch.object(med, "_find_exit_confirm", return_value=None):
         res = med._tick_l1_tail(frame)
+        assert res == LoopAction.Break
+        assert med.phase == Phase.ERROR
+
+
+def test_next_phase_confirm_disappeared_on_hud_rearms_quit_with_a_bound() -> None:
+    """A positively identified HUD may retry QUIT, but only within a finite budget."""
+    med = RuntimeMediator(Settings(), Path("."))
+    med.phase = Phase.NEXT
+    med._exit_since = time.time() - 20.0
+    med._exit_confirm_attempts = 3
+    frame = _make_frame()
+
+    with patch.object(med, "_find_room_start", return_value=None), \
+         patch.object(med, "_find_exit_confirm", return_value=None), \
+         patch.object(med, "_is_in_game_hud", return_value=True):
+        res = med._tick_l1_tail(frame)
         assert res == LoopAction.Continue
-        assert med.phase == Phase.NEXT
-        assert med._exit_confirm_attempts == 0
+        assert med.phase == Phase.QUIT
+        assert med._exit_rearm_attempts == 1
+
+        med._exit_since = time.time() - 20.0
+        med._exit_button_attempts = 3
+        med._exit_confirm_attempts = 3
+        med._exit_rearm_attempts = med._EXIT_REARM_LIMIT
+        res = med._tick_l1_tail(frame)
+        assert res == LoopAction.Break
+        assert med.phase == Phase.ERROR
+
+
+def test_next_phase_transition_wait_is_bounded_and_does_not_rearm_timer() -> None:
+    """A known game-client transition gets observation time, not a new budget."""
+    med = RuntimeMediator(Settings(), Path("."))
+    med.phase = Phase.NEXT
+    original_since = time.time() - 20.0
+    med._exit_since = original_since
+    med._exit_confirm_attempts = 3
+    frame = _make_frame()
+
+    with patch.object(med, "_find_room_start", return_value=None), \
+         patch.object(med, "_find_exit_confirm", return_value=None), \
+         patch.object(med, "_is_in_game_hud", return_value=False), \
+         patch.object(med, "_is_game_client_frame", return_value=True):
+        res = med._tick_l1_tail(frame)
+
+    assert res == LoopAction.Continue
+    assert med.phase == Phase.NEXT
+    assert med._exit_rearm_attempts == 0
+    assert med._exit_since == original_since
 
 
 def test_next_phase_fails_closed_on_unknown_timeout() -> None:
@@ -76,8 +121,8 @@ def test_next_phase_fails_closed_on_unknown_timeout() -> None:
         assert med.phase == Phase.ERROR
 
 
-def test_room_form_filling_uses_executor() -> None:
-    """_fill_room_dialog fills name and pwd using executor without livelock."""
+def test_room_form_filling_is_a_staged_single_action_transaction() -> None:
+    """Each room-form field operation owns one tick; confirm is a later tick."""
     settings = Settings()
     settings.room_name = "Room123"
     settings.room_password = "Pwd456"
@@ -88,22 +133,18 @@ def test_room_form_filling_uses_executor() -> None:
     confirm_hit = _make_match("create_room_confirm", 800, 600)
     boxes = [_make_match("box_name", 600, 400), _make_match("box_pwd", 600, 450)]
 
-    clicked_reasons: list[str] = []
+    operations: list[str] = []
     pastes: list[str] = []
 
-    def mock_click(hit: MatchResult, reason: str = "") -> bool:
-        clicked_reasons.append(reason)
-        return True
-
-    med.act_click = mock_click
-    med.executor.hotkey = MagicMock(return_value=MagicMock(success=True))
-    med.executor.paste_text = lambda text, **kw: pastes.append(text) or MagicMock(success=True)
+    med.executor.click = lambda *args, **kw: operations.append("click") or MagicMock(success=True)
+    med.executor.hotkey = lambda *args, **kw: operations.append("hotkey") or MagicMock(success=True)
+    med.executor.paste_text = lambda text, **kw: operations.append("paste") or pastes.append(text) or MagicMock(success=True)
 
     with patch("shuabao.mediator.find_input_boxes", return_value=boxes):
-        res = med._fill_room_dialog(frame, confirm_hit)
+        results = [med._fill_room_dialog(frame, confirm_hit) for _ in range(6)]
+        res = results[-1]
         assert res is True
-        assert "CreateRoom-focus-name" in clicked_reasons
-        assert "CreateRoom-focus-pwd" in clicked_reasons
+        assert operations == ["click", "hotkey", "paste", "click", "hotkey", "paste"]
         assert pastes == ["Room123", "Pwd456"]
 
 
@@ -113,10 +154,8 @@ def test_positive_hud_evidence_blocks_input_on_unknown_frame() -> None:
     med.phase = Phase.MAIN_LINE
     frame = _make_frame()
 
-    clicks: list[str] = []
-    keys: list[str] = []
-    med.act_click = lambda hit, reason="": clicks.append(reason) or True
-    med.act_key = lambda key, reason="": keys.append(reason) or True
+    ensure_auto = MagicMock(return_value=LoopAction.Continue)
+    med._ensure_auto_task_enabled = ensure_auto
 
     with patch.object(med, "_is_in_game_hud", return_value=False), \
          patch.object(med, "_find_stage_page", return_value=None), \
@@ -124,8 +163,8 @@ def test_positive_hud_evidence_blocks_input_on_unknown_frame() -> None:
          patch.object(med, "_selection_anchor", return_value=None):
         res = med._tick_main_line(frame)
         assert res == LoopAction.Continue
-        assert len(clicks) == 0
-        assert len(keys) == 0
+        ensure_auto.assert_not_called()
+        assert med._tick_input_executed is False
 
 
 def test_round1_to_round2_main_line_transition() -> None:

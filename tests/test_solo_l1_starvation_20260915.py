@@ -88,10 +88,12 @@ def test_low_wood_releases_the_80_percent_bond_lock_to_skills() -> None:
     assert _open(med, _frame("hud_wood_221_f0300.png"), wood=10) == ["OpenSkillPanel"]
 
 
-def test_enough_wood_keeps_the_bond_lock() -> None:
+def test_enough_wood_preserves_f_g_priority_without_starving_side_steps() -> None:
     med = _med()
     med._l1_cycle_step = "treasure"
-    assert _open(med, _frame("hud_wood_1111_f0200.png"), wood=1111) == ["OpenBondPanel"]
+    # F/G remain the high-priority pair, but a high wood balance must not
+    # hard-lock the scheduler in F ↔ G and starve treasure/evolve/etc.
+    assert _open(med, _frame("hud_wood_1111_f0200.png"), wood=1111) == ["OpenTreasurePanel"]
 
 
 def test_unreadable_wood_falls_back_to_the_idle_backoff() -> None:
@@ -266,6 +268,7 @@ def test_third_run_real_frames_cover_every_l1_step_without_twenty_second_input_g
         stack.enter_context(patch.object(med, "_find_equipment_affix_choice", return_value=None))
         stack.enter_context(patch.object(med, "_selection_anchor", return_value=None))
         stack.enter_context(patch.object(med, "_find_stage_page", return_value=False))
+        stack.enter_context(patch.object(med, "_is_in_game_hud", return_value=True))
         stack.enter_context(patch.object(med, "_ensure_auto_task_enabled", return_value=None))
         stack.enter_context(patch.object(med, "_ensure_challenge_buttons", return_value=None))
         stack.enter_context(patch.object(med, "_maybe_ensure_hero_panel_focus", return_value=None))
@@ -302,8 +305,8 @@ def test_third_run_real_frames_cover_every_l1_step_without_twenty_second_input_g
             med._tick_main_line(current[1])
             clock[0] += 1.5
 
-    assert high_wood_visits <= {"bond", "skill"}
     expected = {"skill", "treasure", "evolve", "equipment", "pickup", "merchant", "artifact"}
+    assert expected <= high_wood_visits
     assert expected <= visits
     assert input_times
     observed = [simulation_start, *input_times, clock[0]]

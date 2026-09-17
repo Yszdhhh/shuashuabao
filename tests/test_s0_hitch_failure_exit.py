@@ -286,24 +286,15 @@ def test_hitch_kick_reset_blacklists_recorded_room() -> None:
     assert med._hitch_pending_room_key is None
 
 
-def test_hitch_quit_and_confirm_timeouts_rearm_without_stopping() -> None:
+def test_hitch_exit_timeout_with_unknown_surface_fails_closed() -> None:
     med = _hitch_mediator()
     med.set_phase(Phase.QUIT, "timeout exit")
     med._exit_button_attempts = 3
     with patch.object(med, "_find_exit_confirm", return_value=None), \
             patch.object(med, "stop") as stop:
-        assert med._tick_l1_tail(_lobby_frame()) == LoopAction.Continue
-    assert med._exit_button_attempts == 0
-    assert med.phase == Phase.QUIT
-    stop.assert_not_called()
-
-    med.set_phase(Phase.NEXT, "timeout confirm")
-    med._exit_confirm_attempts = 3
-    with patch.object(med, "stop") as stop2:
-        assert med._tick_l1_tail(_lobby_frame()) == LoopAction.Continue
-    assert med._exit_confirm_attempts == 0
-    assert med.phase == Phase.NEXT
-    stop2.assert_not_called()
+        assert med._tick_l1_tail(_lobby_frame()) == LoopAction.Break
+    assert med.phase == Phase.ERROR
+    stop.assert_called_once()
 
 
 def test_hitch_unhealthy_frame_never_ends_long_running_loop() -> None:

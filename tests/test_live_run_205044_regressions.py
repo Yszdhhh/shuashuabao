@@ -588,6 +588,7 @@ class LiveRun205044Tests(unittest.TestCase):
             "_ensure_auto_task_enabled": None,
             "_ensure_challenge_buttons": None,
             "_find_stage_page": False,
+            "_is_in_game_hud": True,
             "_handle_self_opened_compact_panel": None,
             "_maybe_open_choice_panel": None,
             "act_click": True,
