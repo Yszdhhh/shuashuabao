@@ -168,13 +168,28 @@ def test_positive_hud_evidence_blocks_input_on_unknown_frame() -> None:
 
 
 def test_round1_to_round2_main_line_transition() -> None:
-    """Full state machine integration: Round 1 -> Victory -> QUIT -> NEXT -> PREPARE (RoomStart) -> Round 2 MAIN_LINE."""
+    """Full state machine integration: Round 1 -> Victory -> QUIT -> NEXT -> PREPARE (RoomStart) -> ROOM_STARTING -> STAGE_SELECT -> STAGE_STARTING -> verified Round 2 MAIN_LINE."""
     med = RuntimeMediator(Settings(), Path("."))
     frame = _make_frame()
 
-    # 1. Round 1 in MAIN_LINE
+    # 1. Round 1 in MAIN_LINE with dirty per-round state
     med.phase = Phase.MAIN_LINE
     assert med.phase == Phase.MAIN_LINE
+    r1_start = time.time() - 300.0
+    med._auto_task_done = True
+    med._auto_task_attempts = 2
+    med._main_line_closed_done = True
+    med._close_main_line_triggered = True
+    med._challenge_done = {"coin_challenge", "wood_challenge"}
+    med._post_game_route = "archive"
+    med._secret_realm_active = True
+    med._time_cave_boss_done = True
+    med._merchant_next_at = time.time() + 200.0
+    med._skill_cards_owned = ["skill_a", "skill_b"]
+    med._bond_cards_owned = ["bond_x"]
+    med._main_line_started_at = r1_start
+    med._round_started_at = r1_start
+    med._round_deadline = r1_start + 180.0
 
     # 2. Victory transition to QUIT
     med.set_phase(Phase.QUIT, "test victory quit")
@@ -209,9 +224,49 @@ def test_round1_to_round2_main_line_transition() -> None:
         med._tick_l0(frame)
         assert med.phase == Phase.ROOM_STARTING
 
-    # 7. In ROOM_STARTING: game launches -> transitions into Round 2 MAIN_LINE
-    with patch.object(med, "_detect_context", return_value="MAIN_LINE"), \
-         patch.object(med, "_is_in_game_hud", return_value=True):
-        med._tick_l0(frame)
+    # 7. In ROOM_STARTING: stage page appears -> STAGE_SELECT
+    stage_page_hit = _make_match("stage_page", 200, 200)
+    with patch.object(med, "_detect_context", return_value="STAGE_SELECT"), \
+         patch.object(med, "_find_stage_page", return_value=stage_page_hit):
+        med._tick_l0(_make_frame())
+        assert med.phase == Phase.STAGE_SELECT
+
+    # 8. In STAGE_SELECT: stage selected, click stage start -> STAGE_STARTING
+    med._stage_selected = True
+    med._stage_click_cooldown_until = 0.0
+    stage_start_hit = _make_match("stage_start", 800, 700)
+    with patch.object(med, "_detect_context", return_value="STAGE_SELECT"), \
+         patch.object(med, "_find_stage_page", return_value=stage_page_hit), \
+         patch.object(med, "_find_stage_start", return_value=stage_start_hit), \
+         patch.object(med, "act_click", return_value=True):
+        med._tick_l0(_make_frame())
+        assert med.phase == Phase.STAGE_STARTING
+
+    # 9. In STAGE_STARTING: 2 consecutive frames of positive in-game evidence -> verified MAIN_LINE
+    with patch.object(med, "_is_in_game_hud", return_value=True):
+        # Frame 1: WAIT_TRANSITION -> VERIFY_INGAME (hud_frames=1)
+        med._tick_l0(_make_frame())
+        assert med.phase == Phase.STAGE_STARTING
+        assert med._challenge_start_hud_frames == 1
+
+        # Frame 2: VERIFY_INGAME -> DONE -> MAIN_LINE ("challenge start verified")
+        med._tick_l0(_make_frame())
         assert med.phase == Phase.MAIN_LINE
-        # Successfully reached Round 2 MAIN_LINE!
+
+    # 10. Confirm Round 2 receives fresh per-round state
+    assert med.phase == Phase.MAIN_LINE
+    assert med._auto_task_done is False
+    assert med._auto_task_attempts == 0
+    assert med._main_line_closed_done is False
+    assert med._close_main_line_triggered is False
+    assert len(med._challenge_done) == 0
+    assert med._post_game_route == "secret"
+    assert med._secret_realm_active is False
+    assert med._time_cave_boss_done is False
+    assert med._merchant_next_at == 0.0
+    assert len(med._skill_cards_owned) == 0
+    assert len(med._bond_cards_owned) == 0
+    assert med._main_line_started_at is not None and med._main_line_started_at > r1_start
+    assert med._round_started_at is not None and med._round_started_at > r1_start
+    assert med._round_deadline is not None and med._round_deadline > r1_start
+    assert med._round_deadline == med._round_started_at + med.settings.round_timeout_s
