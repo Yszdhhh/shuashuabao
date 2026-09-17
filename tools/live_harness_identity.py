@@ -2,14 +2,16 @@
 """Fail-closed identity for the live harness.
 
 This module does not implement game logic.  It only answers: is the current
-process about to exercise the frozen production source, or an old worktree /
-dist / EXE?
+process about to exercise the accepted candidate source, or an old worktree /
+dist / EXE? Only an accepted-candidate landing updates the worktree manifest.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -26,6 +28,27 @@ FORBIDDEN_WORKTREE_MARKERS = (
 )
 PRODUCTION_PATHSPECS = ("src/shuabao",)
 BUILD_IDENTITY_FILENAME = "build_identity.json"
+IDENTITY_MANIFEST_PATH = Path("config/runtime_identity_manifest.json")
+
+
+def load_identity_manifest(repo_root: Path) -> dict[str, Any]:
+    """Read the committed anchor; never generate or update it at runtime."""
+    manifest = json.loads((Path(repo_root) / IDENTITY_MANIFEST_PATH).read_text(encoding="utf-8-sig"))
+    if not isinstance(manifest, dict) or manifest.get("schema_version") != 1:
+        raise ValueError("runtime identity manifest schema_version must be 1")
+    if not isinstance(manifest.get("candidate_sha"), str) or not re.fullmatch(r"[0-9a-fA-F]{40}", manifest["candidate_sha"]):
+        raise ValueError("runtime identity manifest candidate_sha must be a full 40-hex SHA")
+    return manifest
+
+
+def candidate_anchor_sha(report_root: Path) -> str:
+    """An explicit candidate override precedes the committed worktree manifest."""
+    anchor = os.environ.get("SHUABAO_CANDIDATE_SHA")
+    if anchor is None:
+        anchor = load_identity_manifest(report_root)["candidate_sha"]
+    if not re.fullmatch(r"[0-9a-fA-F]{40}", anchor):
+        raise ValueError("candidate anchor must be a full 40-hex SHA")
+    return anchor.lower()
 
 
 def _git(repo_root: Path, *args: str) -> tuple[int, str, str]:
@@ -71,9 +94,7 @@ def is_ancestor(repo_root: Path, ancestor: str, descendant: str = "HEAD") -> boo
 
 def _name_only_diff(repo_root: Path, baseline: str, pathspec: str) -> list[str]:
     _ensure_commit_available(repo_root, baseline)
-    code, out, _err = _git(repo_root, "diff", "--name-only", f"{baseline}...HEAD", "--", pathspec)
-    if code != 0:
-        code, out, _err = _git(repo_root, "diff", "--name-only", baseline, "HEAD", "--", pathspec)
+    code, out, _err = _git(repo_root, "diff", "--name-only", baseline, "HEAD", "--", pathspec)
     if code != 0:
         return [f"<git diff failed for {pathspec} vs {baseline[:12]}>"]
     return [line.strip().replace("\\", "/") for line in out.splitlines() if line.strip()]
@@ -92,18 +113,25 @@ def _dirty_production_paths(repo_root: Path) -> list[str]:
 
 
 def production_code_diff(repo_root: Path) -> dict[str, Any]:
-    """Compare production source against the frozen code freeze and harness base."""
+    """Require candidate-identical committed source and a clean source worktree."""
     files: list[str] = []
-    for baseline in (FROZEN_PRODUCTION_CODE_BASELINE, HARNESS_BASE_SHA):
+    anchor = ""
+    try:
+        anchor = candidate_anchor_sha(repo_root)
+    except (OSError, ValueError, TypeError) as exc:
+        files.append(f"<candidate anchor unavailable: {exc}>")
+    if anchor:
         for pathspec in PRODUCTION_PATHSPECS:
-            files.extend(_name_only_diff(repo_root, baseline, pathspec))
+            files.extend(_name_only_diff(repo_root, anchor, pathspec))
     files.extend(_dirty_production_paths(repo_root))
     unique = sorted(set(files))
     return {
         "status": "CLEAN" if not unique else "NOT_CLEAN",
         "files": unique,
+        "candidate_anchor_sha": anchor,
+        "legacy_frozen_baseline": FROZEN_PRODUCTION_CODE_BASELINE,
         "frozen_production_code_baseline": FROZEN_PRODUCTION_CODE_BASELINE,
-        "harness_base_sha": HARNESS_BASE_SHA,
+        "harness_base_sha": anchor,
     }
 
 
@@ -198,8 +226,14 @@ def identity_report(
 ) -> dict[str, Any]:
     repo_root = Path(repo_root).resolve()
     harness_head = commit_sha(repo_root)
-    derived = is_ancestor(repo_root, HARNESS_BASE_SHA, "HEAD") if harness_head != "unknown" else False
     prod_diff = production_code_diff(repo_root)
+    try:
+        anchor = candidate_anchor_sha(repo_root)
+    except (OSError, ValueError, TypeError):
+        anchor = ""
+    derived = bool(anchor and harness_head != "unknown" and (
+        harness_head == anchor or is_ancestor(repo_root, anchor, "HEAD")
+    ))
     runtime = runtime_source_path(repo_root)
     exe = _exe_identity(automation_exe)
     reasons: list[str] = []
@@ -209,7 +243,7 @@ def identity_report(
     if harness_head in FORBIDDEN_RUNTIME_SHAS:
         reasons.append(f"Harness HEAD is a forbidden old runtime SHA: {harness_head}")
     if not derived:
-        reasons.append(f"Harness HEAD is not a descendant of harness base {HARNESS_BASE_SHA[:12]}")
+        reasons.append(f"Harness HEAD is not the candidate anchor or its descendant: {anchor or 'unavailable'}")
     if prod_diff["status"] != "CLEAN":
         reasons.append(
             "production code diff is NOT_CLEAN: " + ", ".join(prod_diff["files"][:12])
@@ -226,19 +260,21 @@ def identity_report(
     if require_exe and exe["status"] != "PRESENT":
         reasons.append("automation EXE identity is required for this live-input mode")
     if exe["status"] == "PRESENT" and exe_sha and exe_sha != harness_head:
-        # Packaged EXE may lag the harness-only commit.  It must still be a
-        # descendant of the frozen production baseline and not an old runtime.
-        if not is_ancestor(repo_root, FROZEN_PRODUCTION_CODE_BASELINE, exe_sha):
+        # Packaged source must derive from the same accepted candidate.
+        if not anchor or not is_ancestor(repo_root, anchor, exe_sha):
             reasons.append(
-                f"automation EXE source {exe_sha[:12]} is not derived from frozen production "
-                f"{FROZEN_PRODUCTION_CODE_BASELINE[:12]}"
+                f"automation EXE source {exe_sha[:12]} is not derived from candidate "
+                f"{anchor[:12]}"
             )
 
     ready = not reasons
     return {
         "harness_head": harness_head,
         "harness_branch": git_branch(repo_root),
-        "harness_base": HARNESS_BASE_SHA,
+        "harness_base": anchor,
+        "candidate_anchor_sha": anchor,
+        "python_executable": sys.executable,
+        "imported_shuabao": runtime.get("path"),
         "runtime_worktree": str(repo_root),
         "runtime_worktree_sha": harness_head,
         "runtime_source_path": runtime.get("path"),
@@ -258,7 +294,7 @@ def format_identity_text(report: dict[str, Any]) -> str:
     lines = [
         f"Harness HEAD: {report.get('harness_head')}",
         f"Harness Base: {report.get('harness_base')}",
-        f"Production Candidate SHA: {report.get('frozen_production_code_baseline')}",
+        f"Production Candidate SHA: {report.get('candidate_anchor_sha')}",
         f"Runtime Worktree: {report.get('runtime_worktree')}",
         f"Frozen Production Code Baseline: {report.get('frozen_production_code_baseline')}",
         f"Production Code Diff: {report.get('production_code_diff')}",
