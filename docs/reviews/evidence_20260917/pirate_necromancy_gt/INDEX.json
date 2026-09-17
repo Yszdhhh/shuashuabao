@@ -57,5 +57,29 @@
     "source": "branch docs/mechanics-contract-20260917",
     "policy": "Cited as historical reference only; never presented as new live GT evidence."
   },
+  "latest_entry_evidence": {
+    "status": "BLOCKED_PRECONDITION",
+    "exit": 3,
+    "ocr_status": "LIVE READY",
+    "game_input_sent": false,
+    "mechanism_status": "NOT_RUN",
+    "entry_files_uncommitted": ["../../../../tools/one_click_test.ps1", "../../../../one_click_test.cmd"],
+    "whatif": {"reported_by": "Main", "exit": 0, "bundle": "../../../../captures/pirate_necromancy_20260917_121905", "status": "ENTRY_PREPARATION_ONLY_NOT_LIVE_PASS"},
+    "source_bundle": "../../../../captures/pirate_necromancy_20260917_121327/entry_retry/solo_ingame_chain_20260917_121740_654041",
+    "archived_files": [
+      {"file": "entry_failure/entry_retry.stdout.log", "status": "OCR_READY_THEN_BLOCKED_PRECONDITION"},
+      {"file": "entry_failure/entry_retry.stderr.log", "status": "HWND_OVERFLOW_CAPTURE_ENUMERATION"},
+      {"file": "entry_failure/b0000_blocked_precondition.json", "status": "BLOCKED_PRECONDITION"},
+      {"file": "entry_failure/trace.jsonl", "status": "BOOT_UNKNOWN_ZERO_INPUT"}
+    ],
+    "blocker": "capture.py:409 IsWindowVisible(hwnd): OverflowError int too long to convert",
+    "earlier_launcher_exit_1": "PowerShell NativeCommandError stderr handling; Main reports launcher fixed; separate from retry exit 3",
+    "latest_full_gate": {"reported_by": "Main", "duration_s": 1191.81, "exit": 255, "observed_output": "[gate] pytest", "status": "NO_FULL_SUITE_RESULT", "individual_test_failure": null},
+    "manual_capture": {"index": "gt_live/smoke_capture/frames.jsonl", "count": 2, "hwnd": 33950972, "pid": 38732, "dimensions": [1600, 900], "mode": "MANUAL_GT", "game_input_sent": false, "recorded_sha256_differ": true, "status": "CAPTURE_CHAIN_ONLY_NOT_MECHANISM_GT"},
+    "privacy": "No full-desktop frame or private user settings copied",
+    "owner_confirmed_rules": "UNCHANGED_USER_CONFIRMED",
+    "archival_validation": "NOT_RUN_NO_NEW_CAPTURE_OR_TESTS",
+    "commit_push": "NOT_PERFORMED"
+  },
   "restrictions": "No production worktree changes, no game inputs, no baseline changes, no main merge."
 }

@@ -6,7 +6,7 @@ Owner authorizes commit/push of this independent TEST/GT branch before a full re
 
 Starting SHA: `5b0f2436c5fe8ec2057f4266f42170edd6a95e4a`
 Test branch: `test/pirate-necromancy-gt-20260917` (independent worktree at `G:/刷刷宝/Worktrees/pirate-necromancy-gt-20260917`)
-Production worktree was not edited by this session. Its HEAD was observed at `922ed1a` during initial discovery; another agent may have advanced it since. No merge, rebase, PR, commit or push performed by this session.
+Production worktree was not edited by this session. Its HEAD was observed at `922ed1a` during initial discovery; another agent may have advanced it since. No merge, rebase, or PR. Test-branch commit/push is Owner-authorized.
 
 ## Overall
 
@@ -37,7 +37,7 @@ No game launch, no game input, no synthetic or historical frames recorded as new
 
 ## Verification not obtained
 
-- Full `python tools/release_gate.py --json` did not produce a final verdict: long runs were cancelled, and a separate bounded attempt timed out after 90 seconds at `[gate] pytest ...`. Subsequent full-pytest attempts were cancelled without a final result. Collection alone succeeded (2375 tests), which is not execution. No full-suite PASS or FAIL is claimed; commit/push remains BLOCKED.
+- Full `python tools/release_gate.py --json` did not produce a final verdict: a later full run lasted 1191.81s and exited 255 with only `[gate] pytest ...`. No full-suite PASS or FAIL is claimed. This blocks production promotion, not Owner-authorized test-branch commit/push.
 - Actual Dashboard visual acceptance: offscreen capture exists but is the subscription-locked surface with missing-font glyphs; it does not prove visible profile selection. No subscription gate bypass.
 - Desktop deployment: the provided shortcut still launches the production source root, not this test branch. `SHUABAO_APP_DATA` isolation requires the Harness to also receive explicit `--settings`; AppData alone does not guarantee settings isolation, and `desktop_app.py` still migrates legacy data from outside the root.
 
@@ -57,4 +57,13 @@ No AUTO PASS was recorded for any human-assisted step; USER_ACTION would be labe
 
 ## Delivery bookkeeping
 
-The requested INDEX.json and six initial evidence documents exist: OWNER_CONFIRMED_RULES.md, GT_PIRATE_STARTER.md, GT_BOUNTY_USE.md, GT_BAG_CONSUMABLE.md, GT_FULL_BOND_REPLACEMENT.md, GT_NECROMANCY.md. They record unexecuted scenarios honestly. The fifteen-item status was returned to the Owner; commit SHA is absent and push is NOT_PERFORMED. No background validation remains intentionally running. The blocking validation result, rather than more speculative changes, determines the current stop.
+The requested INDEX.json, six initial evidence documents, and `CLOUD_HANDOFF_20260917.md` exist. Mechanism scenarios remain unexecuted. Commit SHAs for this test branch are recorded at push time in the git log, not as production promotion.
+
+## Latest archived state (supersedes earlier availability snapshots)
+
+- One-click entry `one_click_test.cmd` → `tools/one_click_test.ps1` is landed. `cmd /c one_click_test.cmd -WhatIf` exit 0 wrote Settings/argv/manifest; not live PASS.
+- HWND FFI: `src/shuabao/vision/capture.py` now declares pointer-sized Win32 signatures and EnumWindowsProc `BOOL`. `pytest tests/test_capture_hwnd_ffi.py -q` → 4 passed. Live EnumWindows no longer OverflowError. Default `find_window_targets('英雄三国', role='l1')` is empty while the client is minimized; `allow_minimized=True` returns HWND 33950972 `英雄三国KK`. Preflight still ZERO INPUT and will not restore a minimized window.
+- Earlier live capture exit 3 `BLOCKED_PRECONDITION` (OCR READY, then HWND OverflowError) remains archived under `entry_failure/`. That run predates the BOOL restype fix.
+- Full gate: 1191.81s exit 255, only `[gate] pytest`; no suite verdict. Blocks production promotion only.
+- Mechanism GT items remain NOT_RUN. Cloud planning doc: `CLOUD_HANDOFF_20260917.md`.
+- Desktop screenshots that contain other sessions (`preflight/desktop_*.png`, `current_action_precheck.png`, `gt_live/001_stage_select.png`) are local-only and must not be pushed.

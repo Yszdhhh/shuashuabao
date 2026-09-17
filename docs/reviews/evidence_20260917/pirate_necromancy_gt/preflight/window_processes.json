@@ -1,0 +1,98 @@
+[
+    {
+        "Id":  35636,
+        "ProcessName":  "antigravity-tools",
+        "MainWindowHandle":  3541950,
+        "MainWindowTitle":  "Antigravity Tools"
+    },
+    {
+        "Id":  16768,
+        "ProcessName":  "ApplicationFrameHost",
+        "MainWindowHandle":  13501956,
+        "MainWindowTitle":  "设置"
+    },
+    {
+        "Id":  34024,
+        "ProcessName":  "ChatGPT",
+        "MainWindowHandle":  29163746,
+        "MainWindowTitle":  "ChatGPT"
+    },
+    {
+        "Id":  42108,
+        "ProcessName":  "chrome",
+        "MainWindowHandle":  9769024,
+        "MainWindowTitle":  "分支 · Git审计证据整合 - Google Chrome"
+    },
+    {
+        "Id":  2016,
+        "ProcessName":  "clash-verge",
+        "MainWindowHandle":  6555360,
+        "MainWindowTitle":  "Clash Verge"
+    },
+    {
+        "Id":  49104,
+        "ProcessName":  "clouddrive_desktop_widget",
+        "MainWindowHandle":  328226,
+        "MainWindowTitle":  "com.quark.clouddrive.desktopwidget-siw"
+    },
+    {
+        "Id":  42324,
+        "ProcessName":  "cockpit-tools",
+        "MainWindowHandle":  7667928,
+        "MainWindowTitle":  "Cockpit Tools"
+    },
+    {
+        "Id":  12636,
+        "ProcessName":  "explorer",
+        "MainWindowHandle":  23266036,
+        "MainWindowTitle":  ""
+    },
+    {
+        "Id":  14888,
+        "ProcessName":  "node",
+        "MainWindowHandle":  77858808,
+        "MainWindowTitle":  ""
+    },
+    {
+        "Id":  38388,
+        "ProcessName":  "node",
+        "MainWindowHandle":  1114516,
+        "MainWindowTitle":  ""
+    },
+    {
+        "Id":  11388,
+        "ProcessName":  "PixPin",
+        "MainWindowHandle":  197738,
+        "MainWindowTitle":  "PixPin"
+    },
+    {
+        "Id":  23900,
+        "ProcessName":  "SystemSettings",
+        "MainWindowHandle":  2361144,
+        "MainWindowTitle":  "设置"
+    },
+    {
+        "Id":  18164,
+        "ProcessName":  "TextInputHost",
+        "MainWindowHandle":  66484,
+        "MainWindowTitle":  "Microsoft Text Input Application"
+    },
+    {
+        "Id":  48908,
+        "ProcessName":  "Typeless",
+        "MainWindowHandle":  197812,
+        "MainWindowTitle":  "Status"
+    },
+    {
+        "Id":  29732,
+        "ProcessName":  "wetype_update",
+        "MainWindowHandle":  58331648,
+        "MainWindowTitle":  "StatusBarWnd"
+    },
+    {
+        "Id":  1604,
+        "ProcessName":  "WindowsTerminal",
+        "MainWindowHandle":  46665860,
+        "MainWindowTitle":  "DESKTOP-VH518HU: 杂活"
+    }
+]

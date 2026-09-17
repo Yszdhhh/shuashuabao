@@ -1,0 +1,65 @@
+[ocr] configured worker=G:\刷刷宝\GameScript-Local\.venv-ocr\Scripts\python.exe -m shuabao.vision.ocr_shadow.worker repo_root=G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917 src_dir=G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src model_dir=G:\刷刷宝\GameScript-Local\models\ocr python=G:\刷刷宝\GameScript-Local\.venv-ocr\Scripts\python.exe python_exists=True
+[ocr] worker=G:\刷刷宝\GameScript-Local\.venv-ocr\Scripts\python.exe -m shuabao.vision.ocr_shadow.worker repo_root=G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917 src_dir=G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src model_dir=G:\刷刷宝\GameScript-Local\models\ocr ready=True reason=ok
+[ocr] LIVE READY model=PP-OCRv5_mobile_rec_infer hash=9092CD50251D76A3F189EDEC084A37A451A38A3E7451DA93615A2987157118D4 load_ms=3126.3 warmup_ms=424.5
+[preflight] solo_ingame_chain 起始界面尚未确认，最多等待 60s：expected production map/create-room/room/stage surface was not confirmed; ZERO INPUT
+[preflight] 本等待期零输入。下面每秒回报一次 production 当前判定的页面。
+[preflight] 剩余 58s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 57s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 55s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 53s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 51s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 50s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 48s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 46s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 44s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 43s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 41s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 39s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 37s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 36s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 34s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 32s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 30s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 29s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 27s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 25s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 24s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 22s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 20s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 19s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 17s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 15s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 13s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 12s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 10s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 8s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 7s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 5s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 3s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 2s｜当前战后页面判定 = None（不在战后页面）
+[preflight] 剩余 0s｜当前战后页面判定 = None（不在战后页面）
+[preflight] solo_ingame_chain 等待超时，仍未确认起始界面；零输入退出。
+Harness HEAD: beaf69715fc22ac23c19b27d0cf41e2ff73a6e20
+Harness Base: 7a6c36bbbdc39064ceed1aebd9ffc301bfeea342
+Production Candidate SHA: beaf69715fc22ac23c19b27d0cf41e2ff73a6e20
+Runtime Worktree: G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917
+Frozen Production Code Baseline: 7a6c36bbbdc39064ceed1aebd9ffc301bfeea342
+Production Code Diff: NOT_CLEAN
+MATCH / READY: READY
+READY FOR GT: YES
+Runtime source: G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\__init__.py
+[runbook] 请将真实游戏停在以下页面/状态：把 KK 停在英雄三国地图页、建房弹窗、房间或游戏内选关页；确认正式看板配置已保存，尤其自动建房、局数、关卡、技能、羁绊、秘境和 Boss 选项。
+[capture] bundle=G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\captures\pirate_necromancy_20260917_121327\entry_retry\solo_ingame_chain_20260917_121740_654041 bookmark_file=G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\captures\pirate_necromancy_20260917_121327\entry_retry\solo_ingame_chain_20260917_121740_654041\bookmark.commands keys: p=PASS f=FAIL m=MANUAL_INTERVENTION
+[failure-summary]
+TARGET: solo_ingame_chain
+FAILURE_CLASS_HINT: UNKNOWN
+BUNDLE_PATH: G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\captures\pirate_necromancy_20260917_121327\entry_retry\solo_ingame_chain_20260917_121740_654041
+BOOKMARK_ID: b0000
+REPLAY_COMMAND: python tools/live_scenario_capture.py reproduce --bundle "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\captures\pirate_necromancy_20260917_121327\entry_retry\solo_ingame_chain_20260917_121740_654041"
+RELEVANT_FILES:
+- G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\captures\pirate_necromancy_20260917_121327\entry_retry\solo_ingame_chain_20260917_121740_654041\manifest.json
+- G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\captures\pirate_necromancy_20260917_121327\entry_retry\solo_ingame_chain_20260917_121740_654041\trace.jsonl
+- G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\captures\pirate_necromancy_20260917_121327\entry_retry\solo_ingame_chain_20260917_121740_654041\bookmarks\b0000.json
+- G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\captures\pirate_necromancy_20260917_121327\entry_retry\solo_ingame_chain_20260917_121740_654041\failures\b0000_blocked_precondition.json
+- G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\captures\pirate_necromancy_20260917_121327\entry_retry\solo_ingame_chain_20260917_121740_654041\failures\b0000_blocked_precondition.md
+[preflight] BLOCKED_PRECONDITION: BLOCKED_PRECONDITION: expected production map/create-room/room/stage surface was not confirmed; ZERO INPUT; no business handler or game input was attempted

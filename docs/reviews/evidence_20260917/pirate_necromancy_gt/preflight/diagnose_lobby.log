@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\tools\diagnose_lobby.py", line 10, in <module>
+    import cv2
+ModuleNotFoundError: No module named 'cv2'

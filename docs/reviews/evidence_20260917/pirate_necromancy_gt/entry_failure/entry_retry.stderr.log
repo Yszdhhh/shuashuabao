@@ -1,0 +1,221 @@
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12CE8AC00>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+[ocr_worker:stderr] ��Ϣ: ���ṩ��ģʽ�޷��ҵ��ļ���
+[ocr_worker:stderr] G:\刷刷宝\GameScript-Local\.venv-ocr\Lib\site-packages\paddle\utils\cpp_extension\extension_utils.py:712: UserWarning: No ccache found. Please be aware that recompiling all source files may be required. You can download and install ccache from: https://github.com/ccache/ccache/blob/master/doc/INSTALL.md
+[ocr_worker:stderr]   warnings.warn(warning_message)
+[ocr_worker:stderr] WARNING: Logging before InitGoogleLogging() is written to STDERR
+[ocr_worker:stderr] I0917 12:17:45.965142 28436 onednn_context.cc:81] oneDNN v3.6.2
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C7BA0>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C6200>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C7BA0>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C6200>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C7BA0>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C6200>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C6200>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C7BA0>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C6200>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C7BA0>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C6200>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C7BA0>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C6200>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C7BA0>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C6200>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C7BA0>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C6200>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C7BA0>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C6200>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C7BA0>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C6200>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C7BA0>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C6200>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C7BA0>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C6200>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C7BA0>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C6200>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C7BA0>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C6200>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C7BA0>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C6200>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C7BA0>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C6200>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C7BA0>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001A12D5C6200>
+Traceback (most recent call last):
+  File "G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917\src\shuabao\vision\capture.py", line 409, in enum_proc
+    if not user32.IsWindowVisible(hwnd):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ctypes.ArgumentError: argument 1: OverflowError: int too long to convert

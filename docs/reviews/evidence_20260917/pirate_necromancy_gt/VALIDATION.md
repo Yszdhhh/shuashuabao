@@ -25,3 +25,22 @@ No full gate verdict was obtained. Initial overlapping and later long runs were 
 ## Model review
 
 Read-only configuration review was cancelled without a final verdict. Code review is NOT_COMPLETED, not PASS; no model-identity claim is inferred from agent role names.
+
+## Latest entry and capture evidence (2026-09-17)
+
+This update supersedes earlier availability/delivery snapshots only; it does not change Owner-confirmed rules or promote any mechanism to PASS. No new capture or validation was run for this archival update.
+
+- `tools/one_click_test.ps1` and root `one_click_test.cmd` are implemented but uncommitted. Main reports `cmd /c one_click_test.cmd -WhatIf` exited 0 and generated real Settings/argv/manifest under `captures/pirate_necromancy_20260917_121905`. This is configuration/entry preparation evidence, not live-machine PASS.
+- The earlier launcher exit 1 was PowerShell stderr `NativeCommandError`; Main reports the launcher handling is fixed. The subsequent real entry run is a separate result: exit 3, `BLOCKED_PRECONDITION`, `ZERO INPUT`.
+- Archived `entry_failure/entry_retry.stdout.log` records OCR `LIVE READY`, then failure to confirm the required start surface. `entry_failure/entry_retry.stderr.log` records `capture.py:409` calling `IsWindowVisible(hwnd)` with `OverflowError: int too long to convert`. This is the observed capture-enumeration blocker, not an OCR initialization failure.
+- Source bundle: `captures/pirate_necromancy_20260917_121327/entry_retry/solo_ingame_chain_20260917_121740_654041` contains manifest, trace and failure records. The failure JSON and trace are archived in `entry_failure/`; no full-desktop frame or private user settings were copied. Trace remains BOOT/UNKNOWN with empty actions/controls.
+- Main reports the latest full gate ran 1191.81 seconds, exit 255, with only `[gate] pytest` output and no full-suite result. No individual test failure or full-gate PASS/FAIL is inferred.
+- Existing `gt_live/smoke_capture/frames.jsonl` records two real 1600×900 client crops from HWND 33950972 / PID 38732 / 英雄三国KK, mode MANUAL_GT, `game_input_sent:false`. The PNG SHA-256 values differ; timestamps alone are not distinct-frame proof. This proves only the manual capture chain, not any mechanism GT. Capture quality is unassessed.
+- All mechanism scenarios remain **NOT_RUN**. Owner-confirmed rules remain **USER_CONFIRMED**, unchanged. No commit/push performed during this update.
+
+## HWND FFI follow-up (same day)
+
+- `python -m pytest tests/test_capture_hwnd_ffi.py -q` → 4 passed, 0.13s.
+- Live `find_window_targets('英雄三国', role='l1')` → `[]` while `英雄三国KK` is minimized.
+- Live `allow_minimized=True` → HWND 33950972, title 英雄三国KK, exe Game_x64h.exe. No OverflowError on stderr.
+- Full gate still has no suite verdict (exit 255 / `[gate] pytest` only). Test-branch commit/push is Owner-authorized; production promotion is not.
