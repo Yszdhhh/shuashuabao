@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "5ac57a7a06b2372d2126435e7e234d15bd24a925",
-  "anchored_at": "2026-09-17T13:30:00Z",
+  "candidate_sha": "3cd04352b562cc17d335e5dfac929cb9ea524236",
+  "anchored_at": "2026-09-17T14:10:00Z",
   "branch": "fix/p0-devour-failclosed-20260917",
   "note": "Canonical runtime identity anchor. Updated ONLY by the commit that lands a newly accepted candidate (P0 review chain). Runtime gates compare the live worktree against this SHA; never edit casually, never auto-regenerate. P0-3 anchor advanced to this landing commit."
 }
