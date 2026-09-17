@@ -17187,37 +17187,6 @@ class Mediator:
         elif surface not in (InteractionSurface.HUD_ONLY, InteractionSurface.MERCHANT):
             return LoopAction.Continue
 
-        if surface == InteractionSurface.HUD_ONLY and not self._is_in_game_hud(frame):
-            # No modal is not HUD evidence.  Every opportunistic MAIN_LINE
-            # input below must be backed by a positive in-game HUD anchor.
-            print("[L1] MAIN_LINE 当前画面无正向 HUD 证据，严格零输入等待")
-            return LoopAction.Continue
-
-        # Everything below reads the HUD (auto-task box, challenges, merchant
-        # strip, item bar).  A tooltip left by our own last click must not
-        # decide those reads.
-        park = self._maybe_park_pointer(frame)
-        if park is not None:
-            return park
-
-        # ---- Boss 提前挑战（中段 HUD 入口，30s 节流 + 有界尝试）----
-        # 20260822：boosIcon 等入口图标只出现在 idle HUD 上（无中央面板），
-        # 与四挑战开关同一 cadence 纪律；配置了 cjb_boss/sgzx_boss 才扫描。
-        if (
-            surface == InteractionSurface.HUD_ONLY
-            and not anchor
-            and not self._post_game_pending
-            and getattr(self, "_post_game_route", "") != "boss_active"
-            and self._configured_boss_challenge_names()
-            and self._boss_challenge_attempts < 3
-            and now >= self._boss_challenge_next_at
-            and getattr(self, "scenes", None)
-            and "boss_entry" in self.scenes
-            and self.find_scene(frame, "boss_entry")
-        ):
-            return self._maybe_challenge_configured_boss(frame, now)
-
-
         # ---- S0 ⑧ 阶段门控：未验证战后入口检查只在局尾窗口触发 ----
         # 正常中段 idle HUD 不再每 tick 支付 archive/boss/longzhu 全帧扫描
         # （N2 waiver 复评项）；longzhu 色相检查已移至 LONGZHU 阶段（_tick_l1_tail）。
@@ -17287,6 +17256,36 @@ class Mediator:
         ):
             self.set_phase(Phase.STAGE_SELECT, "guarded stage page detected from MAIN_LINE")
             return LoopAction.Continue
+
+        if surface == InteractionSurface.HUD_ONLY and not self._is_in_game_hud(frame):
+            # No modal is not HUD evidence.  Every opportunistic MAIN_LINE
+            # input below must be backed by a positive in-game HUD anchor.
+            print("[L1] MAIN_LINE 当前画面无正向 HUD 证据，严格零输入等待")
+            return LoopAction.Continue
+
+        # Everything below reads the HUD (auto-task box, challenges, merchant
+        # strip, item bar).  A tooltip left by our own last click must not
+        # decide those reads.
+        park = self._maybe_park_pointer(frame)
+        if park is not None:
+            return park
+
+        # ---- Boss 提前挑战（中段 HUD 入口，30s 节流 + 有界尝试）----
+        # 20260822：boosIcon 等入口图标只出现在 idle HUD 上（无中央面板），
+        # 与四挑战开关同一 cadence 纪律；配置了 cjb_boss/sgzx_boss 才扫描。
+        if (
+            surface == InteractionSurface.HUD_ONLY
+            and not anchor
+            and not self._post_game_pending
+            and getattr(self, "_post_game_route", "") != "boss_active"
+            and self._configured_boss_challenge_names()
+            and self._boss_challenge_attempts < 3
+            and now >= self._boss_challenge_next_at
+            and getattr(self, "scenes", None)
+            and "boss_entry" in self.scenes
+            and self.find_scene(frame, "boss_entry")
+        ):
+            return self._maybe_challenge_configured_boss(frame, now)
 
         # 右侧“自动任务”复选框（左键点击）
         auto_res = self._ensure_auto_task_enabled(frame)

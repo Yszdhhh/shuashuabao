@@ -733,6 +733,7 @@ class MediatorPublicBagTests(unittest.TestCase):
         with ExitStack() as stack:
             for name in self._MAIN_LINE_GATES:
                 stack.enter_context(patch.object(self.med, name, return_value=None))
+            stack.enter_context(patch.object(self.med, "_is_in_game_hud", return_value=True))
             op = stack.enter_context(
                 patch.object(
                     self.med, "_maybe_public_backpack_deposit", return_value=LoopAction.Continue
@@ -747,6 +748,7 @@ class MediatorPublicBagTests(unittest.TestCase):
         with ExitStack() as stack:
             for name in self._MAIN_LINE_GATES:
                 stack.enter_context(patch.object(self.med, name, return_value=None))
+            stack.enter_context(patch.object(self.med, "_is_in_game_hud", return_value=True))
             stack.enter_context(
                 patch.object(self.med, "_maybe_public_backpack_deposit", return_value=None)
             )
@@ -780,6 +782,7 @@ class MediatorPublicBagTests(unittest.TestCase):
         with ExitStack() as stack:
             for name in self._MAIN_LINE_GATES:
                 stack.enter_context(patch.object(self.med, name, return_value=None))
+            stack.enter_context(patch.object(self.med, "_is_in_game_hud", return_value=True))
             stack.enter_context(patch.object(self.med, "_hud_item_bar_overflowed", return_value=True))
             stack.enter_context(patch.object(self.med, "_pickup_bag_has_space", return_value=True))
             stack.enter_context(patch.object(self.med, "_hud_hotkey_button", return_value=button))
@@ -798,6 +801,7 @@ class MediatorPublicBagTests(unittest.TestCase):
         with ExitStack() as stack:
             for name in self._MAIN_LINE_GATES:
                 stack.enter_context(patch.object(self.med, name, return_value=None))
+            stack.enter_context(patch.object(self.med, "_is_in_game_hud", return_value=True))
             stack.enter_context(patch.object(self.med, "_hud_item_bar_overflowed", return_value=True))
             stack.enter_context(patch.object(self.med, "_pickup_bag_has_space", return_value=False))
             click = stack.enter_context(patch.object(self.med, "act_click"))
