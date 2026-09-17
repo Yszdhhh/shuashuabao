@@ -115,6 +115,90 @@ TRANSIENT_HELPER_CLASS_NAMES = (
     "tooltips_class32",
 )
 _user32 = None
+# A 64-bit HWND does not fit ctypes' default c_int argument, so an untyped
+# ``windll.user32`` call raises OverflowError on a real x64 handle instead of
+# enumerating windows (live evidence: IsWindowVisible inside EnumWindows).
+# Declare the real signatures once -- ctypes caches one instance per DLL, so
+# every call site in the process then passes the full pointer-sized handle.
+# Handles are never clamped or truncated.
+_user32_typed = False
+_kernel32_typed = False
+
+
+def _typed_user32():
+    """Return user32 with real Win32 signatures (idempotent)."""
+    global _user32_typed
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    if _user32_typed:
+        return user32
+    HWND = wintypes.HWND
+    LPPOINT = ctypes.POINTER(wintypes.POINT)
+    LPRECT = ctypes.POINTER(wintypes.RECT)
+    LPDWORD = ctypes.POINTER(wintypes.DWORD)
+    for name, argtypes, restype in (
+        ("IsWindow", (HWND,), wintypes.BOOL),
+        ("IsWindowVisible", (HWND,), wintypes.BOOL),
+        ("IsIconic", (HWND,), wintypes.BOOL),
+        ("GetWindowTextLengthW", (HWND,), ctypes.c_int),
+        ("GetWindowTextW", (HWND, wintypes.LPWSTR, ctypes.c_int), ctypes.c_int),
+        ("GetClassNameW", (HWND, wintypes.LPWSTR, ctypes.c_int), ctypes.c_int),
+        ("GetWindowRect", (HWND, LPRECT), wintypes.BOOL),
+        ("GetClientRect", (HWND, LPRECT), wintypes.BOOL),
+        ("ClientToScreen", (HWND, LPPOINT), wintypes.BOOL),
+        ("ScreenToClient", (HWND, LPPOINT), wintypes.BOOL),
+        ("GetWindowThreadProcessId", (HWND, LPDWORD), wintypes.DWORD),
+        ("ShowWindow", (HWND, ctypes.c_int), wintypes.BOOL),
+        ("BringWindowToTop", (HWND,), wintypes.BOOL),
+        ("SetForegroundWindow", (HWND,), wintypes.BOOL),
+        (
+            "SetWindowPos",
+            (HWND, HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_uint),
+            wintypes.BOOL,
+        ),
+        ("AttachThreadInput", (wintypes.DWORD, wintypes.DWORD, wintypes.BOOL), wintypes.BOOL),
+    ):
+        func = getattr(user32, name)
+        func.argtypes = list(argtypes)
+        func.restype = restype
+    # HWND-returning call: callers want a plain int, and a NULL window must
+    # read as 0 rather than None. c_ssize_t is pointer-sized, so the handle
+    # survives intact.
+    user32.GetForegroundWindow.argtypes = []
+    user32.GetForegroundWindow.restype = ctypes.c_ssize_t
+    # EnumWindows' callback must return a 4-byte BOOL, not ctypes' 1-byte
+    # c_bool: a c_bool callback leaves the upper 3 bytes of EAX untouched, so
+    # the loop stops on whatever garbage the last callee left there.
+    WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, HWND, wintypes.LPARAM)
+    user32.EnumWindows.argtypes = [WNDENUMPROC, wintypes.LPARAM]
+    user32.EnumWindows.restype = wintypes.BOOL
+    _user32_typed = True
+    return user32
+
+
+def _typed_kernel32():
+    """Return kernel32 with real Win32 signatures (idempotent)."""
+    global _kernel32_typed
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.windll.kernel32
+    if _kernel32_typed:
+        return kernel32
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.QueryFullProcessImageNameW.argtypes = [
+        wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD),
+    ]
+    kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    kernel32.GetCurrentThreadId.argtypes = []
+    kernel32.GetCurrentThreadId.restype = wintypes.DWORD
+    _kernel32_typed = True
+    return kernel32
 
 
 @dataclass(frozen=True)
@@ -143,7 +227,7 @@ def get_window_class_name(hwnd: int) -> str:
         import ctypes
 
         buf = ctypes.create_unicode_buffer(256)
-        ctypes.windll.user32.GetClassNameW(hwnd, buf, 256)
+        _typed_user32().GetClassNameW(hwnd, buf, 256)
         return buf.value.strip()
     except Exception:
         return ""
@@ -156,21 +240,21 @@ def get_window_process_info(hwnd: int) -> tuple[int, str]:
         from ctypes import wintypes
 
         pid = wintypes.DWORD()
-        ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        _typed_user32().GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
         pid_val = int(pid.value)
         exe_name = ""
         if pid_val > 0:
             PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-            h_proc = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid_val)
+            h_proc = _typed_kernel32().OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid_val)
             if h_proc:
                 try:
                     buf = ctypes.create_unicode_buffer(1024)
                     size = wintypes.DWORD(1024)
-                    if ctypes.windll.kernel32.QueryFullProcessImageNameW(h_proc, 0, buf, ctypes.byref(size)):
+                    if _typed_kernel32().QueryFullProcessImageNameW(h_proc, 0, buf, ctypes.byref(size)):
                         exe_path = buf.value
                         exe_name = exe_path.split("\\")[-1]
                 finally:
-                    ctypes.windll.kernel32.CloseHandle(h_proc)
+                    _typed_kernel32().CloseHandle(h_proc)
         return pid_val, exe_name
     except Exception:
         return 0, ""
@@ -182,12 +266,9 @@ def get_client_rect_info(hwnd: int, window_left: int, window_top: int, window_wi
         import ctypes
         from ctypes import wintypes
 
-        user32 = ctypes.windll.user32
+        user32 = _typed_user32()
 
-        class POINT(ctypes.Structure):
-            _fields_ = [("x", wintypes.LONG), ("y", wintypes.LONG)]
-
-        pt = POINT(0, 0)
+        pt = wintypes.POINT(0, 0)
         if user32.ClientToScreen(hwnd, ctypes.byref(pt)):
             c_left = int(pt.x)
             c_top = int(pt.y)
@@ -215,11 +296,8 @@ def client_to_screen(hwnd: int | None, client_x: int, client_y: int, client_orig
             import ctypes
             from ctypes import wintypes
 
-            class POINT(ctypes.Structure):
-                _fields_ = [("x", wintypes.LONG), ("y", wintypes.LONG)]
-
-            pt = POINT(client_x, client_y)
-            if ctypes.windll.user32.ClientToScreen(hwnd, ctypes.byref(pt)):
+            pt = wintypes.POINT(client_x, client_y)
+            if _typed_user32().ClientToScreen(hwnd, ctypes.byref(pt)):
                 return int(pt.x), int(pt.y)
         except Exception:
             pass
@@ -235,11 +313,8 @@ def screen_to_client(hwnd: int | None, screen_x: int, screen_y: int, client_orig
             import ctypes
             from ctypes import wintypes
 
-            class POINT(ctypes.Structure):
-                _fields_ = [("x", wintypes.LONG), ("y", wintypes.LONG)]
-
-            pt = POINT(screen_x, screen_y)
-            if ctypes.windll.user32.ScreenToClient(hwnd, ctypes.byref(pt)):
+            pt = wintypes.POINT(screen_x, screen_y)
+            if _typed_user32().ScreenToClient(hwnd, ctypes.byref(pt)):
                 return int(pt.x), int(pt.y)
         except Exception:
             pass
@@ -253,7 +328,7 @@ def is_window_minimized(hwnd: int | None) -> bool:
     try:
         import ctypes
 
-        return bool(ctypes.windll.user32.IsIconic(hwnd))
+        return bool(_typed_user32().IsIconic(hwnd))
     except Exception:
         return False
 
@@ -265,7 +340,7 @@ def is_window_valid(hwnd: int | None) -> bool:
     try:
         import ctypes
 
-        user32 = ctypes.windll.user32
+        user32 = _typed_user32()
         return bool(user32.IsWindow(hwnd) and user32.IsWindowVisible(hwnd) and not user32.IsIconic(hwnd))
     except Exception:
         return False
@@ -323,10 +398,10 @@ def list_active_window_titles() -> list[str]:
         import ctypes
         from ctypes import wintypes
 
-        user32 = ctypes.windll.user32
+        user32 = _typed_user32()
         titles: list[str] = []
 
-        @ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+        @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
         def enum_proc(hwnd, _lparam):
             if not user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd):
                 return True
@@ -396,7 +471,7 @@ def find_window_targets(
     try:
         import ctypes
         from ctypes import wintypes
-        user32 = _user32 or ctypes.windll.user32
+        user32 = _user32 or _typed_user32()
         has_user_keywords = bool(title_contains and title_contains.strip())
         requested = _parse_window_keywords(title_contains)
         fallbacks = [k.lower() for k in DEFAULT_WINDOW_FALLBACKS]
@@ -404,7 +479,7 @@ def find_window_targets(
         def collect(keywords: list[str]) -> list[WindowTarget]:
             found: list[WindowTarget] = []
 
-            @ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+            @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
             def enum_proc(hwnd, _lparam):
                 if not user32.IsWindowVisible(hwnd):
                     return True
@@ -519,8 +594,8 @@ def activate_window(hwnd: int | None) -> bool:
         import ctypes
         from ctypes import wintypes as w
 
-        user32 = ctypes.windll.user32
-        kernel32 = ctypes.windll.kernel32
+        user32 = _typed_user32()
+        kernel32 = _typed_kernel32()
         target = int(hwnd)
 
         if user32.IsIconic(target):
@@ -573,7 +648,7 @@ def _foreground_window() -> int | None:
     try:
         import ctypes
 
-        hwnd = int(ctypes.windll.user32.GetForegroundWindow())
+        hwnd = int(_typed_user32().GetForegroundWindow())
         return hwnd or None
     except Exception:
         return None
