@@ -1,0 +1,61 @@
+{
+  "evidence_set": "pirate_necromancy_gt_20260917",
+  "generated": "2026-09-17",
+  "canonical_root": "G:/刷刷宝/Worktrees/pirate-necromancy-gt-20260917",
+  "branch": "test/pirate-necromancy-gt-20260917",
+  "starting_sha": "5b0f2436c5fe8ec2057f4266f42170edd6a95e4a",
+  "mode_policy": {
+    "AUTO": "requires executed=true with live observation",
+    "USER_ASSISTED": "owner performs action, agent observes",
+    "MANUAL_GT": "human-operated GT mode; owner/operator drives the game, agent records evidence. Not a synonym for never-executed.",
+    "rule": "Human interventions are USER_ACTION, never recorded as AUTO PASS."
+  },
+  "overall_status": "NOT_RUN",
+  "executed": false,
+  "preflight": {
+    "status": "BLOCKED",
+    "attempts": [
+      {
+        "step": 1,
+        "how": "bash diagnose_lobby",
+        "result": "ctypes HWND OverflowError",
+        "exit": 0,
+        "log": null,
+        "note": "First diagnose. OverflowError with exit 0. Not the cv2 log."
+      },
+      {
+        "step": 2,
+        "how": "eval another Python process",
+        "result": "ModuleNotFoundError: No module named 'cv2'",
+        "exit": 1,
+        "log": "preflight/diagnose_lobby.log",
+        "note": "Later separate Python. Missing cv2, exit 1. This is the file in preflight/diagnose_lobby.log. Do not conflate with step 1."
+      }
+    ],
+    "window_enum": "Independent PowerShell process enumeration shows no KK/war3 window (preflight/window_processes.json).",
+    "capture": "PIL ImageGrab succeeded; image is the terminal desktop, not the game (preflight/desktop_live.png).",
+    "decision": "Stopped further detection. No game launch attempted. No game input sent."
+  },
+  "desktop_live_png_handling": "Contains other terminal sessions; local evidence only. MUST NOT be pushed or committed anywhere shared.",
+  "files": [
+    {"file": "GT_PIRATE_STARTER.md", "topic": "Pirate starter: F-card-header 0/3->3/3, 开进码头 occupancy, subsequent pool", "status": "NOT_RUN"},
+    {"file": "GT_BOUNTY_USE.md", "topic": "Bounty order tier selection and use", "status": "NOT_RUN"},
+    {"file": "GT_BAG_CONSUMABLE.md", "topic": "Bag pill/bounty single LMB consumption", "status": "NOT_RUN"},
+    {"file": "GT_FULL_BOND_REPLACEMENT.md", "topic": "Full bond bar replacement flow", "status": "NOT_RUN"},
+    {"file": "GT_NECROMANCY.md", "topic": "Necromancy canonical five members + EX pill routing", "status": "NOT_RUN"}
+  ],
+  "not_observed_categories": [
+    "full_frame", "F_panel", "slots", "OCR_raw", "header", "concrete_name",
+    "rarity", "wood", "occupancy", "before", "after", "combine"
+  ],
+  "confirmed_without_new_GT": [
+    "OWNER_CONFIRMED_RULES.md rules (USER_CONFIRMED, no retest)",
+    "EX-pill screenshot NOT received in this conversation (MISSING_ATTACHMENT); no matcher may be fabricated from it",
+    "Z routing confirmed: HUD slot first, full HUD bar -> bag; postcondition natural opportunity count 0"
+  ],
+  "historical_research": {
+    "source": "branch docs/mechanics-contract-20260917",
+    "policy": "Cited as historical reference only; never presented as new live GT evidence."
+  },
+  "restrictions": "No production worktree changes, no game inputs, no baseline changes, no main merge."
+}

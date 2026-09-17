@@ -48,6 +48,25 @@
         "cycle_num": 1,
         "auto_secret_realm": true
       }
+    },
+    {
+      "schema_version": 1,
+      "name": "海盗+亡灵机制GT",
+      "mode_id": "normal_farm",
+      "settings": {
+        "stage_targets": ["1-12"],
+        "auto_create_room": true,
+        "new_room_every_times": false,
+        "cycle_num": 1,
+        "auto_reputation": false,
+        "auto_secret_realm": true,
+        "cards": ["zhufu", "jj", "藏宝图(三)", "海盗", "亡灵"],
+        "bonds": ["经济"],
+        "attributes": [],
+        "bond_must_take": ["藏宝图(三)"],
+        "bond_advanced_unlock_s": 60.0,
+        "treasure_allow_negative": []
+      }
     }
   ]
 }

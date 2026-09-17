@@ -1,0 +1,9 @@
+{
+  "mode": "MANUAL_GT",
+  "status": "BLOCKED",
+  "reason": "No KK/Warcraft/game window in independent process enumeration; actual desktop screenshot shows terminal, not game. Existing diagnose_lobby enumeration raises ctypes OverflowError despite exit 0.",
+  "game_input_sent": false,
+  "capture_fallback": "PIL.ImageGrab successful; original unmodified desktop capture retained locally",
+  "shortcut_modified": false,
+  "production_worktree_modified": false
+}
