@@ -733,7 +733,10 @@ class Mediator(CoreMediator):
         result = super()._find_reward_choice(frame, anchor=anchor)
         if result is None:
             if getattr(self, "_choice_policy_idle", False):
-                self._clear_runtime_unknown_panel()
+                # Core uses this flag for a deliberate zero-input wait, most
+                # importantly the second-frame confirmation of an F candidate.
+                # Clearing it here makes Core interpret a legal pending draw
+                # as an unknown panel and close it before confirmation.
                 return None
             self._arm_runtime_unknown_panel(frame, kind)
             return None

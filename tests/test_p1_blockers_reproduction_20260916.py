@@ -54,8 +54,8 @@ class TestP1_01_RuntimeMediatorCycle:
         assert med._l1_cycle_step_successes == 0, "successes count must reset to 0 upon advance"
         assert med._l1_cycle_last_advance_at == 500.0, "last_advance_at must update upon advance"
 
-    def test_runtime_mediator_high_wood_retention_second_skill_does_not_enter_treasure(self) -> None:
-        """P1-01: wood >= 1000 at index 3 (second skill) must return to bond, NOT enter treasure."""
+    def test_runtime_mediator_high_wood_does_not_starve_treasure_after_second_skill(self) -> None:
+        """P1-01: high wood retains F/G priority only within a bounded full cycle."""
         settings = Settings(mode_id="normal_farm", ocr_mode="off")
         med = RuntimeMediator(settings, ROOT)
         med._wood_balance = 5000  # >= 1000
@@ -66,11 +66,21 @@ class TestP1_01_RuntimeMediatorCycle:
         with patch("time.time", return_value=600.0):
             med._advance_l1_cycle("skill")
 
-        assert med._l1_cycle_step == "bond", "wood >= 1000 must retain in core development F<->G, not enter treasure"
+        assert med._l1_cycle_step == "treasure", "second skill must hand service to treasure"
         assert med._l1_cycle_step_successes == 0
         assert med._l1_cycle_last_advance_at == 600.0
 
-        # Now advancing from bond with wood >= 1000 should return to skill
+        # The remaining side branches must also be reachable before wraparound.
+        visited = [med._l1_cycle_step]
+        for _ in range(len(med._L1_CYCLE_ORDER) * 2):
+            with patch("time.time", return_value=650.0 + len(visited)):
+                med._advance_l1_cycle(med._l1_cycle_step)
+            visited.append(med._l1_cycle_step)
+        assert set(med._L1_CYCLE_ORDER) <= set(visited)
+
+        # The normal order still returns from the first bond to skill.
+        med._l1_cycle_step = "bond"
+        med._l1_cycle_index = 0
         with patch("time.time", return_value=650.0):
             med._advance_l1_cycle("bond")
         assert med._l1_cycle_step == "skill"

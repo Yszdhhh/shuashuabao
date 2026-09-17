@@ -194,17 +194,17 @@ def test_08_high_wood_burst_cap_does_not_set_idle_backoff() -> None:
     assert med._bond_idle_until < now + 1.0
 
 
-def test_09_burst_cap_with_high_wood_stays_in_core_dev() -> None:
-    """9. F burst reaches cap with wood >= 1000 -> strictly F <-> G, no side branches."""
+def test_09_burst_cap_with_high_wood_eventually_services_side_branches() -> None:
+    """9. F/G remain early in the bounded cycle without starving side branches."""
     med = _med()
     med._wood_balance = 3000
     med._l1_cycle_step = "bond"
-    med._advance_l1_cycle("bond")
-    assert med._l1_cycle_step == "skill"
-    med._advance_l1_cycle("skill")
-    assert med._l1_cycle_step == "bond"
-    # Never enters treasure / evolve / equipment when wood >= 1000
-    assert med._l1_cycle_step not in ("treasure", "evolve", "equipment", "pickup", "merchant", "artifact")
+    med._l1_cycle_index = 0
+    seen = [med._l1_cycle_step]
+    for _ in range(len(med._L1_CYCLE_ORDER) * 2):
+        med._advance_l1_cycle(med._l1_cycle_step)
+        seen.append(med._l1_cycle_step)
+    assert set(med._L1_CYCLE_ORDER) <= set(seen)
 
 
 # =========================================================================
@@ -869,5 +869,4 @@ def test_28_equipment_fsm_quarantined_semantics_pure_contract() -> None:
     assert fsm.quarantine_until == 104.5
     assert fsm.can_use(1, 104.2) is False
     assert fsm.can_use(1, 105.0) is True
-
 
