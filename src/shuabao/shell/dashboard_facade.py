@@ -125,14 +125,19 @@ def _build_identity_metadata(root: Path | None) -> dict[str, str]:
     if not getattr(sys, "frozen", False) and (base / "src" / "shuabao").is_dir():
         from shuabao import __file__ as imported_file, __version__
 
-        identity = runtime_identity_preflight(base)
-        imported_sha = _git_source_sha(Path(imported_file).resolve().parents[2])
+        imported_path = Path(imported_file).resolve()
+        imported_sha = _git_source_sha(imported_path.parents[2])
+        try:
+            manifest = json.loads((base / "config" / "runtime_identity_manifest.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            manifest = {}
+        candidate_sha = manifest.get("candidate_sha") if isinstance(manifest, dict) else ""
         return {
             "version": str(__version__),
             "source_sha": imported_sha,
             "imported_runtime_sha": imported_sha,
-            "candidate_anchor_sha": str(identity.get("candidate_anchor_sha") or ""),
-            "imported_shuabao": str(identity.get("imported_shuabao") or ""),
+            "candidate_anchor_sha": str(candidate_sha or ""),
+            "imported_shuabao": str(imported_path),
         }
     candidates = [base]
     if getattr(sys, "executable", None):
