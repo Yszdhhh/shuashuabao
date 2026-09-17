@@ -1391,12 +1391,14 @@ class DesktopPanelTests(unittest.TestCase):
         class RuntimeFailClosedProbeMediator(runtime_mediator_mod.Mediator, FailClosedProbeMediator):
             pass
 
+        from shuabao.shell import live_execute
         from shuabao.subscription_permit import DevStartCapability
 
         with tempfile.TemporaryDirectory() as tmp:
             with patch.dict(os.environ, {"SHUABAO_SUBSCRIPTION_MODE": "off"}), \
                     patch.object(mediator_mod, "Mediator", FailClosedProbeMediator), \
-                    patch.object(runtime_mediator_mod, "Mediator", RuntimeFailClosedProbeMediator):
+                    patch.object(runtime_mediator_mod, "Mediator", RuntimeFailClosedProbeMediator), \
+                    patch.object(live_execute, "runtime_identity_preflight", return_value={"ready_for_gt": True, "blocked_reasons": []}):
                 worker = desktop_app.MediatorWorker(
                     Settings(dry_run=True, ocr_mode="off"), ROOT, max_steps=1, incident_dir=tmp,
                     permission=DevStartCapability(mode="off"),

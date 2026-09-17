@@ -91,10 +91,10 @@ function Invoke-Git {
 $PythonPath = Resolve-PythonPath
 if (-not $PythonPath) { throw "找不到 Python。请先创建 .venv 或把 Python 置于 PATH。" }
 
-# Candidate identity must bind the runtime, not just be printed: fail closed on
-# a git failure or a dirty production package instead of reporting an empty SHA.
-$HeadSha = Invoke-Git @("rev-parse", "HEAD")
-if ($HeadSha -notmatch '^[0-9a-f]{40}$') { throw "无法确定候选 HEAD SHA：$HeadSha" }
+# Production SHA is a constant, never Test HEAD. Test SHA is this worktree HEAD.
+$ProductionSha = "b52c69e2aa1f74b59506439cceba06535bc6234c"
+$TestSha = Invoke-Git @("rev-parse", "HEAD")
+if ($TestSha -notmatch '^[0-9a-f]{40}$') { throw "无法确定候选 HEAD SHA：$TestSha" }
 $SrcStatus = Invoke-Git @("status", "--porcelain", "--untracked-files=all", "--", "src/shuabao")
 if ($SrcStatus) {
     throw "候选 src/shuabao 不干净，fail closed；请先提交或还原：`r`n$SrcStatus"
@@ -121,8 +121,11 @@ $env:SHUABAO_APP_DATA = $AppData
 # Candidate source identity must be in the environment before any shuabao import.
 Remove-Item Env:SHUABAO_PRODUCTION_SOURCE_ROOT -ErrorAction SilentlyContinue
 Remove-Item Env:SHUABAO_PRODUCTION_SOURCE_SHA -ErrorAction SilentlyContinue
+Remove-Item Env:SHUABAO_TEST_CANDIDATE_SHA -ErrorAction SilentlyContinue
+Remove-Item Env:SHUABAO_CANDIDATE_SHA -ErrorAction SilentlyContinue
 $env:SHUABAO_PRODUCTION_SOURCE_ROOT = $RepoRoot
-$env:SHUABAO_PRODUCTION_SOURCE_SHA = $HeadSha
+$env:SHUABAO_PRODUCTION_SOURCE_SHA = $ProductionSha
+$env:SHUABAO_TEST_CANDIDATE_SHA = $TestSha
 $OcrPython = Resolve-OcrPython
 $OcrModelDir = Resolve-OcrModelDir
 if ($OcrPython) { $env:SHUABAO_OCR_PYTHON = $OcrPython }
@@ -135,7 +138,8 @@ $CliArgs = @(
     "--out", $BundleRoot,
     "--repo-root", $RepoRoot,
     "--production-source-root", $RepoRoot,
-    "--production-source-sha", $HeadSha,
+    "--production-source-sha", $ProductionSha,
+    "--test-candidate-sha", $TestSha,
     "--duration", "3600",
     "--max-ticks", "30000",
     "--interval", "0.15",
@@ -153,7 +157,8 @@ $ArgvRecord = [ordered]@{
     env = [ordered]@{
         SHUABAO_APP_DATA = $AppData
         SHUABAO_PRODUCTION_SOURCE_ROOT = $RepoRoot
-        SHUABAO_PRODUCTION_SOURCE_SHA = $HeadSha
+        SHUABAO_PRODUCTION_SOURCE_SHA = $ProductionSha
+        SHUABAO_TEST_CANDIDATE_SHA = $TestSha
         SHUABAO_OCR_PYTHON = $OcrPython
         SHUABAO_OCR_MODEL_DIR = $OcrModelDir
     }
@@ -164,6 +169,7 @@ $ArgvRecord = [ordered]@{
 $PrepareScript = @'
 import hashlib
 import json
+import os
 import sys
 from dataclasses import asdict
 from datetime import datetime
@@ -175,7 +181,9 @@ profile_name = sys.argv[3]
 app_data = Path(sys.argv[4])
 operator_app_data = Path(sys.argv[5])
 head_sha = sys.argv[6]
+sys.path.insert(0, str(root / "tools"))
 sys.path.insert(0, str(root / "src"))
+from gt_test_identity import build_session_evidence
 from shuabao.settings import Settings
 from shuabao.shell.test_profiles import apply_profile, load_test_profiles
 
@@ -209,6 +217,7 @@ manifest = {
     "test_only": True,
     "candidate_root": str(root),
     "candidate_head_sha": head_sha,
+    "test_sha": head_sha,
     "profile_name": profile_name,
     "profile_settings": document["settings"],
     "operator_settings_source": str(operator_path) if operator_path else None,
@@ -229,21 +238,39 @@ manifest = {
         "海盗/亡灵机制是否真正闭环不由本次接线证明；未自然出现的面板只记 NOT_OBSERVED。",
     ],
 }
+evidence = build_session_evidence(
+    repo_root=root,
+    python_executable=sys.executable,
+    settings_path=settings_path,
+    operator_settings_source=operator_path,
+    profile_name=profile_name,
+    profile_config_path=root / "config" / "dashboard_test_profiles.json",
+    ocr_python=os.environ.get("SHUABAO_OCR_PYTHON"),
+    ocr_model_dir=os.environ.get("SHUABAO_OCR_MODEL_DIR"),
+    expected_test_sha=head_sha,
+)
+manifest.update(evidence)
+manifest["candidate_head_sha"] = head_sha
+manifest["test_sha"] = evidence.get("test_sha") or head_sha
 (session / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 print("SESSION=" + str(session))
 print("SETTINGS=" + str(settings_path))
 print("HEAD=" + head_sha)
+print("TEST=" + str(manifest.get("test_sha") or head_sha))
+print("PROD=" + str(manifest.get("production_sha") or ""))
+if evidence.get("status") != "READY" or evidence.get("cannot_start_gt"):
+    sys.exit(1)
 '@
 
 $OperatorAppData = Join-Path $env:LOCALAPPDATA "ShuaBao"
 Write-Host "[one-click] 准备隔离会话：$SessionDir" -ForegroundColor Cyan
-$prepareOutput = $PrepareScript | & $PythonPath - $RepoRoot $SessionDir $ProfileName $AppData $OperatorAppData $HeadSha
+$prepareOutput = $PrepareScript | & $PythonPath - $RepoRoot $SessionDir $ProfileName $AppData $OperatorAppData $TestSha
 if ($LASTEXITCODE -ne 0) { throw "会话准备失败（exit $LASTEXITCODE）。" }
 $prepareOutput | ForEach-Object { Write-Host "[prepare] $_" -ForegroundColor DarkGray }
 if (-not (Test-Path -LiteralPath $SettingsPath -PathType Leaf)) { throw "会话准备未写出 settings：$SettingsPath" }
 
 $commandText = "`"$PythonPath`" `"$ToolPath`" " + (($CliArgs | ForEach-Object { if ($_ -match "\s") { "`"$_`"" } else { $_ } }) -join " ")
-Write-Host "[one-click] candidate root=$RepoRoot HEAD=$HeadSha src=clean" -ForegroundColor DarkGray
+Write-Host "[one-click] candidate root=$RepoRoot production=$ProductionSha test=$TestSha src=clean" -ForegroundColor DarkGray
 Write-Host "[one-click] SHUABAO_APP_DATA=$AppData" -ForegroundColor DarkGray
 Write-Host "[one-click] 即将执行：" -ForegroundColor DarkGray
 Write-Host "  $commandText" -ForegroundColor DarkGray

@@ -95,6 +95,14 @@ def _configured_production_source_sha(explicit: str | None = None) -> str | None
     return value or None
 
 
+def _configured_test_candidate_sha(explicit: str | None = None) -> str | None:
+    value = explicit or os.environ.get("SHUABAO_TEST_CANDIDATE_SHA") or _argv_value(
+        "--test-candidate-sha"
+    )
+    value = str(value).strip() if value else ""
+    return value or None
+
+
 _PRODUCTION_SOURCE_ROOT = _configured_production_source_root()
 if _PRODUCTION_SOURCE_ROOT is not None:
     _injected_src = _PRODUCTION_SOURCE_ROOT / "src"
@@ -154,7 +162,17 @@ from test_scenario_replay import (  # noqa: E402
 def _format_identity_text(report: dict[str, Any]) -> str:
     """Render the injected production SHA, not the Harness baseline, as candidate."""
     text = _base_format_identity_text(report)
+    test_sha = str(report.get("test_sha") or "").strip()
     source_sha = str(report.get("production_source_sha") or "").strip()
+    production_sha = str(report.get("production_sha") or source_sha or "").strip()
+    if test_sha:
+        lines = text.splitlines()
+        for index, line in enumerate(lines):
+            if line.startswith("Production Candidate SHA:"):
+                lines[index] = f"Production Candidate SHA: {production_sha}"
+                break
+        lines.append(f"Test SHA: {test_sha}")
+        return "\r\n".join(lines)
     if not source_sha:
         return text
     lines = text.splitlines()
@@ -3040,6 +3058,7 @@ class BundleRecorder:
         execution_mode: str,
         production_source_root: Path | None = None,
         production_source_sha: str | None = None,
+        test_candidate_sha: str | None = None,
     ) -> None:
         self.bundle_dir = Path(bundle_dir).resolve()
         self.frames_dir = self.bundle_dir / "frames"
@@ -3073,6 +3092,7 @@ class BundleRecorder:
             repo_root=repo_root,
             production_source_root=production_source_root,
             production_source_sha=production_source_sha,
+            test_candidate_sha=test_candidate_sha,
         )
         natural_e2e_eligible = execution_mode == "mediator_tick"
         natural_e2e_state = (
@@ -3170,6 +3190,13 @@ class BundleRecorder:
                 "live_probe": "PENDING" if execution_mode == "target_handler" else "NOT_A_PROBE",
             },
         }
+        for key in (
+            "production_sha", "test_sha", "production_is_ancestor",
+            "TEST_ONLY_DELTA", "delta_fingerprint",
+            "canonical_production_identity", "test_candidate_identity",
+        ):
+            if identity.get(key) is not None:
+                self.manifest[key] = identity[key]
         self.solo_observer_key: str | None = None
         self.solo_observer: SoloIngameChainObserver | HitchLobbyChainObserver | None
         if target == "solo_ingame_chain":
@@ -3872,6 +3899,7 @@ def _scenario_identity(
     require_exe: bool = False,
     production_source_root: Path | None = None,
     production_source_sha: str | None = None,
+    test_candidate_sha: str | None = None,
 ) -> dict[str, Any]:
     """Return Harness identity plus an auditable candidate-source injection.
 
@@ -3887,6 +3915,50 @@ def _scenario_identity(
         automation_exe=automation_exe,
         require_exe=require_exe,
     ))
+    configured_test = str(
+        test_candidate_sha or _configured_test_candidate_sha() or ""
+    ).strip() or None
+    if configured_test:
+        from gt_test_identity import PRODUCTION_SHA, evaluate_test_candidate
+
+        eval_root = Path(
+            production_source_root or _configured_production_source_root() or repo_root
+        ).resolve()
+        supplied = (
+            production_source_sha
+            or _configured_production_source_sha()
+            or PRODUCTION_SHA
+        )
+        evaluation = evaluate_test_candidate(
+            eval_root,
+            production_sha=supplied,
+            expected_test_sha=configured_test,
+        )
+        production_sha = str(evaluation.get("production_sha") or PRODUCTION_SHA)
+        test_sha = str(evaluation.get("test_sha") or "")
+        identity.update({
+            "production_source_root": str(eval_root),
+            "production_source_expected_sha": production_sha,
+            "production_source_sha": production_sha,
+            "production_sha": production_sha,
+            "test_sha": test_sha,
+            "runtime_worktree": str(eval_root),
+            "runtime_worktree_sha": test_sha,
+            "production_is_ancestor": evaluation.get("production_is_ancestor"),
+            "TEST_ONLY_DELTA": evaluation.get("TEST_ONLY_DELTA"),
+            "delta_fingerprint": evaluation.get("delta_fingerprint"),
+            "canonical_production_identity": evaluation.get("canonical_production_identity"),
+            "test_candidate_identity": evaluation,
+            "candidate_source_injection": "TEST_CANDIDATE",
+            "production_source_clean": evaluation.get("production_source_clean"),
+            "runtime_source_path": evaluation.get("imported_shuabao") or identity.get("runtime_source_path"),
+            "runtime_source_verified": bool(evaluation.get("imported_shuabao")),
+            "blocked_reasons": list(evaluation.get("blocked_reasons") or []),
+            "ready_for_gt": evaluation.get("status") == "READY",
+            "match": "READY" if evaluation.get("status") == "READY" else "NO",
+        })
+        return identity
+
     source_root = production_source_root or _configured_production_source_root()
     if source_root is None:
         return identity
@@ -4443,6 +4515,7 @@ def _live_input_preflight(
         require_exe=bool(getattr(args, "live_input", False) and not getattr(args, "allow_dev_source", False)),
         production_source_root=getattr(args, "production_source_root", None),
         production_source_sha=getattr(args, "production_source_sha", None),
+        test_candidate_sha=getattr(args, "test_candidate_sha", None),
     )
     source_root = _configured_production_source_root(getattr(args, "production_source_root", None))
     identity = _build_identity_check(
@@ -4484,6 +4557,7 @@ def _live_input_preflight(
         require_exe=bool(getattr(args, "live_input", False) and not getattr(args, "allow_dev_source", False)),
         production_source_root=getattr(args, "production_source_root", None),
         production_source_sha=getattr(args, "production_source_sha", None),
+        test_candidate_sha=getattr(args, "test_candidate_sha", None),
     )
     if not gt_identity.get("ready_for_gt"):
         reasons.extend(list(gt_identity.get("blocked_reasons") or []))
@@ -4938,6 +5012,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         execution_mode=execution_mode,
         production_source_root=runtime_root if runtime_root != repo_root else None,
         production_source_sha=getattr(args, "production_source_sha", None),
+        test_candidate_sha=getattr(args, "test_candidate_sha", None),
     )
     if probe_bootstrap:
         recorder.manifest["probe_bootstrap"] = probe_bootstrap
@@ -4969,6 +5044,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             automation_exe=getattr(args, "automation_exe", None),
             production_source_root=getattr(args, "production_source_root", None),
             production_source_sha=getattr(args, "production_source_sha", None),
+            test_candidate_sha=getattr(args, "test_candidate_sha", None),
         )
         recorder.record_preflight({
             "status": "NOT_REQUESTED",
@@ -5056,6 +5132,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         automation_exe=getattr(args, "automation_exe", None),
         production_source_root=getattr(args, "production_source_root", None),
         production_source_sha=getattr(args, "production_source_sha", None),
+        test_candidate_sha=getattr(args, "test_candidate_sha", None),
     )))
     print(f"[runbook] 请将真实游戏停在以下页面/状态：{contract['runbook_manual']}")
     print(
@@ -5744,6 +5821,7 @@ def readiness_report(
     run_replay_self_check: bool = True,
     production_source_root: Path | None = None,
     production_source_sha: str | None = None,
+    test_candidate_sha: str | None = None,
 ) -> dict[str, Any]:
     """Report harness capability separately from production capability.
 
@@ -5811,6 +5889,7 @@ def readiness_report(
         repo_root=repo_root,
         production_source_root=production_source_root,
         production_source_sha=production_source_sha,
+        test_candidate_sha=test_candidate_sha,
     )
     return {
         "readiness_schema_version": 2,
@@ -5940,6 +6019,11 @@ def _common_live_args(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="expected injected production SHA (required for GT runs when candidate source is injected)",
     )
+    parser.add_argument(
+        "--test-candidate-sha",
+        default=None,
+        help="Test worktree HEAD SHA for GT candidate identity (never used as production SHA)",
+    )
     parser.add_argument("--settings", type=Path, default=None)
     parser.add_argument("--duration", type=float, default=60.0)
     parser.add_argument(
@@ -6022,6 +6106,7 @@ def build_parser() -> argparse.ArgumentParser:
     readiness_parser.add_argument("--repo-root", type=Path, default=ROOT)
     readiness_parser.add_argument("--production-source-root", type=Path, default=None)
     readiness_parser.add_argument("--production-source-sha", default=None)
+    readiness_parser.add_argument("--test-candidate-sha", default=None)
     readiness_parser.add_argument("--settings", type=Path, default=None, help="可选：同时检查本次 settings 的 target 前置")
     readiness_parser.add_argument("--quick", action="store_true", help="跳过临时 bundle 的离线 replay self-check")
     readiness_parser.add_argument("--json", action="store_true")
@@ -6030,6 +6115,7 @@ def build_parser() -> argparse.ArgumentParser:
     identity_parser.add_argument("--automation-exe", type=Path, default=None)
     identity_parser.add_argument("--production-source-root", type=Path, default=None)
     identity_parser.add_argument("--production-source-sha", default=None)
+    identity_parser.add_argument("--test-candidate-sha", default=None)
     identity_parser.add_argument("--json", action="store_true")
     contracts_parser = sub.add_parser("contracts", help="显示主链与窄诊断 Target Test Contract")
     contracts_parser.add_argument("--target", choices=SUPPORTED_TARGETS, default=None)
@@ -6122,6 +6208,7 @@ def main(argv: list[str] | None = None) -> int:
                 automation_exe=args.automation_exe,
                 production_source_root=args.production_source_root,
                 production_source_sha=args.production_source_sha,
+                test_candidate_sha=getattr(args, "test_candidate_sha", None),
             )
             if args.json:
                 print(json.dumps(report, ensure_ascii=False, indent=2))
@@ -6136,6 +6223,7 @@ def main(argv: list[str] | None = None) -> int:
                 run_replay_self_check=not args.quick,
                 production_source_root=args.production_source_root,
                 production_source_sha=args.production_source_sha,
+                test_candidate_sha=getattr(args, "test_candidate_sha", None),
             )
             _print_readiness(report, as_json=args.json)
             harness_ok = all(item["harness_readiness"] == "READY" for item in report["targets"])

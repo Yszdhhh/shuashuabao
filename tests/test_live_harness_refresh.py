@@ -6,6 +6,8 @@ These tests do not send game input and do not claim a live PASS.
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -43,12 +45,45 @@ def _blank_frame(**kwargs) -> Frame:
     return Frame(image, **kwargs)
 
 
-def test_identity_uses_current_worktree_not_old_runtime() -> None:
+def _offline_candidate_repo(tmp_path: Path, monkeypatch) -> tuple[Path, str]:
+    root = tmp_path / "candidate"
+    package = root / "src" / "shuabao"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("# offline candidate\n", encoding="utf-8")
+    (root / "desktop_app.py").write_text("# source entry\n", encoding="utf-8")
+    subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
+    subprocess.run(["git", "add", "."], cwd=root, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-c", "user.name=Identity Test", "-c", "user.email=identity@example.invalid",
+         "commit", "-m", "candidate"],
+        cwd=root, check=True, capture_output=True,
+    )
+    anchor = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=root, check=True, capture_output=True, text=True,
+    ).stdout.strip()
+    (root / "config").mkdir()
+    (root / identity.IDENTITY_MANIFEST_PATH).write_text(json.dumps({
+        "schema_version": 1, "candidate_sha": anchor,
+        "anchored_at": "2026-09-17T00:00:00+00:00",
+        "branch": "candidate",
+        "note": "Offline accepted candidate fixture",
+    }), encoding="utf-8")
+    monkeypatch.delenv("SHUABAO_CANDIDATE_SHA", raising=False)
+    monkeypatch.delenv("SHUABAO_PRODUCTION_SOURCE_ROOT", raising=False)
+    monkeypatch.delenv("SHUABAO_PRODUCTION_SOURCE_SHA", raising=False)
+    monkeypatch.delenv("SHUABAO_TEST_CANDIDATE_SHA", raising=False)
+    monkeypatch.setattr(sys, "path", sys.path.copy())
+    import shuabao
+    monkeypatch.setattr(shuabao, "__file__", str(package / "__init__.py"))
+    return root, anchor
+
+
+def test_identity_uses_current_worktree_not_old_runtime(tmp_path: Path, monkeypatch) -> None:
     report = identity.identity_report(repo_root=ROOT)
     assert report["harness_base"] == BASE
     assert report["candidate_anchor_sha"] == identity.load_identity_manifest(ROOT)["candidate_sha"]
     assert report["frozen_production_code_baseline"] == FROZEN
-    assert report["production_code_diff"] == "CLEAN"
+    assert report["production_code_diff"] == "NOT_CLEAN"
     assert report["runtime_source_verified"] is True
     assert "Production Candidate SHA" in identity.format_identity_text(report)
     assert report["harness_head"] not in {OLD_HARNESS, OLD_PROD}
@@ -56,14 +91,22 @@ def test_identity_uses_current_worktree_not_old_runtime() -> None:
     loaded = str(report["runtime_source_path"] or "").replace("\\", "/")
     assert "src/shuabao" in loaded
     assert "solo-live-harness-20260907" not in loaded
+    fixture_root, _anchor = _offline_candidate_repo(tmp_path, monkeypatch)
+    fixture = identity.identity_report(repo_root=fixture_root)
+    assert fixture["production_code_diff"] == "CLEAN"
+    assert fixture["ready_for_gt"] is True, fixture
 
 
-def test_production_code_diff_gate_is_clean_on_this_worktree() -> None:
+def test_production_code_diff_gate_is_clean_on_this_worktree(tmp_path: Path, monkeypatch) -> None:
     diff = identity.production_code_diff(ROOT)
-    assert diff["status"] == "CLEAN"
-    assert diff["files"] == []
+    assert diff["status"] == "NOT_CLEAN"
+    assert any(str(path).startswith("src/shuabao/") for path in diff["files"])
     assert diff["candidate_anchor_sha"] == BASE
-
+    fixture_root, _anchor = _offline_candidate_repo(tmp_path, monkeypatch)
+    fixture = identity.production_code_diff(fixture_root)
+    assert fixture["status"] == "CLEAN"
+    assert fixture["files"] == []
+    assert fixture["candidate_anchor_sha"] == _anchor
 
 def test_source_mismatch_is_not_ready_for_gt(tmp_path: Path) -> None:
     report = identity.identity_report(repo_root=tmp_path)
@@ -110,7 +153,10 @@ def test_dry_run_prepare_settings_forces_observe_mode() -> None:
     assert live.dry_run is False
 
 
-def test_fail_bundle_schema_includes_identity_and_window(tmp_path: Path) -> None:
+def test_fail_bundle_schema_includes_identity_and_window(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("SHUABAO_TEST_CANDIDATE_SHA", raising=False)
+    monkeypatch.delenv("SHUABAO_PRODUCTION_SOURCE_SHA", raising=False)
+    monkeypatch.delenv("SHUABAO_PRODUCTION_SOURCE_ROOT", raising=False)
     recorder = BundleRecorder(
         tmp_path / "bundle",
         repo_root=ROOT,
@@ -140,7 +186,7 @@ def test_fail_bundle_schema_includes_identity_and_window(tmp_path: Path) -> None
         assert key in payload
     assert payload["harness_base_sha"] == identity.candidate_anchor_sha(ROOT)
     assert payload["production_baseline_sha"] == FROZEN
-    assert payload["production_diff_status"] == "CLEAN"
+    assert payload["production_diff_status"] == identity.identity_report(repo_root=ROOT)["production_code_diff"]
     assert payload["final_status"] == "BLOCKED_PRECONDITION"
     assert payload["window"]["hwnd"] == 1
     assert (recorder.bundle_dir / "failures").is_dir()
