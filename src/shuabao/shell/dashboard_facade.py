@@ -62,6 +62,7 @@ from shuabao.shell.live_execute import (
     check_live_start_permission,
     live_permit_request_context,
     live_permission_preflight,
+    runtime_identity_preflight,
 )
 from shuabao.shell.runtime_status import runtime_status_from_mediator
 from shuabao.shell.bridge_contract import (
@@ -121,6 +122,23 @@ def _current_source_sha(root: Path | None) -> str:
 def _build_identity_metadata(root: Path | None) -> dict[str, str]:
     """Read non-secret build identity fields for the dashboard evidence header."""
     base = Path(root) if root is not None else Path.cwd()
+    if not getattr(sys, "frozen", False) and (base / "src" / "shuabao").is_dir():
+        from shuabao import __file__ as imported_file, __version__
+
+        imported_path = Path(imported_file).resolve()
+        imported_sha = _git_source_sha(imported_path.parents[2])
+        try:
+            manifest = json.loads((base / "config" / "runtime_identity_manifest.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            manifest = {}
+        candidate_sha = manifest.get("candidate_sha") if isinstance(manifest, dict) else ""
+        return {
+            "version": str(__version__),
+            "source_sha": imported_sha,
+            "imported_runtime_sha": imported_sha,
+            "candidate_anchor_sha": str(candidate_sha or ""),
+            "imported_shuabao": str(imported_path),
+        }
     candidates = [base]
     if getattr(sys, "executable", None):
         candidates.append(Path(sys.executable).resolve().parent)
@@ -408,8 +426,10 @@ def _build_identity_preflight(root: Path | None, runner: Any) -> tuple[bool, str
     if not _production_runtime_context(root, runner):
         return True, "源码/测试模式由构建入口负责身份校验"
     if not getattr(sys, "frozen", False):
-        # Source mode is intentionally runnable before a packaging pass.
-        return True, "源码模式使用当前 checkout；冻结包需提供签名发行快照"
+        identity = runtime_identity_preflight(Path(root))
+        if not identity["ready_for_gt"]:
+            return False, "BLOCKED_PRECONDITION: identity: " + "; ".join(identity["blocked_reasons"])
+        return True, f"source_sha={identity['harness_head']}; candidate_anchor_sha={identity['candidate_anchor_sha']}"
     base = Path(root) if root is not None else Path.cwd()
     exe_dir = (
         Path(sys.executable).resolve().parent

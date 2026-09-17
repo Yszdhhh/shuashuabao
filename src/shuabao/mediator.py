@@ -5259,9 +5259,11 @@ class Mediator:
         return int(colored.sum()) >= min_colored
 
     def _can_consume_inventory_swallow_pill(self, frame: Frame) -> bool:
-        """Do not spend a pill until the live bond bar contains more than three cards."""
-        occupancy = self._bond_bar_occupancy(frame)
-        return occupancy is not None and occupancy > 3
+        """Fail-closed: ordinary random devouring is forbidden without reliable
+        per-slot card identities — occupancy and the saved opt-in cannot prove
+        protected cards are absent.
+        """
+        return False
 
     def _bag_page_swallow_pill(self, frame: Frame) -> MatchResult | None:
         """Devour pill inside an open bag page's 物品栏, aimed at the slot center.
@@ -9869,7 +9871,25 @@ class Mediator:
         self._tqtz_confirm_attempts = 0
         self._tqtz_confirm_next_at = 0.0
 
+    def _is_reentry_or_attach(self, note: str) -> bool:
+        """判断进入 MAIN_LINE 的附注是否为已有局重新附着/对齐（不执行局级清零）。
+
+        A. 真正的新局（STAGE_STARTING -> MAIN_LINE 等）：执行完整局级 reset。
+        B. 已有局重新附着 / reconcile：保持现有不能误清局内状态的行为。
+        TODO: 后续重构可将 round boundary 触发原因统一抽象为显式 RoundBoundaryReason 枚举。
+        """
+        return any(
+            marker in note for marker in (
+                "already in game",
+                "reconcile",
+                "paused game",
+                "existing game",
+                "challenge return",
+            )
+        )
+
     def set_phase(self, phase: Phase, note: str = "") -> None:
+        previous_phase = self.phase
         if phase != self.phase:
             print(f"[med] phase {self.phase.name} → {phase.name} {note}")
         if self.phase == Phase.ROOM_STARTING and phase != Phase.ROOM_STARTING:
@@ -9962,20 +9982,11 @@ class Mediator:
             self._panel_fingerprint_attempts = 0
             self._panel_anchor_candidate = None
             self._reset_f_draw_guard()
-        is_reentry_or_attach = any(
-            marker in note for marker in (
-                "already in game",
-                "reconcile",
-                "paused game",
-                "existing game",
-                "challenge start verified",
-                "challenge return",
-            )
-        )
+        is_reentry_or_attach = self._is_reentry_or_attach(note)
         entering_main_line = (
             phase == Phase.MAIN_LINE
             and not is_reentry_or_attach
-            and (self.phase != Phase.MAIN_LINE or "new game" in note)
+            and (previous_phase != Phase.MAIN_LINE or "new game" in note)
         )
         if entering_main_line:
             self._stage_attempt_budget = None
@@ -10162,7 +10173,11 @@ class Mediator:
             self._recovery_state = None
             # S0 ④：首次经连续局内锚点进入 MAIN_LINE 才设置不可续期 hard deadline；
             # 同一局重复 set_phase(MAIN_LINE)（挑战/英雄验证过渡）不得覆盖。
-            if self._round_deadline is None:
+            if (
+                self._round_deadline is None
+                or previous_phase in (Phase.STAGE_STARTING, Phase.HERO_SETUP, Phase.STAGE_SELECT)
+                or "new game" in note
+            ):
                 self._round_started_at = time.time()
                 self._round_deadline = self._round_started_at + self.settings.round_timeout_s
             # S0 ⑤ 跨局 L1 瞬态重置：主动面板标记/神器 CD/主动面板时间戳/进化冷却

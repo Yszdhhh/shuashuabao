@@ -159,6 +159,36 @@ def _live_identity(root: Path) -> _LiveIdentity:
         return _LiveIdentity("", "", "", True)
 
 
+def runtime_identity_preflight(root_dir: Path) -> dict[str, Any]:
+    """Fail closed before permissions or input; frozen builds retain signed identity."""
+    try:
+        root = Path(root_dir).resolve()
+        if getattr(sys, "frozen", False):
+            identity = _live_identity(root)
+            ready = bool(identity.source_sha and identity.manifest_sha)
+            return {
+                "ready_for_gt": ready,
+                "harness_head": identity.source_sha,
+                "blocked_reasons": [] if ready else ["signed runtime identity unavailable"],
+            }
+        root_s = str(root)
+        inserted = root_s not in sys.path
+        if inserted:
+            sys.path.insert(0, root_s)
+        try:
+            from tools.live_harness_identity import identity_report
+
+            return identity_report(repo_root=root)
+        finally:
+            if inserted:
+                sys.path.remove(root_s)
+    except Exception as exc:
+        return {
+            "ready_for_gt": False,
+            "blocked_reasons": [f"runtime identity unavailable: {type(exc).__name__}: {exc}"],
+        }
+
+
 def live_permit_request_context(root: Path, mode_id: str) -> dict[str, str] | None:
     """Return only an authenticated frozen release identity for permit issuance."""
     identity = _live_identity(Path(root))
@@ -327,6 +357,13 @@ def execute_runtime_mediator(
     if should_abort and should_abort():
         result["terminal_reason"] = "启动前已请求停止"
         LOGGER.info("[启动] 已请求停止，取消本次启动")
+        return result
+    identity = runtime_identity_preflight(root_dir)
+    result["identity"] = identity
+    if not identity["ready_for_gt"]:
+        result["terminal_reason"] = "BLOCKED_PRECONDITION: identity: " + "; ".join(identity["blocked_reasons"])
+        result["phase"] = "ERROR"
+        LOGGER.error("[启动失败] %s", result["terminal_reason"])
         return result
     if not start_permission_allows(permission, root=root_dir):
         # fail-closed：直接调用且无有效权限时，不装日志、不建 Mediator、不初始化输入。

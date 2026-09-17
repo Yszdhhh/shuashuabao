@@ -4,6 +4,7 @@ import json
 import ssl
 import sys
 from urllib.error import URLError
+from unittest.mock import patch
 
 from shuabao.subscription_client import activate_device, validate_entitlement
 
@@ -244,14 +245,17 @@ def _run_executor(tmp_path, *, permission, should_abort=None):
     from shuabao.shell.live_execute import execute_runtime_mediator
     from shuabao.stop_signal import StopSignal
 
-    return execute_runtime_mediator(
-        settings=Settings(),
-        root_dir=tmp_path,
-        incident_dir=tmp_path / "incidents",
-        stop_signal=StopSignal(),
-        permission=permission,
-        should_abort=should_abort,
-    )
+    # These tests isolate permission behavior; test_runtime_identity_gate covers
+    # the preceding fail-closed identity boundary using real git worktrees.
+    with patch("shuabao.shell.live_execute.runtime_identity_preflight", return_value={"ready_for_gt": True}):
+        return execute_runtime_mediator(
+            settings=Settings(),
+            root_dir=tmp_path,
+            incident_dir=tmp_path / "incidents",
+            stop_signal=StopSignal(),
+            permission=permission,
+            should_abort=should_abort,
+        )
 
 
 def test_execute_runtime_mediator_fails_closed_without_permission(tmp_path):

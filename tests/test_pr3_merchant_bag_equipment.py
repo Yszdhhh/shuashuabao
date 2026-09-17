@@ -91,19 +91,19 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
         self.frame = make_test_frame()
 
     @patch("shuabao.mediator.time.time", return_value=100.0)
-    def test_devour_pill_consumed_when_more_than_three_bonds(self, mock_time):
-        """Swallow pill is clicked only after the live bond bar exceeds three cards."""
-        with patch.object(self.med, "_black_merchant_present", return_value=False), \
-             patch.object(self.med, "_can_consume_inventory_swallow_pill", return_value=True), \
-             patch.object(self.med, "find") as mock_find, \
-             patch.object(self.med, "act_click", return_value=True) as mock_click:
-            pill_match = MatchResult("danGif", 0.9, 1100, 750, 20, 20, 1100, 750)
-            mock_find.return_value = pill_match
-
-            action = self.med._maybe_use_inventory_item(self.frame)
-            self.assertEqual(action, LoopAction.Continue)
-            mock_click.assert_called_once_with(pill_match, "UseInventory-swallow_pill")
-            self.assertGreater(self.med._inventory_next_at, 100.0)
+    def test_devour_pill_fail_closed_with_saved_opt_in_and_visible_pill(self, mock_time):
+        # P0-2 supersedes default-true/mock-open click authority: no reliable per-slot identity.
+        self.med.settings = Settings(auto_devour_dan=True)
+        pill_match = MatchResult("danGif", 0.9, 1100, 750, 20, 20, 1100, 750)
+        for occupancy in (4, 5, 6):
+            with self.subTest(occupancy=occupancy), \
+                 patch.object(self.med, "_bond_bar_occupancy", return_value=occupancy), \
+                 patch.object(self.med, "find", return_value=pill_match), \
+                 patch.object(self.med, "act_click", return_value=True) as mock_click:
+                self.assertFalse(self.med._can_consume_inventory_swallow_pill(self.frame))
+                self.assertIsNone(self.med._maybe_use_inventory_item(self.frame))
+                mock_click.assert_not_called()
+                self.assertIsNone(self.med._pending_action)
 
     def test_devour_pill_waits_at_three_bonds(self):
         with patch.object(self.med, "_bond_bar_occupancy", return_value=3), \
@@ -113,9 +113,13 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
         mock_find.assert_not_called()
         mock_click.assert_not_called()
 
-    def test_devour_pill_gate_opens_at_four_bonds(self):
-        with patch.object(self.med, "_bond_bar_occupancy", return_value=4):
-            self.assertTrue(self.med._can_consume_inventory_swallow_pill(self.frame))
+    def test_devour_pill_gate_stays_closed_at_four_five_and_six_bonds(self):
+        # P0-2 supersedes occupancy >= 4 authority: no reliable per-slot identity.
+        self.med.settings = Settings(auto_devour_dan=True)
+        for occupancy in (4, 5, 6):
+            with self.subTest(occupancy=occupancy), \
+                 patch.object(self.med, "_bond_bar_occupancy", return_value=occupancy):
+                self.assertFalse(self.med._can_consume_inventory_swallow_pill(self.frame))
 
     @patch("shuabao.mediator.time.time", return_value=100.0)
     def test_hero_card_triggers_evolution_flow_with_pending_action(self, mock_time):
@@ -158,33 +162,28 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
 
 
     @patch("shuabao.mediator.time.time", return_value=100.0)
-    def test_devour_pill_episode_limit_and_reset(self, mock_time):
-        """D2 invariant: Devour pill clicks cap at 5, reset when pill disappears or cycle resets."""
-        with patch.object(self.med, "_black_merchant_present", return_value=False), \
-             patch.object(self.med, "_can_consume_inventory_swallow_pill", return_value=True), \
+    def test_devour_pill_fail_closed_below_episode_limit_and_after_cycle_reset(self, mock_time):
+        # P0-2 supersedes mock-open episode clicks: no reliable per-slot identity.
+        self.med.settings = Settings(auto_devour_dan=True)
+        with patch.object(self.med, "_bond_bar_occupancy", return_value=4), \
              patch.object(self.med, "find") as mock_find, \
              patch.object(self.med, "act_click", return_value=True) as mock_click:
             pill_match = MatchResult("danGif", 0.9, 1100, 750, 20, 20, 1100, 750)
-            def find_side_effect(f, names, **kwargs):
-                if "danGif" in names:
-                    return pill_match
-                return None
-            mock_find.side_effect = find_side_effect
+            mock_find.return_value = pill_match
+            for consecutive_clicks in (5, 4):
+                with self.subTest(consecutive_clicks=consecutive_clicks):
+                    self.med._devour_dan_consecutive_clicks = consecutive_clicks
+                    self.assertFalse(self.med._can_consume_inventory_swallow_pill(self.frame))
+                    self.assertIsNone(self.med._maybe_use_inventory_item(self.frame))
+                    mock_click.assert_not_called()
+                    self.assertIsNone(self.med._pending_action)
 
-            self.med._devour_dan_consecutive_clicks = 5
-            action = self.med._maybe_use_inventory_item(self.frame)
-            self.assertIsNone(action)
-            mock_click.assert_not_called()
-
-            # Pill disappears -> resets consecutive clicks
-            mock_find.side_effect = None
-            mock_find.return_value = None
-            self.med._maybe_use_inventory_item(self.frame)
-            self.assertEqual(self.med._devour_dan_consecutive_clicks, 0)
-            # Advance l1 cycle to equipment resets consecutive clicks
-            self.med._devour_dan_consecutive_clicks = 4
+            # Independent cycle reset remains valid; it does not grant click authority.
             self.med._advance_l1_cycle("evolve")
             self.assertEqual(self.med._devour_dan_consecutive_clicks, 0)
+            self.assertIsNone(self.med._maybe_use_inventory_item(self.frame))
+            mock_click.assert_not_called()
+            self.assertIsNone(self.med._pending_action)
 
     @patch("shuabao.mediator.time.time", return_value=100.0)
     def test_merchant_refreshes_when_kill_count_allows(self, mock_time):

@@ -33,7 +33,7 @@ from tools.live_scenario_capture import (
 
 ROOT = Path(__file__).resolve().parents[1]
 FROZEN = "7a6c36bbbdc39064ceed1aebd9ffc301bfeea342"
-BASE = "7a6c36bbbdc39064ceed1aebd9ffc301bfeea342"
+BASE = identity.load_identity_manifest(ROOT)["candidate_sha"]
 OLD_HARNESS = "144c0c9adc366a35548f6e1c2e52fad8387da090"
 OLD_PROD = "b15da05f4fd7313b02b2cc466e319d9683aa979c"
 
@@ -46,6 +46,7 @@ def _blank_frame(**kwargs) -> Frame:
 def test_identity_uses_current_worktree_not_old_runtime() -> None:
     report = identity.identity_report(repo_root=ROOT)
     assert report["harness_base"] == BASE
+    assert report["candidate_anchor_sha"] == identity.load_identity_manifest(ROOT)["candidate_sha"]
     assert report["frozen_production_code_baseline"] == FROZEN
     assert report["production_code_diff"] == "CLEAN"
     assert report["runtime_source_verified"] is True
@@ -61,6 +62,7 @@ def test_production_code_diff_gate_is_clean_on_this_worktree() -> None:
     diff = identity.production_code_diff(ROOT)
     assert diff["status"] == "CLEAN"
     assert diff["files"] == []
+    assert diff["candidate_anchor_sha"] == BASE
 
 
 def test_source_mismatch_is_not_ready_for_gt(tmp_path: Path) -> None:
@@ -136,7 +138,7 @@ def test_fail_bundle_schema_includes_identity_and_window(tmp_path: Path) -> None
         "final_status", "window",
     ):
         assert key in payload
-    assert payload["harness_base_sha"] == BASE
+    assert payload["harness_base_sha"] == identity.candidate_anchor_sha(ROOT)
     assert payload["production_baseline_sha"] == FROZEN
     assert payload["production_diff_status"] == "CLEAN"
     assert payload["final_status"] == "BLOCKED_PRECONDITION"
