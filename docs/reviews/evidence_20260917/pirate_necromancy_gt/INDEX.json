@@ -38,6 +38,7 @@
   },
   "desktop_live_png_handling": "Contains other terminal sessions; local evidence only. MUST NOT be pushed or committed anywhere shared.",
   "files": [
+    {"file": "GATE_SYNC_EVIDENCE_20260917.md", "topic": "Gate 1/2 sync, 219 passed regression, HWND fix confirmation, desktop dashboard, preflight blocked", "status": "CONFIRMED"},
     {"file": "GT_PIRATE_STARTER.md", "topic": "Pirate starter: F-card-header 0/3->3/3, 开进码头 occupancy, subsequent pool", "status": "NOT_RUN"},
     {"file": "GT_BOUNTY_USE.md", "topic": "Bounty order tier selection and use", "status": "NOT_RUN"},
     {"file": "GT_BAG_CONSUMABLE.md", "topic": "Bag pill/bounty single LMB consumption", "status": "NOT_RUN"},
