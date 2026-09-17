@@ -1,0 +1,92 @@
+[
+ {
+  "file": "panel_daodao_cangbaotu.jpg",
+  "bundle": "solo_ingame_chain_20260907_220109_971377",
+  "event": "e0045",
+  "note": "f0074_action_before"
+ },
+ {
+  "file": "panel_sanguo_yihuo.jpg",
+  "bundle": "solo_ingame_chain_20260907_220109_971377",
+  "event": "e0040",
+  "note": "f0066_action_before"
+ },
+ {
+  "file": "panel_wangling.jpg",
+  "bundle": "solo_ingame_chain_20260907_220109_971377",
+  "event": "e0036",
+  "note": "f0060_action_before"
+ },
+ {
+  "file": "panel_fengshen.jpg",
+  "bundle": "solo_ingame_chain_20260907_220109_971377",
+  "event": "e0049",
+  "note": "f0080_state_change"
+ },
+ {
+  "file": "panel_xiuxian.jpg",
+  "bundle": "solo_ingame_chain_20260907_220109_971377",
+  "event": "e0030",
+  "note": "f0051_action_before"
+ },
+ {
+  "file": "pill_use_live_8e8a908.jpg",
+  "bundle": "solo_ingame_chain_20260916_130010_901690",
+  "event": "e0346,e0394",
+  "note": "before/after"
+ },
+ {
+  "file": "f_hidden_draw_persists_8e8a908.jpg",
+  "bundle": "solo_ingame_chain_20260916_130010_901690",
+  "event": "11 frames",
+  "note": "same panel"
+ },
+ {
+  "file": "z_tooltip_hitch_0910.jpg",
+  "bundle": "hitch_lobby_chain_20260910_162642_717002",
+  "event": "e0034",
+  "note": "hud crop"
+ },
+ {
+  "file": "merchant_prices_hitch_0910.jpg",
+  "bundle": "hitch_lobby_chain_20260910_093846_748164",
+  "event": "e0055",
+  "note": "hud crop"
+ },
+ {
+  "file": "hud_series_8e8a908_0916_0.jpg",
+  "bundle": "solo_ingame_chain_20260916_130010_901690",
+  "event": "step 45s",
+  "note": "wood|kills / V,G badges / bond bar / item bar"
+ },
+ {
+  "file": "hud_series_8e8a908_0916_1.jpg",
+  "bundle": "solo_ingame_chain_20260916_130010_901690",
+  "event": "step 45s",
+  "note": "wood|kills / V,G badges / bond bar / item bar"
+ },
+ {
+  "file": "hud_series_8e8a908_0916_2.jpg",
+  "bundle": "solo_ingame_chain_20260916_130010_901690",
+  "event": "step 45s",
+  "note": "wood|kills / V,G badges / bond bar / item bar"
+ },
+ {
+  "file": "hud_series_984fd04_0915b_0.jpg",
+  "bundle": "solo_ingame_chain_20260915_232202_461360",
+  "event": "step 60s",
+  "note": "wood|kills / V,G badges / bond bar / item bar"
+ },
+ {
+  "file": "hud_series_807f443_0915a_0.jpg",
+  "bundle": "solo_ingame_chain_20260915_000229_642428",
+  "event": "step 75s",
+  "note": "wood|kills / V,G badges / bond bar / item bar"
+ },
+ {
+  "file": "hud_series_3c4c594_0915c_0.jpg",
+  "bundle": "solo_ingame_chain_20260915_135859_647261",
+  "event": "step 150s",
+  "note": "wood|kills / V,G badges / bond bar / item bar"
+ }
+]
