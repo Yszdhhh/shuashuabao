@@ -5400,13 +5400,35 @@ class Mediator:
                 "haidao/haidao_inventory_ur_red_body",
             ]
             bounty_valid_names = set(bounty_candidates) | {c.split("/")[-1] for c in bounty_candidates}
+
+            # 物品栏红框 ROI（背包打开时直接在红框操作，减少跨屏移动距离）
+            if layout is not None:
+                r0 = layout.item_bar_slot_rect(0)
+                r5 = layout.item_bar_slot_rect(ITEM_BAR_SLOTS - 1)
+                active_item_bar_roi = (
+                    max(0.0, r0[0] / frame.width),
+                    max(0.0, r0[1] / frame.height),
+                    min(1.0, r5[2] / frame.width),
+                    min(1.0, r5[3] / frame.height),
+                )
+            else:
+                active_item_bar_roi = inventory_roi
+
             item_bar_bounty = self.find(
                 frame,
                 bounty_candidates,
                 threshold=0.65,
-                roi=inventory_roi,
+                roi=active_item_bar_roi,
                 scales=(0.45, 0.5, 0.55, 0.6, 0.7, 0.8),
             )
+            if item_bar_bounty is None and active_item_bar_roi != inventory_roi:
+                item_bar_bounty = self.find(
+                    frame,
+                    bounty_candidates,
+                    threshold=0.65,
+                    roi=inventory_roi,
+                    scales=(0.45, 0.5, 0.55, 0.6, 0.7, 0.8),
+                )
             if item_bar_bounty is not None and item_bar_bounty.name not in bounty_valid_names:
                 item_bar_bounty = None
 
@@ -5429,7 +5451,44 @@ class Mediator:
                 if bag_bounty is not None and bag_bounty.name not in bounty_valid_names:
                     bag_bounty = None
 
-            consumables_present = (item_bar_bounty is not None or bag_bounty is not None)
+            # 黄金猿检查：在红框物品栏或 HUD 中寻找黄金猿
+            gold_ape_candidates = ["haidao/haidao_gold_ape"]
+            gold_ape_valid_names = {"haidao/haidao_gold_ape", "haidao_gold_ape"}
+            item_bar_ape = self.find(
+                frame,
+                gold_ape_candidates,
+                threshold=0.65,
+                roi=active_item_bar_roi,
+                scales=(0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1),
+            )
+            bag_ape = None
+            if layout is not None:
+                bag_ape = self.find(
+                    frame,
+                    gold_ape_candidates,
+                    threshold=0.65,
+                    roi=bag_roi,
+                    scales=(0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1),
+                )
+            gold_ape_hit = item_bar_ape or bag_ape
+            if gold_ape_hit is not None and gold_ape_hit.name not in gold_ape_valid_names:
+                gold_ape_hit = None
+
+            # 黄金猿使用逻辑：装备栏左键点击黄金猿开启宝藏卡组
+            if (
+                gold_ape_hit is not None
+                and now >= getattr(self, "_gold_ape_next_at", 0.0)
+                and self._inventory_clicks_this_visit < 3
+            ):
+                self._gold_ape_next_at = now + 4.0
+                self._inventory_next_at = now + 0.8
+                self._inventory_clicks_this_visit += 1
+                loc = "红框物品栏" if (layout is not None and layout.item_bar_slot_index(gold_ape_hit.x, gold_ape_hit.y) is not None) else ("个人背包" if layout is not None else "快捷栏")
+                if self.act_click(gold_ape_hit, "UseItemBar-gold_ape"):
+                    print(f"[L1] 在{loc}左键使用黄金猿开宝藏 @ {gold_ape_hit.center}")
+                    return LoopAction.Continue
+
+            consumables_present = (item_bar_bounty is not None or bag_bounty is not None or gold_ape_hit is not None)
             target_bounty = bag_bounty or item_bar_bounty
             can_swallow = self._has_swallowable_pirate_card(target_bounty.name, frame) if target_bounty is not None else False
 
@@ -5441,14 +5500,14 @@ class Mediator:
                 and self._inventory_clicks_this_visit < 3
             ):
                 self._bounty_next_at = now + 1.0
-                self._inventory_next_at = now + 1.0
+                self._inventory_next_at = now + 0.8
                 self._inventory_clicks_this_visit += 1
                 if self._inventory_last_pt == target_bounty.center:
                     self._inventory_same_pt_hits += 1
                 else:
                     self._inventory_last_pt = target_bounty.center
                     self._inventory_same_pt_hits = 1
-                loc = "个人背包" if (layout is not None and layout.inside_personal_grid(target_bounty.x, target_bounty.y)) else "物品栏"
+                loc = "个人背包" if (layout is not None and layout.inside_personal_grid(target_bounty.x, target_bounty.y)) else ("红框物品栏" if layout is not None else "快捷栏")
                 if self.act_click(target_bounty, f"UseInventory-bounty-{target_bounty.name.split('/')[-1]}"):
                     print(f"[L1] 在{loc}使用悬赏令【{target_bounty.name}】 @ {target_bounty.center}")
                     return LoopAction.Continue
@@ -5481,38 +5540,47 @@ class Mediator:
                     print("[L1] 羁绊栏有海盗卡待吞噬，打开个人背包使用悬赏令")
                     return LoopAction.Continue
 
-            # 3. 单人模式下背包已打开时的道具流转（装备留快捷栏、消耗品放背包、常驻/耗尽关闭）
+            # 3. 单人模式下背包已打开时的道具流转（红框物品栏与个人背包双向闭环流转）
             if layout is not None and not self._passenger_mode():
                 held = getattr(self, "_solo_stash_held_source", None)
                 if held is not None:
-                    empty_slot = self._public_bag_empty_personal_slot(frame, layout)
-                    if empty_slot is not None:
-                        row, col, target_hit = empty_slot
-                        if self.act_click(target_hit, "SoloStashPersonalSlot"):
-                            print(f"[L1] 个人背包：将快捷栏消耗品存入个人格 ({row},{col})")
+                    held_action = held.get("action", "stash")
+                    if held_action == "stash":
+                        # 第 2 步：将拿起的快捷栏消耗品放入个人背包空格
+                        empty_slot = self._public_bag_empty_personal_slot(frame, layout)
+                        if empty_slot is not None:
+                            row, col, target_hit = empty_slot
+                            if self.act_click(target_hit, "SoloStashPersonalSlot"):
+                                print(f"[L1] 个人背包：将快捷栏消耗品存入个人格 ({row},{col})")
+                                self._solo_stash_held_source = None
+                                self._inventory_next_at = now + 0.8
+                                return LoopAction.Continue
+                        else:
                             self._solo_stash_held_source = None
-                            self._inventory_next_at = now + 1.0
-                            return LoopAction.Continue
-                    else:
+                    elif held_action == "withdraw":
+                        # 第 2 步：将拿起的背包装备放入红框物品栏空格（完成穿戴闭环）
+                        target_slot = held.get("target_slot")
+                        if target_slot is not None:
+                            center = layout.item_bar_slot_center(target_slot)
+                            if center is not None:
+                                target_hit = MatchResult(
+                                    f"item_bar_slot_{target_slot}",
+                                    1.0,
+                                    center[0],
+                                    center[1],
+                                    0,
+                                    0,
+                                    frame.left + center[0],
+                                    frame.top + center[1],
+                                )
+                                if self.act_click(target_hit, f"EquipPlaceItemBarSlot-{target_slot+1}"):
+                                    print(f"[L1] 个人背包：左键将装备放入红框快捷栏第 {target_slot+1} 格完成穿戴")
+                                    self._solo_stash_held_source = None
+                                    self._inventory_next_at = now + 0.8
+                                    return LoopAction.Continue
                         self._solo_stash_held_source = None
 
-                # A. 快捷栏有悬赏令但当前不可吞噬时，右键取出并暂存入个人背包格（腾出装备栏）
-                if (
-                    item_bar_bounty is not None
-                    and not can_swallow
-                    and self._public_bag_empty_personal_slot(frame, layout) is not None
-                    and now >= getattr(self, "_bag_item_next_at", 0.0)
-                    and self._inventory_clicks_this_visit < 3
-                ):
-                    self._bag_item_next_at = now + 1.0
-                    self._inventory_next_at = now + 1.0
-                    self._inventory_clicks_this_visit += 1
-                    if self.act_right_click(item_bar_bounty, f"SoloPickItemBarConsumable-{item_bar_bounty.name.split('/')[-1]}"):
-                        self._solo_stash_held_source = {"kind": "item_bar", "hit": item_bar_bounty, "source_id": item_bar_bounty.name}
-                        print(f"[L1] 个人背包：右键取出快捷栏消耗品【{item_bar_bounty.name}】准备暂存入个人格")
-                        return LoopAction.Continue
-
-                # B. 装备留在快捷栏：若个人背包有溢出的装备，且快捷栏有空格，右键背包装备移回快捷栏
+                # A. 装备留在快捷栏：若个人背包有装备且红框快捷栏有空格，从个人背包取出并移入红框快捷栏
                 empty_item_bar_index = None
                 for idx in range(1, ITEM_BAR_SLOTS):
                     if not self._item_bar_slot_occupied(frame, layout, idx):
@@ -5528,19 +5596,66 @@ class Mediator:
                         center = layout.personal_slot_center(row, col)
                         if center is None:
                             continue
-                        # 如果此格是悬赏令消耗品，保留在个人背包
+                        # 如果此格是悬赏令消耗品或黄金猿，保留在个人背包
                         if bag_bounty is not None and rect[0] <= bag_bounty.x <= rect[2] and rect[1] <= bag_bounty.y <= rect[3]:
+                            continue
+                        if bag_ape is not None and rect[0] <= bag_ape.x <= rect[2] and rect[1] <= bag_ape.y <= rect[3]:
+                            continue
+                        source_id = f"personal_withdraw_{row}_{col}"
+                        if self._public_bag_source_exhausted(source_id):
                             continue
                         has_pending_eq = True
                         if now >= getattr(self, "_bag_item_next_at", 0.0) and self._inventory_clicks_this_visit < 3:
-                            self._bag_item_next_at = now + 1.0
-                            self._inventory_next_at = now + 1.0
+                            self._bag_item_next_at = now + 0.8
+                            self._inventory_next_at = now + 0.8
                             self._inventory_clicks_this_visit += 1
                             hit = MatchResult(f"personal_eq_{row}_{col}", 1.0, center[0], center[1], 0, 0, frame.left + center[0], frame.top + center[1])
                             if self.act_right_click(hit, f"EquipBagItem-{row}-{col}"):
-                                print(f"[L1] 个人背包：右键将个人格 ({row},{col}) 装备移入快捷栏第 {empty_item_bar_index+1} 格")
+                                print(f"[L1] 个人背包：右键拿起个人格 ({row},{col}) 装备，准备放入红框快捷栏第 {empty_item_bar_index+1} 格")
+                                self._solo_stash_held_source = {
+                                    "action": "withdraw",
+                                    "source_id": source_id,
+                                    "cell": (row, col),
+                                    "target_slot": empty_item_bar_index,
+                                }
                                 return LoopAction.Continue
                         break
+
+                # B. 红框快捷栏有悬赏令但当前不可吞噬时，右键取出并暂存入个人背包格（腾出装备栏）
+                if (
+                    item_bar_bounty is not None
+                    and not can_swallow
+                    and self._public_bag_empty_personal_slot(frame, layout) is not None
+                    and now >= getattr(self, "_bag_item_next_at", 0.0)
+                    and self._inventory_clicks_this_visit < 3
+                ):
+                    target_hit = item_bar_bounty
+                    slot_idx = layout.item_bar_slot_index(item_bar_bounty.x, item_bar_bounty.y)
+                    if slot_idx is not None:
+                        center = layout.item_bar_slot_center(slot_idx)
+                        if center is not None:
+                            target_hit = MatchResult(
+                                f"item_bar_slot_{slot_idx}",
+                                1.0,
+                                center[0],
+                                center[1],
+                                0,
+                                0,
+                                frame.left + center[0],
+                                frame.top + center[1],
+                            )
+                    self._bag_item_next_at = now + 0.8
+                    self._inventory_next_at = now + 0.8
+                    self._inventory_clicks_this_visit += 1
+                    if self.act_right_click(target_hit, f"SoloPickItemBarConsumable-{item_bar_bounty.name.split('/')[-1]}"):
+                        self._solo_stash_held_source = {
+                            "action": "stash",
+                            "kind": "item_bar",
+                            "hit": target_hit,
+                            "source_id": item_bar_bounty.name,
+                        }
+                        print(f"[L1] 个人背包：右键取出红框快捷栏消耗品【{item_bar_bounty.name}】准备暂存入个人格")
+                        return LoopAction.Continue
 
                 # C. 背包常驻规则：只要有消耗品（悬赏令等）或有待移装备，背包保持常驻开启；
                 # 只有当：①消耗品已全部用完 ②无待移装备 ③无抓取 时，才关闭背包
@@ -16359,7 +16474,7 @@ class Mediator:
                         self._panel_confirm_window = max(
                             5.0, min(15.0, self.settings.recovery_timeout_s)
                         )
-                        self._panel_opened_by_us = "skill" if kind == "skill" else None
+                        self._panel_opened_by_us = kind
                     else:
                         self._panel_mutation_baseline = self._panel_roi_region(frame)
                         self._panel_state = PanelState.WAIT_MUTATION
@@ -16387,26 +16502,17 @@ class Mediator:
             elapsed = now - self._selection_unknown_since
             # 不再零输入等到 10s unknown timeout（R8-REVIEW）。
             opened_by_us = getattr(self, "_panel_opened_by_us", None)
-            if opened_by_us:
-                close_hit = self._close_current_panel(frame)
-                close_reason = "CloseSelfOpenedPanel"
-            elif self._panel_kind in ("bond", "card"):
-                close_hit = self.find(
-                    frame,
-                    ["card_hide", "bond_hide_btn"],
-                    threshold=self.settings.match_threshold,
-                    scales=self._hot_scales(),
-                    roi=self._PANEL_BUTTONS_ROI,
-                    early_stop=True,
-                )
-                close_reason = "CloseNaturalPanel"
+            effective_kind = opened_by_us or getattr(self, "_visit_kind", None) or self._panel_kind
+            if opened_by_us or effective_kind in ("bond", "card", "skill", "treasure"):
+                close_hit = self._close_current_panel(frame, effective_kind)
+                close_reason = "CloseSelfOpenedPanel" if opened_by_us else "CloseNaturalPanel"
             else:
                 close_hit = None
                 close_reason = "CloseSelfOpenedPanel"
             if close_hit is not None and close_hit.name == "hide_fallback":
                 close_hit = None
-            if close_hit is None and opened_by_us and elapsed >= 2.0:
-                close_hit = self._hide_fallback_hit(frame, self._panel_kind)
+            if close_hit is None and (opened_by_us or effective_kind in ("bond", "card", "skill")) and elapsed >= 2.0:
+                close_hit = self._hide_fallback_hit(frame, effective_kind)
                 close_reason = "CloseFallback"
             if close_hit is not None:
                 print(f"[L1] 面板无法匹配卡牌，点击关闭 {close_hit.name} ({close_reason})")
@@ -17873,12 +17979,12 @@ class Mediator:
                     self._main_line_since = now
                     return dan_res
 
-            # 溢出安全拾取：非 pickup 轮换步时，当物品栏溢出且背包有空位触发 [Z]
+            # 定期一键拾取：非模态选择面板遮挡时，每 12s 触发 [Z] 拾取地上掉落物（木材、金币、装备、悬赏令）
             if (
-                self._l1_cycle_step != "pickup"
-                and now >= self._pickup_next_at
-                and self._hud_item_bar_overflowed(frame)
-                and self._pickup_bag_has_space(frame)
+                now >= self._pickup_next_at
+                and self._panel_state == PanelState.CLOSED
+                and anchor is None
+                and not self._has_active_transaction(frame)
             ):
                 pickup_button = self._hud_hotkey_button(frame, "bag/hud_pickup_button")
                 picked = (
@@ -17887,9 +17993,10 @@ class Mediator:
                     else self.act_key("z", "Pickup-Z")
                 )
                 if picked:
-                    self._pickup_next_at = now + 10.0
+                    self._pickup_next_at = now + 12.0
                     self._backpack_has_overflow_items = True
                     self._main_line_since = now
+                    print("[L1] 定期一键拾取 [Z] 拾取地面掉落物")
                     return LoopAction.Continue
 
         # 技能/羁绊/宝物优先于会重复出现的进化按钮，避免 G/F/V 饿死。
@@ -18005,13 +18112,11 @@ class Mediator:
             return LoopAction.Continue
 
         if self._l1_cycle_step == "pickup":
-            # 1. 拾取 Z 不是常驻战斗按键。只有可移动装备栏 2-6 已全部
-            #    占满、确有溢出风险时才做范围拾取；空栏/不确定画面零输入。
-            #    和背包同理：优先点 HUD 上的 [Z] 按钮，键盘只作兜底。
+            # 1. 拾取 Z：优先点 HUD 上的 [Z] 按钮，键盘只作兜底
             if (
                 now >= self._pickup_next_at
-                and self._hud_item_bar_overflowed(frame)
-                and self._pickup_bag_has_space(frame)
+                and self._panel_state == PanelState.CLOSED
+                and anchor is None
             ):
                 pickup_button = self._hud_hotkey_button(frame, "bag/hud_pickup_button")
                 picked = (
@@ -18020,7 +18125,7 @@ class Mediator:
                     else self.act_key("z", "Pickup-Z")
                 )
                 if picked:
-                    self._pickup_next_at = now + 10.0
+                    self._pickup_next_at = now + 12.0
                     self._backpack_has_overflow_items = True
                     self._main_line_since = now
             if self._passenger_mode():

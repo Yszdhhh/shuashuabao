@@ -657,5 +657,128 @@ def test_passive_card_replacement_user_rules():
     assert "顶替低阶卡槽" in reason
 
 
+def test_equipment_withdrawal_2_step_complete_flow():
+    """验证背包装备取出穿戴的完整两步闭环：第1步右键背包装备，第2步左键红框空槽。"""
+    from shuabao.mediator import Mediator, Frame, LoopAction, MatchResult
+    from shuabao.policy.public_bag import BagLayout
+    import numpy as np
+
+    med = Mediator(Settings(cards=["海盗", "zhufu"]), ROOT)
+    frame = Frame(bgr=np.zeros((900, 1600, 3), dtype=np.uint8))
+
+    layout = BagLayout(origin_x=100.0, origin_y=100.0, scale=1.0)
+    med._bag_layout = lambda f: layout
+    med._solo_boss_is_alive = lambda f: False
+    med._hud_item_bar_state = lambda f: "empty"
+    med.find = lambda f, cand, **kwargs: None
+
+    # 模拟快捷栏第 3 格（index 2）为空（如圣光之盾槽位）
+    med._item_bar_slot_occupied = lambda f, l, idx: False if idx == 2 else True
+
+    # 模拟个人背包 (0, 0) 格有圣光之盾
+    med._bag_slot_occupied = lambda f, rect: True if rect == layout.personal_slot_rect(0, 0) else False
+
+    right_clicked = []
+    left_clicked = []
+    med.act_right_click = lambda hit, reason: (right_clicked.append((hit, reason)), True)[1]
+    med.act_click = lambda hit, reason: (left_clicked.append((hit, reason)), True)[1]
+
+    # 第 1 步：右键拿起装备
+    res1 = med._maybe_use_inventory_item(frame)
+    assert res1 == LoopAction.Continue
+    assert len(right_clicked) == 1
+    assert "EquipBagItem-0-0" in right_clicked[0][1]
+    assert med._solo_stash_held_source is not None
+    assert med._solo_stash_held_source["action"] == "withdraw"
+    assert med._solo_stash_held_source["target_slot"] == 2
+
+    # 第 2 步：左键放入红框快捷栏第 3 格
+    res2 = med._maybe_use_inventory_item(frame)
+    assert res2 == LoopAction.Continue
+    assert len(left_clicked) == 1
+    assert "EquipPlaceItemBarSlot-3" in left_clicked[0][1]
+    target_center = layout.item_bar_slot_center(2)
+    assert left_clicked[0][0].x == target_center[0]
+    assert left_clicked[0][0].y == target_center[1]
+    # 流转完成，held 状态清除
+    assert med._solo_stash_held_source is None
+
+
+def test_haidao_gold_ape_activation_in_item_bar():
+    """验证在红框物品栏中检测到黄金猿时，左键点击开启宝藏卡组。"""
+    from shuabao.mediator import Mediator, Frame, LoopAction, MatchResult
+    from shuabao.policy.public_bag import BagLayout
+    import numpy as np
+
+    med = Mediator(Settings(cards=["海盗", "zhufu"]), ROOT)
+    frame = Frame(bgr=np.zeros((900, 1600, 3), dtype=np.uint8))
+
+    layout = BagLayout(origin_x=100.0, origin_y=100.0, scale=1.0)
+    med._bag_layout = lambda f: layout
+    med._solo_boss_is_alive = lambda f: False
+    med._hud_item_bar_state = lambda f: "occupied"
+
+    ape_center = layout.item_bar_slot_center(3)
+    ape_hit = MatchResult("haidao/haidao_gold_ape", 0.95, ape_center[0], ape_center[1], 30, 30, ape_center[0], ape_center[1])
+
+    med.find = lambda f, cands, **kwargs: ape_hit if "haidao_gold_ape" in str(cands) else None
+
+    clicked = []
+    med.act_click = lambda hit, reason: (clicked.append((hit, reason)), True)[1]
+
+    res = med._maybe_use_inventory_item(frame)
+    assert res == LoopAction.Continue
+    assert len(clicked) == 1
+    assert "UseItemBar-gold_ape" in clicked[0][1]
+    assert clicked[0][0].x == ape_center[0]
+    assert clicked[0][0].y == ape_center[1]
+
+
+def test_periodic_pickup_independent_of_item_bar_overflow():
+    """验证定期 Z 拾取与物品栏满载解耦，非满载状态下到期也能触发一键拾取。"""
+    from shuabao.mediator import Mediator, Frame, LoopAction, PanelState, Phase
+    from shuabao.vision.matcher import MatchResult
+    import numpy as np
+
+    rng = np.random.default_rng(42)
+    frame = Frame(bgr=rng.integers(50, 200, size=(900, 1600, 3), dtype=np.uint8), is_valid=True)
+    med = Mediator(Settings(), ROOT)
+
+    med._panel_state = PanelState.CLOSED
+    med._l1_cycle_step = "equipment"
+    med._pickup_next_at = 0.0
+    # 模拟物品栏为空（未溢出）
+    med._hud_item_bar_overflowed = lambda f: False
+
+    clicked = []
+    pickup_btn = MatchResult("bag/hud_pickup_button", 0.9, 1500, 750, 30, 30, 1500, 750)
+
+    med.phase = Phase.MAIN_LINE
+    med.see = lambda r: frame
+    med.find = lambda f, cands, **kwargs: None
+    med.find_scene = lambda f, s, **kwargs: None
+    med._is_in_game_hud = lambda f: True
+    med._auto_task_done = True
+    med._maybe_ensure_hero_panel_focus = lambda f, n: None
+    med._ensure_auto_task_enabled = lambda f: None
+    med._ensure_challenge_buttons = lambda f: None
+    med._maybe_click_tqtz = lambda f, n: None
+    med._maybe_clear_pressure_monsters = lambda f, n: None
+    med._maybe_fire_artifacts = lambda f: None
+    med._maybe_use_inventory_item = lambda f: None
+    med._selection_anchor = lambda f: None
+    med._has_active_transaction = lambda f: False
+    med._hud_item_bar_state = lambda f: "empty"
+    med._hud_hotkey_button = lambda f, name: pickup_btn if name == "bag/hud_pickup_button" else None
+    med.act_click = lambda hit, reason: (clicked.append((hit, reason)), True)[1]
+
+    # 在 main loop 触发拾取检查
+    res = med.tick()
+    assert res == LoopAction.Continue
+    assert len(clicked) == 1
+    assert clicked[0][1] == "Pickup-Z"
+    assert med._pickup_next_at > 0.0
+
+
 
 
