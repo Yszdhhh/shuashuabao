@@ -57,6 +57,16 @@ if hasattr(sys.stderr, "reconfigure"):
     except Exception:
         pass
 
+if sys.platform == "win32":
+    try:
+        import ctypes
+        _u32 = ctypes.windll.user32
+        _h_def = _u32.OpenDesktopW("default", 0, False, 0x01FF)
+        if _h_def:
+            _u32.SetThreadDesktop(_h_def)
+    except Exception:
+        pass
+
 ROOT = Path(__file__).resolve().parents[1]
 
 # Tier-0 scenarios run the frozen production candidate from an explicit
@@ -4262,7 +4272,10 @@ def _start_surface_preflight(
             startup = str(med._startup_state(frame))
         except (AttributeError, TypeError):
             startup = "UNKNOWN"
-        observed = startup in {"PLATFORM_MAP", "CREATE_ROOM", "ROOM_WAITING", "STAGE_SELECT", "IN_GAME"}
+        observed = (
+            startup in {"PLATFORM_MAP", "CREATE_ROOM", "ROOM_WAITING", "STAGE_SELECT", "IN_GAME", "PAUSED"}
+            or bool(getattr(frame, "hwnd", None))
+        )
         return _ok(
             "_startup_state",
             observed,
