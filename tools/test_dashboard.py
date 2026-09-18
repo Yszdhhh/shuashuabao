@@ -222,7 +222,7 @@ def run_canonical_preflight(manifest: dict[str, Any]) -> dict[str, Any]:
 def run_canonical_gt_readiness() -> dict[str, Any]:
     """Combine canonical readiness, preparation, and zero-input preflight."""
     readiness = run_canonical_readiness()
-    if readiness.get("ready_for_gt") is not True:
+    if readiness.get("_command_exit_code") != 0 or readiness.get("ready_for_gt") is not True:
         return {
             "status": "BLOCKED",
             "phase": "readiness",
@@ -231,7 +231,11 @@ def run_canonical_gt_readiness() -> dict[str, Any]:
         }
 
     manifest = run_canonical_prepare()
-    if manifest.get("status") != "READY" or manifest.get("cannot_start_gt") is True:
+    if (
+        manifest.get("_command_exit_code") != 0
+        or manifest.get("status") != "READY"
+        or manifest.get("cannot_start_gt") is True
+    ):
         return {
             "status": "BLOCKED",
             "phase": "prepare",
@@ -241,7 +245,7 @@ def run_canonical_gt_readiness() -> dict[str, Any]:
         }
 
     preflight = run_canonical_preflight(manifest)
-    if preflight.get("status") != "READY":
+    if preflight.get("_command_exit_code") != 0 or preflight.get("status") != "READY":
         return {
             "status": "BLOCKED",
             "phase": "preflight",

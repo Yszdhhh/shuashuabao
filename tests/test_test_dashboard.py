@@ -73,13 +73,41 @@ def test_canonical_readiness_blocked_disables_combined_result(monkeypatch) -> No
     assert called == []
 
 
+def test_readiness_exit_code_is_required_before_prepare(monkeypatch) -> None:
+    called = []
+    monkeypatch.setattr(
+        dashboard,
+        "run_canonical_readiness",
+        lambda: {"ready_for_gt": True, "_command_exit_code": 1},
+    )
+    monkeypatch.setattr(dashboard, "run_canonical_prepare", lambda: called.append("prepare"))
+
+    report = dashboard.run_canonical_gt_readiness()
+
+    assert report["status"] == "BLOCKED"
+    assert report["phase"] == "readiness"
+    assert called == []
+
+
 def test_canonical_preflight_blocked_disables_combined_result(monkeypatch) -> None:
-    monkeypatch.setattr(dashboard, "run_canonical_readiness", lambda: {"ready_for_gt": True})
-    monkeypatch.setattr(dashboard, "run_canonical_prepare", lambda: {"status": "READY"})
+    monkeypatch.setattr(
+        dashboard,
+        "run_canonical_readiness",
+        lambda: {"ready_for_gt": True, "_command_exit_code": 0},
+    )
+    monkeypatch.setattr(
+        dashboard,
+        "run_canonical_prepare",
+        lambda: {"status": "READY", "_command_exit_code": 0},
+    )
     monkeypatch.setattr(
         dashboard,
         "run_canonical_preflight",
-        lambda _manifest: {"status": "BLOCKED", "blocked_reasons": ["window BLOCKED"]},
+        lambda _manifest: {
+            "status": "BLOCKED",
+            "_command_exit_code": 0,
+            "blocked_reasons": ["window BLOCKED"],
+        },
     )
 
     report = dashboard.run_canonical_gt_readiness()
@@ -89,14 +117,85 @@ def test_canonical_preflight_blocked_disables_combined_result(monkeypatch) -> No
     assert dashboard.canonical_ready_for_start(report) is False
 
 
-def test_canonical_ready_requires_all_three_canonical_stages(monkeypatch) -> None:
-    monkeypatch.setattr(dashboard, "run_canonical_readiness", lambda: {"ready_for_gt": True})
+def test_prepare_exit_code_is_required_before_preflight(monkeypatch) -> None:
+    called = []
+    monkeypatch.setattr(
+        dashboard,
+        "run_canonical_readiness",
+        lambda: {"ready_for_gt": True, "_command_exit_code": 0},
+    )
     monkeypatch.setattr(
         dashboard,
         "run_canonical_prepare",
-        lambda: {"status": "READY", "settings_path": "session/settings.json"},
+        lambda: {"status": "READY", "_command_exit_code": 1},
     )
-    monkeypatch.setattr(dashboard, "run_canonical_preflight", lambda _manifest: {"status": "READY"})
+    monkeypatch.setattr(dashboard, "run_canonical_preflight", lambda _manifest: called.append("preflight"))
+
+    report = dashboard.run_canonical_gt_readiness()
+
+    assert report["status"] == "BLOCKED"
+    assert report["phase"] == "prepare"
+    assert called == []
+
+
+def test_preflight_exit_code_is_required_for_ready_result(monkeypatch) -> None:
+    monkeypatch.setattr(
+        dashboard,
+        "run_canonical_readiness",
+        lambda: {"ready_for_gt": True, "_command_exit_code": 0},
+    )
+    monkeypatch.setattr(
+        dashboard,
+        "run_canonical_prepare",
+        lambda: {"status": "READY", "_command_exit_code": 0},
+    )
+    monkeypatch.setattr(
+        dashboard,
+        "run_canonical_preflight",
+        lambda _manifest: {"status": "READY", "_command_exit_code": 1},
+    )
+
+    report = dashboard.run_canonical_gt_readiness()
+
+    assert report["status"] == "BLOCKED"
+    assert report["phase"] == "preflight"
+    assert dashboard.canonical_ready_for_start(report) is False
+
+
+def test_exit_code_blocked_results_keep_start_disabled_and_do_not_popen() -> None:
+    popen_calls: list[tuple[object, dict]] = []
+
+    def fake_popen(*args, **kwargs):
+        popen_calls.append((args, kwargs))
+
+    for phase in ("readiness", "prepare", "preflight"):
+        report = {"status": "BLOCKED", "phase": phase}
+        assert dashboard.canonical_ready_for_start(report) is False
+        assert dashboard.launch_canonical_one_click(report, fake_popen) is False
+
+    assert popen_calls == []
+
+
+def test_canonical_ready_requires_all_three_canonical_stages(monkeypatch) -> None:
+    monkeypatch.setattr(
+        dashboard,
+        "run_canonical_readiness",
+        lambda: {"ready_for_gt": True, "_command_exit_code": 0},
+    )
+    monkeypatch.setattr(
+        dashboard,
+        "run_canonical_prepare",
+        lambda: {
+            "status": "READY",
+            "_command_exit_code": 0,
+            "settings_path": "session/settings.json",
+        },
+    )
+    monkeypatch.setattr(
+        dashboard,
+        "run_canonical_preflight",
+        lambda _manifest: {"status": "READY", "_command_exit_code": 0},
+    )
 
     report = dashboard.run_canonical_gt_readiness()
 
