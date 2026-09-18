@@ -42,9 +42,9 @@ def test_owner_attribute_lines_are_whitelisted_outside_the_80_percent_gate() -> 
 
 
 def test_whitelist_order_economy_by_payback_then_basic_then_attribute_lines() -> None:
-    """Owner 2026-09-15: economy precedes blessing, then payback order."""
+    """Owner 2026-09-17: blessing and growth precede economy, greed, challenge."""
     presets = list(_policy().bond_presets)
-    assert presets[:5] == ["经济", "祝福", "贪婪", "挑战", "成长"]
+    assert presets[:5] == ["祝福", "成长", "经济", "贪婪", "挑战"]
     assert presets.index("魔术") < presets.index("智力") < presets.index("封神")
 
 
