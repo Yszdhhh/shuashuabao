@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-10T12:35:54.213410+00:00",
+  "generated_at": "2026-09-18T17:00:09.864509+00:00",
   "spec": "ShuaBao.spec",
   "package_roots": [
     {
@@ -1426,6 +1426,22 @@
       "sha256": "4e3278acdc6ae4badac0b0ec995b436d5ea190d38fbc28503378964c69362d89"
     },
     {
+      "path": "assets/Images/env/game_chat_input_bar.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 2372,
+      "sha256": "6b64fe66a9cbc067d5e5f170aa569968c7bd553691dc6390a2fb2d78f25a1c25"
+    },
+    {
+      "path": "assets/Images/env/great_rift_title.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 4134,
+      "sha256": "797c88f3e9ccedb845d3663b1d83d90e45138a3f8c9e1aae36131d59ada5473f"
+    },
+    {
       "path": "assets/Images/env/shortKey.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
@@ -1434,34 +1450,18 @@
       "sha256": "887920ec190ddd746f8547b5d422c91372438ac77bd5a0c68a2a3e0bb9590095"
     },
     {
-      "path": "assets/Images/env/game_chat_input_bar.png",
-      "purpose": "runtime_ui",
-      "provenance": "cropped from live game capture hitch_lobby_chain_20260912_015538_075268/f0150",
-      "reason_required": "detect the in-game chat input bar before clicking under it",
-      "size_bytes": 2372,
-      "sha256": "6b64fe66a9cbc067d5e5f170aa569968c7bd553691dc6390a2fb2d78f25a1c25"
-    },
-    {
-      "path": "assets/Images/env/great_rift_title.png",
-      "purpose": "runtime_ui",
-      "provenance": "cropped from live solo capture solo_ingame_chain_20260914_212509/f0584 (red 大秘境 dialog title)",
-      "reason_required": "tell the great-rift confirm dialog from the 提前挑战 confirm that shares the grey 是 button",
-      "size_bytes": 4134,
-      "sha256": "797c88f3e9ccedb845d3663b1d83d90e45138a3f8c9e1aae36131d59ada5473f"
-    },
-    {
       "path": "assets/Images/env/tqtz_confirm_title.png",
       "purpose": "runtime_ui",
-      "provenance": "cropped from live solo capture solo_ingame_chain_20260914_225835/f0582 (是否确认提前挑战？ title)",
-      "reason_required": "recognise the 提前挑战 confirm dialog so 是 is clicked instead of treating it as the rift dialog",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 8617,
       "sha256": "4ad65209aef24ab8ff1d9e888ea2db48b3706f18245991f5a20e5d001f97e205"
     },
     {
       "path": "assets/Images/env/victory_banner.png",
       "purpose": "runtime_ui",
-      "provenance": "cropped from live game capture hitch_lobby_chain_20260912_120333_103843/f0234",
-      "reason_required": "recognise the victory page while its banner animates, before 继续游戏 is drawn",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 21507,
       "sha256": "be82f5df699a2f87b1e92766543720205438b2b6f7fa37b047aade1b89867942"
     },
@@ -1600,6 +1600,14 @@
       "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 13549,
       "sha256": "08d7f1fa83d9fd81a7da2460e4e7f4b98f2e21cae35715be0f457abdac6b7b2a"
+    },
+    {
+      "path": "assets/Images/haidao/haidao_gold_ape.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 1804,
+      "sha256": "a0db3ee83919d0a32f54174a9466cda60ac64b08f4140102d5573a2e3a5952fa"
     },
     {
       "path": "assets/Images/haidao/haidao_horn_lv1.png",
@@ -2122,6 +2130,14 @@
       "sha256": "ba2a494b8c265a1b795e8f23ab57b1faab648e3805bfa51e3f18fc4ca0e9155b"
     },
     {
+      "path": "assets/Images/lobby/kk_nav_logo.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 5873,
+      "sha256": "3fbd50caa9349b4a324a017f982b3a296420d0123410a633640b944667aadb01"
+    },
+    {
       "path": "assets/Images/lobby/kk_platform_prompt_cancel.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
@@ -2138,26 +2154,18 @@
       "sha256": "fa1f6d64d70f8e0dab9cf739aef49d1cc897a0823648427790e1d0ca1e1d78dc"
     },
     {
-      "path": "assets/Images/lobby/kk_nav_logo.png",
-      "purpose": "runtime_ui",
-      "provenance": "cropped from live KK lobby capture hitch_lobby_chain_20260911_205544_814227/f0000",
-      "reason_required": "hitch KK main-window navigation fallback anchor",
-      "size_bytes": 5873,
-      "sha256": "3fbd50caa9349b4a324a017f982b3a296420d0123410a633640b944667aadb01"
-    },
-    {
       "path": "assets/Images/lobby/kk_side_cssss_icon.png",
       "purpose": "runtime_ui",
-      "provenance": "cropped from live KK lobby capture hitch_lobby_chain_20260911_205544_814227/f0000",
-      "reason_required": "hitch KK main-window navigation fallback anchor",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 1889,
       "sha256": "197c581bf775a72e8c788db732b96bb0e48e4833e2edd85130d22eb7a1816493"
     },
     {
       "path": "assets/Images/lobby/kk_side_yxsg_icon.png",
       "purpose": "runtime_ui",
-      "provenance": "cropped from live KK lobby capture hitch_lobby_chain_20260911_205544_814227/f0000",
-      "reason_required": "hitch KK main-window navigation fallback anchor",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 1782,
       "sha256": "633e1be3046dd7b267aa7953a585eb00be60ed5da5c5bfec59967c2a2cf45231"
     },
@@ -2656,6 +2664,22 @@
       "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 2880,
       "sha256": "13caab665935e9a7c10ddc18a8ec558221bf71e82d3f81a2e4e9dea51fe5e8e8"
+    },
+    {
+      "path": "assets/Images/replace_card_abandon_btn.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 5690,
+      "sha256": "77314ec72f3fa06b8000fa2727b4c36f8fa39ac53cd293102a741c597dea4c9c"
+    },
+    {
+      "path": "assets/Images/replace_card_title.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 9837,
+      "sha256": "59562a28e24cef55602370963abefef1d29f01fa328a4f9d8f6fbc6eecde0b03"
     },
     {
       "path": "assets/Images/retryConnect.png",

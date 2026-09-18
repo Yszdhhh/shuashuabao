@@ -3477,10 +3477,10 @@ class Mediator:
 
     def _find_panel_refresh(self, frame: Frame, kind: str) -> MatchResult | None:
         names = {
-            "skill": ["refresh", "bwRefresh", "cardRefresh", "heroRefresh"],
+            "skill": ["skill_refresh_btn", "refresh", "bwRefresh", "cardRefresh", "heroRefresh"],
             "bond": ["bond_refresh_btn", "refresh", "cardRefresh", "heroRefresh", "bwRefresh"],
             "treasure": ["treasure_refresh_btn", "refresh", "cardRefresh", "bwRefresh"],
-        }.get(kind, ["refresh", "bwRefresh", "cardRefresh"])
+        }.get(kind, ["skill_refresh_btn", "refresh", "bwRefresh", "cardRefresh"])
         def preferred(scales: tuple[float, ...]) -> MatchResult | None:
             # Do not let a high-scoring generic `bwRefresh` template replace
             # the panel-specific refresh button at a different coordinate.
@@ -5512,13 +5512,14 @@ class Mediator:
                     print(f"[L1] 在{loc}使用悬赏令【{target_bounty.name}】 @ {target_bounty.center}")
                     return LoopAction.Continue
 
-            # 若快捷栏有悬赏令但暂不可吞噬，且背包未开，打开背包以便放入
+            # 若快捷栏有悬赏令但暂不可吞噬，且背包未开，在非选卡步骤打开背包以便放入
             if (
                 item_bar_bounty is not None
                 and not can_swallow
                 and layout is None
                 and not is_boss_active
                 and not self._passenger_mode()
+                and self._l1_cycle_step not in ("bond", "skill", "treasure")
                 and now >= getattr(self, "_solo_bag_open_next_at", 0.0)
             ):
                 self._solo_bag_open_next_at = now + 5.0
@@ -5526,12 +5527,13 @@ class Mediator:
                     print(f"[L1] 快捷栏有悬赏令【{item_bar_bounty.name}】暂不吞噬，打开个人背包暂存")
                     return LoopAction.Continue
 
-            # 若羁绊栏有海盗卡需吞噬、背包未开且快捷栏没有悬赏令，主动打开背包以使用背包内悬赏令
+            # 若羁绊栏有海盗卡需吞噬、背包未开且快捷栏没有悬赏令，在非选卡步骤主动打开背包以使用背包内悬赏令
             if (
                 item_bar_bounty is None
                 and layout is None
                 and not is_boss_active
                 and not self._passenger_mode()
+                and self._l1_cycle_step not in ("bond", "skill", "treasure")
                 and self._has_swallowable_pirate_card("haidao", frame)
                 and now >= getattr(self, "_solo_bag_open_next_at", 0.0)
             ):
@@ -17959,6 +17961,12 @@ class Mediator:
                 else:
                     return LoopAction.Continue
 
+        # 技能/羁绊/宝物优先于机会微操，避免 G/F/V 饿死。
+        opened = self._maybe_open_choice_panel(frame, anchor=anchor)
+        if opened is not None:
+            self._main_line_since = now
+            return opened
+
         if (
             not self._passenger_mode()
             and self._panel_state == PanelState.CLOSED
@@ -17979,9 +17987,10 @@ class Mediator:
                     self._main_line_since = now
                     return dan_res
 
-            # 定期一键拾取：非模态选择面板遮挡时，每 12s 触发 [Z] 拾取地上掉落物（木材、金币、装备、悬赏令）
+            # 定期一键拾取：非 pickup 轮换步且无模态选择面板遮挡时，每 12s 触发 [Z] 拾取地上掉落物（木材、金币、装备、悬赏令）
             if (
-                now >= self._pickup_next_at
+                self._l1_cycle_step != "pickup"
+                and now >= self._pickup_next_at
                 and self._panel_state == PanelState.CLOSED
                 and anchor is None
                 and not self._has_active_transaction(frame)
@@ -17999,19 +18008,6 @@ class Mediator:
                     print("[L1] 定期一键拾取 [Z] 拾取地面掉落物")
                     return LoopAction.Continue
 
-        # 技能/羁绊/宝物优先于会重复出现的进化按钮，避免 G/F/V 饿死。
-        opened = self._maybe_open_choice_panel(frame, anchor=anchor)
-        if opened is not None:
-            self._main_line_since = now
-            return opened
-
-        if (
-            not self._passenger_mode()
-            and self._panel_state == PanelState.CLOSED
-            and anchor is None
-            and not self._has_active_transaction(frame)
-            and surface == InteractionSurface.HUD_ONLY
-        ):
             # 机会强化武器 1 号格：在 HUD_ONLY 且无活跃事务、非 equipment 步骤时低频右键最大升级（8s CD）
             if self._l1_cycle_step != "equipment":
                 slot1_res = self._maybe_opportunistic_upgrade_slot1(frame, now)
