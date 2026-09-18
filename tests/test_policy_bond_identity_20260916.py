@@ -564,4 +564,98 @@ def test_equipment_in_personal_grid_equips_to_empty_item_bar():
     assert "EquipBagItem-0-0" in right_clicked[0][1]
 
 
+def test_4_slot_bond_choice_coordinate_with_stalled_filtering():
+    """验证4槽面板在候选被过滤后仍使用4槽中心坐标，绝不点偏到黑色缝隙。"""
+    from shuabao.mediator import Mediator, Frame
+    from shuabao.choice_policy import PolicyDecision, SlotCandidate
+    import numpy as np
+
+    med = Mediator(Settings(), ROOT)
+    frame = Frame(bgr=np.zeros((900, 1600, 3), dtype=np.uint8), left=286, top=108)
+
+    # 模拟 4 槽面板扫描出 4 张卡
+    med._choice_panel_slot_count = 4
+
+    # 模拟被 _stall_combat_bond_slots 过滤后只有 2 张卡（Slot 0 和 Slot 2）
+    cand0 = SlotCandidate(0, "挑战", "blue", "R", 0.86, "tz")
+    cand2 = SlotCandidate(2, "成长", "blue", "R", 0.88, "chengzhang")
+    filtered_slots = (cand0, cand2)
+
+    decision = PolicyDecision.select(2, "羁绊差一张合成秒选【成长】")
+    mapped = med._policy_decision_to_hit(frame, "bond", decision, filtered_slots)
+    assert mapped is not None
+    label, hit = mapped
+    assert label == "bond"
+    assert hit.name == "ocr_bond:成长"
+    # 4 槽第 2 槽中心为 x=0.565, y=0.44 -> x=904, y=396 (绝对坐标 286+904=1190, 108+396=504)
+    assert hit.x == int(1600 * 0.565)
+    assert hit.screen_x == 286 + int(1600 * 0.565)
+    assert hit.y == int(900 * 0.44)
+    assert hit.screen_y == 108 + int(900 * 0.44)
+
+
+def test_inventory_clicks_cooldown_reset():
+    """验证物品栏点击计数器在超过冷却时间后自动重置，防止永久锁死。"""
+    from shuabao.mediator import Mediator, Frame, PanelState, LoopAction
+    from shuabao.vision.matcher import MatchResult
+    from unittest.mock import patch
+    import numpy as np
+    import time
+
+    med = Mediator(Settings(cards=["海盗"]), ROOT)
+    frame = Frame(bgr=np.zeros((900, 1600, 3), dtype=np.uint8))
+
+    # 模拟之前连续点击了 3 次达到上限
+    med._inventory_clicks_this_visit = 3
+    med._inventory_next_at = time.time() - 3.0  # 冷却已过去 3 秒
+
+    bounty_hit = MatchResult("haidao/haidao_bounty_ssr_orange", 0.85, 1145, 737, 30, 30, 1145, 737)
+    med._panel_state = PanelState.CLOSED
+    med._has_swallowable_pirate_card = lambda name, f: True
+    med._hud_item_bar_state = lambda f: "items"
+
+    with patch.object(med, "find", return_value=bounty_hit), \
+         patch.object(med, "act_click", return_value=True):
+        res = med._maybe_use_inventory_item(frame)
+        assert res == LoopAction.Continue
+        # 验证计数器已被重置并重新计数为 1
+        assert med._inventory_clicks_this_visit == 1
+
+
+def test_passive_card_replacement_user_rules():
+    """验证替换卡牌按用户规则智能顶替：
+    1. N 级海盗直接放弃（重置刷新木材到40木）
+    2. 核心卡（成长）顶替非核心槽（海盗），绝不顶替已有成长
+    3. 高阶海盗（SR）顶替低阶海盗（N）
+    4. 同阶海盗且无可顶替低阶时放弃
+    """
+    from shuabao.mediator import Mediator, Frame
+    from unittest.mock import MagicMock
+    import numpy as np
+
+    med = Mediator(Settings(bonds=["成长", "祝福", "经济"]), ROOT)
+    frame = Frame(bgr=np.zeros((900, 1600, 3), dtype=np.uint8))
+
+    # 1. 进来 N 级空降海盗 -> 必须放弃
+    med._ocr_client = MagicMock()
+    med._ocr_client.is_ready = True
+    med._ocr_client.shadow_predict = MagicMock(return_value=MagicMock(raw_text="空降海盗", rec_score=0.95))
+    victim, reason = med._decide_passive_card_replacement(frame)
+    assert victim is None
+    assert "放弃以重置刷新木材到40木" in reason
+
+    # 2. 进来 核心卡 成长 -> 顶替非核心卡槽 0（海盗），保护槽位 1 的成长
+    med._ocr_client.shadow_predict = MagicMock(return_value=MagicMock(raw_text="成长", rec_score=0.98))
+    victim, reason = med._decide_passive_card_replacement(frame)
+    assert victim == 0
+    assert "核心卡" in reason
+
+    # 3. 进来 SR 级海盗 顶尖大盗 -> 顶替槽位 0 的 N 级海盗
+    med._ocr_client.shadow_predict = MagicMock(return_value=MagicMock(raw_text="顶尖大盗", rec_score=0.95))
+    victim, reason = med._decide_passive_card_replacement(frame)
+    assert victim == 0
+    assert "顶替低阶卡槽" in reason
+
+
+
 

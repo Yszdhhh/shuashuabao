@@ -1064,6 +1064,7 @@ class Mediator:
         self._skill_refresh_attempts = 0
         # L1 选卡策略会话（choice_policy.SessionState）；按 panel episode 重置。
         self._choice_session = SessionState()
+        self._choice_panel_slot_count: int = 3
         self._choice_fp_before_refresh: str | None = None
         self._choice_policy_idle = False
         self._choice_policy_last_reason = ""
@@ -3542,6 +3543,7 @@ class Mediator:
         kind: str,
         decision: PolicyDecision,
         slots: tuple[SlotCandidate, ...],
+        slot_count: int | None = None,
     ) -> tuple[str, MatchResult] | None:
         """Map PolicyDecision → (label, MatchResult). WAIT/NONE → idle (None)."""
         self._choice_policy_last_reason = decision.reason or ""
@@ -3583,7 +3585,15 @@ class Mediator:
                 hit_name = f"ocr_{kind}:slot{decision.index}"
             if decision.reason:
                 print(f"[L1] 选卡策略：{decision.reason}")
-            hit = self._choice_slot_hit(frame, kind, int(decision.index), hit_name, slot_count=len(slots))
+            if slot_count is None:
+                session_slots = getattr(self, "_choice_panel_slot_count", None)
+                if session_slots in (3, 4):
+                    slot_count = session_slots
+                elif any(getattr(s, "index", 0) >= 3 for s in slots) or (decision.index is not None and int(decision.index) >= 3):
+                    slot_count = 4
+                else:
+                    slot_count = len(slots)
+            hit = self._choice_slot_hit(frame, kind, int(decision.index), hit_name, slot_count=slot_count)
             label = "技能" if kind == "skill" else kind
             return (label, hit)
         if decision.action == PolicyAction.REFRESH:
@@ -3639,6 +3649,8 @@ class Mediator:
         return ("技能" if kind == "skill" else kind, hit)
 
     def _choice_slot_hit(self, frame: Frame, kind: str, index: int, name: str, slot_count: int = 3) -> MatchResult:
+        if index >= 3:
+            slot_count = max(slot_count, 4)
         if slot_count == 4:
             centers = self._CHOICE_SLOT_CENTERS_4.get(kind) or self._CHOICE_SLOT_CENTERS.get(kind, ())
         else:
@@ -3725,6 +3737,7 @@ class Mediator:
         if not slots_raw:
             return None
         self._sync_choice_session_refreshes()
+        self._choice_panel_slot_count = len(slots_raw)
         slots = self._slots_to_candidates(frame, kind, slots_raw)
         # Live set_progress & free_slots extraction from frame and confirmed state
         bond_progress = self._extract_live_set_progress(frame)
@@ -3880,7 +3893,7 @@ class Mediator:
                     "context": self._context_cache_value,
                 }
             )
-        mapped = self._policy_decision_to_hit(frame, kind, decision, slots)
+        mapped = self._policy_decision_to_hit(frame, kind, decision, slots, slot_count=len(slots_raw))
         if mapped is None:
             return None
         return mapped[1]
@@ -5059,6 +5072,98 @@ class Mediator:
         self._equipment_pending_until = 0.0
         return False
 
+    def _decide_passive_card_replacement(self, frame: Frame) -> tuple[int | None, str]:
+        """User rules for 10/10 passive replacement dialog ("替换卡牌"):
+        1. If incoming card is N tier, ALWAYS ABANDON (resets wood refresh cost to 40).
+        2. Never replace target build cards (e.g. 成长, 祝福, 经济).
+        3. If incoming card is target build (e.g. 成长), replace a non-target slot (pirate/lowest tier).
+        4. If incoming card is pirate, only replace if higher tier than existing pirate card (e.g. SR replacing N).
+        5. Otherwise ABANDON.
+        """
+        incoming_name = ""
+        incoming_rarity = "N"
+        if getattr(self, "_ocr_client", None) is not None:
+            x0 = int(frame.width * 0.45)
+            y0 = int(frame.height * 0.29)
+            x1 = int(frame.width * 0.55)
+            y1 = int(frame.height * 0.35)
+            resp = self._ocr_client.shadow_predict(frame, "replace_incoming_title", {"bbox": (x0, y0, x1, y1), "kind": "bond"})
+            raw = str(resp.raw_text or "").strip()
+            if raw:
+                incoming_name = raw
+
+        pirate_rarities = {
+            "战斗海盗": "N",
+            "冲浪海盗": "N",
+            "利刃海盗": "N",
+            "空降海盗": "N",
+            "海盗帕奇斯": "N",
+            "掘金者": "R",
+            "顶尖大盗": "SR",
+            "重拳先生": "SSR",
+            "重拳": "SSR",
+            "罗杰斯": "UR",
+        }
+        for pname, prar in pirate_rarities.items():
+            if pname in incoming_name:
+                incoming_rarity = prar
+                break
+
+        if incoming_rarity == "N" and incoming_name not in pirate_rarities:
+            bx0 = int(frame.width * 0.46)
+            by0 = int(frame.height * 0.35)
+            bx1 = int(frame.width * 0.54)
+            by1 = int(frame.height * 0.40)
+            if getattr(self, "_ocr_client", None) is not None and getattr(self._ocr_client, "is_ready", False):
+                bresp = self._ocr_client.shadow_predict(frame, "replace_incoming_badge", {"bbox": (bx0, by0, bx1, by1), "kind": "rarity"})
+                bclean = re.sub(r"[^A-Za-z]", "", str(bresp.raw_text or "")).upper()
+                if bclean in ("N", "R", "SR", "SSR", "UR", "EX"):
+                    incoming_rarity = bclean
+
+        presets = self._policy_settings().bond_presets or ("成长", "祝福", "经济")
+        from shuabao.choice_policy import matches_bond_preset
+        is_target = matches_bond_preset(incoming_name, presets) if incoming_name else False
+        if is_target and incoming_rarity == "N":
+            incoming_rarity = "R"
+
+        # Rule 1: If incoming is N tier, ALWAYS abandon (resets refresh wood cost to 40)
+        if not is_target and (incoming_rarity == "N" or any(n in incoming_name for n in ("空降海盗", "海盗帕奇斯", "战斗海盗", "冲浪海盗", "利刃海盗"))):
+            return None, f"新卡【{incoming_name or 'N'}】为N级，放弃以重置刷新木材到40木"
+
+        ranks = {"N": 0, "R": 1, "SR": 2, "SSR": 3, "UR": 4, "EX": 5}
+        owned = self._confirmed_bond_cards()
+        slots_info = []
+        for i in range(10):
+            slot_name = owned[i] if i < len(owned) else ("海盗" if i in (0, 2, 3, 4, 5, 6, 7) else "成长")
+            is_slot_target = matches_bond_preset(slot_name, presets)
+            slot_rarity = "N" if "海盗" in slot_name else "R"
+            slots_info.append({
+                "index": i,
+                "name": slot_name,
+                "is_target": is_slot_target,
+                "rarity": slot_rarity,
+            })
+
+        non_target_slots = [s for s in slots_info if not s["is_target"]]
+
+        # Rule 2 & 3: If incoming card is in target build (e.g. 成长), replace a non-target slot
+        if is_target:
+            if not non_target_slots:
+                return None, "所有卡槽均为核心卡，无可顶替目标，放弃"
+            non_target_slots.sort(key=lambda s: ranks.get(s["rarity"], 0))
+            victim = non_target_slots[0]["index"]
+            return victim, f"新卡【{incoming_name}】为核心卡，顶替非核心卡槽 {victim}【{non_target_slots[0]['name']}】"
+
+        # Rule 4: If incoming is pirate / other, only replace if strictly higher tier than existing pirate card
+        inc_rank = ranks.get(incoming_rarity, 0)
+        upgrade_victims = [s for s in non_target_slots if ranks.get(s["rarity"], 0) < inc_rank]
+        if upgrade_victims:
+            upgrade_victims.sort(key=lambda s: ranks.get(s["rarity"], 0))
+            victim = upgrade_victims[0]["index"]
+            return victim, f"新卡【{incoming_name}】({incoming_rarity})顶替低阶卡槽 {victim}【{upgrade_victims[0]['name']}】({upgrade_victims[0]['rarity']})"
+
+        return None, f"新卡【{incoming_name or '未知'}】({incoming_rarity})无更优顶替目标，点击放弃"
+
     def _handle_card_replacement_dialog(self, frame: Frame) -> LoopAction | None:
         """Handle the 10/10 bond card replacement dialog ("替换卡牌").
 
@@ -5097,6 +5202,12 @@ class Mediator:
         self._replace_dialog_next_at = now + 1.0
         victim_idx = getattr(self, "_replace_slot_index", None)
         self._replace_slot_index = None
+
+        if victim_idx is None:
+            decided_idx, reason = self._decide_passive_card_replacement(frame)
+            if reason:
+                print(f"[L1] 替换卡牌决策：{reason}")
+            victim_idx = decided_idx
 
         if victim_idx is not None and 0 <= victim_idx < 10:
             scale_x = frame.width / 1600.0
@@ -5210,6 +5321,9 @@ class Mediator:
             # 公共背包流转正持有队伍资产：此刻任何左键都会当场吃掉吞噬丹。
             return None
         now = time.time()
+        # Cooldown reset for inventory clicks: if cooldown expired, reset this_visit clicks
+        if now >= getattr(self, "_inventory_next_at", 0.0) + 2.5:
+            self._inventory_clicks_this_visit = 0
         inventory_roi = (0.64, 0.77, 0.74, 0.98)
 
         # 1. 吞噬丹
@@ -5351,6 +5465,20 @@ class Mediator:
                 self._solo_bag_open_next_at = now + 5.0
                 if self._open_bag_page(frame):
                     print(f"[L1] 快捷栏有悬赏令【{item_bar_bounty.name}】暂不吞噬，打开个人背包暂存")
+                    return LoopAction.Continue
+
+            # 若羁绊栏有海盗卡需吞噬、背包未开且快捷栏没有悬赏令，主动打开背包以使用背包内悬赏令
+            if (
+                item_bar_bounty is None
+                and layout is None
+                and not is_boss_active
+                and not self._passenger_mode()
+                and self._has_swallowable_pirate_card("haidao", frame)
+                and now >= getattr(self, "_solo_bag_open_next_at", 0.0)
+            ):
+                self._solo_bag_open_next_at = now + 5.0
+                if self._open_bag_page(frame):
+                    print("[L1] 羁绊栏有海盗卡待吞噬，打开个人背包使用悬赏令")
                     return LoopAction.Continue
 
             # 3. 单人模式下背包已打开时的道具流转（装备留快捷栏、消耗品放背包、常驻/耗尽关闭）
