@@ -380,9 +380,53 @@ def test_bounty_swallow_pirate_tier_matching():
     assert med._has_swallowable_pirate_card("haidao/haidao_bounty_ssr_orange")
     assert med._has_swallowable_pirate_card("haidao/haidao_bounty_ur_red")
 
-    # 2. 完全无海盗卡时，任何悬赏令均不盲目消耗
+    # 2. 完全无海盗卡且配置未开启海盗时，任何悬赏令均不盲目消耗
     med._bond_cards_owned = ["力量", "敏捷", "智力"]
     assert not med._has_swallowable_pirate_card("haidao/haidao_bounty_n_green")
     assert not med._has_swallowable_pirate_card("haidao/haidao_bounty_sr_purple")
     assert not med._has_swallowable_pirate_card("haidao/haidao_bounty_ur_red")
+
+
+def test_bond_capacity_candidates_allows_core_when_free_slots_is_2():
+    """free_slots == 2 时，必须放行 core 预设候选（如成长、祝福、海盗），防止误刷新。"""
+    from shuabao.choice_policy import _bond_capacity_candidates
+
+    slots = (
+        SlotCandidate(index=0, name=None, confidence=0.44),
+        SlotCandidate(index=1, name="成长", confidence=0.96),
+        SlotCandidate(index=2, name="海盗", confidence=0.93),
+    )
+    ps = PolicySettings(
+        bond_presets=("祝福", "成长", "经济", "海盗"),
+        bond_whitelist_mode="hard",
+    )
+    cands = PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=slots,
+        free_slots=2,
+        settings=ps,
+        owned_bond_cards=(),
+    )
+    kept = _bond_capacity_candidates(cands, slots, ps)
+    names = [s.name for s in kept]
+    assert "成长" in names
+    assert "海盗" in names
+
+
+def test_bounty_swallow_with_untracked_bar_cards():
+    """当配置了海盗卡组且羁绊栏有卡（如开局或手动预选），即使 owned 未同步也允许使用悬赏令。"""
+    from shuabao.mediator import Mediator
+    med = Mediator(Settings(cards=["海盗", "zhufu"]), ROOT)
+
+    # 1. owned 无海盗记录，但配置了海盗卡且栏位有卡 (occ=8)
+    med._bond_cards_owned = ["体术", "敏捷"]
+    med._bond_bar_occupancy = lambda frame=None: 8
+    assert med._has_swallowable_pirate_card("haidao/haidao_bounty_ssr_orange")
+
+    # 2. 若配置未包含海盗卡组，则不盲目吞噬
+    med_no_pirate = Mediator(Settings(cards=["zhufu", "chengzhang"]), ROOT)
+    med_no_pirate._bond_cards_owned = ["体术", "敏捷"]
+    med_no_pirate._bond_bar_occupancy = lambda frame=None: 8
+    assert not med_no_pirate._has_swallowable_pirate_card("haidao/haidao_bounty_ssr_orange")
+
 

@@ -5142,7 +5142,7 @@ class Mediator:
 
         return LoopAction.Continue
 
-    def _has_swallowable_pirate_card(self, bounty_name: str) -> bool:
+    def _has_swallowable_pirate_card(self, bounty_name: str, frame: Frame | None = None) -> bool:
         """根据悬赏令品质，判断当前羁绊栏中是否有可吞噬的海盗卡。"""
         owned = self._confirmed_bond_cards()
         if not owned:
@@ -5174,10 +5174,26 @@ class Mediator:
                 return 1
             return None
 
+        pirate_cards_in_owned = False
         for card in owned:
             p_tier = _get_card_pirate_tier(str(card))
-            if p_tier is not None and p_tier <= b_tier:
+            if p_tier is not None:
+                pirate_cards_in_owned = True
+                if p_tier <= b_tier:
+                    return True
+        if pirate_cards_in_owned:
+            return False
+
+        # 若 owned 未显式记录到海盗卡（例如游戏预置或未开选卡面板拿卡），但羁绊栏有卡且当前配置海盗卡组，允许吞噬
+        has_pirate_preset = (
+            any("海盗" in str(c) for c in getattr(self.settings, "cards", ()))
+            or any("海盗" in str(b) for b in getattr(self.settings, "bonds", ()))
+        )
+        if has_pirate_preset:
+            occ = self._bond_bar_occupancy(frame) if frame is not None else None
+            if occ is None or occ > 0:
                 return True
+
         return False
 
     def _maybe_use_inventory_item(self, frame: Frame) -> LoopAction | None:
@@ -5261,7 +5277,7 @@ class Mediator:
             if bounty is not None and bounty.name not in bounty_valid_names:
                 bounty = None
             layout = None
-            if bounty is None and not self._passenger_mode() and getattr(self, "_backpack_has_overflow_items", False):
+            if bounty is None and not self._passenger_mode() and (getattr(self, "_backpack_has_overflow_items", False) or self._bag_layout(frame) is not None):
                 layout = self._bag_layout(frame)
                 if layout is not None:
                     px0, py0, px1, py1 = layout.panel_rect()
@@ -5281,7 +5297,7 @@ class Mediator:
                     if bag_bounty is not None and bag_bounty.name in bounty_valid_names:
                         bounty = bag_bounty
 
-            can_swallow = self._has_swallowable_pirate_card(bounty.name) if bounty is not None else False
+            can_swallow = self._has_swallowable_pirate_card(bounty.name, frame) if bounty is not None else False
             if (
                 bounty is not None
                 and bounty.name in bounty_valid_names

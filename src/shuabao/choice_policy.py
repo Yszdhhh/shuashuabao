@@ -1313,7 +1313,7 @@ def _bond_capacity_candidates(
         elif free == 1:
             allowed = merge or core or slot.name in tier_names
         else:
-            allowed = merge or slot.name in progress_names
+            allowed = merge or core or slot.name in progress_names
         if allowed:
             kept.append(slot)
     return tuple(kept)
