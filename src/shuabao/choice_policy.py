@@ -404,7 +404,7 @@ _ATTRIBUTE_CHAINS = {
     "str": ("力量", "野蛮人", "战神", "屠戮者"),
     "agi": ("敏捷", "猎魔人", "弓神", "收割者"),
 }
-_ECONOMY_BOND_ORDER = ("经济", "祝福", "贪婪", "挑战", "成长")
+_ECONOMY_BOND_ORDER = ("祝福", "成长", "经济", "贪婪", "挑战")
 _ATTRIBUTE_IDS = {
     "int": "int", "intelligence": "int", "智力": "int",
     "str": "str", "strength": "str", "力量": "str",

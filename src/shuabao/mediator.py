@@ -5205,7 +5205,13 @@ class Mediator:
                 "haidao/haidao_bounty_sr_purple",
                 "haidao/haidao_bounty_ssr_orange",
                 "haidao/haidao_bounty_ur_red",
+                "haidao/haidao_inventory_n_green_body",
+                "haidao/haidao_inventory_r_blue_body",
+                "haidao/haidao_inventory_sr_purple_body",
+                "haidao/haidao_inventory_ssr_orange_body",
+                "haidao/haidao_inventory_ur_red_body",
             ]
+            bounty_valid_names = set(bounty_candidates) | {c.split("/")[-1] for c in bounty_candidates}
             bounty = self.find(
                 frame,
                 bounty_candidates,
@@ -5213,7 +5219,7 @@ class Mediator:
                 roi=inventory_roi,
                 scales=(0.45, 0.5, 0.55, 0.6, 0.7, 0.8),
             )
-            if bounty is not None and bounty.name not in bounty_candidates:
+            if bounty is not None and bounty.name not in bounty_valid_names:
                 bounty = None
             layout = None
             if bounty is None and not self._passenger_mode() and getattr(self, "_backpack_has_overflow_items", False):
@@ -5233,10 +5239,10 @@ class Mediator:
                         roi=bag_roi,
                         scales=(0.45, 0.5, 0.55, 0.6, 0.7, 0.8),
                     )
-                    if bag_bounty is not None and bag_bounty.name in bounty_candidates:
+                    if bag_bounty is not None and bag_bounty.name in bounty_valid_names:
                         bounty = bag_bounty
 
-            if bounty is not None and bounty.name in bounty_candidates and now >= getattr(self, "_bounty_next_at", 0.0) and self._inventory_clicks_this_visit < 3:
+            if bounty is not None and bounty.name in bounty_valid_names and now >= getattr(self, "_bounty_next_at", 0.0) and self._inventory_clicks_this_visit < 3:
                 self._bounty_next_at = now + 1.0
                 self._inventory_next_at = now + 1.0
                 self._inventory_clicks_this_visit += 1
