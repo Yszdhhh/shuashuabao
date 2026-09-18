@@ -3070,6 +3070,13 @@ class Mediator:
             letter, band = self._read_slot_rarity_badge(frame, kind, slot["index"], slot_count=slot_count)
             slot["rarity"] = band
             slot["rarity_letter"] = letter
+            if (
+                kind == "bond"
+                and same_bond_identity(str(slot.get("name") or ""), "海盗")
+                and (letter == "SSR" or band == "orange")
+            ):
+                # 海盗体系 SSR 专属核心卡即为罗杰斯上将（产悬赏令核心）
+                slot["name"] = "罗杰斯上将"
 
         # 描述 ROI：宝物负面判定必须匹配对应 layout
         if desc_spec is not None:
@@ -3391,6 +3398,8 @@ class Mediator:
         policy = self._policy_settings()
         bases = policy.bond_base_presets
         if not bases or not policy.bond_advanced_presets:
+            return False
+        if float(policy.bond_base_completion_ratio or 0.0) <= 0.0:
             return False
         unlock = float(policy.bond_advanced_unlock_s or 0.0)
         elapsed = self._round_elapsed_s()

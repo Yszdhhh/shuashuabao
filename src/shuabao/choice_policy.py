@@ -499,6 +499,16 @@ def assemble_policy_settings(
                 for name in group:
                     if name not in bond_presets:
                         bond_presets.append(name)
+                # 海盗体系自动级联宝藏卡组（黄金猿装备栏开启宝藏卡池）
+                if any(same_bond_identity(g, "海盗") for g in group):
+                    for bg in catalog_groups:
+                        if bg not in used_groups and any(same_bond_identity(b, "宝藏") for b in bg):
+                            used_groups.add(bg)
+                            selected_groups.append(bg)
+                            for name in bg:
+                                if name not in bond_presets:
+                                    bond_presets.append(name)
+                            break
                 break
 
     advanced_presets = tuple(
@@ -595,6 +605,7 @@ def assemble_policy_settings(
             "bond_must_take": tuple(dict.fromkeys(
                 tuple(str(s) for s in (getattr(settings, "bond_must_take", None) or ()))
                 + tuple(str(s) for s in (bond_cfg.get("must_take_names") or ()))
+                + (("罗杰斯上将",) if any(same_bond_identity(c, "海盗") for c in card_presets) else ())
             )),
             "treasure_negative_patterns": treasure_cfg.get("negative_patterns"),
             "treasure_negative_names": treasure_cfg.get("negative_names"),
@@ -1403,6 +1414,7 @@ def _decide_collectible(
                     if (
                         matches_bond_preset(slot.name, settings.bond_base_presets)
                         or matches_bond_preset(slot.name, settings.bond_chain_presets)
+                        or _is_bond_must_take(slot.name, settings.bond_must_take)
                         # A past run may already contain an advanced card. Let
                         # its duplicate finish/merge, but never start another.
                         or _is_uncompleted_merge_upgrade(slot, owned_bonds)
@@ -1425,6 +1437,7 @@ def _decide_collectible(
                             matches_bond_preset(slot.name, settings.bond_base_presets)
                             or matches_bond_preset(slot.name, settings.bond_chain_presets)
                             or matches_bond_preset(slot.name, active_adv)
+                            or _is_bond_must_take(slot.name, settings.bond_must_take)
                             or _is_uncompleted_merge_upgrade(slot, owned_bonds)
                         )
                     )
@@ -1546,6 +1559,8 @@ def _bond_base_ready(cands: PanelCandidates, settings: PolicySettings) -> bool:
     bases = settings.bond_base_presets
     if not bases or not settings.bond_advanced_presets:
         return True
+    if float(settings.bond_base_completion_ratio or 0.0) <= 0.0:
+        return True
     unlock = float(settings.bond_advanced_unlock_s or 0.0)
     elapsed = cands.round_elapsed_s
     if unlock > 0 and elapsed is not None and elapsed >= unlock:
@@ -1565,8 +1580,11 @@ def _active_advanced_presets(cands: PanelCandidates, settings: PolicySettings) -
     if not groups:
         return settings.bond_advanced_presets
     owned = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
+    # 高级卡组推进比例：当 bond_base_completion_ratio 设为 0.0（测试放开门禁）时，
+    # 高级卡组按 0.8 比例正常推进，防止 ratio=0 导致仅拿 1 张卡就错误跳至后续卡组。
+    adv_ratio = 0.80 if float(settings.bond_base_completion_ratio or 0.0) <= 0.0 else float(settings.bond_base_completion_ratio)
     for group in groups:
-        required = max(1, math.ceil(len(group) * settings.bond_base_completion_ratio))
+        required = max(1, math.ceil(len(group) * adv_ratio))
         have = sum(
             any(same_bond_identity(name, card) for name in owned)
             for card in group

@@ -20,6 +20,7 @@ if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
 DECLARED_TEST_ONLY_DELTA = frozenset({
+    "config/choice_policy.json",
     "config/dashboard_test_profiles.json",
     "config/runtime_asset_manifest.json",
     "src/shuabao/bond_capacity.py",

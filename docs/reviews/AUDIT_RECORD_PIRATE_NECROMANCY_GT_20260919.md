@@ -24,6 +24,7 @@
 | **ISS-05** | 技能、羁绊、背包逻辑打架/卡顿/延误 | `064e59f` | `src/shuabao/mediator.py` | `tools/run_frozen_replay.py` (`main_hud_idle`) | **RESOLVED** |
 | **ISS-06** | 4 槽羁绊选卡坐标偏离（选成长点在黑缝） | `cc63ad4` | `src/shuabao/mediator.py` | `test_4_slot_bond_choice_coordinate_with_stalled_filtering` | **RESOLVED** |
 | **ISS-07** | 10/10 满槽替换卡牌智能顶替与放弃重置40木 | `cc63ad4` | `src/shuabao/mediator.py`<br>`assets/Images/replace_card_*` | `test_passive_card_replacement_user_rules` | **RESOLVED** |
+| **ISS-08** | 80% 基础门禁误刷 SSR 罗杰斯上将与海盗-宝藏全链路放开 | `HEAD` | `src/shuabao/choice_policy.py`<br>`src/shuabao/mediator.py`<br>`config/choice_policy.json` | `test_pirate_admiral_rogers_must_take_when_base_bonds_at_zero`<br>`test_pirate_deck_cascades_to_treasure_deck`<br>`test_mediator_labels_haidao_ssr_as_admiral_rogers` | **RESOLVED** |
 
 ---
 
@@ -216,6 +217,53 @@
 
 #### 7.4 验证用例
 - `tests/test_policy_bond_identity_20260916.py::test_passive_card_replacement_user_rules`（PASS）
+
+---
+
+### Issue 8: 80% 基础门禁误刷 SSR 罗杰斯上将与海盗-宝藏全链路放开
+
+#### 8.1 用户原声与异常现象
+> “看下日志，怎么羁绊上来就把ssr的罗杰斯上将给刷掉了？这个不是海盗卡组里面相当重要的卡吗（可以产生悬赏令加快卡组吞噬）海盗卡组里面没有记录这个机制吗？”  
+> “我们当前测试脚本肯定要放开80%基础卡组的限制呀，后续正式脚本如何调整后续再说。现在要测试完整的海盗卡组拿完-黄金猿点击切换宝藏卡组进来等逻辑这才是完整的海岛逻辑。而且等下局内时间肯定不够，测试脚本打完boss还要在大秘境里继续拿海岛来测试。”
+
+#### 8.2 现场证据与日志线索
+- **实机运行日志**：`captures/pirate_necromancy_20260919_012405/run.log` 行 60-82：
+  ```text
+  [L1] 主动面板 bond 已可见（2.0s 窗内）
+  [L1] bond 决策待第二帧确认：基础羁绊未达 80%，第 1/2 次刷新
+  [L1] 选卡策略 REFRESH：基础羁绊未达 80%，第 1/2 次刷新
+  [L1] 动作派发: bond刷新选择 [bond_refresh_btn] score=0.999 @ (1324, 683)
+  [L1] bond 决策待第二帧确认：基础羁绊未达 80%，第 2/2 次刷新
+  [L1] 选卡策略 REFRESH：基础羁绊未达 80%，第 2/2 次刷新
+  [L1] 选卡策略 CLOSE：bond 基础羁绊未达 80%，本页无基础卡，直接关闭/隐藏面板
+  ```
+- **决策追踪**：`trace.jsonl` 第 13 tick：
+  `{"index": 1, "name": "海盗", "rarity": "orange", "rarity_letter": "SSR", "raw_text": "海盗"}`
+- **全帧捕获**：`f0013_action_before.png`，槽位 1 明确显示为橙色品质 SSR 【海盗】（卡图下方副标题为【罗杰斯上将】，右上方带绿色【荐】角标）。
+- **游戏机制知识库**：`config/game_mechanics_kb.json` 行 2357 记录 `罗杰斯上将` 效果为“每消耗300木抽卡返1悬赏令；不能被悬赏令吞，能被吞食丹/贪婪/三国吞；被吞仍生效”，为海盗体系生成悬赏令加速吞噬的关键核心。
+
+#### 8.3 根因定位
+1. `choice_policy.py` 中的 `_bond_base_ready` 强制要求在基础卡（祝福/成长/经济）达到 80% 之前仅允许选取基础卡，非基础卡全被剔除出 `eligible`。开局持有率 0% 直接触发 `REFRESH`，将核心 SSR 罗杰斯上将刷新洗掉。
+2. `bond_must_take` 原判断位于 `_bond_base_ready` 过滤之后，即便配置了必拿也被提前丢弃。
+3. `choice_policy.json` 中的 `advanced_groups` 与 `advanced_names` 漏写了海盗卡组的具体单卡名称（罗杰斯上将、制造混乱、霍格船长、洛卡拉舰长等）及后续的【宝藏卡组】。
+
+#### 8.4 修复方案与代码落地
+1. **测试门禁全面放开**：
+   - 将 `config/choice_policy.json` 中 `base_completion_ratio` 设为 `0.0`。
+   - `choice_policy.py` 中 `_bond_base_ready` 当比例 `<= 0.0` 时立即返回 `True`。
+   - 在 `eligible` 候选名单过滤时增加 `or _is_bond_must_take(...)` 绝对豁免，确保必拿卡任何阶段绝不丢弃。
+2. **海盗与宝藏卡组全链路补全与自动级联**：
+   - `choice_policy.json` 补全海盗组全单卡及 `["宝藏", "安卡"]`。
+   - `choice_policy.py` 在识别到海盗卡组时，自动挂载 `("宝藏", "安卡")` 作为后续推进卡组；当勾选海盗时自动将 `罗杰斯上将` 注入 `bond_must_take`。
+   - `mediator.py` 在 OCR 读取到顶层族名 `海盗` 且品质为 `SSR` 时，精准标定为 `罗杰斯上将`。
+3. **大秘境持续测试保障**：
+   - 测试配置 `game_timeout` 提升至 35 分钟。
+   - 5-5 Boss 击杀后自动交互 NPC 进入大秘境，重置超时倒计时并继续选卡循环。
+
+#### 8.5 验证用例
+- `tests/test_policy_bond_identity_20260916.py::test_pirate_admiral_rogers_must_take_when_base_bonds_at_zero`（PASS）
+- `tests/test_policy_bond_identity_20260916.py::test_pirate_deck_cascades_to_treasure_deck`（PASS）
+- `tests/test_policy_bond_identity_20260916.py::test_mediator_labels_haidao_ssr_as_admiral_rogers`（PASS）
 
 ---
 

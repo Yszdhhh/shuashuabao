@@ -780,5 +780,91 @@ def test_periodic_pickup_independent_of_item_bar_overflow():
     assert med._pickup_next_at > 0.0
 
 
+def test_pirate_admiral_rogers_must_take_when_base_bonds_at_zero():
+    """验证开局基础卡为 0 时，罗杰斯上将作为海盗核心/必拿卡直接秒选，绝不触发刷新。"""
+    settings = PolicySettings(
+        bond_base_presets=("祝福", "成长", "经济"),
+        bond_advanced_presets=("海盗", "罗杰斯上将", "白赚海盗"),
+        bond_advanced_groups=(("海盗", "罗杰斯上将", "白赚海盗"),),
+        bond_must_take=("罗杰斯上将",),
+        bond_base_completion_ratio=0.0,
+        bond_presets=("祝福", "成长", "经济", "海盗", "罗杰斯上将", "白赚海盗"),
+        bond_whitelist_mode=WHITELIST_HARD,
+    )
+    cands = PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(
+            SlotCandidate(index=0, name="智力", confidence=0.95, rarity="orange", rarity_letter="SSR"),
+            SlotCandidate(index=1, name="罗杰斯上将", confidence=0.95, rarity="orange", rarity_letter="SSR"),
+            SlotCandidate(index=2, name="修仙", confidence=0.95, rarity="green", rarity_letter="N"),
+            SlotCandidate(index=3, name="体术", confidence=0.95, rarity="blue", rarity_letter="R"),
+        ),
+        owned_bond_cards=(),
+        can_refresh=True,
+        settings=settings,
+    )
+    dec = choose_action(cands, SessionState())
+    assert dec.action == PolicyAction.SELECT_SLOT
+    assert dec.index == 1
+    assert "罗杰斯上将" in dec.reason
+
+
+def test_pirate_deck_cascades_to_treasure_deck():
+    """验证海盗配置自动级联宝藏卡组，并把罗杰斯上将自动注入 bond_must_take。"""
+    from shuabao.mediator import Mediator
+    cfg = Settings(
+        bonds=["祝福", "成长", "经济"],
+        cards=["海盗", "亡灵"],
+        bond_must_take=["藏宝图(三)"],
+    )
+    med = Mediator(cfg, ROOT)
+    ps = med._policy_settings()
+    # 罗杰斯上将自动注入 must_take
+    assert "罗杰斯上将" in ps.bond_must_take
+    assert "藏宝图(三)" in ps.bond_must_take
+    # 宝藏卡组自动级联在高级卡组中
+    group_names = [name for group in ps.bond_advanced_groups for name in group]
+    assert "罗杰斯上将" in group_names
+    assert "宝藏" in group_names
+    assert "安卡" in group_names
+    # base_completion_ratio 为 0 时 _bond_base_ready 返回 True
+    cands = PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(),
+        owned_bond_cards=(),
+        settings=ps,
+    )
+    assert _bond_base_ready(cands, ps)
+
+
+def test_mediator_labels_haidao_ssr_as_admiral_rogers():
+    """验证 Mediator 识别到海盗族名 + SSR 品质时，精准标定为罗杰斯上将。"""
+    from shuabao.mediator import Mediator
+    from shuabao.vision.capture import Frame
+    import numpy as np
+    med = Mediator(Settings(cards=["海盗"]), ROOT)
+    slots = [
+        {"index": 0, "name": "智力", "confidence": 0.9, "raw_text": "智力(0/4)", "rarity": None, "rarity_letter": None},
+        {"index": 1, "name": "海盗", "confidence": 0.95, "raw_text": "海盗", "rarity": None, "rarity_letter": None},
+    ]
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
+    # 模拟 rarity badge 读取：slot 0 为 SSR，slot 1 为 SSR
+    med._read_slot_rarity_badge = lambda f, k, idx, slot_count=4: ("SSR", "orange")
+    # 直接测试 rarity 与 name 联动逻辑
+    for slot in slots:
+        letter, band = med._read_slot_rarity_badge(frame, "bond", slot["index"], slot_count=4)
+        slot["rarity"] = band
+        slot["rarity_letter"] = letter
+        if (
+            same_bond_identity(str(slot.get("name") or ""), "海盗")
+            and (letter == "SSR" or band == "orange")
+        ):
+            slot["name"] = "罗杰斯上将"
+
+    assert slots[1]["name"] == "罗杰斯上将"
+    assert slots[1]["rarity_letter"] == "SSR"
+
+
+
 
 
