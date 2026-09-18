@@ -24,6 +24,7 @@ if str(ROOT / "tools") not in sys.path:
 
 from gt_test_identity import PRODUCTION_SHA, evaluate_test_candidate  # noqa: E402
 
+from PySide6.QtCore import QTimer  # noqa: E402
 from PySide6.QtGui import QIcon  # noqa: E402
 from PySide6.QtWidgets import (  # noqa: E402
     QApplication,
@@ -303,7 +304,7 @@ class TestDashboardWindow(QWidget):
         self._last_readiness: dict[str, Any] | None = None
         self._init_ui()
         self.refresh_identity()
-        self.do_preflight(silent=True)
+        QTimer.singleShot(50, lambda: self.do_preflight(silent=True))
 
     def _init_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -383,7 +384,14 @@ class TestDashboardWindow(QWidget):
         self.log(f"[identity] Candidate status: {info['candidate_status']}")
 
     def do_preflight(self, silent: bool = False) -> dict[str, Any]:
-        report = run_canonical_gt_readiness()
+        self.btn_preflight.setEnabled(False)
+        self.lbl_pre_status.setText("状态：正在检测中（OCR预热/环境核验）...")
+        self.lbl_pre_status.setStyleSheet("color: #1a73e8; font-weight: bold;")
+        QApplication.processEvents()
+        try:
+            report = run_canonical_gt_readiness()
+        finally:
+            self.btn_preflight.setEnabled(True)
         self._last_readiness = report
         allowed = canonical_ready_for_start(report)
         self.btn_start.setEnabled(allowed)
