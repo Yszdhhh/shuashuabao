@@ -49,6 +49,7 @@ from tools.live_scenario_capture import (
     generate_cases,
     main,
     readiness_report,
+    preflight_report,
     replay_cases,
     reproduce_bundle,
     _resume_after_manual_intervention,
@@ -798,6 +799,49 @@ def test_blocked_precheck_is_evidence_only_and_never_gets_business_taxonomy(tmp_
         "layer": "L8_TEST_EVIDENCE",
         "evidence": "live-input preflight blocked before any business handler: source/EXE identity mismatch; ocr_bootstrap_unhealthy",
     }]
+
+
+def test_canonical_preflight_wraps_existing_gate_and_releases_lane(tmp_path: Path, monkeypatch) -> None:
+    class FakeMediator:
+        def set_phase(self, *_args) -> None:
+            pass
+
+    class FakeLane:
+        def __init__(self) -> None:
+            self.released = False
+
+        def release(self) -> None:
+            self.released = True
+
+    lane = FakeLane()
+    monkeypatch.setattr(live_capture, "_load_operator_settings", lambda _path: Settings(dry_run=False))
+    monkeypatch.setattr(
+        live_capture,
+        "_new_live_mediator",
+        lambda *_args: (FakeMediator(), None),
+    )
+
+    def fake_preflight(**_kwargs):
+        return ({
+            "status": "BLOCKED_PRECONDITION",
+            "ready_for_gt": True,
+            "blocked_reasons": ["window BLOCKED", "OCR BLOCKED"],
+        }, lane, None)
+
+    monkeypatch.setattr(live_capture, "_live_input_preflight", fake_preflight)
+    monkeypatch.setattr(live_capture, "_close_live_ocr", lambda _med: None)
+
+    report = preflight_report(
+        repo_root=ROOT,
+        settings_path=tmp_path / "settings.json",
+        production_source_root=ROOT,
+        production_source_sha="production",
+        test_candidate_sha="test",
+    )
+
+    assert report["status"] == "BLOCKED_PRECONDITION"
+    assert report["blocked_reasons"] == ["window BLOCKED", "OCR BLOCKED"]
+    assert lane.released is True
 
 
 def test_search_action_reason_bridge_keeps_reason_separate_from_text() -> None:

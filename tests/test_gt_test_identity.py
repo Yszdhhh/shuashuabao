@@ -89,6 +89,9 @@ def test_real_root_production_not_clean_and_test_candidate(monkeypatch):
     expected_pkg = (ROOT / "src" / "shuabao").resolve()
     assert imported == expected_pkg / "__init__.py" or expected_pkg in imported.parents
     assert report["src_clean"] is True
+    assert report["config_clean"] is True
+    assert report["tools_clean"] is True
+    assert report["code_paths_clean"] is True
     delta_paths = {item["path"] for item in report["TEST_ONLY_DELTA"]}
     assert delta_paths == set(gt.DECLARED_TEST_ONLY_DELTA)
     assert report["status"] == "READY", report["blocked_reasons"]
@@ -123,6 +126,40 @@ def test_dirty_src_blocked(tmp_path, monkeypatch):
     report = gt.evaluate_test_candidate(root)
     assert report["status"] == "BLOCKED"
     assert any("dirty src" in reason for reason in report["blocked_reasons"])
+
+
+@pytest.mark.parametrize(
+    ("relative", "reason"),
+    [
+        ("src/shuabao/choice_policy.py", "dirty src"),
+        ("config/dashboard_test_profiles.json", "dirty config"),
+        ("tools/gt_test_identity.py", "dirty tools"),
+    ],
+)
+def test_dirty_code_path_roots_block_candidate(tmp_path, monkeypatch, relative, reason):
+    root, _parent, _head = _declared_delta_repo(tmp_path, monkeypatch)
+    path = root / relative
+    path.write_text(path.read_text(encoding="utf-8") + "# dirty\n", encoding="utf-8")
+
+    report = gt.evaluate_test_candidate(root)
+
+    assert report["status"] == "BLOCKED", report
+    assert report["ready"] is False
+    assert report["code_paths_clean"] is False
+    assert reason in report["blocked_reasons"]
+
+
+@pytest.mark.parametrize("relative", ["src/untracked.py", "config/untracked.json", "tools/untracked.py"])
+def test_untracked_code_path_roots_block_candidate(tmp_path, monkeypatch, relative):
+    root, _parent, _head = _declared_delta_repo(tmp_path, monkeypatch)
+    _write(root / relative)
+
+    report = gt.evaluate_test_candidate(root)
+
+    assert report["status"] == "BLOCKED", report
+    assert report["ready"] is False
+    assert report["code_paths_clean"] is False
+    assert any(reason in report["blocked_reasons"] for reason in ("dirty src", "dirty config", "dirty tools"))
 
 
 def test_undeclared_src_file_blocked(tmp_path, monkeypatch):

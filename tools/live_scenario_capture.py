@@ -4622,6 +4622,70 @@ def _live_input_preflight(
     }, lane, frame)
 
 
+def preflight_report(
+    *,
+    repo_root: Path = ROOT,
+    settings_path: Path | None = None,
+    target: str = "solo_ingame_chain",
+    production_source_root: Path | None = None,
+    production_source_sha: str | None = None,
+    test_candidate_sha: str | None = None,
+    automation_exe: Path | None = None,
+    build_identity_path: Path | None = None,
+) -> dict[str, Any]:
+    """Run the existing live-input preflight without dispatching a handler.
+
+    This is the zero-input boundary used by thin launch surfaces. It reuses
+    ``_live_input_preflight`` so identity, OCR, window, start-surface, and
+    single-instance facts keep one canonical implementation.
+    """
+    repo_root = Path(repo_root).resolve()
+    settings = _load_operator_settings(Path(settings_path) if settings_path else None)
+    incident_dir = (
+        Path(settings_path).resolve().parent / "preflight_incidents"
+        if settings_path
+        else repo_root / "captures" / "preflight_incidents"
+    )
+    stop_signal = StopSignal()
+    runtime_root = _configured_production_source_root(production_source_root) or repo_root
+    runtime_mediator_error: str | None = None
+    lane: LiveLane | None = None
+    med: Mediator | None = None
+    try:
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            med, runtime_mediator_error = _new_live_mediator(
+                settings,
+                runtime_root,
+                stop_signal,
+                incident_dir,
+            )
+            med.set_phase(_initial_phase_for_target(target), f"{target} canonical preflight")
+            args = argparse.Namespace(
+                target=target,
+                live_input=False,
+                allow_dev_source=True,
+                automation_exe=automation_exe,
+                build_identity=build_identity_path,
+                production_source_root=production_source_root,
+                production_source_sha=production_source_sha,
+                test_candidate_sha=test_candidate_sha,
+                start_surface_wait=0.0,
+            )
+            report, lane, _frame = _live_input_preflight(
+                args=args,
+                med=med,
+                settings=settings,
+                repo_root=repo_root,
+                runtime_mediator_error=runtime_mediator_error,
+            )
+        return _jsonable(report)
+    finally:
+        if lane is not None:
+            lane.release()
+        if med is not None:
+            _close_live_ocr(med)
+
+
 def _close_live_ocr(med: Mediator) -> None:
     client = getattr(med, "_ocr_client", None)
     if client is not None:
@@ -6110,6 +6174,16 @@ def build_parser() -> argparse.ArgumentParser:
     readiness_parser.add_argument("--settings", type=Path, default=None, help="可选：同时检查本次 settings 的 target 前置")
     readiness_parser.add_argument("--quick", action="store_true", help="跳过临时 bundle 的离线 replay self-check")
     readiness_parser.add_argument("--json", action="store_true")
+    preflight_parser = sub.add_parser("preflight", help="复用 live-input preflight，零输入，不调用业务 handler")
+    preflight_parser.add_argument("--repo-root", type=Path, default=ROOT)
+    preflight_parser.add_argument("--settings", type=Path, required=True)
+    preflight_parser.add_argument("--target", default="solo_ingame_chain")
+    preflight_parser.add_argument("--automation-exe", type=Path, default=None)
+    preflight_parser.add_argument("--build-identity", type=Path, default=None)
+    preflight_parser.add_argument("--production-source-root", type=Path, default=None)
+    preflight_parser.add_argument("--production-source-sha", default=None)
+    preflight_parser.add_argument("--test-candidate-sha", default=None)
+    preflight_parser.add_argument("--json", action="store_true")
     identity_parser = sub.add_parser("identity", help="打印 Harness/production/runtime 身份与 READY FOR GT")
     identity_parser.add_argument("--repo-root", type=Path, default=ROOT)
     identity_parser.add_argument("--automation-exe", type=Path, default=None)
@@ -6228,6 +6302,24 @@ def main(argv: list[str] | None = None) -> int:
             _print_readiness(report, as_json=args.json)
             harness_ok = all(item["harness_readiness"] == "READY" for item in report["targets"])
             return 0 if harness_ok and report.get("ready_for_gt", True) else 1
+        if args.command == "preflight":
+            report = preflight_report(
+                repo_root=args.repo_root,
+                settings_path=args.settings,
+                target=args.target,
+                production_source_root=args.production_source_root,
+                production_source_sha=args.production_source_sha,
+                test_candidate_sha=args.test_candidate_sha,
+                automation_exe=args.automation_exe,
+                build_identity_path=args.build_identity,
+            )
+            if args.json:
+                print(json.dumps(report, ensure_ascii=False, indent=2))
+            else:
+                print(f"[preflight] status={report.get('status')}")
+                for reason in report.get("blocked_reasons") or []:
+                    print(f"BLOCKED: {reason}")
+            return 0 if report.get("status") == "READY" else 1
         if args.command == "contracts":
             _print_contracts(args.target, as_json=args.json)
             return 0

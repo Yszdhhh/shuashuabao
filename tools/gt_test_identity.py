@@ -171,6 +171,18 @@ def _fingerprints(repo_root: Path, production_sha: str) -> tuple[str, str, bool]
     return committed_fp, evidence_fp, code_paths_clean
 
 
+def _path_clean(repo_root: Path, pathspec: str) -> bool:
+    code, porcelain, _err = _git(
+        repo_root,
+        "status",
+        "--porcelain",
+        "--untracked-files=all",
+        "--",
+        pathspec,
+    )
+    return code == 0 and not porcelain
+
+
 def _imported_shuabao(repo_root: Path) -> tuple[str | None, str | None]:
     src = (Path(repo_root) / "src").resolve()
     src_s = str(src)
@@ -228,12 +240,16 @@ def evaluate_test_candidate(
     if import_reason:
         reasons.append(import_reason)
 
-    _code, src_porcelain, _err = _git(
-        repo_root, "status", "--porcelain", "--untracked-files=all", "--", "src/shuabao",
-    )
-    src_clean = not src_porcelain
+    src_clean = _path_clean(repo_root, "src")
+    config_clean = _path_clean(repo_root, "config")
+    tools_clean = _path_clean(repo_root, "tools")
     if not src_clean:
         reasons.append("dirty src")
+    if not config_clean:
+        reasons.append("dirty config")
+    if not tools_clean:
+        reasons.append("dirty tools")
+    code_paths_clean = src_clean and config_clean and tools_clean
 
     production_critical_clean = True
     for rel in PRODUCTION_CRITICAL_PATHS:
@@ -268,7 +284,8 @@ def evaluate_test_candidate(
     if undeclared_src:
         reasons.append(f"undeclared new src/shuabao file: {undeclared_src}")
 
-    committed_fp, evidence_fp, code_paths_clean = _fingerprints(repo_root, production_sha)
+    committed_fp, evidence_fp, fingerprint_code_paths_clean = _fingerprints(repo_root, production_sha)
+    code_paths_clean = code_paths_clean and fingerprint_code_paths_clean
     _code, all_porc, _err = _git(repo_root, "status", "--porcelain", "--untracked-files=all")
     leftover = [path for _status, path in _parse_porcelain(all_porc) if not _ignored(path)]
     worktree_fully_clean = not leftover
@@ -295,6 +312,8 @@ def evaluate_test_candidate(
             "files": canonical.get("production_code_diff_files"),
         },
         "src_clean": src_clean,
+        "config_clean": config_clean,
+        "tools_clean": tools_clean,
         "code_paths_clean": code_paths_clean,
         "worktree_fully_clean": worktree_fully_clean,
         "production_critical_clean": production_critical_clean,
