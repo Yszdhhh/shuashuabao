@@ -99,6 +99,16 @@ def stack_need(name: str | None, progress: tuple[int, int] | None = None) -> int
     return None
 
 
+def _same_bond(n1: str | None, n2: str | None) -> bool:
+    if not n1 or not n2:
+        return False
+    if n1 == n2:
+        return True
+    c1 = _canonical_bond_name(n1) or n1
+    c2 = _canonical_bond_name(n2) or n2
+    return c1 == c2
+
+
 def stack_have(
     name: str | None,
     bar: tuple[str | None, ...],
@@ -111,11 +121,11 @@ def stack_have(
             return have
     if not name:
         return 0
-    return sum(1 for slot in bar if slot == name)
+    return sum(1 for slot in bar if slot and _same_bond(slot, name))
 
 
 def _victim_indices(bar: tuple[str | None, ...], incoming: str) -> tuple[int, ...]:
-    return tuple(i for i, name in enumerate(bar) if name and name != incoming)
+    return tuple(i for i, name in enumerate(bar) if name and not _same_bond(name, incoming))
 
 
 def decide_bond_capacity(

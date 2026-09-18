@@ -21,6 +21,7 @@ if str(_TOOLS_DIR) not in sys.path:
 
 DECLARED_TEST_ONLY_DELTA = frozenset({
     "config/dashboard_test_profiles.json",
+    "src/shuabao/bond_capacity.py",
     "src/shuabao/choice_policy.py",
     "src/shuabao/settings.py",
     "src/shuabao/shell/main_window.py",

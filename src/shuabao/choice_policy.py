@@ -1238,9 +1238,8 @@ def _is_uncompleted_merge_upgrade(
     need = stack_need(slot.name)
     if need is not None:
         have = len(matching)
-        if have >= need:
-            return False
-    return True
+        return have < need
+    return False
 
 
 def _bond_progress_hits(
