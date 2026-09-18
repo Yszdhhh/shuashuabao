@@ -143,14 +143,20 @@ def run_canonical_prepare() -> dict[str, Any]:
     except OSError as exc:
         return {"status": "BLOCKED", "blocked_reasons": [f"canonical preparation unavailable: {exc}"]}
 
+    # one_click_test.ps1 re-emits the prepare script's own stdout decorated with
+    # a "[prepare] " prefix, so the marker is not at the start of the line.
+    # Match it anywhere and split on the marker itself, which accepts both the
+    # bare and the decorated form.
     session_line = next(
-        (line.strip() for line in result.stdout.splitlines() if line.strip().startswith("SESSION=")),
+        (line.strip() for line in result.stdout.splitlines() if "SESSION=" in line),
         "",
     )
     if not session_line:
-        detail = result.stderr.strip() or f"exit code {result.returncode}"
+        detail = result.stderr.strip() or (
+            f"prepare emitted no SESSION= line (exit code {result.returncode})"
+        )
         return {"status": "BLOCKED", "blocked_reasons": [f"canonical preparation unavailable: {detail}"]}
-    session_dir = Path(session_line.split("=", 1)[1].strip())
+    session_dir = Path(session_line.split("SESSION=", 1)[1].strip())
     manifest_path = session_dir / "manifest.json"
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))

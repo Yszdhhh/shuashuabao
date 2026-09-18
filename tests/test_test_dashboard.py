@@ -213,12 +213,38 @@ def test_prepare_manifest_is_read_only_to_dashboard(tmp_path: Path, monkeypatch)
 
     class Result:
         returncode = 0
-        stdout = f"SESSION={session}\n"
+        # Exactly what one_click_test.ps1 writes: the prepare script's own
+        # stdout re-emitted with a "[prepare] " prefix, surrounded by
+        # [one-click] chatter.  The marker is NOT at the start of the line.
+        stdout = (
+            "[one-click] prepare session: {session}\n"
+            "[prepare] SESSION={session}\n"
+            "[prepare] SETTINGS={session}\\settings.json\n"
+            "[prepare] HEAD=47494cfcda9d758d1ae49151d2d98b769ee19d7a\n"
+        ).format(session=session)
         stderr = ""
 
     monkeypatch.setattr(dashboard.subprocess, "run", lambda *args, **kwargs: Result())
     result = dashboard.run_canonical_prepare()
 
     assert result["status"] == "READY"
+    assert result["session_dir"] == str(session)
     assert not (tmp_path / "user_settings.json").exists()
     assert not (session / "user_settings.json").exists()
+
+
+def test_prepare_blocked_reason_names_the_missing_session_marker(monkeypatch) -> None:
+    """Exit 0 with no SESSION= line must not be reported as "exit code 0"."""
+
+    class Result:
+        returncode = 0
+        stdout = "[one-click] nothing useful here\n"
+        stderr = ""
+
+    monkeypatch.setattr(dashboard.subprocess, "run", lambda *args, **kwargs: Result())
+    result = dashboard.run_canonical_prepare()
+
+    assert result["status"] == "BLOCKED"
+    reason = result["blocked_reasons"][0]
+    assert "no SESSION= line" in reason
+    assert reason != "canonical preparation unavailable: exit code 0"
