@@ -25,6 +25,7 @@
 | **ISS-06** | 4 槽羁绊选卡坐标偏离（选成长点在黑缝） | `cc63ad4` | `src/shuabao/mediator.py` | `test_4_slot_bond_choice_coordinate_with_stalled_filtering` | **RESOLVED** |
 | **ISS-07** | 10/10 满槽替换卡牌智能顶替与放弃重置40木 | `cc63ad4` | `src/shuabao/mediator.py`<br>`assets/Images/replace_card_*` | `test_passive_card_replacement_user_rules` | **RESOLVED** |
 | **ISS-08** | 80% 基础门禁误刷 SSR 罗杰斯上将与海盗-宝藏全链路放开 | `HEAD` | `src/shuabao/choice_policy.py`<br>`src/shuabao/mediator.py`<br>`config/choice_policy.json` | `test_pirate_admiral_rogers_must_take_when_base_bonds_at_zero`<br>`test_pirate_deck_cascades_to_treasure_deck`<br>`test_mediator_labels_haidao_ssr_as_admiral_rogers` | **RESOLVED** |
+| **ISS-09** | 宝藏卡组选卡决策、三张合成与安卡优先级综合实现 | `HEAD` | `src/shuabao/choice_policy.py`<br>`config/bond_stack_catalog.json`<br>`config/choice_policy.json` | `test_baozang_three_card_synthesis_near_complete_selection`<br>`test_baozang_repeatable_devour_batch_near_complete`<br>`test_ankh_two_card_synthesis_near_complete_selection`<br>`test_baozang_deck_ankh_prioritized_over_baozang` | **RESOLVED** |
 
 ---
 
@@ -264,6 +265,47 @@
 - `tests/test_policy_bond_identity_20260916.py::test_pirate_admiral_rogers_must_take_when_base_bonds_at_zero`（PASS）
 - `tests/test_policy_bond_identity_20260916.py::test_pirate_deck_cascades_to_treasure_deck`（PASS）
 - `tests/test_policy_bond_identity_20260916.py::test_mediator_labels_haidao_ssr_as_admiral_rogers`（PASS）
+
+---
+
+### Issue 9: 宝藏卡组选卡决策、三张合成与安卡优先级综合实现
+
+#### 9.1 用户原声与需求
+> “包括宝藏卡组的逻辑也得结合进来，怎么拿，三张合成，优先拿哪些之类的”
+
+#### 9.2 机制背景与代码现状比对
+1. **游戏机制（知识库依据：`config/game_mechanics_kb.json` `haidao_chain.baozang`）**：
+   - 黄金猿为海盗产出装备，在装备栏左键使用后开启【宝藏卡组】；
+   - 普通宝藏卡【宝藏】：每 3 张自动吞噬/合成，提供永久增益，局内可进行多轮循环吞噬；
+   - 核心特殊卡【安卡】：两张同时获得合成 1 张 UR 并吞噬，为宝藏卡组质变核心；
+   - 优先级：安卡合成 UR（2张成型，最高收益）> 普通宝藏 3 张合成 > 普通宝藏基础累积。
+2. **代码排查发现的核心缺失**：
+   - `config/bond_stack_catalog.json` 目录内**完全缺失** `宝藏` (need=3) 与 `安卡` (need=2)，导致 `stack_need` 返回 `None`；
+   - 因无合成需求张数，`_near_complete_bond_slots`（差一张合成秒选）与 `_is_uncompleted_merge_upgrade`（已持有优先）无法触发；
+   - 满槽或只剩 1 格时，`bond_capacity.py` 误判为未知且无法合并卡牌，导致抛弃或跳过；
+   - 针对循环吞噬卡（宝藏），原逻辑用全局累计持有数做 `need - have`，第一轮 3 张吞噬后，后续轮次（第 4、5、7、8 张）计算为负数，无法再次触发“差一张秒选”；
+   - `config/choice_policy.json` 中 `baozang` 顺序原为 `["宝藏", "安卡"]`，普通宝藏抢占了核心卡安卡。
+
+#### 9.3 修复方案与改动细节
+1. **张数目录补齐 (`config/bond_stack_catalog.json`)**：
+   - 添加 `"宝藏": {"need": 3, "seen": "宝藏卡组：每3张自动合成并吞噬"}`
+   - 添加 `"安卡": {"need": 2, "seen": "宝藏卡组：2张安卡同时获得合成1张UR并吞噬"}`
+2. **多轮循环吞噬判定 (`src/shuabao/choice_policy.py`)**：
+   - 声明 `REPEATABLE_DEVOUR_BONDS = {"宝藏", "安卡"}`；
+   - `_near_complete_bond_slots`：当无 OCR 分数时，通过 `have = raw_have % need` 计算当前轮次，在持有 2 张、5 张宝藏或 1 张安卡时精准触发 `int(need) - int(have) == 1`；
+   - `_is_uncompleted_merge_upgrade`：通过 `0 < (raw_have % need) < need` 判定当前手牌有未满轮次，优先补齐合并。
+3. **安卡优先级保障与自动必拿注入**：
+   - `config/choice_policy.json` 中 `baozang` 组与海盗级联组调整为 `["安卡", "宝藏"]`；
+   - `choice_policy.py` 中的 `assemble_policy_settings()`：当海盗或宝藏卡组激活时，自动将 `安卡` 注入 `bond_must_take`，并在预设中排在前位。
+4. **配置同步**：
+   - `captures/pirate_necromancy_20260919_012405/settings.json` 将 `安卡` 写入 `bond_must_take`，补齐 `cards`。
+   - `tools/gt_test_identity.py` 登记 `config/bond_stack_catalog.json`。
+
+#### 9.4 验证用例
+- `tests/test_policy_bond_identity_20260916.py::test_baozang_three_card_synthesis_near_complete_selection`（PASS）
+- `tests/test_policy_bond_identity_20260916.py::test_baozang_repeatable_devour_batch_near_complete`（PASS）
+- `tests/test_policy_bond_identity_20260916.py::test_ankh_two_card_synthesis_near_complete_selection`（PASS）
+- `tests/test_policy_bond_identity_20260916.py::test_baozang_deck_ankh_prioritized_over_baozang`（PASS）
 
 ---
 

@@ -865,6 +865,100 @@ def test_mediator_labels_haidao_ssr_as_admiral_rogers():
     assert slots[1]["rarity_letter"] == "SSR"
 
 
+def test_baozang_three_card_synthesis_near_complete_selection():
+    """验证持有2张【宝藏】时，第3张直接触发差一张合成秒选并推进3张自动吞噬。"""
+    settings = PolicySettings(
+        bond_presets=("安卡", "宝藏"),
+        bond_must_take=(),
+        min_confidence=0.5,
+    )
+    cands = PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(
+            SlotCandidate(index=0, name="智力", confidence=0.9),
+            SlotCandidate(index=1, name="宝藏", confidence=0.9),
+        ),
+        owned_bond_cards=("宝藏", "宝藏"),
+        settings=settings,
+    )
+    session = SessionState()
+    dec = choose_action(cands, session)
+    assert dec.action == PolicyAction.SELECT_SLOT
+    assert dec.index == 1
+    assert "羁绊差一张合成秒选【宝藏】" in dec.reason
+
+
+def test_baozang_repeatable_devour_batch_near_complete():
+    """验证【宝藏】多轮循环吞噬机制：前一轮3张已吞噬，持有5张时仍精准识别差一张合成秒选。"""
+    settings = PolicySettings(
+        bond_presets=("安卡", "宝藏"),
+        bond_must_take=(),
+        min_confidence=0.5,
+    )
+    # 持有 5 张宝藏：第一轮 3 张已吞噬，第二轮手持 2 张，再见宝藏即为第 6 张合成
+    cands = PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(
+            SlotCandidate(index=0, name="宝藏", confidence=0.9),
+            SlotCandidate(index=1, name="力量", confidence=0.9),
+        ),
+        owned_bond_cards=("宝藏", "宝藏", "宝藏", "宝藏", "宝藏"),
+        settings=settings,
+    )
+    session = SessionState()
+    dec = choose_action(cands, session)
+    assert dec.action == PolicyAction.SELECT_SLOT
+    assert dec.index == 0
+    assert "羁绊差一张合成秒选【宝藏】" in dec.reason
+
+
+def test_ankh_two_card_synthesis_near_complete_selection():
+    """验证持有1张【安卡】时，第2张直接触发差一张合成秒选（2张安卡合成1张UR）。"""
+    settings = PolicySettings(
+        bond_presets=("安卡", "宝藏"),
+        bond_must_take=(),
+        min_confidence=0.5,
+    )
+    cands = PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(
+            SlotCandidate(index=0, name="宝藏", confidence=0.9),
+            SlotCandidate(index=1, name="安卡", confidence=0.9),
+        ),
+        owned_bond_cards=("安卡",),
+        settings=settings,
+    )
+    session = SessionState()
+    dec = choose_action(cands, session)
+    assert dec.action == PolicyAction.SELECT_SLOT
+    assert dec.index == 1
+    assert "羁绊差一张合成秒选【安卡】" in dec.reason
+
+
+def test_baozang_deck_ankh_prioritized_over_baozang():
+    """验证宝藏卡组中【安卡】（2张合成UR核心卡）绝对优先于普通【宝藏】。"""
+    settings = PolicySettings(
+        bond_presets=("安卡", "宝藏"),
+        bond_must_take=("安卡",),
+        min_confidence=0.5,
+    )
+    cands = PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(
+            SlotCandidate(index=0, name="宝藏", confidence=0.9),
+            SlotCandidate(index=1, name="安卡", confidence=0.9),
+        ),
+        owned_bond_cards=(),
+        settings=settings,
+    )
+    session = SessionState()
+    dec = choose_action(cands, session)
+    assert dec.action == PolicyAction.SELECT_SLOT
+    assert dec.index == 1
+    assert "安卡" in dec.reason
+
+
+
 
 
 

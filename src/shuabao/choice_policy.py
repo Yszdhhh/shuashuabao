@@ -606,6 +606,7 @@ def assemble_policy_settings(
                 tuple(str(s) for s in (getattr(settings, "bond_must_take", None) or ()))
                 + tuple(str(s) for s in (bond_cfg.get("must_take_names") or ()))
                 + (("罗杰斯上将",) if any(same_bond_identity(c, "海盗") for c in card_presets) else ())
+                + (("安卡",) if any(same_bond_identity(c, "海盗") or same_bond_identity(c, "宝藏") for c in card_presets) else ())
             )),
             "treasure_negative_patterns": treasure_cfg.get("negative_patterns"),
             "treasure_negative_names": treasure_cfg.get("negative_names"),
@@ -1193,6 +1194,9 @@ def _is_bond_must_take(name: str | None, must_take: tuple[str, ...]) -> bool:
 
 
 
+REPEATABLE_DEVOUR_BONDS: frozenset[str] = frozenset({"宝藏", "安卡"})
+
+
 def _near_complete_bond_slots(
     cands: PanelCandidates,
     settings: PolicySettings,
@@ -1216,7 +1220,11 @@ def _near_complete_bond_slots(
         progress = _slot_stack_progress(slot)
         if progress is None:
             need = stack_need(name)
-            have = sum(1 for item in owned if same_bond_identity(name, item))
+            raw_have = sum(1 for item in owned if same_bond_identity(name, item))
+            if need and need > 1 and any(same_bond_identity(name, rep) for rep in REPEATABLE_DEVOUR_BONDS):
+                have = raw_have % need
+            else:
+                have = raw_have
         else:
             have, need = progress
         if need and have is not None and int(need) - int(have) == 1:
@@ -1232,6 +1240,7 @@ def _is_uncompleted_merge_upgrade(
     1/4～3/4 或拥有张数未达 need 时返回 True，允许补债；
     若卡片已达完成态（如 4/4、已拥有张数 >= need），返回 False，不得仅因历史 owned 记录无限优先拿。
     使用严格 canonical card identity 匹配，绝不使用 family substring。
+    对于宝藏等可循环吞噬卡（REPEATABLE_DEVOUR_BONDS），按当前轮次剩余张数判定。
     """
     if not slot.name or not owned_cards:
         return False
@@ -1241,13 +1250,15 @@ def _is_uncompleted_merge_upgrade(
     ]
     if not matching:
         return False
-    # 若已持有卡中已明确为完成态（如 4/4、已满张），不再视为未完成待补债
-    for b in matching:
-        hit = _BOND_PROGRESS_RE.search(str(b))
-        if hit:
-            have_o, need_o = int(hit.group(1)), int(hit.group(2))
-            if need_o > 1 and have_o >= need_o:
-                return False
+    is_repeatable = any(same_bond_identity(slot.name, rep) for rep in REPEATABLE_DEVOUR_BONDS)
+    if not is_repeatable:
+        # 若已持有卡中已明确为完成态（如 4/4、已满张），不再视为未完成待补债
+        for b in matching:
+            hit = _BOND_PROGRESS_RE.search(str(b))
+            if hit:
+                have_o, need_o = int(hit.group(1)), int(hit.group(2))
+                if need_o > 1 and have_o >= need_o:
+                    return False
     prog = _slot_stack_progress(slot)
     if prog is not None:
         have, need = prog
@@ -1258,8 +1269,11 @@ def _is_uncompleted_merge_upgrade(
 
     need = stack_need(slot.name)
     if need is not None:
-        have = len(matching)
-        return have < need
+        raw_have = len(matching)
+        if is_repeatable and need > 1:
+            cur_have = raw_have % need
+            return 0 < cur_have < need
+        return raw_have < need
     return False
 
 

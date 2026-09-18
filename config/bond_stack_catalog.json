@@ -72,7 +72,9 @@
     "敏捷提升": {"need": 4, "seen": "ocr rec5 敏捷提升(2/4)"},
     "力量提升": {"need": 4, "seen": "ocr rec5 力量提升(3/4)"},
     "力量之源": {"need": 4, "seen": "ocr rec5 力量之源(0/4)"},
-    "刀刀": {"need": 3, "seen": "F 刀刀(0/3) 幽灵系带 fixtures/bond_daodao_20260814/f_panel_daodao_ghost_belt.png；174547 三件套幽灵系带+护腕+空灵挂坠→刀刀萌新→UR刀刀大成 fixtures/cards_174547_evidence/。散件/萌新/大成无独立(x/y)，不另写 need"}
+    "刀刀": {"need": 3, "seen": "F 刀刀(0/3) 幽灵系带 fixtures/bond_daodao_20260814/f_panel_daodao_ghost_belt.png；174547 三件套幽灵系带+护腕+空灵挂坠→刀刀萌新→UR刀刀大成 fixtures/cards_174547_evidence/。散件/萌新/大成无独立(x/y)，不另写 need"},
+    "宝藏": {"need": 3, "seen": "宝藏卡组：每3张自动合成并吞噬"},
+    "安卡": {"need": 2, "seen": "宝藏卡组：2张安卡同时获得合成1张UR并吞噬"}
   },
   "unknown": ["法宝", "恐鳌戒指"],
   "unknown_note": "三条属性链 20260813 实机全部跑通并拿到 UR（trace 150915/152022/152437），链上各环张数均已实测。仍只有攻略依据、没有 OCR 证据的：提速、生命、血势、血魔、剑术。已知与攻略的分歧，均以实测/截图为准：大炮=2（攻略3）、魔术=2（攻略3）、体术=3（攻略第二版写4）、经济=3（攻略2~3）。急速(13) 仍是粘连 OCR，不采。刀刀 need=3 已测；一/二阶段图纸在 lexicon + daodao_chain.guide，不写图纸 need。大圣实机只有齐天大圣(0/3)天命人；残躯/套装/大成不写 need。法宝、恐鳌戒指仍无 (x/y)。异火不写 need：底栏(168)是吞噬计数。23 名+焚诀阶位在 lexicon；机制在 yihuo_fenjue_pool。拆解表 06–13 八张异火不得升格实机。"
