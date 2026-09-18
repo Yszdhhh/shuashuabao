@@ -5252,8 +5252,27 @@ class Mediator:
             else:
                 self._devour_dan_consecutive_clicks = 0
 
-        # 2. 悬赏令与背包道具（仅当物品栏非空或背包有溢出物品时检测）
-        if self._hud_item_bar_state(frame) != "empty" or getattr(self, "_backpack_has_overflow_items", False):
+        # 2. 个人背包与快捷栏道具流转（消耗品放背包、装备留快捷栏、背包常驻、打Boss/耗尽时关闭）
+        layout = self._bag_layout(frame)
+        is_boss_active = False
+        if not self._passenger_mode():
+            is_boss_active = bool(
+                self._solo_boss_is_alive(frame)
+                or ("boss_entry" in getattr(self, "scenes", {}) and self.find_scene(frame, "boss_entry") is not None)
+            )
+            # Boss 战门禁：若正在打 Boss，必须立刻关闭背包，让出全屏视野与操作空间
+            if layout is not None and is_boss_active:
+                if now >= getattr(self, "_solo_bag_close_next_at", 0.0):
+                    self._solo_bag_close_next_at = now + 1.5
+                    if self._toggle_bag_page(frame, "BossActiveCloseBag"):
+                        print("[L1] 战斗检测到 Boss 存活/挑战，立即关闭个人背包")
+                        return LoopAction.Continue
+
+        if (
+            self._hud_item_bar_state(frame) != "empty"
+            or getattr(self, "_backpack_has_overflow_items", False)
+            or layout is not None
+        ):
             bounty_candidates = [
                 "haidao/haidao_bounty_n_green",
                 "haidao/haidao_bounty_r_blue",
@@ -5267,40 +5286,42 @@ class Mediator:
                 "haidao/haidao_inventory_ur_red_body",
             ]
             bounty_valid_names = set(bounty_candidates) | {c.split("/")[-1] for c in bounty_candidates}
-            bounty = self.find(
+            item_bar_bounty = self.find(
                 frame,
                 bounty_candidates,
                 threshold=0.65,
                 roi=inventory_roi,
                 scales=(0.45, 0.5, 0.55, 0.6, 0.7, 0.8),
             )
-            if bounty is not None and bounty.name not in bounty_valid_names:
-                bounty = None
-            layout = None
-            if bounty is None and not self._passenger_mode() and (getattr(self, "_backpack_has_overflow_items", False) or self._bag_layout(frame) is not None):
-                layout = self._bag_layout(frame)
-                if layout is not None:
-                    px0, py0, px1, py1 = layout.panel_rect()
-                    bag_roi = (
-                        max(0.0, px0 / frame.width),
-                        max(0.0, py0 / frame.height),
-                        min(1.0, px1 / frame.width),
-                        min(1.0, py1 / frame.height),
-                    )
-                    bag_bounty = self.find(
-                        frame,
-                        bounty_candidates,
-                        threshold=0.65,
-                        roi=bag_roi,
-                        scales=(0.45, 0.5, 0.55, 0.6, 0.7, 0.8),
-                    )
-                    if bag_bounty is not None and bag_bounty.name in bounty_valid_names:
-                        bounty = bag_bounty
+            if item_bar_bounty is not None and item_bar_bounty.name not in bounty_valid_names:
+                item_bar_bounty = None
 
-            can_swallow = self._has_swallowable_pirate_card(bounty.name, frame) if bounty is not None else False
+            bag_bounty = None
+            if layout is not None:
+                px0, py0, px1, py1 = layout.panel_rect()
+                bag_roi = (
+                    max(0.0, px0 / frame.width),
+                    max(0.0, py0 / frame.height),
+                    min(1.0, px1 / frame.width),
+                    min(1.0, py1 / frame.height),
+                )
+                bag_bounty = self.find(
+                    frame,
+                    bounty_candidates,
+                    threshold=0.65,
+                    roi=bag_roi,
+                    scales=(0.45, 0.5, 0.55, 0.6, 0.7, 0.8),
+                )
+                if bag_bounty is not None and bag_bounty.name not in bounty_valid_names:
+                    bag_bounty = None
+
+            consumables_present = (item_bar_bounty is not None or bag_bounty is not None)
+            target_bounty = bag_bounty or item_bar_bounty
+            can_swallow = self._has_swallowable_pirate_card(target_bounty.name, frame) if target_bounty is not None else False
+
+            # 点击使用悬赏令（优先在背包内吞噬，若未开背包且快捷栏有也可直接吞噬）
             if (
-                bounty is not None
-                and bounty.name in bounty_valid_names
+                target_bounty is not None
                 and can_swallow
                 and now >= getattr(self, "_bounty_next_at", 0.0)
                 and self._inventory_clicks_this_visit < 3
@@ -5308,61 +5329,103 @@ class Mediator:
                 self._bounty_next_at = now + 1.0
                 self._inventory_next_at = now + 1.0
                 self._inventory_clicks_this_visit += 1
-                if self._inventory_last_pt == bounty.center:
+                if self._inventory_last_pt == target_bounty.center:
                     self._inventory_same_pt_hits += 1
                 else:
-                    self._inventory_last_pt = bounty.center
+                    self._inventory_last_pt = target_bounty.center
                     self._inventory_same_pt_hits = 1
-                use_act = (
-                    self.act_right_click
-                    if (layout is not None and layout.inside_personal_grid(bounty.x, bounty.y))
-                    else self.act_click
-                )
-                if use_act(bounty, f"UseInventory-bounty-{bounty.name.split('/')[-1]}"):
-                    print(f"[L1] 使用悬赏令【{bounty.name}】 @ {bounty.center}")
+                loc = "个人背包" if (layout is not None and layout.inside_personal_grid(target_bounty.x, target_bounty.y)) else "物品栏"
+                if self.act_click(target_bounty, f"UseInventory-bounty-{target_bounty.name.split('/')[-1]}"):
+                    print(f"[L1] 在{loc}使用悬赏令【{target_bounty.name}】 @ {target_bounty.center}")
                     return LoopAction.Continue
 
-            # 3. 单人模式下背包已打开时的道具流转与关闭
-            if layout is None and not self._passenger_mode() and getattr(self, "_backpack_has_overflow_items", False):
-                layout = self._bag_layout(frame)
-            if layout is not None and not self._passenger_mode() and (bounty is None or not can_swallow):
+            # 若快捷栏有悬赏令但暂不可吞噬，且背包未开，打开背包以便放入
+            if (
+                item_bar_bounty is not None
+                and not can_swallow
+                and layout is None
+                and not is_boss_active
+                and not self._passenger_mode()
+                and now >= getattr(self, "_solo_bag_open_next_at", 0.0)
+            ):
+                self._solo_bag_open_next_at = now + 5.0
+                if self._open_bag_page(frame):
+                    print(f"[L1] 快捷栏有悬赏令【{item_bar_bounty.name}】暂不吞噬，打开个人背包暂存")
+                    return LoopAction.Continue
+
+            # 3. 单人模式下背包已打开时的道具流转（装备留快捷栏、消耗品放背包、常驻/耗尽关闭）
+            if layout is not None and not self._passenger_mode():
                 held = getattr(self, "_solo_stash_held_source", None)
                 if held is not None:
                     empty_slot = self._public_bag_empty_personal_slot(frame, layout)
                     if empty_slot is not None:
                         row, col, target_hit = empty_slot
                         if self.act_click(target_hit, "SoloStashPersonalSlot"):
-                            print(f"[L1] 个人背包：将快捷栏物品存入个人格 ({row},{col})")
+                            print(f"[L1] 个人背包：将快捷栏消耗品存入个人格 ({row},{col})")
                             self._solo_stash_held_source = None
                             self._inventory_next_at = now + 1.0
                             return LoopAction.Continue
                     else:
                         self._solo_stash_held_source = None
 
-                source = self._public_bag_source(frame, layout)
-                if source is not None and source.get("kind") == "item_bar":
-                    if self._public_bag_empty_personal_slot(frame, layout) is not None:
+                # A. 快捷栏有悬赏令但当前不可吞噬时，右键取出并暂存入个人背包格（腾出装备栏）
+                if (
+                    item_bar_bounty is not None
+                    and not can_swallow
+                    and self._public_bag_empty_personal_slot(frame, layout) is not None
+                    and now >= getattr(self, "_bag_item_next_at", 0.0)
+                    and self._inventory_clicks_this_visit < 3
+                ):
+                    self._bag_item_next_at = now + 1.0
+                    self._inventory_next_at = now + 1.0
+                    self._inventory_clicks_this_visit += 1
+                    if self.act_right_click(item_bar_bounty, f"SoloPickItemBarConsumable-{item_bar_bounty.name.split('/')[-1]}"):
+                        self._solo_stash_held_source = {"kind": "item_bar", "hit": item_bar_bounty, "source_id": item_bar_bounty.name}
+                        print(f"[L1] 个人背包：右键取出快捷栏消耗品【{item_bar_bounty.name}】准备暂存入个人格")
+                        return LoopAction.Continue
+
+                # B. 装备留在快捷栏：若个人背包有溢出的装备，且快捷栏有空格，右键背包装备移回快捷栏
+                empty_item_bar_index = None
+                for idx in range(1, ITEM_BAR_SLOTS):
+                    if not self._item_bar_slot_occupied(frame, layout, idx):
+                        empty_item_bar_index = idx
+                        break
+
+                has_pending_eq = False
+                if empty_item_bar_index is not None:
+                    for row, col in layout.public_slots():
+                        rect = layout.personal_slot_rect(row, col)
+                        if not self._bag_slot_occupied(frame, rect):
+                            continue
+                        center = layout.personal_slot_center(row, col)
+                        if center is None:
+                            continue
+                        # 如果此格是悬赏令消耗品，保留在个人背包
+                        if bag_bounty is not None and rect[0] <= bag_bounty.x <= rect[2] and rect[1] <= bag_bounty.y <= rect[3]:
+                            continue
+                        has_pending_eq = True
                         if now >= getattr(self, "_bag_item_next_at", 0.0) and self._inventory_clicks_this_visit < 3:
                             self._bag_item_next_at = now + 1.0
                             self._inventory_next_at = now + 1.0
                             self._inventory_clicks_this_visit += 1
-                            if self.act_right_click(source["hit"], f"SoloPickItemBar-{source.get('source_id')}"):
-                                self._solo_stash_held_source = source
-                                print(f"[L1] 个人背包：右键取出快捷栏物品 {source['source_id']} 准备存入个人格")
+                            hit = MatchResult(f"personal_eq_{row}_{col}", 1.0, center[0], center[1], 0, 0, frame.left + center[0], frame.top + center[1])
+                            if self.act_right_click(hit, f"EquipBagItem-{row}-{col}"):
+                                print(f"[L1] 个人背包：右键将个人格 ({row},{col}) 装备移入快捷栏第 {empty_item_bar_index+1} 格")
                                 return LoopAction.Continue
-                elif source is not None and source.get("kind") == "personal":
-                    if now >= getattr(self, "_bag_item_next_at", 0.0) and self._inventory_clicks_this_visit < 3:
-                        self._bag_item_next_at = now + 1.0
-                        self._inventory_next_at = now + 1.0
-                        self._inventory_clicks_this_visit += 1
-                        if self.act_right_click(source["hit"], f"UseBagPersonalItem-{source.get('source_id')}"):
-                            print(f"[L1] 右键移入/使用背包个人格物品 @ {source['hit'].center}")
-                            return LoopAction.Continue
-                elif source is None and held is None and now >= getattr(self, "_solo_bag_close_next_at", 0.0):
+                        break
+
+                # C. 背包常驻规则：只要有消耗品（悬赏令等）或有待移装备，背包保持常驻开启；
+                # 只有当：①消耗品已全部用完 ②无待移装备 ③无抓取 时，才关闭背包
+                if (
+                    not consumables_present
+                    and not has_pending_eq
+                    and held is None
+                    and now >= getattr(self, "_solo_bag_close_next_at", 0.0)
+                ):
                     self._solo_bag_close_next_at = now + 2.0
                     self._backpack_has_overflow_items = False
-                    if self._toggle_bag_page(frame, "SoloBagCloseEmpty"):
-                        print("[L1] 个人背包已无物品，关闭背包页")
+                    if self._toggle_bag_page(frame, "SoloBagCloseConsumablesExhausted"):
+                        print("[L1] 个人背包中消耗品已全部用完且无待移装备，关闭背包页")
                         return LoopAction.Continue
 
         if now < self._inventory_next_at or self._inventory_clicks_this_visit >= 2:
@@ -17837,17 +17900,24 @@ class Mediator:
                 self._advance_l1_cycle("pickup")
                 return LoopAction.Continue
 
-            # 2. 单人模式下若物品栏已有空位且之前有溢出物品，尝试打开背包处理溢出道具
+            # 2. 单人模式下若有溢出道具或海盗机制待吞噬，且非 Boss 战，尝试打开背包保持常驻
+            is_boss_busy = bool(
+                self._solo_boss_is_alive(frame)
+                or ("boss_entry" in getattr(self, "scenes", {}) and self.find_scene(frame, "boss_entry") is not None)
+            )
+            has_pending = getattr(self, "_backpack_has_overflow_items", False) or (
+                self._has_swallowable_pirate_card("haidao", frame) and any("海盗" in b for b in (getattr(self.settings, "cards", []) or []))
+            )
             if (
                 not self._passenger_mode()
-                and getattr(self, "_backpack_has_overflow_items", False)
-                and not self._hud_item_bar_overflowed(frame)
+                and has_pending
+                and not is_boss_busy
                 and self._bag_layout(frame) is None
                 and now >= getattr(self, "_solo_bag_open_next_at", 0.0)
             ):
                 self._solo_bag_open_next_at = now + 5.0
                 if self._open_bag_page(frame):
-                    print("[L1] 物品栏已有空位，打开个人背包处理溢出道具")
+                    print("[L1] 打开个人背包保持常驻处理消耗品与装备")
                     self._main_line_since = now
                     return LoopAction.Continue
 

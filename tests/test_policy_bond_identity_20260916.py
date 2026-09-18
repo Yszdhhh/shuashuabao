@@ -430,3 +430,138 @@ def test_bounty_swallow_with_untracked_bar_cards():
     assert not med_no_pirate._has_swallowable_pirate_card("haidao/haidao_bounty_ssr_orange")
 
 
+def test_boss_active_closes_personal_bag():
+    """当检测到 Boss 存活时，必须立即关闭个人背包，让出全屏视野与操作空间。"""
+    from shuabao.mediator import Mediator, Frame, LoopAction
+    from shuabao.policy.public_bag import BagLayout
+    import numpy as np
+
+    med = Mediator(Settings(cards=["海盗", "zhufu"]), ROOT)
+    frame = Frame(bgr=np.zeros((900, 1600, 3), dtype=np.uint8))
+
+    med._bag_layout = lambda f: BagLayout(origin_x=100.0, origin_y=100.0, scale=1.0)
+    med._solo_boss_is_alive = lambda f: True
+
+    closed_reasons = []
+    med._toggle_bag_page = lambda f, reason: (closed_reasons.append(reason), True)[1]
+
+    res = med._maybe_use_inventory_item(frame)
+    assert res == LoopAction.Continue
+    assert "BossActiveCloseBag" in closed_reasons
+
+
+def test_consumables_exhausted_closes_bag():
+    """当个人背包内消耗品全部用完且无待移装备时，自动关闭背包。"""
+    from shuabao.mediator import Mediator, Frame, LoopAction
+    from shuabao.policy.public_bag import BagLayout
+    import numpy as np
+
+    med = Mediator(Settings(cards=["海盗", "zhufu"]), ROOT)
+    frame = Frame(bgr=np.zeros((900, 1600, 3), dtype=np.uint8))
+
+    med._bag_layout = lambda f: BagLayout(origin_x=100.0, origin_y=100.0, scale=1.0)
+    med._solo_boss_is_alive = lambda f: False
+    med._hud_item_bar_state = lambda f: "empty"
+    med.find = lambda f, cand, **kwargs: None
+    med._item_bar_slot_occupied = lambda f, l, idx: True
+    med._bag_slot_occupied = lambda f, rect: False
+
+    closed_reasons = []
+    med._toggle_bag_page = lambda f, reason: (closed_reasons.append(reason), True)[1]
+
+    res = med._maybe_use_inventory_item(frame)
+    assert res == LoopAction.Continue
+    assert "SoloBagCloseConsumablesExhausted" in closed_reasons
+
+
+def test_bag_remains_open_while_consumables_present():
+    """当个人背包内有悬赏令消耗品时，背包保持常驻开启，不提前关闭。"""
+    from shuabao.mediator import Mediator, Frame, MatchResult
+    from shuabao.policy.public_bag import BagLayout
+    import numpy as np
+
+    med = Mediator(Settings(cards=["海盗", "zhufu"]), ROOT)
+    frame = Frame(bgr=np.zeros((900, 1600, 3), dtype=np.uint8))
+
+    layout = BagLayout(origin_x=100.0, origin_y=100.0, scale=1.0)
+    med._bag_layout = lambda f: layout
+    med._solo_boss_is_alive = lambda f: False
+    med._hud_item_bar_state = lambda f: "empty"
+
+    center = layout.personal_slot_center(0, 0)
+    hit = MatchResult("haidao/haidao_bounty_ssr_orange", 0.9, center[0], center[1], 30, 30, center[0], center[1])
+    med.find = lambda f, cands, **kwargs: hit if "bag_roi" in kwargs or kwargs.get("threshold") == 0.65 else None
+    med._has_swallowable_pirate_card = lambda name, f: False
+
+    closed_reasons = []
+    med._toggle_bag_page = lambda f, reason: (closed_reasons.append(reason), True)[1]
+
+    med._maybe_use_inventory_item(frame)
+    assert "SoloBagCloseConsumablesExhausted" not in closed_reasons
+    assert "BossActiveCloseBag" not in closed_reasons
+
+
+def test_bounty_in_item_bar_stashes_to_personal_bag_when_not_swallowable():
+    """快捷栏有悬赏令但当前不可吞噬时，右键取出并准备存入个人格（腾出装备栏）。"""
+    from shuabao.mediator import Mediator, Frame, LoopAction, MatchResult
+    from shuabao.policy.public_bag import BagLayout
+    import numpy as np
+
+    med = Mediator(Settings(cards=["海盗", "zhufu"]), ROOT)
+    frame = Frame(bgr=np.zeros((900, 1600, 3), dtype=np.uint8))
+
+    layout = BagLayout(origin_x=100.0, origin_y=100.0, scale=1.0)
+    med._bag_layout = lambda f: layout
+    med._solo_boss_is_alive = lambda f: False
+    med._hud_item_bar_state = lambda f: "occupied"
+
+    # 模拟快捷栏中有悬赏令 (item_bar_bounty)
+    center = layout.item_bar_slot_center(1)
+    hit = MatchResult("haidao/haidao_bounty_n_green", 0.9, center[0], center[1], 30, 30, center[0], center[1])
+    med.find = lambda f, cands, **kwargs: hit if "inventory_roi" in str(kwargs) or kwargs.get("roi") == (0.64, 0.77, 0.74, 0.98) else None
+
+    # 当前不可吞噬
+    med._has_swallowable_pirate_card = lambda name, f: False
+    med._public_bag_empty_personal_slot = lambda f, l: (0, 0, MatchResult("target", 1.0, 200, 200, 10, 10, 200, 200))
+
+    right_clicked = []
+    med.act_right_click = lambda hit, reason: (right_clicked.append((hit, reason)), True)[1]
+
+    res = med._maybe_use_inventory_item(frame)
+    assert res == LoopAction.Continue
+    assert len(right_clicked) == 1
+    assert "SoloPickItemBarConsumable" in right_clicked[0][1]
+    assert med._solo_stash_held_source is not None
+
+
+def test_equipment_in_personal_grid_equips_to_empty_item_bar():
+    """个人背包有装备且快捷栏有空位时，右键背包装备移入快捷栏（保留装备在物品栏）。"""
+    from shuabao.mediator import Mediator, Frame, LoopAction, MatchResult
+    from shuabao.policy.public_bag import BagLayout
+    import numpy as np
+
+    med = Mediator(Settings(cards=["海盗", "zhufu"]), ROOT)
+    frame = Frame(bgr=np.zeros((900, 1600, 3), dtype=np.uint8))
+
+    layout = BagLayout(origin_x=100.0, origin_y=100.0, scale=1.0)
+    med._bag_layout = lambda f: layout
+    med._solo_boss_is_alive = lambda f: False
+    med._hud_item_bar_state = lambda f: "empty"
+    med.find = lambda f, cand, **kwargs: None  # 无悬赏令消耗品
+
+    # 模拟快捷栏第 2 格（index 1）为空
+    med._item_bar_slot_occupied = lambda f, l, idx: False if idx == 1 else True
+
+    # 模拟个人背包 (0, 0) 格有占用的装备
+    med._bag_slot_occupied = lambda f, rect: True if rect == layout.personal_slot_rect(0, 0) else False
+
+    right_clicked = []
+    med.act_right_click = lambda hit, reason: (right_clicked.append((hit, reason)), True)[1]
+
+    res = med._maybe_use_inventory_item(frame)
+    assert res == LoopAction.Continue
+    assert len(right_clicked) == 1
+    assert "EquipBagItem-0-0" in right_clicked[0][1]
+
+
+
