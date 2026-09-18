@@ -23,6 +23,7 @@ DECLARED_TEST_ONLY_DELTA = frozenset({
     "config/dashboard_test_profiles.json",
     "src/shuabao/bond_capacity.py",
     "src/shuabao/choice_policy.py",
+    "src/shuabao/mediator.py",
     "src/shuabao/settings.py",
     "src/shuabao/shell/main_window.py",
     "src/shuabao/shell/test_profiles.py",
@@ -39,7 +40,6 @@ PRODUCTION_CRITICAL_PATHS = (
     "config/runtime_identity_manifest.json",
     "src/shuabao/shell/live_execute.py",
     "src/shuabao/shell/dashboard_facade.py",
-    "src/shuabao/mediator.py",
     "src/shuabao/runtime_mediator.py",
     "src/shuabao/vision/capture.py",
 )

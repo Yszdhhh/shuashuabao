@@ -162,3 +162,129 @@ def test_full_bond_bar_pirate_cannot_merge_or_trigger_replacement():
     # 4. choose_action 决不可选择海盗，刷新耗尽时必须安全 CLOSE（绝不进入替换卡牌）
     dec = choose_action(cands, SessionState(refreshes=5, max_refreshes=5))
     assert dec.action == PolicyAction.CLOSE
+
+
+def test_full_bond_bar_core_card_triggers_replacement_target():
+    """满槽 free_slots == 0 时，如果拥有可顶替卡（如海盗成长卡），核心必拿卡可被选中并带上 replace_index。"""
+    from shuabao.bond_capacity import _victim_indices
+    # 假设已持有卡中包含一张海盗成长卡在位置 3
+    owned = ("亡灵", "亡灵", "亡灵", "海盗成长卡", "亡灵", "亡灵", "亡灵", "亡灵", "亡灵", "亡灵")
+    assert _victim_indices(owned, "亡灵核心") == (3,)
+
+    settings = PolicySettings(
+        bond_presets=("海盗", "亡灵", "祝福", "经济"),
+        bond_must_take=("亡灵核心",),
+    )
+    cands = PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(
+            SlotCandidate(index=0, name="亡灵核心", confidence=0.96),
+            SlotCandidate(index=1, name="异火", confidence=0.85),
+        ),
+        owned_bond_cards=owned,
+        free_slots=0,
+        can_refresh=False,
+        has_giveup=True,
+        settings=settings,
+        refresh_count=0,
+    )
+    dec = choose_action(cands, SessionState())
+    assert dec.action == PolicyAction.SELECT_SLOT
+    assert dec.index == 0
+    assert dec.replace_index == 3
+
+
+def test_pickup_bag_has_space_solo_vs_passenger():
+    """验证背包空间判定：在背包界面未打开时，蹭车拒绝Z，单人允许Z。"""
+    from shuabao.mediator import Mediator
+    from shuabao.vision.capture import Frame
+    import numpy as np
+
+    med = Mediator(Settings(), ROOT)
+    frame = Frame(
+        bgr=np.zeros((900, 1600, 3), dtype=np.uint8),
+        left=0,
+        top=0,
+        window_title="test",
+    )
+
+    # 1. 背包界面未打开且为单人模式 -> 返回 True
+    med.settings.mode_id = "normal_farm"
+    assert not med._passenger_mode()
+    assert med._pickup_bag_has_space(frame) is True
+
+    # 2. 蹭车模式 -> 返回 False
+    med.settings.mode_id = "lobby_hitch"
+    assert med._passenger_mode()
+    assert med._pickup_bag_has_space(frame) is False
+
+
+def test_handle_card_replacement_dialog_actions():
+    """验证替换卡牌弹窗：有目标卡槽时点击卡槽，无目标卡槽时点击放弃按钮。"""
+    from unittest.mock import patch
+    from shuabao.mediator import Mediator, LoopAction
+    from shuabao.vision.capture import Frame
+    from shuabao.vision.matcher import MatchResult
+    import numpy as np
+
+    med = Mediator(Settings(), ROOT)
+    frame = Frame(
+        bgr=np.zeros((900, 1600, 3), dtype=np.uint8),
+        left=0,
+        top=0,
+        window_title="test",
+    )
+    abandon_hit = MatchResult("replace_card_abandon_btn", 0.95, 800, 539, 50, 20, 800, 539)
+
+    # Case 1: 有 _replace_slot_index = 3，检测到弹窗 -> 点击卡槽 3
+    med._replace_slot_index = 3
+    clicked_targets = []
+    with patch.object(med, "find", return_value=abandon_hit), \
+         patch.object(med, "act_click", side_effect=lambda hit, reason: clicked_targets.append((hit, reason)) or True):
+        res = med._handle_card_replacement_dialog(frame)
+        assert res == LoopAction.Continue
+        assert med._replace_slot_index is None
+        assert len(clicked_targets) == 1
+        hit, reason = clicked_targets[0]
+        assert reason == "ReplaceCard-slot-3"
+        expected_x = int(453 + (3 + 0.5) * 69.2)
+        assert hit.x == expected_x
+        assert hit.y == 448
+
+    # Case 2: 无 _replace_slot_index，检测到弹窗 -> 点击放弃按钮
+    med._replace_slot_index = None
+    med._replace_dialog_next_at = 0.0
+    clicked_targets.clear()
+    with patch.object(med, "find", return_value=abandon_hit), \
+         patch.object(med, "act_click", side_effect=lambda hit, reason: clicked_targets.append((hit, reason)) or True):
+        res = med._handle_card_replacement_dialog(frame)
+        assert res == LoopAction.Continue
+        assert len(clicked_targets) == 1
+        hit, reason = clicked_targets[0]
+        assert reason == "ReplaceCard-abandon"
+        assert hit == abandon_hit
+
+
+def test_bounty_order_consumed_in_inventory():
+    """验证悬赏令使用：检测到悬赏令道具时，单机点击使用。"""
+    from unittest.mock import patch
+    from shuabao.mediator import Mediator, LoopAction
+    from shuabao.vision.capture import Frame
+    from shuabao.vision.matcher import MatchResult
+    import numpy as np
+
+    med = Mediator(Settings(), ROOT)
+    frame = Frame(
+        bgr=np.zeros((900, 1600, 3), dtype=np.uint8),
+        left=0,
+        top=0,
+        window_title="test",
+    )
+    bounty_hit = MatchResult("haidao/haidao_bounty_ur_red", 0.85, 1145, 737, 30, 30, 1145, 737)
+
+    with patch.object(med, "_hud_item_bar_state", return_value="items"), \
+         patch.object(med, "find", return_value=bounty_hit), \
+         patch.object(med, "act_click", return_value=True) as mock_click:
+        res = med._maybe_use_inventory_item(frame)
+        assert res == LoopAction.Continue
+        mock_click.assert_called_once_with(bounty_hit, "UseInventory-bounty-haidao_bounty_ur_red")

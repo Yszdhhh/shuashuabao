@@ -1176,6 +1176,13 @@ class Mediator:
         # 搬不动的格子（装备栏里的在装武器等）：连续失败两次就本局跳过，
         # 否则冷却到期后会一直回来重试同一格。
         self._public_bag_failed_sources: dict[str, int] = {}
+        self._replace_slot_index: int | None = None
+        self._replace_dialog_next_at: float = 0.0
+        self._bounty_next_at: float = 0.0
+        self._backpack_has_overflow_items: bool = False
+        self._solo_bag_open_next_at: float = 0.0
+        self._solo_bag_close_next_at: float = 0.0
+        self._bag_item_next_at: float = 0.0
         self._pickup_next_at = 0.0
         self._equipment_round_next_at = 0.0
         self._equipment_round_current_slot = 2
@@ -3796,6 +3803,9 @@ class Mediator:
                 ),
                 self._choice_session,
             )
+        if getattr(decision, "replace_index", None) is not None:
+            self._replace_slot_index = decision.replace_index
+            print(f"[L1] 羁绊选卡记录顶替目标卡槽: {self._replace_slot_index}")
         if kind == "bond" and decision.action == PolicyAction.REFRESH:
             affordable, wood, price = self._bond_refresh_affordable(frame)
             if not affordable:
@@ -5048,8 +5058,91 @@ class Mediator:
         self._equipment_pending_until = 0.0
         return False
 
+    def _handle_card_replacement_dialog(self, frame: Frame) -> LoopAction | None:
+        """Handle the 10/10 bond card replacement dialog ("替换卡牌").
+
+        If a victim slot index was computed by choice_policy (_replace_slot_index),
+        click that slot on the 10-card row to replace it.
+        Otherwise (or as fallback), click the '放弃' (Abandon) button to prevent lockup.
+        """
+        now = time.time()
+        if now < getattr(self, "_replace_dialog_next_at", 0.0):
+            return None
+
+        abandon_btn = self.find(
+            frame,
+            ["replace_card_abandon_btn"],
+            threshold=0.70,
+            roi=(0.40, 0.50, 0.60, 0.65),
+            scales=(0.9, 1.0, 1.1),
+        )
+        if abandon_btn is not None and abandon_btn.name != "replace_card_abandon_btn":
+            abandon_btn = None
+        title = None
+        if abandon_btn is None:
+            title = self.find(
+                frame,
+                ["replace_card_title"],
+                threshold=0.70,
+                roi=(0.40, 0.20, 0.60, 0.35),
+                scales=(0.9, 1.0, 1.1),
+            )
+            if title is not None and title.name != "replace_card_title":
+                title = None
+
+        if abandon_btn is None and title is None:
+            return None
+
+        self._replace_dialog_next_at = now + 1.0
+        victim_idx = getattr(self, "_replace_slot_index", None)
+        self._replace_slot_index = None
+
+        if victim_idx is not None and 0 <= victim_idx < 10:
+            scale_x = frame.width / 1600.0
+            scale_y = frame.height / 900.0
+            click_x = int((453 + (victim_idx + 0.5) * 69.2) * scale_x)
+            click_y = int(448 * scale_y)
+            hit = MatchResult(
+                f"replace_card_slot_{victim_idx}",
+                1.0,
+                click_x,
+                click_y,
+                0,
+                0,
+                frame.left + click_x,
+                frame.top + click_y,
+            )
+            if self.act_click(hit, f"ReplaceCard-slot-{victim_idx}"):
+                print(f"[L1] 替换卡牌：点击顶替已持有卡位 {victim_idx} @ ({click_x}, {click_y})")
+                return LoopAction.Continue
+
+        if abandon_btn is not None:
+            if self.act_click(abandon_btn, "ReplaceCard-abandon"):
+                print(f"[L1] 替换卡牌：无可用顶替目标，点击【放弃】 @ {abandon_btn.center}")
+                return LoopAction.Continue
+        else:
+            scale_x = frame.width / 1600.0
+            scale_y = frame.height / 900.0
+            click_x = int(800 * scale_x)
+            click_y = int(539 * scale_y)
+            hit = MatchResult(
+                "replace_card_abandon_fallback",
+                1.0,
+                click_x,
+                click_y,
+                0,
+                0,
+                frame.left + click_x,
+                frame.top + click_y,
+            )
+            if self.act_click(hit, "ReplaceCard-abandon-pos"):
+                print(f"[L1] 替换卡牌：点击【放弃】坐标 @ ({click_x}, {click_y})")
+                return LoopAction.Continue
+
+        return LoopAction.Continue
+
     def _maybe_use_inventory_item(self, frame: Frame) -> LoopAction | None:
-        """Use inventory consumables in the verified bottom-right inventory ROI (HUD_ONLY)."""
+        """Use inventory consumables in the verified bottom-right inventory ROI (HUD_ONLY) and open bag."""
         if (
             self._pending_action is not None
             and not self._pending_action.is_confirmed(frame)
@@ -5063,6 +5156,8 @@ class Mediator:
             return None
         now = time.time()
         inventory_roi = (0.64, 0.77, 0.74, 0.98)
+
+        # 1. 吞噬丹
         if self.settings.auto_devour_dan and self._can_consume_inventory_swallow_pill(frame):
             pill = self.find(
                 frame,
@@ -5071,6 +5166,8 @@ class Mediator:
                 roi=inventory_roi,
                 scales=(0.8, 0.9, 1.0, 1.1, 1.2),
             )
+            if pill is not None and pill.name not in ["danGif", "swallow_pill"]:
+                pill = None
             if pill is None:
                 # 丹在背包里而不在 HUD 栏时，只有背包页开着才看得到它。
                 pill = self._bag_page_swallow_pill(frame)
@@ -5099,9 +5196,87 @@ class Mediator:
                         return LoopAction.Continue
             else:
                 self._devour_dan_consecutive_clicks = 0
+
+        # 2. 悬赏令与背包道具（仅当物品栏非空或背包有溢出物品时检测）
+        if self._hud_item_bar_state(frame) != "empty" or getattr(self, "_backpack_has_overflow_items", False):
+            bounty_candidates = [
+                "haidao/haidao_bounty_n_green",
+                "haidao/haidao_bounty_r_blue",
+                "haidao/haidao_bounty_sr_purple",
+                "haidao/haidao_bounty_ssr_orange",
+                "haidao/haidao_bounty_ur_red",
+            ]
+            bounty = self.find(
+                frame,
+                bounty_candidates,
+                threshold=0.65,
+                roi=inventory_roi,
+                scales=(0.45, 0.5, 0.55, 0.6, 0.7, 0.8),
+            )
+            if bounty is not None and bounty.name not in bounty_candidates:
+                bounty = None
+            layout = None
+            if bounty is None and not self._passenger_mode() and getattr(self, "_backpack_has_overflow_items", False):
+                layout = self._bag_layout(frame)
+                if layout is not None:
+                    px0, py0, px1, py1 = layout.panel_rect()
+                    bag_roi = (
+                        max(0.0, px0 / frame.width),
+                        max(0.0, py0 / frame.height),
+                        min(1.0, px1 / frame.width),
+                        min(1.0, py1 / frame.height),
+                    )
+                    bag_bounty = self.find(
+                        frame,
+                        bounty_candidates,
+                        threshold=0.65,
+                        roi=bag_roi,
+                        scales=(0.45, 0.5, 0.55, 0.6, 0.7, 0.8),
+                    )
+                    if bag_bounty is not None and bag_bounty.name in bounty_candidates:
+                        bounty = bag_bounty
+
+            if bounty is not None and bounty.name in bounty_candidates and now >= getattr(self, "_bounty_next_at", 0.0) and self._inventory_clicks_this_visit < 3:
+                self._bounty_next_at = now + 1.0
+                self._inventory_next_at = now + 1.0
+                self._inventory_clicks_this_visit += 1
+                if self._inventory_last_pt == bounty.center:
+                    self._inventory_same_pt_hits += 1
+                else:
+                    self._inventory_last_pt = bounty.center
+                    self._inventory_same_pt_hits = 1
+                use_act = (
+                    self.act_right_click
+                    if (layout is not None and layout.inside_personal_grid(bounty.x, bounty.y))
+                    else self.act_click
+                )
+                if use_act(bounty, f"UseInventory-bounty-{bounty.name.split('/')[-1]}"):
+                    print(f"[L1] 使用悬赏令【{bounty.name}】 @ {bounty.center}")
+                    return LoopAction.Continue
+
+            # 3. 单人模式下背包已打开时的道具流转与关闭
+            if layout is None and not self._passenger_mode() and getattr(self, "_backpack_has_overflow_items", False):
+                layout = self._bag_layout(frame)
+            if layout is not None and not self._passenger_mode() and bounty is None:
+                source = self._public_bag_source(frame, layout)
+                if source is not None and source.get("kind") == "personal":
+                    if now >= getattr(self, "_bag_item_next_at", 0.0) and self._inventory_clicks_this_visit < 3:
+                        self._bag_item_next_at = now + 1.0
+                        self._inventory_next_at = now + 1.0
+                        self._inventory_clicks_this_visit += 1
+                        if self.act_right_click(source["hit"], f"UseBagPersonalItem-{source.get('source_id')}"):
+                            print(f"[L1] 右键移入/使用背包个人格物品 @ {source['hit'].center}")
+                            return LoopAction.Continue
+                elif source is None and now >= getattr(self, "_solo_bag_close_next_at", 0.0):
+                    self._solo_bag_close_next_at = now + 2.0
+                    self._backpack_has_overflow_items = False
+                    if self._toggle_bag_page(frame, "SoloBagCloseEmpty"):
+                        print("[L1] 个人背包已无物品，关闭背包页")
+                        return LoopAction.Continue
+
         if now < self._inventory_next_at or self._inventory_clicks_this_visit >= 2:
             return None
-        # 严格门禁：未点击进化完成前，绝对不点英雄卡（否则点不开并空耗点击）
+        # 4. 英雄卡：严格门禁：未点击进化完成前，绝对不点英雄卡（否则点不开并空耗点击）
         if not getattr(self, "_evolve_ok_this_cycle", False):
             return None
         hero_card = self.find(
@@ -5111,7 +5286,7 @@ class Mediator:
             roi=inventory_roi,
             scales=(0.8, 0.9, 1.0, 1.1, 1.2),
         )
-        if hero_card is not None and self._inventory_clicks_this_visit < 3:
+        if hero_card is not None and hero_card.name == "hero_card_item" and self._inventory_clicks_this_visit < 3:
             self._inventory_clicks_this_visit += 1
             if self._inventory_last_pt == hero_card.center:
                 self._inventory_same_pt_hits += 1
@@ -5128,7 +5303,7 @@ class Mediator:
                     verifier=lambda f: bool(self._find_evolution_choice(f, anchor=self._selection_anchor(f)) is not None),
                 )
                 return LoopAction.Continue
-        return LoopAction.Continue
+        return None
     def _equipment_slot_fingerprint(self, frame: Frame, slot_idx: int) -> str:
         """Extract stable grayscale perceptual/difference hash of the equipment slot ROI (24x24)."""
         if frame is None or frame.bgr is None or frame.bgr.size == 0:
@@ -5591,7 +5766,7 @@ class Mediator:
         """
         layout = self._bag_layout(frame)
         if layout is None:
-            return False
+            return not self._passenger_mode()
         return (
             self._public_bag_empty_slot(frame, layout) is not None
             or self._public_bag_empty_personal_slot(frame, layout) is not None
@@ -17077,6 +17252,13 @@ class Mediator:
                     self._post_game_route = "heirloom_active"
                     self._main_line_since = now
                 return LoopAction.Continue
+        # 替换卡牌弹窗检测与处理（当羁绊卡槽满10/10选择卡牌时弹出）
+        replace_res = self._handle_card_replacement_dialog(frame)
+        if replace_res is not None:
+            self._panel_state = PanelState.CLOSED
+            self._main_line_since = now
+            return replace_res
+
         # ---- 单界面交互仲裁 (InteractionSurface Arbitration) ----
         has_recovery = (self.phase == Phase.RECOVER_FAILURE) or bool(getattr(self, "_recovery_step", None) and self._recovery_step != "DONE")
         has_affix = self._find_equipment_affix_choice(frame) is not None
@@ -17402,12 +17584,8 @@ class Mediator:
                 self._main_line_since = now
                 return artifact_res
 
-            # 吞噬丹在羁绊卡位充足时安全使用
-            if (
-                self.settings.auto_devour_dan
-                and self._can_consume_inventory_swallow_pill(frame)
-                and now >= getattr(self, "_devour_dan_next_at", 0.0)
-            ):
+            # 物品栏/背包道具使用（悬赏令、吞噬丹、背包道具）
+            if now >= getattr(self, "_inventory_next_at", 0.0):
                 dan_res = self._maybe_use_inventory_item(frame)
                 if dan_res is not None:
                     self._main_line_since = now
@@ -17428,6 +17606,7 @@ class Mediator:
                 )
                 if picked:
                     self._pickup_next_at = now + 10.0
+                    self._backpack_has_overflow_items = True
                     self._main_line_since = now
                     return LoopAction.Continue
 
@@ -17560,12 +17739,28 @@ class Mediator:
                 )
                 if picked:
                     self._pickup_next_at = now + 10.0
+                    self._backpack_has_overflow_items = True
                     self._main_line_since = now
             if self._passenger_mode():
                 # 蹭车不吃丹、不用英雄卡：那是队伍资产，只负责搬进公共背包。
                 self._advance_l1_cycle("pickup")
                 return LoopAction.Continue
-            # 2. 进化完成后的背包消耗品与英雄卡使用（在 evolve 之后安全使用）
+
+            # 2. 单人模式下若物品栏已有空位且之前有溢出物品，尝试打开背包处理溢出道具
+            if (
+                not self._passenger_mode()
+                and getattr(self, "_backpack_has_overflow_items", False)
+                and not self._hud_item_bar_overflowed(frame)
+                and self._bag_layout(frame) is None
+                and now >= getattr(self, "_solo_bag_open_next_at", 0.0)
+            ):
+                self._solo_bag_open_next_at = now + 5.0
+                if self._open_bag_page(frame):
+                    print("[L1] 物品栏已有空位，打开个人背包处理溢出道具")
+                    self._main_line_since = now
+                    return LoopAction.Continue
+
+            # 3. 进化完成后的背包消耗品与英雄卡使用（在 evolve 之后安全使用）
             item_res = self._maybe_use_inventory_item(frame)
             if item_res is not None:
                 self._main_line_since = now

@@ -157,14 +157,15 @@ class PolicyDecision:
     action: PolicyAction
     index: int | None = None
     reason: str = ""
+    replace_index: int | None = None
 
     @property
     def target_slot(self) -> int | None:
         return self.index
 
     @classmethod
-    def select(cls, index: int, reason: str = "") -> "PolicyDecision":
-        return cls(PolicyAction.SELECT_SLOT, int(index), reason)
+    def select(cls, index: int, reason: str = "", replace_index: int | None = None) -> "PolicyDecision":
+        return cls(PolicyAction.SELECT_SLOT, int(index), reason, replace_index=replace_index)
 
     @classmethod
     def close(cls, reason: str = "") -> "PolicyDecision":
@@ -739,7 +740,16 @@ def choose_action(
         return _giveup_or_close(cands, why)
     if cands.panel_kind == PANEL_SKILL:
         return _decide_skill(cands, state, settings)
-    return _decide_collectible(cands, state, settings)
+    decision = _decide_collectible(cands, state, settings)
+    if cands.panel_kind == PANEL_BOND and decision.action == PolicyAction.SELECT_SLOT:
+        if decision.replace_index is None and cands.free_slots is not None and cands.free_slots <= 0:
+            chosen = next((s for s in cands.slots if s.index == decision.index), None)
+            if chosen and chosen.name:
+                from shuabao.bond_capacity import _victim_indices
+                victims = _victim_indices(cands.owned_bond_cards, chosen.name)
+                if victims:
+                    decision = PolicyDecision.select(decision.index, decision.reason, replace_index=victims[0])
+    return decision
 
 
 def slot_fingerprint(slots: tuple[Any, ...] | list[Any]) -> str:
@@ -1297,7 +1307,9 @@ def _bond_capacity_candidates(
             slot.name, settings.bond_presets
         )
         if free <= 0:
-            allowed = merge or slot.zero_cost
+            from shuabao.bond_capacity import _victim_indices
+            can_replace = bool(core and slot.name and _victim_indices(owned, slot.name))
+            allowed = merge or slot.zero_cost or can_replace
         elif free == 1:
             allowed = merge or core or slot.name in tier_names
         else:
