@@ -1459,7 +1459,15 @@ def _decide_collectible(
             if cands.free_slots is not None and cands.free_slots <= 0:
                 near = tuple(s for s in near if _is_uncompleted_merge_upgrade(s, owned_bonds))
             if near:
-                slot = max(near, key=lambda item: (float(item.confidence or 0.0), -int(item.index)))
+                # 多个差一张合成候选项时，优先按默认/勾选优先级（祝福 > 成长 > 经济...）仲裁，次之置信度
+                def _near_key(item: SlotCandidate):
+                    pr_rank = next(
+                        (i for i, p in enumerate(presets) if p and (item.name == p or p in item.name)),
+                        len(presets),
+                    )
+                    return (pr_rank, -float(item.confidence or 0.0), int(item.index))
+
+                slot = min(near, key=_near_key)
                 return PolicyDecision.select(
                     slot.index,
                     f"羁绊差一张合成秒选【{slot.name}】 @ slot {slot.index}",
@@ -1467,14 +1475,24 @@ def _decide_collectible(
 
             # 3. 20260822：已持有的羁绊卡合成跃升（如 1/3, 2/3 未满星卡牌）
             # 只要手中已持有过某羁绊卡，且当前面板再次出现该卡，优先合成升级，绝不可刷新丢弃！
-            for slot in eligible:
-                if (
-                    slot.confidence >= settings.min_confidence
-                    and _is_uncompleted_merge_upgrade(slot, owned_bonds)
-                ):
-                    return PolicyDecision.select(
-                        slot.index, f"羁绊已持有合成优先：{slot.name} @ slot {slot.index}"
+            # 多个已持有待合成卡同时刷出时，同样遵循优先级排序仲裁
+            merge_candidates = [
+                slot for slot in eligible
+                if slot.confidence >= settings.min_confidence
+                and _is_uncompleted_merge_upgrade(slot, owned_bonds)
+            ]
+            if merge_candidates:
+                def _merge_key(item: SlotCandidate):
+                    pr_rank = next(
+                        (i for i, p in enumerate(presets) if p and (item.name == p or p in item.name)),
+                        len(presets),
                     )
+                    return (pr_rank, -float(item.confidence or 0.0), int(item.index))
+
+                slot = min(merge_candidates, key=_merge_key)
+                return PolicyDecision.select(
+                    slot.index, f"羁绊已持有合成优先：{slot.name} @ slot {slot.index}"
+                )
     preset_hit = (
         _match_bond_preset(eligible, presets, settings.min_confidence, settings.quality_order)
         if kind == PANEL_BOND

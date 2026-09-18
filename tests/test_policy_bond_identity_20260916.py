@@ -288,3 +288,101 @@ def test_bounty_order_consumed_in_inventory():
         res = med._maybe_use_inventory_item(frame)
         assert res == LoopAction.Continue
         mock_click.assert_called_once_with(bounty_hit, "UseInventory-bounty-haidao_bounty_ur_red")
+
+
+def test_bond_preset_order_arbitration_when_multiple_present():
+    """双轨选卡仲裁：面板同时出现多个已勾选基础羁绊时，严格按 祝福 > 成长 > 经济 默认顺序仲裁。"""
+    settings = PolicySettings(
+        bond_presets=("祝福", "成长", "经济"),
+        min_confidence=0.6,
+    )
+    # 场景 1: 祝福 与 经济 同时出现 -> 必须选 祝福
+    cands1 = PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(
+            SlotCandidate(index=0, name="经济", confidence=0.9),
+            SlotCandidate(index=1, name="祝福", confidence=0.9),
+        ),
+        settings=settings,
+    )
+    dec1 = choose_action(cands1, SessionState())
+    assert dec1.action == PolicyAction.SELECT_SLOT and dec1.index == 1
+
+    # 场景 2: 成长 与 经济 同时出现 -> 必须选 成长
+    cands2 = PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(
+            SlotCandidate(index=0, name="经济", confidence=0.9),
+            SlotCandidate(index=1, name="成长", confidence=0.9),
+        ),
+        settings=settings,
+    )
+    dec2 = choose_action(cands2, SessionState())
+    assert dec2.action == PolicyAction.SELECT_SLOT and dec2.index == 1
+
+    # 场景 3: 祝福 与 成长 同时出现 -> 必须选 祝福
+    cands3 = PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(
+            SlotCandidate(index=0, name="成长", confidence=0.9),
+            SlotCandidate(index=1, name="祝福", confidence=0.9),
+        ),
+        settings=settings,
+    )
+    dec3 = choose_action(cands3, SessionState())
+    assert dec3.action == PolicyAction.SELECT_SLOT and dec3.index == 1
+
+
+def test_near_complete_bond_priority_arbitration():
+    """即将合成加权与仲裁：差一张合成优先于普通预设；若同时多个差一张合成，按默认优先级仲裁。"""
+    settings = PolicySettings(
+        bond_presets=("祝福", "成长", "经济"),
+        min_confidence=0.6,
+    )
+    # 场景 1: 成长(2/3) 差一张合成 vs 祝福(0/3) 普通预设 -> 差一张合成秒选 成长
+    cands1 = PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(
+            SlotCandidate(index=0, name="成长(2/3)", confidence=0.9),
+            SlotCandidate(index=1, name="祝福", confidence=0.9),
+        ),
+        owned_bond_cards=("成长", "成长"),
+        settings=settings,
+    )
+    dec1 = choose_action(cands1, SessionState())
+    assert dec1.action == PolicyAction.SELECT_SLOT and dec1.index == 0
+    assert "差一张合成秒选" in dec1.reason
+
+    # 场景 2: 成长(2/3) 与 经济(2/3) 同时差一张合成 -> 依默认优先级仲裁选 成长
+    cands2 = PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(
+            SlotCandidate(index=0, name="经济(2/3)", confidence=0.9),
+            SlotCandidate(index=1, name="成长(2/3)", confidence=0.9),
+        ),
+        owned_bond_cards=("经济", "经济", "成长", "成长"),
+        settings=settings,
+    )
+    dec2 = choose_action(cands2, SessionState())
+    assert dec2.action == PolicyAction.SELECT_SLOT and dec2.index == 1
+
+
+def test_bounty_swallow_pirate_tier_matching():
+    """悬赏令与海盗卡品质匹配：持有 SR 海盗卡时，绿/蓝悬赏令不空放，紫/橙/红悬赏令方可吞噬。"""
+    from shuabao.mediator import Mediator
+    med = Mediator(Settings(), ROOT)
+
+    # 1. 持有 SR 海盗劫掠者
+    med._bond_cards_owned = ["海盗劫掠者", "祝福"]
+    assert not med._has_swallowable_pirate_card("haidao/haidao_bounty_n_green")
+    assert not med._has_swallowable_pirate_card("haidao/haidao_bounty_r_blue")
+    assert med._has_swallowable_pirate_card("haidao/haidao_bounty_sr_purple")
+    assert med._has_swallowable_pirate_card("haidao/haidao_bounty_ssr_orange")
+    assert med._has_swallowable_pirate_card("haidao/haidao_bounty_ur_red")
+
+    # 2. 完全无海盗卡时，任何悬赏令均不盲目消耗
+    med._bond_cards_owned = ["力量", "敏捷", "智力"]
+    assert not med._has_swallowable_pirate_card("haidao/haidao_bounty_n_green")
+    assert not med._has_swallowable_pirate_card("haidao/haidao_bounty_sr_purple")
+    assert not med._has_swallowable_pirate_card("haidao/haidao_bounty_ur_red")
+

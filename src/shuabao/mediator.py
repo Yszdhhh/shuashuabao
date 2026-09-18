@@ -1183,6 +1183,7 @@ class Mediator:
         self._solo_bag_open_next_at: float = 0.0
         self._solo_bag_close_next_at: float = 0.0
         self._bag_item_next_at: float = 0.0
+        self._solo_stash_held_source: dict | None = None
         self._pickup_next_at = 0.0
         self._equipment_round_next_at = 0.0
         self._equipment_round_current_slot = 2
@@ -5141,6 +5142,44 @@ class Mediator:
 
         return LoopAction.Continue
 
+    def _has_swallowable_pirate_card(self, bounty_name: str) -> bool:
+        """根据悬赏令品质，判断当前羁绊栏中是否有可吞噬的海盗卡。"""
+        owned = self._confirmed_bond_cards()
+        if not owned:
+            return True
+        bounty_tiers = {
+            "haidao_bounty_n_green": 1,
+            "haidao_inventory_n_green_body": 1,
+            "haidao_bounty_r_blue": 2,
+            "haidao_inventory_r_blue_body": 2,
+            "haidao_bounty_sr_purple": 3,
+            "haidao_inventory_sr_purple_body": 3,
+            "haidao_bounty_ssr_orange": 4,
+            "haidao_inventory_ssr_orange_body": 4,
+            "haidao_bounty_ur_red": 5,
+            "haidao_inventory_ur_red_body": 5,
+        }
+        bounty_stem = bounty_name.split("/")[-1]
+        b_tier = bounty_tiers.get(bounty_stem, 5)
+
+        def _get_card_pirate_tier(text: str) -> int | None:
+            # 必须按具体程度从高到低匹配，防止 '海盗' 误伤 '海盗劫掠者'
+            if "海盗劫掠者" in text:
+                return 3
+            if "海盗宝藏" in text:
+                return 4
+            if "白赚海盗" in text:
+                return 2
+            if "海盗" in text:
+                return 1
+            return None
+
+        for card in owned:
+            p_tier = _get_card_pirate_tier(str(card))
+            if p_tier is not None and p_tier <= b_tier:
+                return True
+        return False
+
     def _maybe_use_inventory_item(self, frame: Frame) -> LoopAction | None:
         """Use inventory consumables in the verified bottom-right inventory ROI (HUD_ONLY) and open bag."""
         if (
@@ -5242,7 +5281,14 @@ class Mediator:
                     if bag_bounty is not None and bag_bounty.name in bounty_valid_names:
                         bounty = bag_bounty
 
-            if bounty is not None and bounty.name in bounty_valid_names and now >= getattr(self, "_bounty_next_at", 0.0) and self._inventory_clicks_this_visit < 3:
+            can_swallow = self._has_swallowable_pirate_card(bounty.name) if bounty is not None else False
+            if (
+                bounty is not None
+                and bounty.name in bounty_valid_names
+                and can_swallow
+                and now >= getattr(self, "_bounty_next_at", 0.0)
+                and self._inventory_clicks_this_visit < 3
+            ):
                 self._bounty_next_at = now + 1.0
                 self._inventory_next_at = now + 1.0
                 self._inventory_clicks_this_visit += 1
@@ -5263,9 +5309,32 @@ class Mediator:
             # 3. 单人模式下背包已打开时的道具流转与关闭
             if layout is None and not self._passenger_mode() and getattr(self, "_backpack_has_overflow_items", False):
                 layout = self._bag_layout(frame)
-            if layout is not None and not self._passenger_mode() and bounty is None:
+            if layout is not None and not self._passenger_mode() and (bounty is None or not can_swallow):
+                held = getattr(self, "_solo_stash_held_source", None)
+                if held is not None:
+                    empty_slot = self._public_bag_empty_personal_slot(frame, layout)
+                    if empty_slot is not None:
+                        row, col, target_hit = empty_slot
+                        if self.act_click(target_hit, "SoloStashPersonalSlot"):
+                            print(f"[L1] 个人背包：将快捷栏物品存入个人格 ({row},{col})")
+                            self._solo_stash_held_source = None
+                            self._inventory_next_at = now + 1.0
+                            return LoopAction.Continue
+                    else:
+                        self._solo_stash_held_source = None
+
                 source = self._public_bag_source(frame, layout)
-                if source is not None and source.get("kind") == "personal":
+                if source is not None and source.get("kind") == "item_bar":
+                    if self._public_bag_empty_personal_slot(frame, layout) is not None:
+                        if now >= getattr(self, "_bag_item_next_at", 0.0) and self._inventory_clicks_this_visit < 3:
+                            self._bag_item_next_at = now + 1.0
+                            self._inventory_next_at = now + 1.0
+                            self._inventory_clicks_this_visit += 1
+                            if self.act_right_click(source["hit"], f"SoloPickItemBar-{source.get('source_id')}"):
+                                self._solo_stash_held_source = source
+                                print(f"[L1] 个人背包：右键取出快捷栏物品 {source['source_id']} 准备存入个人格")
+                                return LoopAction.Continue
+                elif source is not None and source.get("kind") == "personal":
                     if now >= getattr(self, "_bag_item_next_at", 0.0) and self._inventory_clicks_this_visit < 3:
                         self._bag_item_next_at = now + 1.0
                         self._inventory_next_at = now + 1.0
@@ -5273,7 +5342,7 @@ class Mediator:
                         if self.act_right_click(source["hit"], f"UseBagPersonalItem-{source.get('source_id')}"):
                             print(f"[L1] 右键移入/使用背包个人格物品 @ {source['hit'].center}")
                             return LoopAction.Continue
-                elif source is None and now >= getattr(self, "_solo_bag_close_next_at", 0.0):
+                elif source is None and held is None and now >= getattr(self, "_solo_bag_close_next_at", 0.0):
                     self._solo_bag_close_next_at = now + 2.0
                     self._backpack_has_overflow_items = False
                     if self._toggle_bag_page(frame, "SoloBagCloseEmpty"):
