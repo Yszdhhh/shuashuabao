@@ -4440,7 +4440,6 @@ def _new_live_mediator(
     """Use the existing production RuntimeMediator for real-input sessions."""
     try:
         from shuabao.runtime_mediator import Mediator as RuntimeMediator
-        RuntimeMediator._maybe_use_inventory_item = Mediator._maybe_use_inventory_item
 
         return RuntimeMediator(settings, repo_root, stop_signal=stop_signal, incident_dir=incident_dir), None
     except Exception as exc:
