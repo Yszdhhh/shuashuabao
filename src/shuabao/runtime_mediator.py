@@ -545,8 +545,10 @@ class Mediator(CoreMediator):
     # ------------------------------------------------------------------
     # Merchant: use the single integrated core handler in LIVE too.
     # ------------------------------------------------------------------
-    def _maybe_black_merchant(self, frame):
-        return super()._maybe_black_merchant(frame)
+    def _maybe_black_merchant(self, frame, allow_reroll: bool = True):
+        # 机会黑商用 allow_reroll=False 调用（mediator.py:6465）。覆写必须
+        # 收得下并原样转交，否则命中该路径就是 TypeError，整局中断。
+        return super()._maybe_black_merchant(frame, allow_reroll=allow_reroll)
 
     # ------------------------------------------------------------------
     # Stage selection: SendInput success alone is not selection proof.
