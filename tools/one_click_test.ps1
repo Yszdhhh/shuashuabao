@@ -203,8 +203,11 @@ if document is None:
     raise SystemExit(f"内置测试方案缺失：{profile_name}")
 settings = apply_profile(base, document)
 settings.dry_run = False
-# 用户约束：普通丹的随机伤害身份 protected，本次不得自动吞丹；丹路线留人工 GT。
-settings.auto_devour_dan = False
+# 若 profile 显式声明 auto_devour_dan，则遵循 profile 配置；否则默认 False 保留人工 GT
+if "auto_devour_dan" in document.get("settings", {}):
+    settings.auto_devour_dan = bool(document["settings"]["auto_devour_dan"])
+else:
+    settings.auto_devour_dan = False
 
 settings_path = session / "settings.json"
 payload = json.dumps(asdict(settings), ensure_ascii=False, indent=2)

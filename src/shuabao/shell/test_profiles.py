@@ -26,6 +26,8 @@ PROFILE_SETTING_FIELDS = frozenset(
         "reputation_type",
         "reputation_level",
         "auto_secret_realm",
+        "auto_devour_dan",
+        "bond_base_completion_ratio",
         "skills",
         "cards",
         "bonds",
@@ -68,7 +70,7 @@ def validate_profile_document(document: Any) -> dict[str, Any]:
     _require(match is not None, "stage_targets 必须是“章节-关卡”正整数格式")
     chapter, stage = (int(value) for value in match.groups())
     _require(chapter in MAINLINE_STAGE_MAX and stage <= MAINLINE_STAGE_MAX[chapter], "stage_targets 不在当前主线范围内")
-    for key in ("auto_create_room", "new_room_every_times", "auto_reputation", "auto_secret_realm"):
+    for key in ("auto_create_room", "new_room_every_times", "auto_reputation", "auto_secret_realm", "auto_devour_dan"):
         if key in settings:
             _require(isinstance(settings[key], bool), f"{key} 必须是布尔值")
     for key in ("cycle_num", "reputation_type", "reputation_level"):
@@ -94,6 +96,15 @@ def validate_profile_document(document: Any) -> dict[str, Any]:
             and math.isfinite(value)
             and value >= 0,
             "bond_advanced_unlock_s 必须是有限非负数（0 = 关闭时间兜底）",
+        )
+    if "bond_base_completion_ratio" in settings:
+        value = settings["bond_base_completion_ratio"]
+        _require(
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and math.isfinite(value)
+            and 0.0 <= value <= 1.0,
+            "bond_base_completion_ratio 必须在 0.0..1.0 之间",
         )
     if "treasure_allow_negative" in settings:
         _require(
