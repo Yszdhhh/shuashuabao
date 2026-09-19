@@ -1462,7 +1462,6 @@ def _decide_collectible(
                     return _no_safe_candidate(cands, state, kind, "基础羁绊未达 80%，本页无基础卡")
             else:
                 active_adv = _active_advanced_presets(cands, settings)
-                test_open_mode = float(settings.bond_base_completion_ratio or 0.0) <= 0.0
                 if settings.bond_advanced_presets and active_adv:
                     eligible = tuple(
                         slot for slot in eligible
@@ -1470,7 +1469,6 @@ def _decide_collectible(
                             matches_bond_preset(slot.name, settings.bond_base_presets)
                             or matches_bond_preset(slot.name, settings.bond_chain_presets)
                             or matches_bond_preset(slot.name, active_adv)
-                            or (test_open_mode and matches_bond_preset(slot.name, settings.bond_advanced_presets))
                             or _is_bond_must_take(slot.name, settings.bond_must_take)
                             or _is_uncompleted_merge_upgrade(slot, owned_bonds)
                         )

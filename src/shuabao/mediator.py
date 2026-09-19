@@ -5445,70 +5445,15 @@ class Mediator:
         return False
 
     def _can_consume_god_swallow_pill(self, frame: Frame | None = None) -> bool:
-        """Safe gate to consume a god devour pill (神赐吞噬丹).
-
-        Must have an EX bond card in the card bar; otherwise cannot be used.
-        """
-        if self._passenger_mode():
-            return False
-        return self._has_swallowable_ex_card(frame)
+        """Safety stop: no current-instance/target-set proof is wired yet."""
+        # Preference and occupancy never authorize destructive consumption.
+        # Enable only through runtime_core.contracts + verified LIVE adapters.
+        return False
 
     def _has_swallowable_pirate_card(self, bounty_name: str, frame: Frame | None = None) -> bool:
-        """根据悬赏令品质，判断当前羁绊栏中是否有可吞噬的海盗卡。"""
-        owned = self._confirmed_bond_cards()
-        if not owned:
-            return True
-        bounty_tiers = {
-            "haidao_bounty_n_green": 1,
-            "haidao_inventory_n_green_body": 1,
-            "haidao_bounty_r_blue": 2,
-            "haidao_inventory_r_blue_body": 2,
-            "haidao_bounty_sr_purple": 3,
-            "haidao_inventory_sr_purple_body": 3,
-            "haidao_bounty_ssr_orange": 4,
-            "haidao_inventory_ssr_orange_body": 4,
-            "haidao_bounty_ur_red": 5,
-            "haidao_inventory_ur_red_body": 5,
-        }
-        bounty_stem = bounty_name.split("/")[-1]
-        b_tier = bounty_tiers.get(bounty_stem, 5)
-
-        def _get_card_pirate_tier(text: str) -> int | None:
-            # 必须按具体程度从高到低匹配，防止 '海盗' 误伤 '海盗劫掠者'
-            if "毁灭战舰" in text:
-                return 5  # 终局战舰，永不作为低阶被吞
-            if "罗杰斯" in text:
-                return 5  # 核心上将，产悬赏令源头，不可吞
-            if "霍格" in text or "洛卡拉" in text or "海盗宝藏" in text:
-                return 4
-            if "海盗劫掠者" in text or "制造混乱" in text:
-                return 3
-            if "白赚海盗" in text or "猴子" in text or "开进码头" in text:
-                return 2
-            if any(k in text for k in ("海盗", "冲浪", "利刃", "战斗", "空降", "帕奇斯")):
-                return 1
-            return None
-
-        pirate_cards_in_owned = False
-        for card in owned:
-            p_tier = _get_card_pirate_tier(str(card))
-            if p_tier is not None:
-                pirate_cards_in_owned = True
-                if p_tier <= b_tier:
-                    return True
-        if pirate_cards_in_owned:
-            return False
-
-        # 若 owned 未显式记录到海盗卡（例如游戏预置或未开选卡面板拿卡），但羁绊栏有卡且当前配置海盗卡组，允许吞噬
-        has_pirate_preset = (
-            any("海盗" in str(c) for c in getattr(self.settings, "cards", ()))
-            or any("海盗" in str(b) for b in getattr(self.settings, "bonds", ()))
-        )
-        if has_pirate_preset:
-            occ = self._bond_bar_occupancy(frame) if frame is not None else None
-            if occ is None or occ > 0:
-                return True
-
+        """Safety stop: no current-instance/target-set proof is wired yet."""
+        # Preference and occupancy never authorize destructive consumption.
+        # Enable only through runtime_core.contracts + verified LIVE adapters.
         return False
 
     def _maybe_use_inventory_item(self, frame: Frame) -> LoopAction | None:
@@ -6208,18 +6153,10 @@ class Mediator:
         return int(colored.sum()) >= min_colored
 
     def _can_consume_inventory_swallow_pill(self, frame: Frame) -> bool:
-        """Safe authorization to consume a devour pill in solo play."""
-        if self._passenger_mode():
-            return False
-        if not self._bond_bar_nonempty(frame):
-            return False
-        has_pirate = (
-            any("海盗" in str(c) for c in getattr(self.settings, "cards", ()))
-            or any("海盗" in str(b) for b in getattr(self.settings, "bonds", ()))
-        )
-        if has_pirate:
-            return self._has_swallowable_pirate_card("haidao", frame)
-        return bool(getattr(self.settings, "auto_devour_dan", False))
+        """Safety stop: no current-instance/target-set proof is wired yet."""
+        # Preference and occupancy never authorize destructive consumption.
+        # Enable only through runtime_core.contracts + verified LIVE adapters.
+        return False
 
     def _bag_page_swallow_pill(self, frame: Frame) -> MatchResult | None:
         """Devour pill inside an open bag page, strictly verified by template matching.
@@ -16632,7 +16569,7 @@ class Mediator:
             return False
         roi = self._panel_roi_region(frame)
         if roi is None or roi.shape != baseline.shape:
-            return True  # 尺寸变化本身即画面异变
+            return False  # Missing/resized ROI cannot confirm a game mutation.
         if self._hero_changed_pixels(baseline, roi) >= 2000:
             return True
         if getattr(self, "_panel_pending_choice_action", None) == "refresh":

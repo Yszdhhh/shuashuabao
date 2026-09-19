@@ -476,77 +476,14 @@ class Mediator(CoreMediator):
     # Inventory/equipment: no-op inventory checks must not swallow equipment.
     # ------------------------------------------------------------------
     def _maybe_use_inventory_item(self, frame):
-        pending = getattr(self, "_pending_action", None)
-        now = time.time()
-        if pending is not None and not pending.is_confirmed(frame) and now < pending.deadline:
-            return LoopAction.Continue
-        if self._panel_state != PanelState.CLOSED:
-            return None
-
-        inventory_roi = (0.64, 0.77, 0.74, 0.98)
-        if self.settings.auto_devour_dan and self._can_consume_inventory_swallow_pill(frame):
-            pill = self.find(
-                frame,
-                ["danGif"],
-                threshold=0.55,
-                scales=self._hot_scales(),
-                roi=inventory_roi,
-            )
-            if pill is not None and now >= self._devour_dan_next_at and self._devour_dan_consecutive_clicks < 5:
-                baseline_occ = getattr(self, "_bond_bar_occupancy", lambda f: None)(frame)
-                if self.act_click(pill, "UseInventory-swallow_pill"):
-                    self._devour_dan_next_at = now + 1.0
-                    self._devour_dan_consecutive_clicks += 1
-                    self._inventory_next_at = now + 1.0
-                    self._pending_action = PendingAction(
-                        kind="WAIT_DEVOUR_DAN",
-                        target_id="danGif",
-                        deadline=now + 2.0,
-                        # 消耗的唯一证据是羁绊格数真的变少：模板掉帧、背包
-                        # 重排、羁绊栏读不出来都会让"丹不见了/栏空了"成立，
-                        # 那是丢失识别而不是吞噬成功。
-                        verifier=lambda f: (
-                            baseline_occ is not None
-                            and (occ := self._bond_bar_occupancy(f)) is not None
-                            and occ < baseline_occ
-                        ),
-                    )
-                    return LoopAction.Continue
-            elif pill is None:
-                self._devour_dan_consecutive_clicks = 0
-
-        if not getattr(self, "_evolve_ok_this_cycle", False):
-            return None
-        if now < self._inventory_next_at or self._inventory_clicks_this_visit >= 2:
-            return None
-        hero_card = self.find(
-            frame,
-            ["hero_card_item"],
-            threshold=0.65,
-            roi=inventory_roi,
-            scales=(0.8, 0.9, 1.0, 1.1, 1.2),
-        )
-        if hero_card is None:
-            return None
-        if not self.act_click(hero_card, "UseInventory-hero-card"):
-            return None
-        self._inventory_clicks_this_visit += 1
-        self._inventory_next_at = now + 1.0
-        self._evolve_awaiting_hero_pick = True
-        self._pending_action = PendingAction(
-            kind="WAIT_HERO_CHOICE",
-            target_id="hero_card_item",
-            deadline=now + 3.0,
-            verifier=lambda f: bool(self._find_evolution_choice(f) is not None),
-        )
-        print(f"[L1] 使用背包英雄卡 @ {hero_card.center}")
-        return LoopAction.Continue
+        """One shared implementation for desktop and GT; no factory rebinding."""
+        return super()._maybe_use_inventory_item(frame)
 
     # ------------------------------------------------------------------
     # Merchant: use the single integrated core handler in LIVE too.
     # ------------------------------------------------------------------
-    def _maybe_black_merchant(self, frame):
-        return super()._maybe_black_merchant(frame)
+    def _maybe_black_merchant(self, frame, allow_reroll: bool = True):
+        return super()._maybe_black_merchant(frame, allow_reroll=allow_reroll)
 
     # ------------------------------------------------------------------
     # Stage selection: SendInput success alone is not selection proof.
