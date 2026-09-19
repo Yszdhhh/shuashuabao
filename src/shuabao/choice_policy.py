@@ -589,7 +589,11 @@ def assemble_policy_settings(
             "bond_advanced_presets": advanced_presets,
             "bond_chain_presets": tuple(chain_presets),
             "bond_advanced_groups": tuple(selected_groups),
-            "bond_base_completion_ratio": bond_cfg.get("base_completion_ratio", 0.80),
+            "bond_base_completion_ratio": (
+                float(getattr(settings, "bond_base_completion_ratio", None))
+                if getattr(settings, "bond_base_completion_ratio", None) is not None
+                else float(bond_cfg.get("base_completion_ratio", 0.80))
+            ),
             "bond_advanced_unlock_s": (
                 bond_cfg.get("advanced_unlock_s", 0.0)
                 if unlock_override is None
@@ -1444,6 +1448,7 @@ def _decide_collectible(
                     return _no_safe_candidate(cands, state, kind, "基础羁绊未达 80%，本页无基础卡")
             else:
                 active_adv = _active_advanced_presets(cands, settings)
+                test_open_mode = float(settings.bond_base_completion_ratio or 0.0) <= 0.0
                 if settings.bond_advanced_presets and active_adv:
                     eligible = tuple(
                         slot for slot in eligible
@@ -1451,6 +1456,7 @@ def _decide_collectible(
                             matches_bond_preset(slot.name, settings.bond_base_presets)
                             or matches_bond_preset(slot.name, settings.bond_chain_presets)
                             or matches_bond_preset(slot.name, active_adv)
+                            or (test_open_mode and matches_bond_preset(slot.name, settings.bond_advanced_presets))
                             or _is_bond_must_take(slot.name, settings.bond_must_take)
                             or _is_uncompleted_merge_upgrade(slot, owned_bonds)
                         )
@@ -1470,6 +1476,25 @@ def _decide_collectible(
                     or matches_bond_preset(slot.name, settings.bond_presets)
                     or _is_uncompleted_merge_upgrade(slot, owned_bonds)
                 )
+
+            # 海盗卡组终局控制：当持有毁灭战舰或累计海盗卡 >= 12 张时，
+            # 停止拿非合并的海盗散卡，避免挤占羁绊位，优先让位于宝藏、安卡与亡灵。
+            pirate_names = ("海盗", "罗杰斯上将", "白赚海盗", "海盗劫掠者", "利刃海盗", "战斗海盗", "冲浪海盗")
+            has_warship = any("毁灭战舰" in name for name in cands.owned_bond_cards)
+            pirate_card_count = sum(1 for name in cands.owned_bond_cards if any(same_bond_identity(name, c) for c in pirate_names))
+            if has_warship or pirate_card_count >= 12:
+                other_candidates = [
+                    s for s in eligible
+                    if not any(same_bond_identity(s.name, c) for c in pirate_names)
+                ]
+                if other_candidates:
+                    eligible = tuple(
+                        s for s in eligible
+                        if not (
+                            any(same_bond_identity(s.name, c) for c in pirate_names)
+                            and not _is_uncompleted_merge_upgrade(s, owned_bonds)
+                        )
+                    )
 
             # 1. 必拿名单优先级最高（不受 near_complete 抢占）
             for slot in eligible:
@@ -1598,6 +1623,13 @@ def _active_advanced_presets(cands: PanelCandidates, settings: PolicySettings) -
     # 高级卡组按 0.8 比例正常推进，防止 ratio=0 导致仅拿 1 张卡就错误跳至后续卡组。
     adv_ratio = 0.80 if float(settings.bond_base_completion_ratio or 0.0) <= 0.0 else float(settings.bond_base_completion_ratio)
     for group in groups:
+        is_pirate_group = any("海盗" in card or "罗杰斯" in card for card in group)
+        if is_pirate_group:
+            # 海盗卡组终极判定：持有毁灭战舰或累计持有/吞噬达 12 张即宣告海盗达成，顺延后续卡组
+            has_warship = any("毁灭战舰" in name for name in owned)
+            pirate_count = sum(1 for name in owned if any(same_bond_identity(name, card) for card in group))
+            if has_warship or pirate_count >= 12:
+                continue
         required = max(1, math.ceil(len(group) * adv_ratio))
         have = sum(
             any(same_bond_identity(name, card) for name in owned)

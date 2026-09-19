@@ -167,6 +167,9 @@ class Settings:
     # bond.advanced_unlock_s（生产 480），生产默认零变化；0 = 显式关闭时间兜底。
     # 看板测试方案可覆盖；非有限/负数视为缺损丢弃（profile 层直接报错）。
     bond_advanced_unlock_s: float | None = None
+    # 基础羁绊完成比例覆盖（0.0 ~ 1.0）。None = 沿用 config/choice_policy.json（生产 0.80）；
+    # 0.0 = 测试放开门禁直接推进高级卡组。
+    bond_base_completion_ratio: float | None = None
     # 负面宝物放行名单（拿了会断资源/断成长的卡，默认一张都不选）。
     # 面板『宝物 · 负面卡』折叠区逐张打勾后写入；放行是逐卡的，不是全局开关。
     # 语义与判定见 config/choice_policy.json 与 shuabao.choice_policy。
@@ -341,7 +344,7 @@ class Settings:
             "recovery_retry_interval_s", "panel_visible_timeout_s", "panel_hard_deadline_s",
             "ui_action_interval_s", "panel_reopen_cooldown_s", "incident_sample_rate",
             "challenge_recheck_interval_s", "auto_task_unknown_timeout_s",
-            "bond_advanced_unlock_s",
+            "bond_advanced_unlock_s", "bond_base_completion_ratio",
         }
         # 新字段独有：bool 不是合法秒数（True 会被 float() 吞成 1.0），与 profile 层同样拒绝。
         if isinstance(clean.get("bond_advanced_unlock_s"), bool):

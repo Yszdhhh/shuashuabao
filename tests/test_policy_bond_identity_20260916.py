@@ -816,6 +816,7 @@ def test_pirate_deck_cascades_to_treasure_deck():
         bonds=["祝福", "成长", "经济"],
         cards=["海盗", "亡灵"],
         bond_must_take=["藏宝图(三)"],
+        bond_base_completion_ratio=0.0,
     )
     med = Mediator(cfg, ROOT)
     ps = med._policy_settings()
@@ -956,6 +957,173 @@ def test_baozang_deck_ankh_prioritized_over_baozang():
     assert dec.action == PolicyAction.SELECT_SLOT
     assert dec.index == 1
     assert "安卡" in dec.reason
+
+
+def test_pirate_deck_completion_at_12_cards_advances_to_treasure():
+    """验证海盗卡组累计持有/吞噬达12张（或已有毁灭战舰）时，高级卡组自动推进至后续宝藏卡组。"""
+    pirate_group = ("海盗", "罗杰斯上将", "制造混乱", "霍格船长", "洛卡拉舰长", "猴子", "开进码头", "空降海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏", "利刃海盗", "战斗海盗", "冲浪海盗", "海盗帕奇斯")
+    treasure_group = ("安卡", "宝藏")
+    settings = PolicySettings(
+        bond_advanced_groups=(pirate_group, treasure_group),
+        bond_base_completion_ratio=0.8,
+    )
+    # 持有 12 张海盗卡（含重复）
+    cands_12_pirates = PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(),
+        owned_bond_cards=("海盗",) * 10 + ("罗杰斯上将",) * 2,
+        settings=settings,
+    )
+    active = _active_advanced_presets(cands_12_pirates, settings)
+    assert active == treasure_group, f"Expected treasure_group but got {active}"
+
+    # 持有 UR 毁灭战舰
+    cands_warship = PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(),
+        owned_bond_cards=("毁灭战舰", "罗杰斯上将"),
+        settings=settings,
+    )
+    active_warship = _active_advanced_presets(cands_warship, settings)
+    assert active_warship == treasure_group, f"Expected treasure_group but got {active_warship}"
+
+
+def test_test_open_mode_allows_all_configured_advanced_presets():
+    """验证在测试放开门禁模式（bond_base_completion_ratio <= 0.0）下，白名单中配置的高级卡组（宝藏/亡灵）均可被选中。"""
+    pirate_group = ("海盗", "罗杰斯上将", "开进码头")
+    treasure_group = ("安卡", "宝藏")
+    settings = PolicySettings(
+        bond_presets=("海盗", "宝藏", "安卡", "亡灵"),
+        bond_advanced_groups=(pirate_group, treasure_group),
+        bond_advanced_presets=("海盗", "罗杰斯上将", "开进码头", "安卡", "宝藏", "亡灵"),
+        bond_base_completion_ratio=0.0,
+        bond_whitelist_mode="hard",
+        min_confidence=0.5,
+    )
+    cands = PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(
+            SlotCandidate(index=0, name="未知杂项", confidence=0.9),
+            SlotCandidate(index=1, name="宝藏", confidence=0.9),
+        ),
+        owned_bond_cards=("海盗", "海盗"),
+        settings=settings,
+    )
+    session = SessionState()
+    dec = choose_action(cands, session)
+    assert dec.action == PolicyAction.SELECT_SLOT
+    assert dec.index == 1
+    assert "宝藏" in dec.reason
+
+
+def test_pirate_satisfied_yields_to_treasure_and_necromancy():
+    """验证海盗达到12张终局或出毁灭战舰后，不再拿无合并的散碎海盗卡，优先选择宝藏或亡灵。"""
+    pirate_group = ("海盗", "罗杰斯上将")
+    treasure_group = ("安卡", "宝藏")
+    settings = PolicySettings(
+        bond_presets=("海盗", "罗杰斯上将", "宝藏", "安卡"),
+        bond_advanced_groups=(pirate_group, treasure_group),
+        bond_advanced_presets=("海盗", "罗杰斯上将", "安卡", "宝藏"),
+        bond_base_completion_ratio=0.0,
+        bond_whitelist_mode="hard",
+        min_confidence=0.5,
+    )
+    cands = PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(
+            SlotCandidate(index=0, name="海盗", confidence=0.9),
+            SlotCandidate(index=1, name="宝藏", confidence=0.9),
+        ),
+        owned_bond_cards=("毁灭战舰",),
+        settings=settings,
+    )
+    session = SessionState()
+    dec = choose_action(cands, session)
+    assert dec.action == PolicyAction.SELECT_SLOT
+    assert dec.index == 1
+    assert "宝藏" in dec.reason
+
+
+def test_maintenance_steps_not_hijacked_by_choice_panel():
+    """验证当循环处于维护步骤（pickup, merchant, equipment等）时，_maybe_open_choice_panel严禁抢占。"""
+    from shuabao.mediator import Mediator
+    from shuabao.settings import Settings
+    from shuabao.vision.capture import Frame
+    import numpy as np
+
+    med = Mediator(Settings(), project_root=Path("."))
+    img = np.zeros((900, 1600, 3), dtype=np.uint8)
+    frame = Frame(img, left=0, top=0)
+
+    # 即使木材很多且技能积压很多，只要 _l1_cycle_step 是 pickup/merchant，不得抢占
+    med._wood_balance = 50000
+    med._skill_points_seen = 20
+
+    for step in ("pickup", "merchant", "equipment", "evolve", "artifact", "public_bag"):
+        med._l1_cycle_step = step
+        res = med._maybe_open_choice_panel(frame)
+        assert res is None, f"Step {step} was unexpectedly hijacked by _maybe_open_choice_panel!"
+
+
+def test_solo_heirloom_boss_clear_without_120s_wait():
+    """验证在战后广场曾见 Boss 存活且现在 Boss 死亡时，_solo_heirloom_boss_is_clear 连续两帧即确认清除。"""
+    from shuabao.mediator import Mediator
+    from shuabao.settings import Settings
+    from shuabao.vision.capture import Frame
+    import numpy as np
+
+    med = Mediator(Settings(), project_root=Path("."))
+    img = np.zeros((900, 1600, 3), dtype=np.uint8)
+    frame1 = Frame(img, left=0, top=0)
+    frame2 = Frame(img, left=0, top=0)
+
+    # Mock plaza mode and boss not alive
+    med._top_bar_mode = lambda f: "plaza"
+    med._solo_boss_is_alive = lambda f: False
+    med._heirloom_loot_popup_visible = lambda f: False
+    med._solo_heirloom_boss_saw_alive = True
+
+    # Frame 1 -> frames=1, returns False
+    assert med._solo_heirloom_boss_is_clear(frame1) is False
+    assert med._solo_heirloom_boss_clear_frames == 1
+
+    # Frame 2 -> frames=2, returns True!
+    assert med._solo_heirloom_boss_is_clear(frame2) is True
+    assert med._solo_heirloom_boss_clear_frames == 2
+
+
+def test_devour_l_panel_inspection_flow():
+    """验证按 L 呼出已吞噬面板、读取并按 L 关闭的闭环控制。"""
+    from shuabao.mediator import Mediator
+    from shuabao.settings import Settings
+    from shuabao.vision.capture import Frame
+    from shuabao.loop_action import LoopAction
+    import numpy as np
+
+    settings = Settings()
+    settings.cards = ["海盗", "藏宝图(三)"]
+    med = Mediator(settings, project_root=Path("."))
+    img = np.zeros((900, 1600, 3), dtype=np.uint8)
+    frame = Frame(img, left=0, top=0)
+    med._solo_boss_is_alive = lambda f: False
+
+    keys_sent = []
+    med.act_key = lambda k, r="": (keys_sent.append((k, r)), True)[1]
+
+    # 1. 触发检查：发送 'l'
+    now = 100.0
+    med._devour_check_next_at = 50.0
+    res1 = med._maybe_check_devour_status_with_l(frame, now)
+    assert res1 == LoopAction.Continue
+    assert keys_sent[-1] == ("l", "OpenDevourPanel")
+    assert med._devour_panel_open_since == now
+
+    # 2. 第二帧：面板已开，OCR 读取并发送 'l' 关闭
+    res2 = med._maybe_check_devour_status_with_l(frame, now + 0.2)
+    assert res2 == LoopAction.Continue
+    assert keys_sent[-1] == ("l", "CloseDevourPanel")
+    assert med._devour_panel_open_since is None
+    assert med._devour_check_next_at == now + 0.2 + 60.0
 
 
 

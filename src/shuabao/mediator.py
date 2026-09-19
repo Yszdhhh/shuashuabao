@@ -996,6 +996,13 @@ class Mediator:
         self._heirloom_boss_result_confirmed: bool = False
         self._solo_heirloom_boss_clear_frames: int = 0
         self._solo_heirloom_boss_clear_last_frame: Frame | None = None
+        self._solo_heirloom_boss_saw_alive: bool = False
+        self._haidao_gold_ape_used: bool = False
+        self._devoured_pirate_cards: int = 0
+        self._devour_panel_open_since: float | None = None
+        self._devour_check_next_at: float = 30.0
+        self._devoured_counts: dict[str, int] = {}
+        self._has_devour_warship: bool = False
         self._post_game_hero_focus_lost_count: int = 0
         self._post_game_hero_focus_last_frame: Frame | None = None
         self._post_game_hero_focus_next_check_at: float = 0.0
@@ -4522,6 +4529,8 @@ class Mediator:
              - skill/treasure: skip if badge 0 or visit capped
         Unreadable badges/balances never skip a step.
         """
+        if step not in ("bond", "skill", "treasure"):
+            return None, f"非抽卡步骤（{step}）保持原步执行"
         self._refresh_solo_signals(frame, now)
         skill = getattr(self, "_skill_points_seen", None)
         treasure = getattr(self, "_treasure_pending_seen", None)
@@ -4628,7 +4637,10 @@ class Mediator:
             # 已有面板会话进行中（WAIT_VISIBLE/ACTIVE/…）：不再发起新打开
             return LoopAction.Continue
         now = time.time()
-        target = getattr(self, "_choice_target", None) or self._l1_cycle_step
+        explicit_target = getattr(self, "_choice_target", None)
+        if explicit_target is None and self._l1_cycle_step not in ("bond", "skill", "treasure"):
+            return None
+        target = explicit_target or self._l1_cycle_step
         if self._passive_choice_mode() and not (
             self._passenger_mode() and target == "treasure"
         ):
@@ -5494,6 +5506,7 @@ class Mediator:
                 self._inventory_clicks_this_visit += 1
                 loc = "红框物品栏" if (layout is not None and layout.item_bar_slot_index(gold_ape_hit.x, gold_ape_hit.y) is not None) else ("个人背包" if layout is not None else "快捷栏")
                 if self.act_click(gold_ape_hit, "UseItemBar-gold_ape"):
+                    self._haidao_gold_ape_used = True
                     print(f"[L1] 在{loc}左键使用黄金猿开宝藏 @ {gold_ape_hit.center}")
                     return LoopAction.Continue
 
@@ -5518,7 +5531,8 @@ class Mediator:
                     self._inventory_same_pt_hits = 1
                 loc = "个人背包" if (layout is not None and layout.inside_personal_grid(target_bounty.x, target_bounty.y)) else ("红框物品栏" if layout is not None else "快捷栏")
                 if self.act_click(target_bounty, f"UseInventory-bounty-{target_bounty.name.split('/')[-1]}"):
-                    print(f"[L1] 在{loc}使用悬赏令【{target_bounty.name}】 @ {target_bounty.center}")
+                    self._devoured_pirate_cards += 1
+                    print(f"[L1] 在{loc}使用悬赏令【{target_bounty.name}】 @ {target_bounty.center} (已吞海盗={self._devoured_pirate_cards})")
                     return LoopAction.Continue
 
             # 若快捷栏有悬赏令但暂不可吞噬，且背包未开，在非选卡步骤打开背包以便放入
@@ -5933,6 +5947,61 @@ class Mediator:
             return None
         x, y = hit.x + hit.w // 2, hit.y + hit.h // 2
         return MatchResult(name, hit.score, x, y, 0, 0, frame.left + x, frame.top + y)
+
+    def _maybe_check_devour_status_with_l(self, frame: Frame, now: float) -> LoopAction | None:
+        """Inspect devoured card progress by triggering the [L] shortcut panel."""
+        if self._passenger_mode():
+            return None
+        if self._solo_boss_is_alive(frame):
+            return None
+
+        open_since = getattr(self, "_devour_panel_open_since", None)
+        if open_since is not None:
+            # 1. 超时保护：开启超过 3.0s 则按 ESC 关闭
+            if now - open_since > 3.0:
+                self.act_key("esc", "CloseDevourPanelTimeout")
+                self._devour_panel_open_since = None
+                self._devour_check_next_at = now + 60.0
+                return LoopAction.Continue
+
+            # 2. 面板已开启，读取中央区域已吞噬文字/数量
+            if frame.bgr is not None and getattr(self, "_ocr_client", None) is not None:
+                h, w = frame.height, frame.width
+                crop = frame.bgr[int(h * 0.20):int(h * 0.80), int(w * 0.20):int(w * 0.80)]
+                try:
+                    text_results = self._ocr_client.ocr_image(crop)
+                    if text_results:
+                        all_text = " ".join(t.get("text", "") for t in text_results if isinstance(t, dict))
+                        if "毁灭战舰" in all_text:
+                            self._has_devour_warship = True
+                            print("[L1][Devour-L] 已吞噬面板确认包含【毁灭战舰】！海盗终局已达成")
+                        pirate_mentions = sum(
+                            all_text.count(card) for card in ("海盗", "罗杰斯", "开进码头", "制造混乱", "霍格", "洛卡拉")
+                        )
+                        if pirate_mentions > self._devoured_pirate_cards:
+                            self._devoured_pirate_cards = pirate_mentions
+                        print(f"[L1][Devour-L] 已吞噬面板OCR读取完成: 识别词数={len(text_results)}，海盗吞噬估算={self._devoured_pirate_cards}")
+                except Exception as e:
+                    print(f"[L1][Devour-L] 已吞噬面板OCR读取异常: {e}")
+
+            # 3. 按 L 关闭已吞噬面板
+            self.act_key("l", "CloseDevourPanel")
+            self._devour_panel_open_since = None
+            self._devour_check_next_at = now + 60.0
+            return LoopAction.Continue
+
+        if now < getattr(self, "_devour_check_next_at", 30.0):
+            return None
+
+        has_pirate_config = any("海盗" in b for b in (getattr(self.settings, "cards", []) or []))
+        if not has_pirate_config:
+            self._devour_check_next_at = now + 120.0
+            return None
+
+        if self.act_key("l", "OpenDevourPanel"):
+            self._devour_panel_open_since = now
+            return LoopAction.Continue
+        return None
 
     def _toggle_bag_page(self, frame: Frame, reason: str) -> bool:
         """Click the HUD [B] book, else key B. Same control opens and closes."""
@@ -6565,9 +6634,8 @@ class Mediator:
     @staticmethod
     def _merchant_refresh_hit(frame: Frame) -> MatchResult:
         """Click the recycle control to the right of the 5-slot strip, not the level badge."""
-        # 1600x900 live: recycle icon with remaining refreshes sits at ~0.911, 0.702.
-        # 0.935,0.715 was grass to the right of that icon and never mutated stock.
-        x, y = int(frame.width * 0.911), int(frame.height * 0.702)
+        # 1600x900 live: recycle icon with remaining refreshes sits at ~0.908, 0.735.
+        x, y = int(frame.width * 0.908), int(frame.height * 0.735)
         return MatchResult("black_merchant_refresh", 1.0, x, y, 0, 0, frame.left + x, frame.top + y)
 
     @staticmethod
@@ -8946,13 +9014,22 @@ class Mediator:
     def _solo_heirloom_boss_is_clear(self, frame: Frame) -> bool:
         """Two-frame reward proxy; vetoed if Boss health bar is visually alive."""
         if self._solo_boss_is_alive(frame):
+            self._solo_heirloom_boss_saw_alive = True
             self._solo_heirloom_boss_clear_frames = 0
             self._solo_heirloom_boss_clear_last_frame = None
             return False
-        clear = (
-            self._top_bar_mode(frame) == "plaza"
-            and self._heirloom_loot_popup_visible(frame)
-        )
+        if self._top_bar_mode(frame) != "plaza":
+            self._solo_heirloom_boss_clear_frames = 0
+            self._solo_heirloom_boss_clear_last_frame = None
+            return False
+
+        loot_visible = self._heirloom_loot_popup_visible(frame)
+        saw_alive = getattr(self, "_solo_heirloom_boss_saw_alive", False)
+        now = time.time()
+        waiting_since = getattr(self, "_solo_heirloom_boss_waiting_since", None) or now
+        rift_visible = (now - waiting_since >= 5.0) and (self._find_secret_realm_npc(frame) is not None)
+
+        clear = loot_visible or saw_alive or rift_visible
         if not clear:
             self._solo_heirloom_boss_clear_frames = 0
             self._solo_heirloom_boss_clear_last_frame = None
@@ -10714,6 +10791,13 @@ class Mediator:
             self._solo_heirloom_boss_waiting_since = None
             self._solo_heirloom_boss_clear_frames = 0
             self._solo_heirloom_boss_clear_last_frame = None
+            self._solo_heirloom_boss_saw_alive = False
+            self._haidao_gold_ape_used = False
+            self._devoured_pirate_cards = 0
+            self._devour_panel_open_since = None
+            self._devour_check_next_at = 30.0
+            self._devoured_counts = {}
+            self._has_devour_warship = False
             self._post_game_hero_focus_lost_count = 0
             self._post_game_hero_focus_last_frame = None
             self._post_game_hero_focus_next_check_at = 0.0
@@ -16866,6 +16950,8 @@ class Mediator:
                 waiting_since = now
             is_clear = self._solo_heirloom_boss_is_clear(frame)
             is_alive = self._solo_boss_is_alive(frame)
+            if is_alive:
+                self._solo_heirloom_boss_saw_alive = True
             timeout = (now - waiting_since) >= self._SOLO_HEIRLOOM_EXIT_S
             if is_alive:
                 if timeout:
@@ -17541,6 +17627,7 @@ class Mediator:
                             self._solo_heirloom_boss_waiting_since = now
                             self._solo_heirloom_boss_clear_frames = 0
                             self._solo_heirloom_boss_clear_last_frame = None
+                            self._solo_heirloom_boss_saw_alive = False
                             print("[med] 单人传家宝 Boss 已确认发起，等待掉落代理证据（零动作）")
                     else:
                         print("[med] 传家宝 Boss 未确认成功，关闭面板后重置路由（不假冒 boss_active）")
@@ -17970,6 +18057,19 @@ class Mediator:
                 else:
                     return LoopAction.Continue
 
+        # HUD Opportunistic 微操：神器 CD 到期独立触发（瞬发按键，优先释放避免 CD 闲置）
+        if (
+            not self._passenger_mode()
+            and self._panel_state == PanelState.CLOSED
+            and anchor is None
+            and not self._has_active_transaction(frame)
+            and surface == InteractionSurface.HUD_ONLY
+        ):
+            artifact_res = self._maybe_fire_artifacts(frame)
+            if artifact_res is not None:
+                self._main_line_since = now
+                return artifact_res
+
         # 技能/羁绊/宝物优先于机会微操，避免 G/F/V 饿死。
         opened = self._maybe_open_choice_panel(frame, anchor=anchor)
         if opened is not None:
@@ -17983,11 +18083,11 @@ class Mediator:
             and not self._has_active_transaction(frame)
             and surface == InteractionSurface.HUD_ONLY
         ):
-            # HUD Opportunistic 微操：神器 CD 到期独立触发
-            artifact_res = self._maybe_fire_artifacts(frame)
-            if artifact_res is not None:
+            # [L] 吞噬状态巡检：低频按 L 读取已吞噬信息
+            devour_l_res = self._maybe_check_devour_status_with_l(frame, now)
+            if devour_l_res is not None:
                 self._main_line_since = now
-                return artifact_res
+                return devour_l_res
 
             # 物品栏/背包道具使用（悬赏令、吞噬丹、背包道具）
             if now >= getattr(self, "_inventory_next_at", 0.0):
@@ -18011,7 +18111,7 @@ class Mediator:
                     else self.act_key("z", "Pickup-Z")
                 )
                 if picked:
-                    self._pickup_next_at = now + 12.0
+                    self._pickup_next_at = now + 6.0
                     self._backpack_has_overflow_items = True
                     self._main_line_since = now
                     print("[L1] 定期一键拾取 [Z] 拾取地面掉落物")
@@ -18130,7 +18230,7 @@ class Mediator:
                     else self.act_key("z", "Pickup-Z")
                 )
                 if picked:
-                    self._pickup_next_at = now + 12.0
+                    self._pickup_next_at = now + 6.0
                     self._backpack_has_overflow_items = True
                     self._main_line_since = now
             if self._passenger_mode():

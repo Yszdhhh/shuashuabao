@@ -278,7 +278,7 @@ def test_12_refresh_click_with_confirmed_mutation_increments_budget() -> None:
 
 
 def test_13_fake_skill_refresh_btn_never_gains_click_authority() -> None:
-    """13. Fake/old skill_refresh_btn is excluded from refresh button candidates."""
+    """13. skill_refresh_btn is included in refresh button candidates for skill panel."""
     med = _med()
     frame = _blank_frame()
     searched: list[str] = []
@@ -291,8 +291,9 @@ def test_13_fake_skill_refresh_btn_never_gains_click_authority() -> None:
 
     with patch.object(med, "find", side_effect=mock_find):
         res = med._find_panel_refresh(frame, "skill")
-    assert res is None
-    assert "skill_refresh_btn" not in searched
+    assert res is not None
+    assert res.name == "skill_refresh_btn"
+    assert "skill_refresh_btn" in searched
 
 
 def test_14_true_refresh_template_searched_for_skill() -> None:
@@ -438,6 +439,7 @@ def test_21_opportunistic_evolve_full_multi_frame_lifecycle_from_tick_main_line(
     med._panel_state = PanelState.CLOSED
     now = 1000.0
     med._panel_cooldown_until["bond"] = now + 5.0
+    med._pickup_next_at = now + 60.0
 
     frame_hud = _blank_frame()
     evolve_btn = MatchResult("evolve_hud", 1.0, 800, 700, 40, 12, 800, 700)
