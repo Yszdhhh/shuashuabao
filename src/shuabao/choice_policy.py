@@ -1341,7 +1341,8 @@ def _bond_capacity_candidates(
         )
         if free <= 0:
             from shuabao.bond_capacity import _victim_indices
-            can_replace = bool(core and slot.name and _victim_indices(owned, slot.name))
+            must_take = _is_bond_must_take(slot.name, settings.bond_must_take)
+            can_replace = bool(must_take and slot.name and _victim_indices(owned, slot.name))
             allowed = merge or slot.zero_cost or can_replace
         elif free == 1:
             allowed = merge or core or slot.name in tier_names
@@ -1386,7 +1387,7 @@ def _decide_collectible(
                     slot.index, f"宝物必拿秒选【{slot.name}】（EX 不看品质） @ slot {slot.index}"
                 )
         # 其余先过滤黑名单，只按现有品质顺序选择，不让 presets / synthesis 压过更高品质。
-        best_quality_hit = _match_quality(cands, settings, slots=eligible, allow_unnamed=False)
+        best_quality_hit = _match_quality(cands, settings, slots=eligible, allow_unnamed=True)
         if best_quality_hit is None:
             return _no_safe_candidate(cands, state, kind, "无安全候选")
 
@@ -1587,7 +1588,7 @@ def _decide_collectible(
     # 橙→紫优先链，未读名的槽位按边框采样稀有度参与排序（按槽位坐标点击）。
     # 羁绊/英雄卡保持"未读名不可选"的安全语义不变。
     quality_hit = _match_quality(
-        cands, settings, slots=eligible, allow_unnamed=False
+        cands, settings, slots=eligible, allow_unnamed=(kind == PANEL_TREASURE)
     )
     if quality_hit is not None:
         name = _slot_name(cands.slots, quality_hit)

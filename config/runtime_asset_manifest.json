@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-18T17:00:09.864509+00:00",
+  "generated_at": "2026-09-19T04:42:08.427855+00:00",
   "spec": "ShuaBao.spec",
   "package_roots": [
     {
@@ -1544,6 +1544,14 @@
       "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 2090,
       "sha256": "5d6b63d0511d8f47e0ec07295caf617894a3f6064691a840691c8c5b4c9c7435"
+    },
+    {
+      "path": "assets/Images/god_swallow_pill.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 2436,
+      "sha256": "1b7458ad28674f1b38734c42427a103e93958bb13deeb37a809a7a35908d4266"
     },
     {
       "path": "assets/Images/gongjian.png",
@@ -3216,6 +3224,30 @@
       "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 3370,
       "sha256": "20ea3299728453bf5353723764e081f7bcc9d62b8cce456f66c4db9d49d06d59"
+    },
+    {
+      "path": "assets/Images/yinyue_confirm_title.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 12589,
+      "sha256": "757bdd2e2cc9659284ad3efe054e08980090e240d1d0ee7e3a04e489e5e273c8"
+    },
+    {
+      "path": "assets/Images/yinyue_confirm_yes.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 2159,
+      "sha256": "d7ab7e1d94fbb9af4541de0b3b348e01d0137592c4860205c1aac0bf54087d6a"
+    },
+    {
+      "path": "assets/Images/yinyue_crystal.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 3228,
+      "sha256": "2ae0773d839ff20c67ec97d7d534508c52f7a6d0fd32e1c5e0c219247089a792"
     },
     {
       "path": "assets/Images/yishenshenzhuang.png",

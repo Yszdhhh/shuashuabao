@@ -13,9 +13,15 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
-:: 优先用项目自带 venv，其次系统 Python；不再硬编码个人机器路径
-if exist ".venv\Scripts\pythonw.exe" (
-    start "" ".venv\Scripts\pythonw.exe" desktop_app.py
+:: 优先用项目自带 venv，其次主仓库 venv，其次系统 Python
+set "PYTHON_EXE="
+if exist ".venv\Scripts\pythonw.exe" set "PYTHON_EXE=.venv\Scripts\pythonw.exe"
+if not defined PYTHON_EXE if exist "..\..\GameScript-Local\.venv\Scripts\pythonw.exe" set "PYTHON_EXE=..\..\GameScript-Local\.venv\Scripts\pythonw.exe"
+if not defined PYTHON_EXE if exist "..\GameScript-Local\.venv\Scripts\pythonw.exe" set "PYTHON_EXE=..\GameScript-Local\.venv\Scripts\pythonw.exe"
+if not defined PYTHON_EXE if exist "G:\刷刷宝\GameScript-Local\.venv\Scripts\pythonw.exe" set "PYTHON_EXE=G:\刷刷宝\GameScript-Local\.venv\Scripts\pythonw.exe"
+
+if defined PYTHON_EXE (
+    start "" "%PYTHON_EXE%" desktop_app.py
     exit /b
 )
 

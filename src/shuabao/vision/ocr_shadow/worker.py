@@ -198,7 +198,14 @@ def _predict(rec: Any, image_b64: str, kind: str | None) -> tuple[list[dict[str,
                 best = (normalized, rec_score, None)
                 if rec_score >= 0.95:
                     break
+    is_desc = isinstance(kind, str) and kind.endswith("_desc")
+    if is_desc:
+        raw_t, raw_s = (best[0], best[1]) if best is not None else best_raw
+        return [], raw_t, raw_s
+
     if best is None:
+        if best_raw[1] >= 0.90 and len(best_raw[0]) >= 2:
+            return [{"name": best_raw[0], "confidence": max(0.0, min(1.0, best_raw[1]))}], best_raw[0], best_raw[1]
         return [], best_raw[0], best_raw[1]
     normalized, rec_score, lookup = best
     if lookup is None:

@@ -1008,6 +1008,12 @@ class Mediator:
         self._post_game_hero_focus_next_check_at: float = 0.0
         self._opportunistic_merchant_next_at: float = 0.0
         self._opportunistic_hero_card_next_at: float = 0.0
+        self._opportunistic_yinyue_next_at: float = 0.0
+        self._yinyue_item_next_at: float = 0.0
+        self._yinyue_dialog_next_at: float = 0.0
+        self._yinyue_last_used_at: float = 0.0
+        self._god_pill_next_at: float = 0.0
+        self._bag_has_god_swallow_pill: bool = False
         self._passenger_heirloom_for_secret = False
         # Heirloom label OCR fallback: last (box, frame) sighting + throttle.
         self._hub_label_ocr_last: tuple | None = None
@@ -3256,6 +3262,64 @@ class Mediator:
         clean = re.sub(r"[^A-Za-z]", "", raw).upper()
         if clean in self._RARITY_LETTER_TO_BAND:
             return clean, self._RARITY_LETTER_TO_BAND[clean]
+        border = self._read_slot_border_rarity(frame, kind, index, slot_count=slot_count)
+        if border[0] is not None:
+            return border
+        return None, None
+
+    def _read_slot_border_rarity(
+        self,
+        frame: Frame,
+        kind: str,
+        index: int,
+        slot_count: int = 3,
+    ) -> tuple[str | None, str | None]:
+        """Sample card top border HSV color to determine rarity when badge OCR returns empty text.
+
+        In particular, treasure cards do not have text badges but use glowing border colors:
+        - Red (UR / EX): (hue <= 8) | (hue >= 170) -> ('UR', 'red')
+        - Orange (SSR): (hue >= 10) & (hue <= 38) -> ('SSR', 'orange')
+        - Purple (SR): (hue >= 125) & (hue < 170) -> ('SR', 'purple')
+        - Blue (R): (hue >= 90) & (hue < 125) -> ('R', 'blue')
+        - Green (N): (hue >= 38) & (hue < 90) -> ('N', 'green')
+        """
+        if frame.bgr is None or not LayoutTransform.is_supported(frame.width, frame.height):
+            return None, None
+        if slot_count == 4:
+            x_ranges = ((0.200, 0.330), (0.350, 0.480), (0.500, 0.630), (0.650, 0.780))
+        else:
+            x_ranges = ((0.281, 0.413), (0.428, 0.560), (0.575, 0.706))
+        if index < 0 or index >= len(x_ranges):
+            return None, None
+        x0_norm, x1_norm = x_ranges[index]
+        x0, x1 = int(frame.width * x0_norm), int(frame.width * x1_norm)
+        y0, y1 = int(frame.height * 0.261), int(frame.height * 0.270)
+        if y1 <= y0 or x1 <= x0:
+            return None, None
+        roi = frame.bgr[y0:y1, x0:x1]
+        if roi.size == 0:
+            return None, None
+        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        colored = (hsv[:, :, 1] > 60) & (hsv[:, :, 2] > 60)
+        hues = hsv[:, :, 0][colored]
+        if len(hues) < 25:
+            return None, None
+        red_cnt = int(((hues <= 8) | (hues >= 170)).sum())
+        orange_cnt = int(((hues >= 10) & (hues <= 38)).sum())
+        purple_cnt = int(((hues >= 125) & (hues < 170)).sum())
+        blue_cnt = int(((hues >= 90) & (hues < 125)).sum())
+        green_cnt = int(((hues >= 38) & (hues < 90)).sum())
+        counts = [
+            (red_cnt, "UR", "red"),
+            (orange_cnt, "SSR", "orange"),
+            (purple_cnt, "SR", "purple"),
+            (blue_cnt, "R", "blue"),
+            (green_cnt, "N", "green"),
+        ]
+        counts.sort(key=lambda c: c[0], reverse=True)
+        top_count, top_letter, top_band = counts[0]
+        if top_count >= 30:
+            return top_letter, top_band
         return None, None
 
     def _slot_rarity_band(self, frame: Frame, kind: str, index: int, slot_count: int = 3) -> str | None:
@@ -4368,8 +4432,8 @@ class Mediator:
         max_s = 60.0 if (not self._passenger_mode() and step == "bond" and wood is not None and wood >= self._BOND_HIGH_WOOD) else self._L1_STEP_VISIT_MAX_SECONDS
         return started is not None and now - started >= max_s
 
-    _BOND_HIGH_WOOD = 1000
-    _BOND_LOW_WOOD = 300
+    _BOND_HIGH_WOOD = 200
+    _BOND_LOW_WOOD = 100
     _WOOD_BALANCE_ROI = (1178 / 1600, 8 / 900, 1240 / 1600, 34 / 900)
     _WOOD_READ_INTERVAL_S = 3.0
     # A bond visit that ended without a pick (no wood / nothing eligible) lets
@@ -4564,9 +4628,10 @@ class Mediator:
         ):
             return "skill", f"技能积压 {skill} ≥ 8（紧急强抢占），先点技能"
 
-        # 2. 狂暴发育期/基础羁绊：木材 >= 1000 优先消耗木材转战力，或基础羁绊未满 80% 且木材充足
+        # 2. 狂暴发育期/基础羁绊：木材 >= 200 优先消耗木材转战力，或基础羁绊未满 80% 且木材足够抽卡
         bond_blocked = self._bond_step_blocked(frame, now)
-        bond_priority_affordable = wood is None or wood >= self._BOND_HIGH_WOOD
+        price = self._bond_next_price()
+        bond_priority_affordable = wood is None or wood >= price
         # A pending V draw gets one explicit service opportunity.  F/G retain
         # priority on the other steps without starving treasure forever.
         treasure_has_pending = treasure is None or treasure > 0
@@ -4577,18 +4642,19 @@ class Mediator:
             and bond_priority_affordable
             and (self._bond_base_progress_pending() or (wood is not None and wood >= self._BOND_HIGH_WOOD))
         ):
-            why = f"木材充足（{wood} ≥ {self._BOND_HIGH_WOOD}），羁绊优先转化战力" if (wood is not None and wood >= self._BOND_HIGH_WOOD) else "基础羁绊未满 80% 且木材充足，羁绊优先"
+            why = f"木材充足（{wood} ≥ {self._BOND_HIGH_WOOD}），羁绊优先转化战力" if (wood is not None and wood >= self._BOND_HIGH_WOOD) else "羁绊木材足够抽卡，羁绊优先推进"
             return "bond", why
 
-        # 3. 高优先技能：技能积压 4~7，木材 < 1000 时先于普通轮换
+        # 3. 高优先技能：技能积压 4~7，木材不足抽羁绊时先于普通轮换
         if (
             skill is not None
             and skill >= self._skill_backlog_force()
             and not skill_held
+            and not bond_priority_affordable
             and now >= getattr(self, "_skill_idle_until", 0.0)
             and self._panel_kind_available("skill", now)
         ):
-            return "skill", f"技能积压 {skill} ≥ {self._skill_backlog_force()}，先点技能"
+            return "skill", f"技能积压 {skill} ≥ {self._skill_backlog_force()}（木材不足抽羁绊），先点技能"
 
         # 4. 轮换到 bond 时的调度
         if step == "bond":
@@ -5284,6 +5350,109 @@ class Mediator:
 
         return LoopAction.Continue
 
+    def _handle_yinyue_confirm_dialog(self, frame: Frame) -> LoopAction | None:
+        """Handle the 银月之晶 confirmation dialog ("是否确认使用银月之晶？").
+
+        Clicks 【是】(yinyue_confirm_yes) to confirm using the crystal.
+        """
+        now = time.time()
+        if now < getattr(self, "_yinyue_dialog_next_at", 0.0):
+            return None
+
+        # ROI for confirmation modal in central area
+        roi = (0.30, 0.35, 0.70, 0.70)
+        yes_btn = self.find(
+            frame,
+            ["yinyue_confirm_yes"],
+            threshold=0.75,
+            roi=roi,
+            scales=(0.85, 0.9, 1.0, 1.1, 1.15),
+        )
+        if yes_btn is not None and yes_btn.name != "yinyue_confirm_yes":
+            yes_btn = None
+
+        title = None
+        if yes_btn is None:
+            title = self.find(
+                frame,
+                ["yinyue_confirm_title"],
+                threshold=0.75,
+                roi=roi,
+                scales=(0.85, 0.9, 1.0, 1.1, 1.15),
+            )
+            if title is not None and title.name != "yinyue_confirm_title":
+                title = None
+
+        if yes_btn is None and title is None:
+            return None
+
+        self._yinyue_dialog_next_at = now + 1.0
+
+        if yes_btn is not None:
+            if self.act_click(yes_btn, "YinyueConfirm-Yes"):
+                print(f"[L1] 银月之晶确认弹窗：点击【是】 @ {yes_btn.center}")
+                self._yinyue_last_used_at = now
+                return LoopAction.Continue
+        elif title is not None:
+            # Relative offset (-78, +71) from title center to yes button center at 1600x900
+            scale_x = frame.width / 1600.0
+            scale_y = frame.height / 900.0
+            click_x = int(title.x - 78 * scale_x)
+            click_y = int(title.y + 71 * scale_y)
+            hit = MatchResult(
+                "yinyue_confirm_yes_from_title",
+                1.0,
+                click_x,
+                click_y,
+                0,
+                0,
+                frame.left + click_x,
+                frame.top + click_y,
+            )
+            if self.act_click(hit, "YinyueConfirm-Yes-FromTitle"):
+                print(f"[L1] 银月之晶确认弹窗：依据标题相对偏移点击【是】 @ ({click_x}, {click_y})")
+                self._yinyue_last_used_at = now
+                return LoopAction.Continue
+
+        return LoopAction.Continue
+
+    _EX_BOND_KEYWORDS = (
+        "帝炎",
+        "圣人",
+        "祖龙",
+        "世界末日迦拉克隆",
+        "迦拉克隆",
+        "吞食天地",
+        "解放的圣剑",
+        "萨格拉斯",
+        "兵主",
+        "大乘期",
+        "法天象地",
+    )
+
+    def _has_swallowable_ex_card(self, frame: Frame | None = None) -> bool:
+        """判断当前卡牌栏中是否有 EX 羁绊卡可供神赐吞噬丹吞噬。
+
+        神赐吞噬丹仅可吞噬 EX 羁绊卡，卡牌栏中不存在 EX 羁绊卡时无法使用。
+        """
+        owned = self._confirmed_bond_cards()
+        if not owned:
+            return False
+        for card in owned:
+            text = str(card)
+            if "EX" in text or any(k in text for k in self._EX_BOND_KEYWORDS):
+                return True
+        return False
+
+    def _can_consume_god_swallow_pill(self, frame: Frame | None = None) -> bool:
+        """Safe gate to consume a god devour pill (神赐吞噬丹).
+
+        Must have an EX bond card in the card bar; otherwise cannot be used.
+        """
+        if self._passenger_mode():
+            return False
+        return self._has_swallowable_ex_card(frame)
+
     def _has_swallowable_pirate_card(self, bounty_name: str, frame: Frame | None = None) -> bool:
         """根据悬赏令品质，判断当前羁绊栏中是否有可吞噬的海盗卡。"""
         owned = self._confirmed_bond_cards()
@@ -5360,6 +5529,51 @@ class Mediator:
         if now >= getattr(self, "_inventory_next_at", 0.0) + 2.5:
             self._inventory_clicks_this_visit = 0
         inventory_roi = (0.64, 0.77, 0.74, 0.98)
+        layout = self._bag_layout(frame)
+
+        # 0. 银月之晶：可直接吞噬物品，不占格子，秒用
+        yinyue_hit = self.find(
+            frame,
+            ["yinyue_crystal"],
+            threshold=0.68,
+            roi=inventory_roi,
+            scales=(0.8, 0.9, 1.0, 1.1, 1.2),
+        )
+        if yinyue_hit is None and layout is not None:
+            px0, py0, px1, py1 = layout.panel_rect()
+            yinyue_hit = self.find(
+                frame,
+                ["yinyue_crystal"],
+                threshold=0.68,
+                roi=(
+                    max(0.0, px0 / frame.width),
+                    max(0.0, py0 / frame.height),
+                    min(1.0, px1 / frame.width),
+                    min(1.0, py1 / frame.height),
+                ),
+                scales=(0.8, 0.9, 1.0, 1.1, 1.2),
+            )
+        if (
+            yinyue_hit is not None
+            and yinyue_hit.name == "yinyue_crystal"
+            and now >= getattr(self, "_yinyue_item_next_at", 0.0)
+            and self._inventory_clicks_this_visit < 3
+        ):
+            self._yinyue_item_next_at = now + 1.5
+            self._inventory_next_at = now + 0.8
+            self._inventory_clicks_this_visit += 1
+            loc = "个人背包" if (layout is not None and layout.inside_personal_grid(yinyue_hit.x, yinyue_hit.y)) else ("红框物品栏" if layout is not None else "快捷栏")
+            if self.act_click(yinyue_hit, "UseInventory-yinyue_crystal"):
+                print(f"[L1] 在{loc}左键直接使用银月之晶 @ {yinyue_hit.center}")
+                self._pending_action = PendingAction(
+                    kind="WAIT_YINYUE_CONFIRM",
+                    target_id="yinyue_crystal",
+                    deadline=now + 3.0,
+                    verifier=lambda f: bool(
+                        self.find(f, ["yinyue_confirm_yes", "yinyue_confirm_title"], threshold=0.75, roi=(0.30, 0.35, 0.70, 0.70)) is not None
+                    ),
+                )
+                return LoopAction.Continue
 
         # 1. 吞噬丹
         has_pirate_deck = (
@@ -5528,7 +5742,57 @@ class Mediator:
                     print(f"[L1] 在{loc}左键使用黄金猿开宝藏 @ {gold_ape_hit.center}")
                     return LoopAction.Continue
 
-            consumables_present = (item_bar_bounty is not None or bag_bounty is not None or gold_ape_hit is not None)
+            # 神赐吞噬丹检查：在红框物品栏或个人背包中寻找神赐吞噬丹
+            god_pill_candidates = ["god_swallow_pill"]
+            item_bar_god_pill = self.find(
+                frame,
+                god_pill_candidates,
+                threshold=0.70,
+                roi=active_item_bar_roi,
+                scales=(0.8, 0.9, 1.0, 1.1, 1.2),
+            )
+            if item_bar_god_pill is None and active_item_bar_roi != inventory_roi:
+                item_bar_god_pill = self.find(
+                    frame,
+                    god_pill_candidates,
+                    threshold=0.70,
+                    roi=inventory_roi,
+                    scales=(0.8, 0.9, 1.0, 1.1, 1.2),
+                )
+            if item_bar_god_pill is not None and item_bar_god_pill.name != "god_swallow_pill":
+                item_bar_god_pill = None
+
+            bag_god_pill = None
+            if layout is not None:
+                bag_god_pill = self.find(
+                    frame,
+                    god_pill_candidates,
+                    threshold=0.70,
+                    roi=bag_roi,
+                    scales=(0.8, 0.9, 1.0, 1.1, 1.2),
+                )
+                if bag_god_pill is not None and bag_god_pill.name != "god_swallow_pill":
+                    bag_god_pill = None
+
+            target_god_pill = bag_god_pill or item_bar_god_pill
+            can_consume_god_pill = self._can_consume_god_swallow_pill(frame)
+
+            # 神赐吞噬丹使用逻辑：卡牌栏存在 EX 羁绊卡时，左键点击直接吞噬 EX 卡
+            if (
+                target_god_pill is not None
+                and can_consume_god_pill
+                and now >= getattr(self, "_god_pill_next_at", 0.0)
+                and self._inventory_clicks_this_visit < 3
+            ):
+                self._god_pill_next_at = now + 1.5
+                self._inventory_next_at = now + 0.8
+                self._inventory_clicks_this_visit += 1
+                self._bag_has_god_swallow_pill = False
+                loc = "个人背包" if (layout is not None and layout.inside_personal_grid(target_god_pill.x, target_god_pill.y)) else ("红框物品栏" if layout is not None else "快捷栏")
+                if self.act_click(target_god_pill, "UseInventory-god_swallow_pill"):
+                    print(f"[L1] 在{loc}使用神赐吞噬丹吞噬 EX 卡 @ {target_god_pill.center}")
+                    return LoopAction.Continue
+
             target_bounty = bag_bounty or item_bar_bounty
             can_swallow = self._has_swallowable_pirate_card(target_bounty.name, frame) if target_bounty is not None else False
 
@@ -5553,10 +5817,11 @@ class Mediator:
                     print(f"[L1] 在{loc}使用悬赏令【{target_bounty.name}】 @ {target_bounty.center} (已吞海盗={self._devoured_pirate_cards})")
                     return LoopAction.Continue
 
-            # 若快捷栏有悬赏令但暂不可吞噬，且背包未开，在非选卡步骤打开背包以便放入
+            # 若快捷栏有悬赏令但暂不可吞噬，且快捷栏已满溢、背包未开，在非选卡步骤打开背包以便放入
             if (
                 item_bar_bounty is not None
                 and not can_swallow
+                and self._hud_item_bar_overflowed(frame)
                 and layout is None
                 and not is_boss_active
                 and not self._passenger_mode()
@@ -5581,6 +5846,38 @@ class Mediator:
                 self._solo_bag_open_next_at = now + 5.0
                 if self._open_bag_page(frame):
                     print("[L1] 羁绊栏有海盗卡待吞噬，打开个人背包使用悬赏令")
+                    return LoopAction.Continue
+
+            # 若快捷栏有神赐吞噬丹但暂不可吞噬，且快捷栏已满溢、背包未开，在非选卡步骤打开背包以便放入
+            if (
+                item_bar_god_pill is not None
+                and not can_consume_god_pill
+                and self._hud_item_bar_overflowed(frame)
+                and layout is None
+                and not is_boss_active
+                and not self._passenger_mode()
+                and self._l1_cycle_step not in ("bond", "skill", "treasure")
+                and now >= getattr(self, "_solo_bag_open_next_at", 0.0)
+            ):
+                self._solo_bag_open_next_at = now + 5.0
+                if self._open_bag_page(frame):
+                    print("[L1] 快捷栏有神赐吞噬丹暂无 EX 卡可吞噬，打开个人背包暂存")
+                    return LoopAction.Continue
+
+            # 若卡牌栏有 EX 卡待吞噬、背包未开且快捷栏没有神赐吞噬丹，在非选卡步骤主动打开背包以使用背包内神赐吞噬丹
+            if (
+                item_bar_god_pill is None
+                and layout is None
+                and not is_boss_active
+                and not self._passenger_mode()
+                and self._l1_cycle_step not in ("bond", "skill", "treasure")
+                and can_consume_god_pill
+                and getattr(self, "_bag_has_god_swallow_pill", False)
+                and now >= getattr(self, "_solo_bag_open_next_at", 0.0)
+            ):
+                self._solo_bag_open_next_at = now + 5.0
+                if self._open_bag_page(frame):
+                    print("[L1] 卡牌栏已就绪 EX 卡，打开个人背包使用神赐吞噬丹")
                     return LoopAction.Continue
 
             # 3. 单人模式下背包已打开时的道具流转（红框物品栏与个人背包双向闭环流转）
@@ -5639,10 +5936,12 @@ class Mediator:
                         center = layout.personal_slot_center(row, col)
                         if center is None:
                             continue
-                        # 如果此格是悬赏令消耗品或黄金猿，保留在个人背包
+                        # 如果此格是悬赏令消耗品、黄金猿或神赐吞噬丹，保留在个人背包
                         if bag_bounty is not None and rect[0] <= bag_bounty.x <= rect[2] and rect[1] <= bag_bounty.y <= rect[3]:
                             continue
                         if bag_ape is not None and rect[0] <= bag_ape.x <= rect[2] and rect[1] <= bag_ape.y <= rect[3]:
+                            continue
+                        if bag_god_pill is not None and rect[0] <= bag_god_pill.x <= rect[2] and rect[1] <= bag_god_pill.y <= rect[3]:
                             continue
                         source_id = f"personal_withdraw_{row}_{col}"
                         if self._public_bag_source_exhausted(source_id):
@@ -5664,16 +5963,22 @@ class Mediator:
                                 return LoopAction.Continue
                         break
 
-                # B. 红框快捷栏有悬赏令但当前不可吞噬时，右键取出并暂存入个人背包格（腾出装备栏）
+                # B. 红框快捷栏有暂不可吞噬的消耗品时，右键取出并暂存入个人背包格（腾出装备栏）
+                stashable_item = None
+                if item_bar_bounty is not None and not can_swallow:
+                    stashable_item = (item_bar_bounty, f"SoloPickItemBarConsumable-{item_bar_bounty.name.split('/')[-1]}", f"悬赏令【{item_bar_bounty.name}】", "bounty")
+                elif item_bar_god_pill is not None and not can_consume_god_pill:
+                    stashable_item = (item_bar_god_pill, "SoloPickItemBarConsumable-god_swallow_pill", "神赐吞噬丹", "god_pill")
+
                 if (
-                    item_bar_bounty is not None
-                    and not can_swallow
+                    stashable_item is not None
                     and self._public_bag_empty_personal_slot(frame, layout) is not None
                     and now >= getattr(self, "_bag_item_next_at", 0.0)
                     and self._inventory_clicks_this_visit < 3
                 ):
-                    target_hit = item_bar_bounty
-                    slot_idx = layout.item_bar_slot_index(item_bar_bounty.x, item_bar_bounty.y)
+                    item_hit, act_label, desc, item_kind = stashable_item
+                    target_hit = item_hit
+                    slot_idx = layout.item_bar_slot_index(item_hit.x, item_hit.y)
                     if slot_idx is not None:
                         center = layout.item_bar_slot_center(slot_idx)
                         if center is not None:
@@ -5690,18 +5995,27 @@ class Mediator:
                     self._bag_item_next_at = now + 0.8
                     self._inventory_next_at = now + 0.8
                     self._inventory_clicks_this_visit += 1
-                    if self.act_right_click(target_hit, f"SoloPickItemBarConsumable-{item_bar_bounty.name.split('/')[-1]}"):
+                    if self.act_right_click(target_hit, act_label):
+                        if item_kind == "god_pill":
+                            self._bag_has_god_swallow_pill = True
                         self._solo_stash_held_source = {
                             "action": "stash",
                             "kind": "item_bar",
                             "hit": target_hit,
-                            "source_id": item_bar_bounty.name,
+                            "source_id": item_hit.name,
                         }
-                        print(f"[L1] 个人背包：右键取出红框快捷栏消耗品【{item_bar_bounty.name}】准备暂存入个人格")
+                        print(f"[L1] 个人背包：右键取出红框快捷栏消耗品【{desc}】准备暂存入个人格")
                         return LoopAction.Continue
 
                 # C. 背包常驻规则：只要有消耗品（悬赏令等）或有待移装备，背包保持常驻开启；
                 # 只有当：①消耗品已全部用完 ②无待移装备 ③无抓取 时，才关闭背包
+                consumables_present = (
+                    item_bar_bounty is not None
+                    or bag_bounty is not None
+                    or item_bar_god_pill is not None
+                    or bag_god_pill is not None
+                    or gold_ape_hit is not None
+                )
                 if (
                     not consumables_present
                     and not has_pending_eq
@@ -5716,33 +6030,53 @@ class Mediator:
 
         if now < self._inventory_next_at or self._inventory_clicks_this_visit >= 2:
             return None
-        # 4. 英雄卡：严格门禁：未点击进化完成前，绝对不点英雄卡（否则点不开并空耗点击）
-        if not getattr(self, "_evolve_ok_this_cycle", False):
-            return None
-        hero_card = self.find(
-            frame,
-            ["hero_card_item"],
-            threshold=0.65,
-            roi=inventory_roi,
-            scales=(0.8, 0.9, 1.0, 1.1, 1.2),
-        )
-        if hero_card is not None and hero_card.name == "hero_card_item" and self._inventory_clicks_this_visit < 3:
-            self._inventory_clicks_this_visit += 1
-            if self._inventory_last_pt == hero_card.center:
-                self._inventory_same_pt_hits += 1
-            else:
-                self._inventory_last_pt = hero_card.center
-                self._inventory_same_pt_hits = 1
-            self._inventory_next_at = now + 1.0
-            if self.act_click(hero_card, "UseInventory-hero-card"):
-                print(f"[L1] 使用背包英雄卡 @ {hero_card.center}")
-                self._pending_action = PendingAction(
-                    kind="WAIT_HERO_CHOICE",
-                    target_id="hero_card_item",
-                    deadline=now + 3.0,
-                    verifier=lambda f: bool(self._find_evolution_choice(f, anchor=self._selection_anchor(f)) is not None),
+        # 4. 英雄卡：金色点击进化在场时优先完成进化；进化不在场且无活跃弹窗时及时使用
+        if (
+            not self._has_evolve_button(frame)
+            and not getattr(self, "_evolve_feedback_pending", False)
+            and getattr(self, "_find_evolution_choice", lambda f: None)(frame) is None
+            and getattr(self, "_selection_anchor", lambda f: None)(frame) is None
+            and now >= getattr(self, "_hero_card_next_at", 0.0)
+        ):
+            hero_card = self.find(
+                frame,
+                ["hero_card_item"],
+                threshold=0.65,
+                roi=inventory_roi,
+                scales=(0.8, 0.9, 1.0, 1.1, 1.2),
+            )
+            if hero_card is None and layout is not None:
+                px0, py0, px1, py1 = layout.panel_rect()
+                hero_card = self.find(
+                    frame,
+                    ["hero_card_item"],
+                    threshold=0.65,
+                    roi=(
+                        max(0.0, px0 / frame.width),
+                        max(0.0, py0 / frame.height),
+                        min(1.0, px1 / frame.width),
+                        min(1.0, py1 / frame.height),
+                    ),
+                    scales=(0.8, 0.9, 1.0, 1.1, 1.2),
                 )
-                return LoopAction.Continue
+            if hero_card is not None and hero_card.name == "hero_card_item" and self._inventory_clicks_this_visit < 3:
+                self._hero_card_next_at = now + 4.0
+                self._inventory_clicks_this_visit += 1
+                if self._inventory_last_pt == hero_card.center:
+                    self._inventory_same_pt_hits += 1
+                else:
+                    self._inventory_last_pt = hero_card.center
+                    self._inventory_same_pt_hits = 1
+                self._inventory_next_at = now + 1.0
+                if self.act_click(hero_card, "UseInventory-hero-card"):
+                    print(f"[L1] 使用英雄卡触发进化 @ {hero_card.center}")
+                    self._pending_action = PendingAction(
+                        kind="WAIT_HERO_CHOICE",
+                        target_id="hero_card_item",
+                        deadline=now + 3.0,
+                        verifier=lambda f: bool(self._find_evolution_choice(f, anchor=self._selection_anchor(f)) is not None),
+                    )
+                    return LoopAction.Continue
         return None
     def _equipment_slot_fingerprint(self, frame: Frame, slot_idx: int) -> str:
         """Extract stable grayscale perceptual/difference hash of the equipment slot ROI (24x24)."""
@@ -5888,23 +6222,26 @@ class Mediator:
         return bool(getattr(self.settings, "auto_devour_dan", False))
 
     def _bag_page_swallow_pill(self, frame: Frame) -> MatchResult | None:
-        """Devour pill inside an open bag page's 物品栏, aimed at the slot center.
+        """Devour pill inside an open bag page, strictly verified by template matching.
 
-        Only reachable when the bag page is confirmed by both anchors, so this
-        never turns a battlefield false positive into a click.  Left-clicking a
-        源物品格 consumes it, which is what ``auto_devour_dan`` wants in solo —
-        but under ``lobby_hitch`` the pill is a team asset bound for the public
-        bag, so this path stays closed there.
+        Never guesses an occupied slot with _public_bag_source (which caused clicking
+        hero cards or equipment). Strictly matches danGif/swallow_pill templates.
         """
         if self._passenger_mode():
             return None
         layout = self._bag_layout(frame)
         if layout is None:
             return None
-        source = self._public_bag_source(frame, layout)
-        if source is None:
-            return None
-        return source["hit"]
+        pill = self.find(
+            frame,
+            ["danGif", "swallow_pill"],
+            threshold=0.70,
+            roi=(0.35, 0.20, 0.75, 0.85),
+            scales=(0.8, 0.9, 1.0, 1.1, 1.2),
+        )
+        if pill is not None and pill.name in ["danGif", "swallow_pill"]:
+            return pill
+        return None
 
     # ---------- 公共背包流转 (docs/gt_lab/PUBLIC_BAG_GT_SPEC_20260909.md) ----------
     #
@@ -7148,10 +7485,7 @@ class Mediator:
         """HUD_ONLY opportunistic hero card usage during core development."""
         if now < getattr(self, "_opportunistic_hero_card_next_at", 0.0):
             return None
-        # 严格复用现有英雄卡业务门禁：未确认进化完成前（_evolve_ok_this_cycle=True）绝对零输入；
-        # 不能用“当前没识别到 evolve button”代替“进化已成功”
-        if not getattr(self, "_evolve_ok_this_cycle", False):
-            return None
+        # 英雄卡业务门禁：金色点击进化未完成前绝对不点英雄卡；进化不在场且无活跃弹窗时及时使用
         if self._has_evolve_button(frame):
             return None
         if getattr(self, "_evolve_awaiting_hero_pick", False) or getattr(self, "_evolve_feedback_pending", False):
@@ -7176,6 +7510,33 @@ class Mediator:
                 )
                 self._evolve_awaiting_hero_pick = True
                 self._evolve_awaiting_hero_pick_at = now
+                return LoopAction.Continue
+        return None
+
+    def _maybe_opportunistic_yinyue_crystal(self, frame: Frame, now: float) -> LoopAction | None:
+        """HUD_ONLY opportunistic 银月之晶 usage (秒用不占格)."""
+        if now < getattr(self, "_opportunistic_yinyue_next_at", 0.0):
+            return None
+        inventory_roi = (0.64, 0.77, 0.82, 0.98)
+        yinyue = self.find(
+            frame,
+            ["yinyue_crystal"],
+            threshold=0.68,
+            roi=inventory_roi,
+            scales=(0.8, 0.9, 1.0, 1.1, 1.2),
+        )
+        if yinyue is not None and yinyue.name == "yinyue_crystal":
+            self._opportunistic_yinyue_next_at = now + 2.0
+            if self.act_click(yinyue, "Opportunistic-yinyue_crystal"):
+                print(f"[L1] 快捷栏机会使用银月之晶 @ {yinyue.center}")
+                self._pending_action = PendingAction(
+                    kind="WAIT_YINYUE_CONFIRM",
+                    target_id="yinyue_crystal",
+                    deadline=now + 3.0,
+                    verifier=lambda f: bool(
+                        self.find(f, ["yinyue_confirm_yes", "yinyue_confirm_title"], threshold=0.75, roi=(0.30, 0.35, 0.70, 0.70)) is not None
+                    ),
+                )
                 return LoopAction.Continue
         return None
 
@@ -10828,6 +11189,12 @@ class Mediator:
             self._post_game_hero_focus_next_check_at = 0.0
             self._opportunistic_merchant_next_at = 0.0
             self._opportunistic_hero_card_next_at = 0.0
+            self._opportunistic_yinyue_next_at = 0.0
+            self._yinyue_item_next_at = 0.0
+            self._yinyue_dialog_next_at = 0.0
+            self._yinyue_last_used_at = 0.0
+            self._god_pill_next_at = 0.0
+            self._bag_has_god_swallow_pill = False
             self._passenger_heirloom_for_secret = False
             self._time_cave_boss_search_attempts = 0
             self._hitch_postgame_hero_selected = False
@@ -17770,6 +18137,13 @@ class Mediator:
             self._main_line_since = now
             return replace_res
 
+        # 银月之晶确认弹窗检测与处理（使用后弹出“是否确认使用银月之晶？”，点击【是】）
+        yinyue_dialog_res = self._handle_yinyue_confirm_dialog(frame)
+        if yinyue_dialog_res is not None:
+            self._panel_state = PanelState.CLOSED
+            self._main_line_since = now
+            return yinyue_dialog_res
+
         # ---- 单界面交互仲裁 (InteractionSurface Arbitration) ----
         has_recovery = (self.phase == Phase.RECOVER_FAILURE) or bool(getattr(self, "_recovery_step", None) and self._recovery_step != "DONE")
         has_affix = self._find_equipment_affix_choice(frame) is not None
@@ -18136,8 +18510,8 @@ class Mediator:
                     else self.act_key("z", "Pickup-Z")
                 )
                 if picked:
-                    self._pickup_next_at = now + 6.0
-                    self._backpack_has_overflow_items = True
+                    self._pickup_next_at = now + 15.0
+                    self._backpack_has_overflow_items = self._hud_item_bar_overflowed(frame)
                     self._main_line_since = now
                     print("[L1] 定期一键拾取 [Z] 拾取地面掉落物")
                     return LoopAction.Continue
@@ -18161,6 +18535,12 @@ class Mediator:
             if hero_card_res is not None:
                 self._main_line_since = now
                 return hero_card_res
+
+            # 机会使用银月之晶：在 HUD 空闲时使用快捷栏银月之晶（秒用不占格，2s CD）
+            yinyue_res = self._maybe_opportunistic_yinyue_crystal(frame, now)
+            if yinyue_res is not None:
+                self._main_line_since = now
+                return yinyue_res
 
             # 机会黑商单次购买：在 HUD 空闲、黑商在场时单次购买高价值物品（8s CD）
             merchant_res = self._maybe_opportunistic_merchant(frame, now)
@@ -18255,8 +18635,8 @@ class Mediator:
                     else self.act_key("z", "Pickup-Z")
                 )
                 if picked:
-                    self._pickup_next_at = now + 6.0
-                    self._backpack_has_overflow_items = True
+                    self._pickup_next_at = now + 15.0
+                    self._backpack_has_overflow_items = self._hud_item_bar_overflowed(frame)
                     self._main_line_since = now
             if self._passenger_mode():
                 # 蹭车不吃丹、不用英雄卡：那是队伍资产，只负责搬进公共背包。
