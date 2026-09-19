@@ -266,7 +266,12 @@ def test_handle_card_replacement_dialog_actions():
 
 
 def test_bounty_order_consumed_in_inventory():
-    """验证悬赏令使用：检测到悬赏令道具时，单机点击使用。"""
+    """检测到悬赏令不再立即点用（2026-09-19）：识别成立 ≠ 消费授权成立。
+
+    原用例把"看见 UR 悬赏令"直接等同于"点它"。UR 是最高品质，旧的品质比较在
+    这里会放行栏内任何海盗卡，包括罗杰斯与毁灭战舰。现在闸门拒绝，物品留在
+    背包等目标身份补齐——保留物品比赌一次随机目标安全。
+    """
     from unittest.mock import patch
     from shuabao.mediator import Mediator, LoopAction
     from shuabao.vision.capture import Frame
@@ -286,8 +291,9 @@ def test_bounty_order_consumed_in_inventory():
          patch.object(med, "find", return_value=bounty_hit), \
          patch.object(med, "act_click", return_value=True) as mock_click:
         res = med._maybe_use_inventory_item(frame)
-        assert res == LoopAction.Continue
-        mock_click.assert_called_once_with(bounty_hit, "UseInventory-bounty-haidao_bounty_ur_red")
+        assert res is None, "悬赏令消费路径应保持关闭"
+        # 零输入是这条断言的关键：不是"点了但没生效"，是压根没点。
+        assert mock_click.call_args_list == []
 
 
 def test_bond_preset_order_arbitration_when_multiple_present():
@@ -368,7 +374,11 @@ def test_near_complete_bond_priority_arbitration():
 
 
 def test_bounty_swallow_pirate_tier_matching():
-    """悬赏令与海盗卡品质匹配：持有 SR 海盗卡时，绿/蓝悬赏令不空放，紫/橙/红悬赏令方可吞噬。"""
+    """悬赏令品质匹配：低阶不空放（保留）；高阶也不再自动放行（2026-09-19）。
+
+    品质关系只说明"这张丹在机制上可能吃得动这张卡"，说明不了"这次会吃哪张"。
+    在目标身份与消费后置补齐前，紫/橙/红一律与绿/蓝同样拒绝。
+    """
     from shuabao.mediator import Mediator
     med = Mediator(Settings(), ROOT)
 
@@ -376,9 +386,11 @@ def test_bounty_swallow_pirate_tier_matching():
     med._bond_cards_owned = ["海盗劫掠者", "祝福"]
     assert not med._has_swallowable_pirate_card("haidao/haidao_bounty_n_green")
     assert not med._has_swallowable_pirate_card("haidao/haidao_bounty_r_blue")
-    assert med._has_swallowable_pirate_card("haidao/haidao_bounty_sr_purple")
-    assert med._has_swallowable_pirate_card("haidao/haidao_bounty_ssr_orange")
-    assert med._has_swallowable_pirate_card("haidao/haidao_bounty_ur_red")
+    assert not med._has_swallowable_pirate_card("haidao/haidao_bounty_sr_purple")
+    assert not med._has_swallowable_pirate_card("haidao/haidao_bounty_ssr_orange")
+    assert not med._has_swallowable_pirate_card("haidao/haidao_bounty_ur_red")
+    # 未知名称在旧实现里默认落到最高等级 5，等于"未知即最宽松"。
+    assert not med._has_swallowable_pirate_card("haidao/unknown_bounty_token")
 
     # 2. 完全无海盗卡且配置未开启海盗时，任何悬赏令均不盲目消耗
     med._bond_cards_owned = ["力量", "敏捷", "智力"]
@@ -414,14 +426,19 @@ def test_bond_capacity_candidates_allows_core_when_free_slots_is_2():
 
 
 def test_bounty_swallow_with_untracked_bar_cards():
-    """当配置了海盗卡组且羁绊栏有卡（如开局或手动预选），即使 owned 未同步也允许使用悬赏令。"""
+    """owned 未同步时不得靠"配了海盗 + 栏里有卡"补授权（2026-09-19 收紧）。
+
+    这正是审查点名的越权路径：配置是用户偏好，occupancy 只是格数，两者相加
+    仍然不知道栏里那 8 格分别是什么。owned 读不出来时正确答案是 UNKNOWN，
+    对应拒绝，而不是放行。
+    """
     from shuabao.mediator import Mediator
     med = Mediator(Settings(cards=["海盗", "zhufu"]), ROOT)
 
-    # 1. owned 无海盗记录，但配置了海盗卡且栏位有卡 (occ=8)
+    # 1. owned 无海盗记录、栏位有卡 (occ=8)：身份未知，拒绝。
     med._bond_cards_owned = ["体术", "敏捷"]
     med._bond_bar_occupancy = lambda frame=None: 8
-    assert med._has_swallowable_pirate_card("haidao/haidao_bounty_ssr_orange")
+    assert not med._has_swallowable_pirate_card("haidao/haidao_bounty_ssr_orange")
 
     # 2. 若配置未包含海盗卡组，则不盲目吞噬
     med_no_pirate = Mediator(Settings(cards=["zhufu", "chengzhang"]), ROOT)
@@ -989,7 +1006,13 @@ def test_pirate_deck_completion_at_12_cards_advances_to_treasure():
 
 
 def test_test_open_mode_allows_all_configured_advanced_presets():
-    """验证在测试放开门禁模式（bond_base_completion_ratio <= 0.0）下，白名单中配置的高级卡组（宝藏/亡灵）均可被选中。"""
+    """ratio<=0 只绕过基础门禁，不再放开全部高级预设（2026-09-19）。
+
+    原行为让一个参数同时表达两件事：基础覆盖率门禁的开关，和高级组顺序的开关。
+    于是 GT 为了跳过基础卡而把 ratio 设成 0，副作用是宝藏/亡灵在海盗还没推进时
+    就被一起放行，卡组阶段模型失效。本用例保留"配置齐全时高级组仍走正常仲裁"，
+    但断言未激活的高级组不再因 ratio=0 被整体放行。
+    """
     pirate_group = ("海盗", "罗杰斯上将", "开进码头")
     treasure_group = ("安卡", "宝藏")
     settings = PolicySettings(
@@ -1011,9 +1034,26 @@ def test_test_open_mode_allows_all_configured_advanced_presets():
     )
     session = SessionState()
     dec = choose_action(cands, session)
-    assert dec.action == PolicyAction.SELECT_SLOT
-    assert dec.index == 1
-    assert "宝藏" in dec.reason
+    # owned 只有海盗，宝藏组尚未被解锁事件激活：ratio=0 不再把它一起放行。
+    assert dec.action == PolicyAction.CLOSE, f"未激活的高级组不应被 ratio=0 放行：{dec.reason}"
+
+    # 反向：宝藏组一旦真正处于激活集合，仍按正常仲裁被选中——收紧的是旁路，
+    # 不是高级组本身。
+    cands_active = PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(
+            SlotCandidate(index=0, name="未知杂项", confidence=0.9),
+            SlotCandidate(index=1, name="宝藏", confidence=0.9),
+        ),
+        # 海盗组达成推进条件后，宝藏组才真正进入激活集合。
+        owned_bond_cards=("海盗",) * 10 + ("罗杰斯上将",) * 2,
+        settings=settings,
+    )
+    assert _active_advanced_presets(cands_active, settings) == treasure_group
+    dec_active = choose_action(cands_active, SessionState())
+    assert dec_active.action == PolicyAction.SELECT_SLOT
+    assert dec_active.index == 1
+    assert "宝藏" in dec_active.reason
 
 
 def test_pirate_satisfied_yields_to_treasure_and_necromancy():
@@ -1139,7 +1179,12 @@ def test_pirate_deck_defaults_base_completion_ratio_to_zero():
 
 
 def test_can_consume_inventory_swallow_pill_authorization():
-    """验证吞噬丹在单人海盗有卡时授权使用，在蹭车或空栏时安全关闭。"""
+    """普通吞噬丹闸门：蹭车/空栏安全关闭；2026-09-19 起有卡也不再授权。
+
+    原实现是 `auto_devour_dan or has_pirate_deck`，海盗配置可以盖掉用户显式
+    关闭的开关；而"栏里有卡"只读得出占了几格，读不出逐格身份，不构成对
+    具体目标的消费授权。原用例第 2 段断言的正是这种越权放行，已改为拒绝。
+    """
     from shuabao.mediator import Mediator
     from shuabao.vision.capture import Frame
     import numpy as np
@@ -1155,10 +1200,13 @@ def test_can_consume_inventory_swallow_pill_authorization():
     med._bond_bar_nonempty = lambda f: False
     assert med._can_consume_inventory_swallow_pill(frame) is False
 
-    # 2. 栏位有卡且有可吞噬海盗卡：允许使用
+    # 2. 栏位有卡：仍然拒绝。占用格数不是目标身份，用户偏好也不是安全证明。
     med._bond_bar_nonempty = lambda f: True
     med._has_swallowable_pirate_card = lambda name, f: True
-    assert med._can_consume_inventory_swallow_pill(frame) is True
+    assert med._can_consume_inventory_swallow_pill(frame) is False
+    # 用户显式打开开关同样不构成授权（旧实现会被海盗配置整体绕过）。
+    med.settings.auto_devour_dan = True
+    assert med._can_consume_inventory_swallow_pill(frame) is False
 
     # 3. 蹭车模式：严格禁止吃丹，资产归公共背包
     med.settings.mode_id = "lobby_hitch"
@@ -1167,7 +1215,16 @@ def test_can_consume_inventory_swallow_pill_authorization():
 
 
 def test_has_swallowable_pirate_card_protects_rogers_and_warship():
-    """验证 _has_swallowable_pirate_card 保护罗杰斯与毁灭战舰，仅下属散卡可被低阶吞噬。"""
+    """保护罗杰斯与毁灭战舰；2026-09-19 起该闸门整体 fail-closed。
+
+    原用例只覆盖绿/蓝/紫悬赏令，于是"保护"看上去成立。但实现最终比较的是
+    `card_tier <= bounty_tier`，而罗杰斯与毁灭战舰被赋为最高等级 5，UR 悬赏令
+    同样是 5——`5 <= 5` 成立，核心卡当场被放行。品质排序从来就不是保护规则。
+    下面把原用例漏掉的 UR 反例补上，并断言新的硬拒绝。
+
+    恢复正向吞噬需要：当前实例身份、确定的目标集合（随机机制下要求全体安全）、
+    以及可验证的消费后置——三者齐备前这里必须是 False。
+    """
     from shuabao.mediator import Mediator
     from shuabao.vision.capture import Frame
     import numpy as np
@@ -1175,18 +1232,23 @@ def test_has_swallowable_pirate_card_protects_rogers_and_warship():
     med = Mediator(settings, project_root=Path("."))
     frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), left=0, top=0)
 
-    # 仅持有罗杰斯上将时，绿/蓝/紫悬赏令不能吞噬罗杰斯
+    # 仅持有罗杰斯上将时，绿/蓝/紫悬赏令不能吞噬罗杰斯（原有契约，保留）
     med._confirmed_bond_cards = lambda: ("罗杰斯上将",)
     assert med._has_swallowable_pirate_card("haidao_bounty_n_green", frame) is False
     assert med._has_swallowable_pirate_card("haidao_bounty_sr_purple", frame) is False
+    # 原用例缺失的反例：UR 悬赏令与罗杰斯同为最高等级，旧实现在这里放行核心卡。
+    assert med._has_swallowable_pirate_card("haidao_bounty_ur_red", frame) is False
 
-    # 仅持有毁灭战舰时，不能被低阶吞噬
+    # 仅持有毁灭战舰时，不能被低阶吞噬（原有契约，保留）
     med._confirmed_bond_cards = lambda: ("毁灭战舰",)
     assert med._has_swallowable_pirate_card("haidao_bounty_sr_purple", frame) is False
+    assert med._has_swallowable_pirate_card("haidao_bounty_ur_red", frame) is False
 
-    # 持有散卡（如冲浪海盗、白赚海盗）时，悬赏令可正常吞噬
+    # 即使同屏存在散卡，也不能据此授权：随机目标机制下"至少存在一张安全目标"
+    # 不等于"这次一定吞那张"。核心卡仍在栏内时一律拒绝。
     med._confirmed_bond_cards = lambda: ("罗杰斯上将", "冲浪海盗")
-    assert med._has_swallowable_pirate_card("haidao_bounty_n_green", frame) is True
+    assert med._has_swallowable_pirate_card("haidao_bounty_n_green", frame) is False
+    assert med._has_swallowable_pirate_card("haidao_bounty_ur_red", frame) is False
 
 
 

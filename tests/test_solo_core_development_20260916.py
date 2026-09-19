@@ -266,9 +266,17 @@ def test_12_refresh_click_with_confirmed_mutation_increments_budget() -> None:
     med._skill_refresh_attempts = 0
     # Set different fingerprint to simulate card refresh mutation
     med._choice_fp_before_refresh_physical = "old_md5_hash"
+    # 真实 baseline：与当前 ROI 同形状。
+    # 原用例用 `patch.object(med, "_panel_mutation_baseline", return_value=...)`
+    # 把一个 ndarray 属性换成了 MagicMock，`roi.shape != baseline.shape` 因此恒
+    # 成立——"确认"实际来自 `_panel_mutation_confirmed` 里"尺寸变化即画面异变"
+    # 的旧捷径，而不是来自它同时准备好的 _hero_changed_pixels=3000 与指纹变化。
+    # 该捷径已删（ROI 丢失/改尺寸不能证明选卡成功），所以这里必须给真 baseline，
+    # 让确认由真实像素差建立，用例才真正覆盖它声称覆盖的东西。
+    med._panel_mutation_baseline = med._panel_roi_region(frame)
+    assert med._panel_mutation_baseline is not None
     anchor = MatchResult("anchor", 1.0, 10, 10, 10, 10, 10, 10)
     with patch.object(med, "_panel_physical_fingerprint", return_value="new_md5_hash"), \
-         patch.object(med, "_panel_mutation_baseline", return_value=np.zeros((10, 10, 3))), \
          patch.object(med, "_hero_changed_pixels", return_value=3000):
         assert med._panel_mutation_confirmed(frame)
         med._tick_panel_fsm(frame, anchor, now)

@@ -101,15 +101,23 @@ def test_god_swallow_pill_blocked_without_ex_card():
     assert not any("god_swallow_pill" in reason for _, reason in clicked)
 
 
-def test_god_swallow_pill_consumed_with_ex_card():
-    """卡牌栏中存在 EX 羁绊卡时，神赐吞噬丹左键使用成功。"""
+def test_god_swallow_pill_not_consumed_even_with_ex_card():
+    """有 EX 羁绊卡也不再自动使用神赐吞噬丹（2026-09-19 收紧）。
+
+    "栏里存在一张 EX 卡"只说明可能存在一个合法目标，说明不了这次会吃哪张，
+    也没有可验证的消费后置——丹药图标消失、羁绊格数少一都可能只是识别丢失。
+    在目标身份、消费规则与后置验证补齐前，这条路径保持关闭；恢复它需要独立
+    的消费授权（见 runtime_core.contracts），而不是把这里改回 True。
+
+    断言保持"零输入"口径：不是点了没生效，是压根没点。
+    """
     med = Mediator(Settings(bonds=["haidao", "wangling"]), ROOT)
     frame = Frame(bgr=np.zeros((900, 1600, 3), dtype=np.uint8))
 
     # 持有 EX 兵主
     med._bond_cards_owned = ["haidao_n_green", "EX兵主"]
     med._hud_item_bar_state = lambda f: "occupied"
-    assert med._can_consume_god_swallow_pill(frame)
+    assert med._can_consume_god_swallow_pill(frame) is False
 
     god_pill_hit = MatchResult("god_swallow_pill", 0.92, 1100, 800, 30, 30, 1100, 800)
     med.find = lambda f, cands, **kwargs: god_pill_hit if "god_swallow_pill" in cands else None
@@ -117,10 +125,8 @@ def test_god_swallow_pill_consumed_with_ex_card():
     clicked = []
     med.act_click = lambda hit, reason: (clicked.append((hit, reason)), True)[1]
 
-    res = med._maybe_use_inventory_item(frame)
-    assert res == LoopAction.Continue
-    assert len(clicked) == 1
-    assert clicked[0][1] == "UseInventory-god_swallow_pill"
+    med._maybe_use_inventory_item(frame)
+    assert not any("god_swallow_pill" in reason for _, reason in clicked)
 
 
 def test_god_swallow_pill_stashed_when_no_ex_and_hud_overflowed():
