@@ -21,8 +21,10 @@ if str(_TOOLS_DIR) not in sys.path:
 
 DECLARED_TEST_ONLY_DELTA = frozenset({
     "config/bond_stack_catalog.json",
+    "config/choice_lexicon.json",
     "config/choice_policy.json",
     "config/dashboard_test_profiles.json",
+    "config/game_mechanics_kb.json",
     "config/runtime_asset_manifest.json",
     "src/shuabao/bond_capacity.py",
     "src/shuabao/choice_policy.py",
@@ -30,6 +32,7 @@ DECLARED_TEST_ONLY_DELTA = frozenset({
     "src/shuabao/settings.py",
     "src/shuabao/shell/main_window.py",
     "src/shuabao/shell/test_profiles.py",
+    "src/shuabao/vision/ocr_shadow/worker.py",
     "tools/check_pirate_necromancy_profile.py",
     "tools/gt_test_identity.py",
     "tools/live_scenario_capture.py",
