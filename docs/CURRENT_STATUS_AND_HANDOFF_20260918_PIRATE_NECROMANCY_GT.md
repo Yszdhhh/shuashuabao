@@ -1,8 +1,11 @@
 # ShuaBao「海盗+亡灵机制 GT」测试交接与审计必读文档（2026-09-19）
 
 > **交接对象**：后续审计 Agent、Coding Agent 及产线维护工程师  
-> **当前状态**：全部 7 项实机异常（圣光之盾取出、红框极速流转、黄金猿激活、定期 Z 拾取解耦、技能/羁绊/背包打架隔离、4 槽选卡坐标偏离、10/10 满槽智能顶替/放弃重置 40 木）已全部闭环修复并严格测试验证。门禁与单测全部 PASS，状态 READY。  
-> **审计报告专卷**：详见 [`docs/reviews/AUDIT_RECORD_PIRATE_NECROMANCY_GT_20260919.md`](reviews/AUDIT_RECORD_PIRATE_NECROMANCY_GT_20260919.md)
+> **当前状态**：**PROJECT LOGIC PRE-REVIEW REQUIRED / NOT READY**。历史修复已进入候选分支，但当前 HEAD 仍有目标回归红灯、readiness BLOCKED，且没有 `ac04a74` 之后可归因的 LIVE `run.log`。此前“全部闭环、门禁全绿、READY”的结论仅是历史记录，不可用于当前候选放行。
+>
+> **云端项目级预审查包**：[`docs/reviews/CLOUD_PROJECT_LOGIC_PRE_REVIEW_20260919.md`](reviews/CLOUD_PROJECT_LOGIC_PRE_REVIEW_20260919.md)
+>
+> **历史审计记录**：[`docs/reviews/AUDIT_RECORD_PIRATE_NECROMANCY_GT_20260919.md`](reviews/AUDIT_RECORD_PIRATE_NECROMANCY_GT_20260919.md)（其中完成态须按当前预审查包重新核验）
 
 ---
 
@@ -10,11 +13,11 @@
 
 - **工作树路径**：`G:\刷刷宝\Worktrees\pirate-necromancy-gt-20260917`
 - **当前分支**：`test/pirate-necromancy-gt-20260917`
-- **最新 Commit**：`06eee1b91859cfa6bb68883024098a3531c8c117`
+- **预审查起点 Commit**：`270caf76487272dcf73381f2d3201b7cf61cd9bc`
 - **生产锚点 SHA**：`b52c69e2aa1f74b59506439cceba06535bc6234c` (`fix/solo-live-regression-20260915`)
 - **Python 解释器**：必须使用 `G:\刷刷宝\GameScript-Local\.venv\Scripts\python.exe`（本 worktree 自身无独立 `.venv`）。
 - **Git 铁律**：本目录为 git worktree，stash 栈与主库完全共享。**严禁执行裸 `git stash` 或 `git stash pop`**。
-- **业务铁律**：`auto_devour_dan` 必须保持 `False`。
+- **待裁决冲突**：`Settings.auto_devour_dan` 默认 `False`，但海盗 GT profile 当前显式为 `true`，且海盗配置另有运行时授权；在云端预审查前不能继续写成单一“业务铁律”。
 
 ---
 
@@ -55,9 +58,9 @@
 
 ---
 
-## 2. 门禁与验证基线（接手复核命令）
+## 2. 历史门禁记录（不是当前 HEAD 放行结论）
 
-接手 Agent 或审计人员可通过以下只读命令核验全部验证基线：
+以下命令与期望值记录的是旧候选状态。当前证据账本与红灯清单以[云端项目级预审查包](reviews/CLOUD_PROJECT_LOGIC_PRE_REVIEW_20260919.md)为准；请勿使用本节旧期望值放行 `270caf7` 及后续提交。
 
 ```powershell
 # 1. 核验当前 HEAD Commit
