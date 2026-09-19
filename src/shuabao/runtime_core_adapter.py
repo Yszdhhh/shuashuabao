@@ -234,21 +234,35 @@ F38  新局未确认就复用上局 Coordinator/snapshot/epoch -> 局隔离失�
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import copy
+from dataclasses import dataclass, replace
 from enum import Enum
-from typing import TYPE_CHECKING, Generic, Mapping, Protocol, Sequence, TypeVar
+import hashlib
+import json
+import math
+import time
+from typing import TYPE_CHECKING, Any, Callable, Generic, Mapping, Protocol, Sequence, TypeVar
 
-if TYPE_CHECKING:
-    from shuabao.interaction_surface import PendingAction
-    from shuabao.mediator import FrameEvidence, PanelState
-    from shuabao.runtime_core.arbiter import Decision, Demand, Grant
-    from shuabao.runtime_core.coordinator import ActionContract, Coordinator
-    from shuabao.runtime_core.transactions import Proof
-    from shuabao.vision.capture import Frame
-    from shuabao.vision.matcher import MatchResult
+import numpy as np
 
+from shuabao.interaction_surface import InteractionSurface, PendingAction
+from shuabao.mediator import FrameEvidence, PanelState
+from shuabao.runtime_core.arbiter import Arbiter, DEFAULT_TASKS, Decision, Demand, Grant, TaskSpec
+from shuabao.runtime_core.contracts import (
+    CardInstance,
+    ItemFact,
+    ItemKind,
+    Location,
+    Authorization,
+    authorize_consumption,
+)
+from shuabao.runtime_core.coordinator import ActionContract, Coordinator
+from shuabao.runtime_core.transactions import Lease, LeaseBook, Outcome, Phase, Proof, Receipt
+from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult
 
 T = TypeVar("T")
+
 
 
 class Knowledge(str, Enum):
@@ -348,7 +362,11 @@ class ShadowAlignment(str, Enum):
 @dataclass(frozen=True, slots=True)
 class TakeoverConfig:
     mode: RuntimeCoreMode
-    batch: TakeoverBatch
+    batch: TakeoverBatch = TakeoverBatch.NONE
+    gfv_pickup: bool = False
+    evolution_equipment: bool = False
+    item_flow: bool = False
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -469,3 +487,593 @@ class RuntimeCoreAdapterPort(Protocol):
         proof: Proof,
         target: AuthorityOwner,
     ) -> bool: ...
+
+
+class StandardMonotonicClock:
+    def now(self) -> float:
+        return time.monotonic()
+
+
+def compute_window_epoch(parts: WindowEpochParts) -> str:
+    raw = (
+        f"schema:{parts.schema_version}|"
+        f"bind:{parts.window_binding_id}|"
+        f"hwnd:{parts.hwnd}|"
+        f"proc:{parts.process_identity}|"
+        f"role:{parts.window_role}|"
+        f"size:{parts.client_size[0]}x{parts.client_size[1]}|"
+        f"dpi:{parts.dpi}|"
+        f"scale:{parts.ui_scale:.4f}|"
+        f"layout:{parts.layout_version}"
+    )
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def validate_takeover_config(config: TakeoverConfig) -> None:
+    if config.item_flow and not config.evolution_equipment:
+        raise ValueError("prerequisite: item_flow requires evolution_equipment")
+    if config.evolution_equipment and not config.gfv_pickup:
+        raise ValueError("prerequisite: evolution_equipment requires gfv_pickup")
+    if config.batch == TakeoverBatch.EVOLUTION_EQUIPMENT and config.evolution_equipment and not config.gfv_pickup:
+        raise ValueError("prerequisite: EVOLUTION_EQUIPMENT requires GFV_PICKUP")
+    if config.batch == TakeoverBatch.ITEM_FLOW and (not config.evolution_equipment or not config.gfv_pickup):
+        raise ValueError("prerequisite: ITEM_FLOW requires EVOLUTION_EQUIPMENT and GFV_PICKUP")
+
+
+REVIEWED_MACHINE_IDS: dict[str, str] = {
+    "skill_card": "skill",
+    "bond_card": "bond",
+    "treasure_card": "treasure",
+    "pickup_button": "pickup",
+    "center_card_modal_anchor": "card_modal",
+}
+
+
+class RuntimeSnapshotProjector:
+    def __init__(self) -> None:
+        self._last_frame_ref: Frame | None = None
+        self._last_gen: int = -1
+        self._invalidated_snapshots: set[tuple[str, int]] = set()
+
+    def epoch(self, parts: WindowEpochParts) -> str:
+        return compute_window_epoch(parts)
+
+    def snapshot(
+        self,
+        frame: Frame,
+        evidence: FrameEvidence,
+        panel_state: PanelState,
+        pending_action: Fact[PendingAction],
+        matches: Sequence[MatchResult],
+        *,
+        now: float,
+        epoch_parts: WindowEpochParts,
+        round_id: str,
+        task_facts: dict[str, Fact[object]] | None = None,
+    ) -> WorldSnapshot:
+        epoch_str = self.epoch(epoch_parts)
+
+        # F01: Frame health check
+        frame_ok = bool(
+            frame.is_valid
+            and frame.bgr is not None
+            and frame.bgr.size > 0
+            and not frame.is_minimized
+        )
+        if frame_ok and frame.bgr is not None:
+            if np.all(frame.bgr == 0):
+                frame_ok = False
+
+        # F02: HWND matching
+        hwnd_ok = bool(
+            frame.hwnd is not None
+            and frame.hwnd == evidence.hwnd
+            and frame.hwnd == epoch_parts.hwnd
+        )
+
+        # F10: Input invalidation check
+        input_invalidated = bool(
+            self._last_frame_ref is frame and evidence.gen > self._last_gen
+        )
+        self._last_frame_ref = frame
+        self._last_gen = evidence.gen
+        if input_invalidated:
+            self._invalidated_snapshots.add((round_id, evidence.gen))
+
+        if not frame_ok:
+            frame_healthy = Fact(Knowledge.UNKNOWN, False, "capture", "v1", reason="unhealthy_frame")
+            input_safe = Fact(Knowledge.UNKNOWN, False, "safety", "v1", reason="unhealthy_frame")
+            window_role = Fact(Knowledge.UNKNOWN, None, "window", "v1", reason="unhealthy_frame")
+            cursor_empty = Fact(Knowledge.UNKNOWN, None, "cursor", "v1", reason="unhealthy_frame")
+            surface_released = Fact(Knowledge.UNKNOWN, None, "surface", "v1", reason="unhealthy_frame")
+            interaction_surface = Fact(Knowledge.UNKNOWN, None, "surface", "v1", reason="unhealthy_frame")
+        elif not hwnd_ok:
+            frame_healthy = Fact(Knowledge.KNOWN, True, "capture", "v1")
+            input_safe = Fact(Knowledge.UNKNOWN, None, "safety", "v1", reason="hwnd_mismatch")
+            window_role = Fact(Knowledge.UNKNOWN, None, "window", "v1", reason="hwnd_mismatch")
+            cursor_empty = Fact(Knowledge.UNKNOWN, None, "cursor", "v1", reason="hwnd_mismatch")
+            surface_released = Fact(Knowledge.UNKNOWN, None, "surface", "v1", reason="hwnd_mismatch")
+            interaction_surface = Fact(Knowledge.UNKNOWN, None, "surface", "v1", reason="hwnd_mismatch")
+        else:
+            frame_healthy = Fact(Knowledge.KNOWN, True, "capture", "v1")
+            window_role = Fact(Knowledge.KNOWN, frame.role or "game", "window", "v1")
+            cursor_empty = Fact(Knowledge.KNOWN, True, "cursor", "v1")
+
+            # F04: Panel state and matches conflict check
+            modal_match_detected = any(
+                m.score >= 0.70 and ("modal" in m.name or "card" in m.name or "panel" in m.name)
+                for m in matches
+            )
+            if panel_state == PanelState.CLOSED and modal_match_detected:
+                interaction_surface = Fact(Knowledge.UNKNOWN, None, "surface", "v1", reason="panel_state_pixel_conflict")
+                surface_released = Fact(Knowledge.UNKNOWN, False, "surface", "v1", reason="panel_state_pixel_conflict")
+                input_safe = Fact(Knowledge.UNKNOWN, False, "safety", "v1", reason="panel_conflict")
+            elif panel_state in (
+                PanelState.OPEN_REQUESTED,
+                PanelState.WAIT_VISIBLE,
+                PanelState.ACTIVE,
+                PanelState.WAIT_MUTATION,
+                PanelState.CLOSING,
+            ):
+                interaction_surface = Fact(Knowledge.KNOWN, "PANEL_ACTIVE", "fsm", "v1")
+                surface_released = Fact(Knowledge.KNOWN, False, "surface", "v1", reason="panel_occupied")
+                input_safe = Fact(Knowledge.KNOWN, True, "safety", "v1")
+            elif panel_state == PanelState.COOLDOWN:
+                interaction_surface = Fact(Knowledge.KNOWN, "COOLDOWN", "fsm", "v1")
+                surface_released = Fact(Knowledge.KNOWN, False, "surface", "v1", reason="cooldown_not_released")
+                input_safe = Fact(Knowledge.KNOWN, True, "safety", "v1")
+            else:  # CLOSED
+                interaction_surface = Fact(Knowledge.KNOWN, "HUD_ONLY", "fsm", "v1")
+                input_safe = Fact(Knowledge.KNOWN, True, "safety", "v1")
+                # F05: Pending action check
+                if pending_action.knowledge == Knowledge.UNKNOWN:
+                    surface_released = Fact(Knowledge.UNKNOWN, None, "surface", "v1", reason="pending_action_unknown")
+                else:
+                    surface_released = Fact(Knowledge.KNOWN, True, "surface", "v1")
+
+        # F03: Targets machine ID mapping
+        target_obs: list[TargetObservation] = []
+        for m in matches:
+            if m.score >= 0.70 and m.name in REVIEWED_MACHINE_IDS:
+                mach_id = Fact(Knowledge.KNOWN, REVIEWED_MACHINE_IDS[m.name], "matcher", "v1")
+            else:
+                mach_id = Fact(Knowledge.UNKNOWN, None, "matcher", "v1", reason="unreviewed_or_low_score")
+            target_obs.append(
+                TargetObservation(
+                    match_name=m.name,
+                    machine_id=mach_id,
+                    score=m.score,
+                    client_box=(m.x, m.y, m.w, m.h),
+                    screen_point=(m.screen_x, m.screen_y),
+                )
+            )
+
+        # Convert pending_action to PendingObservation Fact
+        if pending_action.knowledge == Knowledge.KNOWN and pending_action.value is not None:
+            p_val = pending_action.value
+            p_obs = PendingObservation(
+                kind=p_val.kind,
+                target_id=str(p_val.target_id),
+                postcondition_id=f"post:{p_val.kind}",
+                deadline_clock="monotonic",
+            )
+            p_fact = Fact(Knowledge.KNOWN, p_obs, pending_action.source, pending_action.revision)
+        elif pending_action.knowledge == Knowledge.UNKNOWN:
+            p_fact = Fact(Knowledge.UNKNOWN, None, pending_action.source, pending_action.revision, reason=pending_action.reason)
+        else:
+            p_fact = Fact(Knowledge.KNOWN, None, "pending", "v1")
+
+        snapshot = WorldSnapshot(
+            round_id=round_id,
+            generation=evidence.gen,
+            observed_at=now,
+            epoch=epoch_str,
+            frame_healthy=frame_healthy,
+            window_role=window_role,
+            interaction_surface=interaction_surface,
+            panel_state=Fact(Knowledge.KNOWN, panel_state.name, "fsm", "v1"),
+            input_safe=input_safe,
+            cursor_empty=cursor_empty,
+            surface_released=surface_released,
+            pending_action=p_fact,
+            targets=tuple(target_obs),
+            task_facts=task_facts or {},
+        )
+        return snapshot
+
+
+    def demands(self, snapshot: WorldSnapshot) -> tuple[Demand, ...]:
+        results: list[Demand] = []
+        tf = snapshot.task_facts
+
+        def _rev(task_name: str, relevant: dict[str, Any], blocked: str) -> str:
+            payload = json.dumps({"task": task_name, "data": relevant, "blocked": blocked}, sort_keys=True)
+            return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+        # 1. skill
+        sp = tf.get("skill_points")
+        if sp is not None and sp.knowledge == Knowledge.UNKNOWN:
+            blocked = "skill_points_unknown"
+            results.append(Demand("skill", requested=True, eligible=False, blocked_reason=blocked, revision=_rev("skill", {}, blocked)))
+        else:
+            val = sp.value if (sp and sp.knowledge == Knowledge.KNOWN) else 0
+            results.append(Demand("skill", requested=True, eligible=True, revision=_rev("skill", {"sp": val}, "")))
+
+        # 2. bond
+        wood = tf.get("wood") or tf.get("wood_count")
+        if wood is not None and wood.knowledge == Knowledge.UNKNOWN:
+            blocked = "wood_count_unknown"
+            results.append(Demand("bond", requested=True, eligible=False, blocked_reason=blocked, revision=_rev("bond", {}, blocked)))
+        else:
+            val = wood.value if (wood and wood.knowledge == Knowledge.KNOWN) else 0
+            results.append(Demand("bond", requested=True, eligible=True, revision=_rev("bond", {"wood": val}, "")))
+
+        # 3. treasure
+        tr = tf.get("treasure_count")
+        if tr is not None and tr.knowledge == Knowledge.UNKNOWN:
+            blocked = "treasure_count_unknown"
+            results.append(Demand("treasure", requested=True, eligible=False, blocked_reason=blocked, revision=_rev("treasure", {}, blocked)))
+        else:
+            val = tr.value if (tr and tr.knowledge == Knowledge.KNOWN) else 0
+            results.append(Demand("treasure", requested=True, eligible=True, revision=_rev("treasure", {"tr": val}, "")))
+
+        # 4. pickup
+        bag = tf.get("bag_free_slots")
+        boss = tf.get("boss_state")
+        if bag is not None and bag.knowledge == Knowledge.UNKNOWN:
+            blocked = "bag_slots_unknown"
+            results.append(Demand("pickup", requested=True, eligible=False, blocked_reason=blocked, revision=_rev("pickup", {}, blocked)))
+        elif boss is not None and boss.knowledge == Knowledge.UNKNOWN:
+            blocked = "boss_state_unknown"
+            results.append(Demand("pickup", requested=True, eligible=False, blocked_reason=blocked, revision=_rev("pickup", {}, blocked)))
+        else:
+            slots = bag.value if (bag and bag.knowledge == Knowledge.KNOWN) else 0
+            results.append(Demand("pickup", requested=True, eligible=True, revision=_rev("pickup", {"slots": slots}, "")))
+
+        # 5. hero
+        results.append(Demand("hero", requested=True, eligible=True, revision=_rev("hero", {}, "")))
+
+        # 6. personal_bag
+        results.append(Demand("personal_bag", requested=True, eligible=True, revision=_rev("personal_bag", {}, "")))
+
+        return tuple(results)
+
+    def proof(
+        self,
+        snapshot: WorldSnapshot,
+        *,
+        postcondition_id: str | None = None,
+    ) -> Proof:
+        is_invalidated = (snapshot.round_id, snapshot.generation) in self._invalidated_snapshots
+        valid = bool(
+            snapshot.frame_healthy.knowledge == Knowledge.KNOWN
+            and snapshot.frame_healthy.value is True
+            and bool(snapshot.epoch)
+            and not is_invalidated
+        )
+
+
+        cursor_empty = (
+            True
+            if (snapshot.cursor_empty.knowledge == Knowledge.KNOWN and snapshot.cursor_empty.value is True)
+            else (False if (snapshot.cursor_empty.knowledge == Knowledge.KNOWN and snapshot.cursor_empty.value is False) else None)
+        )
+
+        surface_released = (
+            True
+            if (snapshot.surface_released.knowledge == Knowledge.KNOWN and snapshot.surface_released.value is True)
+            else (False if (snapshot.surface_released.knowledge == Knowledge.KNOWN and snapshot.surface_released.value is False) else None)
+        )
+
+        postcondition: bool | None = None
+        if postcondition_id is not None:
+            pa = snapshot.pending_action
+            if pa.knowledge == Knowledge.KNOWN and pa.value is not None:
+                if pa.value.postcondition_id == postcondition_id:
+                    postcondition = True
+
+        return Proof(
+            generation=snapshot.generation,
+            captured_at=snapshot.observed_at,
+            epoch=snapshot.epoch,
+            valid=valid,
+            postcondition=postcondition,
+            cursor_empty=cursor_empty,
+            surface_released=surface_released,
+        )
+
+
+class RuntimeShadowComparator:
+    def __init__(self, round_id: str, specs: tuple[TaskSpec, ...] = ()) -> None:
+        self.round_id = round_id
+        self.specs = specs or DEFAULT_TASKS
+        self.arbiter = Arbiter(round_id, self.specs)
+
+    def observe(self, demands: tuple[Demand, ...], snapshot: WorldSnapshot) -> None:
+        self.arbiter.observe(demands, snapshot.observed_at, snapshot.generation)
+
+    def decide_without_commit(self, snapshot: WorldSnapshot) -> Decision:
+        # F23: probe must not mutate arbiter state
+        arbiter_clone = copy.deepcopy(self.arbiter)
+        input_safe = bool(
+            snapshot.input_safe.knowledge == Knowledge.KNOWN
+            and snapshot.input_safe.value is True
+            and snapshot.cursor_empty.knowledge == Knowledge.KNOWN
+            and snapshot.cursor_empty.value is True
+        )
+        decision = arbiter_clone.choose(snapshot.observed_at, input_safe=input_safe)
+        return decision
+
+    def align(
+        self,
+        decision: Decision,
+        snapshot: WorldSnapshot,
+        legacy_event: LegacyExecutionEvent | None,
+    ) -> ShadowRecord:
+        if legacy_event is None:
+            return ShadowRecord(
+                round_id=snapshot.round_id,
+                generation=snapshot.generation,
+                epoch=snapshot.epoch,
+                observed_at=snapshot.observed_at,
+                snapshot_revision=snapshot.epoch,
+                chosen_task=decision.grant.task if decision.grant else None,
+                decision_reason=decision.reason,
+                overdue=decision.overdue,
+                legacy_event=None,
+                alignment=ShadowAlignment.UNKNOWN_LOG_GAP,
+                counts_toward_starvation=False,
+            )
+
+        if (
+            legacy_event.round_id != snapshot.round_id
+            or legacy_event.epoch != snapshot.epoch
+            or abs(legacy_event.generation - snapshot.generation) > 1
+        ):
+            alignment = ShadowAlignment.DIVERGED
+        elif decision.grant is not None and legacy_event.task != decision.grant.task:
+            alignment = ShadowAlignment.CENSORED_LEGACY_BUSY
+        elif decision.grant is not None and legacy_event.task == decision.grant.task:
+            alignment = ShadowAlignment.ALIGNED
+        else:
+            alignment = ShadowAlignment.CENSORED_WINDOW_ENDED
+
+        return ShadowRecord(
+            round_id=snapshot.round_id,
+            generation=snapshot.generation,
+            epoch=snapshot.epoch,
+            observed_at=snapshot.observed_at,
+            snapshot_revision=snapshot.epoch,
+            chosen_task=decision.grant.task if decision.grant else None,
+            decision_reason=decision.reason,
+            overdue=decision.overdue,
+            legacy_event=legacy_event,
+            alignment=alignment,
+            counts_toward_starvation=False,
+        )
+
+
+class RuntimeCoreAdapter:
+    def __init__(
+        self,
+        round_id: str,
+        config: TakeoverConfig,
+        clock: MonotonicClock,
+        authorizer: DomainAuthorizer,
+        specs: tuple[TaskSpec, ...] = (),
+    ) -> None:
+        self.round_id = round_id
+        self.config = config
+        self.clock = clock
+        self.authorizer = authorizer
+        self.specs = specs or DEFAULT_TASKS
+        self._coordinator = Coordinator(round_id, self.specs)
+        self._shadow = RuntimeShadowComparator(round_id, self.specs)
+        self._last_time = -math.inf
+        self._last_epoch = ""
+
+    @property
+    def coordinator(self) -> Coordinator:
+        return self._coordinator
+
+    def _get_core_tasks_for_batch(self, batch: TakeoverBatch) -> tuple[str, ...]:
+        if batch == TakeoverBatch.GFV_PICKUP:
+            return ("skill", "bond", "treasure", "pickup")
+        elif batch == TakeoverBatch.EVOLUTION_EQUIPMENT:
+            return ("skill", "bond", "treasure", "pickup", "hero", "equipment")
+        elif batch == TakeoverBatch.ITEM_FLOW:
+            return ("skill", "bond", "treasure", "pickup", "hero", "equipment", "personal_bag", "public_bag")
+        return ()
+
+    def observe(
+        self,
+        snapshot: WorldSnapshot,
+        demands: tuple[Demand, ...],
+        proof: Proof,
+    ) -> AdapterPlan:
+        # F19: Non-monotonic or non-finite time check
+        now = snapshot.observed_at
+        if not math.isfinite(now) or now < self._last_time:
+            raise ValueError("non-monotonic or non-finite time")
+        self._last_time = now
+
+        # F15: Epoch change with active owner triggers RECONCILE
+        if self._last_epoch and proof.epoch != self._last_epoch:
+            if self._coordinator.leases.current is not None:
+                self._coordinator.leases.observe(self._coordinator.leases.current.token, now, proof)
+        self._last_epoch = proof.epoch
+
+        # Mode: SHADOW
+        if self.config.mode == RuntimeCoreMode.SHADOW:
+            self._shadow.observe(demands, snapshot)
+            decision = self._shadow.decide_without_commit(snapshot)
+            return AdapterPlan(
+                authority_owner=AuthorityOwner.LEGACY,
+                decision=None,
+                legacy_task="shadow",
+                reason="shadow_mode_legacy_authority",
+            )
+
+        # Mode: LEGACY_ONLY
+        if self.config.mode == RuntimeCoreMode.LEGACY_ONLY:
+            return AdapterPlan(
+                authority_owner=AuthorityOwner.LEGACY,
+                decision=None,
+                legacy_task="legacy",
+                reason="legacy_only",
+            )
+
+        # Mode: CORE
+        core_tasks = self._get_core_tasks_for_batch(self.config.batch)
+        core_demands = tuple(d for d in demands if d.task in core_tasks)
+        untaken_demands = tuple(d for d in demands if d.task not in core_tasks)
+
+        input_safe = bool(
+            snapshot.input_safe.knowledge == Knowledge.KNOWN
+            and snapshot.input_safe.value is True
+            and snapshot.interaction_surface.knowledge == Knowledge.KNOWN
+            and proof.valid is True
+        )
+
+        # F31: If core already owns UI, un-taken tasks cannot get legacy baton!
+        if self._coordinator.leases.current is not None:
+            decision = self._coordinator.propose(core_demands, now, proof, input_safe=input_safe)
+            return AdapterPlan(
+                authority_owner=AuthorityOwner.CORE,
+                decision=decision,
+                legacy_task=None,
+                reason="core_owner_continuation",
+            )
+
+        # Propose core demands
+        decision = self._coordinator.propose(core_demands, now, proof, input_safe=input_safe)
+        if decision.grant is not None:
+            return AdapterPlan(
+                authority_owner=AuthorityOwner.CORE,
+                decision=decision,
+                legacy_task=None,
+                reason=decision.reason,
+            )
+
+        # No core grant and no owner:
+        # Safe boundary: proof.cursor_empty is True and proof.surface_released is True
+        if untaken_demands and proof.cursor_empty is True and proof.surface_released is True:
+            untaken_eligible = [d for d in untaken_demands if d.requested and d.eligible]
+            if untaken_eligible:
+                return AdapterPlan(
+                    authority_owner=AuthorityOwner.LEGACY,
+                    decision=None,
+                    legacy_task=untaken_eligible[0].task,
+                    reason="legacy_baton_granted_at_safe_boundary",
+                )
+
+        return AdapterPlan(
+            authority_owner=AuthorityOwner.NONE,
+            decision=decision,
+            legacy_task=None,
+            reason="no_work_or_unsafe",
+        )
+
+    def authorize(
+        self,
+        grant: Grant,
+        snapshot: WorldSnapshot,
+    ) -> ActionContract | None:
+        # F32: Domain facts validation
+        for fact in snapshot.task_facts.values():
+            if fact.knowledge == Knowledge.UNKNOWN:
+                return None
+        contract = self.authorizer.authorize(grant, snapshot)
+        if contract is None or not contract.authorized:
+            return None
+        return contract
+
+    def can_switch_authority(
+        self,
+        snapshot: WorldSnapshot,
+        proof: Proof,
+        target: AuthorityOwner,
+    ) -> bool:
+        # F29: Core lease/grant must be settled before switching
+        if self._coordinator.leases.current is not None or self._coordinator.arbiter.active is not None:
+            return False
+        if target == AuthorityOwner.LEGACY:
+            return bool(proof.cursor_empty is True and proof.surface_released is True)
+        return True
+
+    def calculate_deadline_or_validate(self, wall_deadline: float, monotonic_now: float) -> float:
+        # F17: Monotonic vs wall clock domain isolation
+        if wall_deadline > 1000000000.0 or abs(wall_deadline - monotonic_now) > 100000.0:
+            raise ValueError("cannot mix or subtract legacy wall deadline with monotonic now domain")
+        return wall_deadline - monotonic_now
+
+    def recreate_coordinator(self, round_id: str) -> Coordinator:
+        # F20: Cannot recreate within same round
+        if round_id == self.round_id:
+            raise RuntimeError("same round timeout cannot recreate coordinator to wipe failure ledger")
+        self.round_id = round_id
+        self._coordinator = Coordinator(round_id, self.specs)
+        return self._coordinator
+
+    def dispatch(self, token: str, contract: ActionContract, now: float, proof: Proof) -> Lease:
+        return self._coordinator.dispatch(token, contract, now, proof)
+
+    def observe_outcome(self, token: str, postcondition_id: str, now: float, proof: Proof) -> Lease:
+        return self._coordinator.observe_outcome(token, postcondition_id, now, proof)
+
+    def finish(self, token: str, outcome: Outcome, now: float, proof: Proof) -> Receipt:
+        return self._coordinator.finish(token, outcome, now, proof)
+
+    def authorize_consumption(
+        self,
+        item: ItemFact,
+        targets: tuple[CardInstance, ...],
+        *,
+        proof: Proof,
+        now: float,
+        explicitly_enabled: bool = True,
+        solo: bool = True,
+        target_set_complete: bool = True,
+        mechanism_verified: bool = True,
+        transaction_active: bool = False,
+    ) -> Authorization:
+        # F37: Delegate to contracts.authorize_consumption
+        return authorize_consumption(
+            item,
+            targets,
+            explicitly_enabled=explicitly_enabled,
+            solo=solo,
+            target_set_complete=target_set_complete,
+            mechanism_verified=mechanism_verified,
+            transaction_active=transaction_active,
+            proof=proof,
+            now=now,
+        )
+
+    def execute_input(self, *args, **kwargs) -> None:
+        # F21: Adapter never executes inputs
+        raise RuntimeError("shadow mode / adapter: zero input allowed")
+
+    def route_task(self, task: str, snapshot: WorldSnapshot) -> AdapterPlan:
+        # F36: Batch 1 task routing
+        core_tasks = self._get_core_tasks_for_batch(self.config.batch)
+        if task not in core_tasks:
+            return AdapterPlan(
+                authority_owner=AuthorityOwner.LEGACY,
+                decision=None,
+                legacy_task=task,
+                reason=f"task_{task}_not_in_batch_{self.config.batch}",
+            )
+        return AdapterPlan(
+            authority_owner=AuthorityOwner.CORE,
+            decision=None,
+            legacy_task=None,
+            reason=f"task_{task}_routed_to_core",
+        )
+
+    def observe_round(self, round_id: str, *, reuse_coordinator: bool = False) -> None:
+        # F38: Round isolation
+        if reuse_coordinator and round_id != self.round_id:
+            raise ValueError("round mismatch: round isolation requires new coordinator")
+
+
