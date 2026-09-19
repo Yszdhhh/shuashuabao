@@ -29,6 +29,22 @@ DECLARED_TEST_ONLY_DELTA = frozenset({
     "src/shuabao/bond_capacity.py",
     "src/shuabao/choice_policy.py",
     "src/shuabao/mediator.py",
+    # Runtime Core 接收（2026-09-19）：新增内核、其唯一适配器与两个离线工具。
+    # 这些文件在生产锚点上并不存在，属于真正的新增增量，不是被改写的生产代码。
+    # 适配器与内核都没有接进 MAIN_LINE，也不发任何输入。
+    "src/shuabao/runtime_core/__init__.py",
+    "src/shuabao/runtime_core/arbiter.py",
+    "src/shuabao/runtime_core/contracts.py",
+    "src/shuabao/runtime_core/coordinator.py",
+    "src/shuabao/runtime_core/evidence.py",
+    "src/shuabao/runtime_core/transactions.py",
+    "src/shuabao/runtime_core_adapter.py",
+    # runtime_mediator.py 同时列在 PRODUCTION_CRITICAL_PATHS 里，那条检查是独立
+    # 的硬门禁，本申报**清不掉**它，也不打算清：本分支确实改动了生产关键代码
+    # （Runtime 委托 Core、黑商转交 allow_reroll），该事实必须继续以 BLOCKED
+    # 的形式暴露，直到它以独立的生产候选重新核验。此处登记只是让 delta 清单
+    # 如实反映现状，避免真正的"未申报新文件"被这条噪音淹没。
+    "src/shuabao/runtime_mediator.py",
     "src/shuabao/settings.py",
     "src/shuabao/shell/main_window.py",
     "src/shuabao/shell/test_profiles.py",
@@ -38,6 +54,8 @@ DECLARED_TEST_ONLY_DELTA = frozenset({
     "tools/live_scenario_capture.py",
     "tools/manual_gt_capture.py",
     "tools/one_click_test.ps1",
+    "tools/prepare_runtime_core_integration.py",
+    "tools/run_runtime_core_checks.py",
     "tools/test_dashboard.py",
 })
 
