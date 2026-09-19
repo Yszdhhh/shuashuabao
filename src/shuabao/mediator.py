@@ -4612,7 +4612,7 @@ class Mediator:
                 self._visit_kind = None
                 self._visit_picks = 0
             held = getattr(self, f"_{kind}_priority_suspended_at", None)
-            if held is not None and step == kind and (idx != held or self._should_hold_core_development()):
+            if held is not None and step == kind and idx != held:
                 setattr(self, f"_{kind}_priority_suspended_at", None)
         bond_held = getattr(self, "_bond_priority_suspended_at", None) is not None
         skill_held = getattr(self, "_skill_priority_suspended_at", None) is not None
@@ -16549,8 +16549,7 @@ class Mediator:
             if wood is None or wood < self._BOND_HIGH_WOOD:
                 self._bond_idle_until = time.time() + self._BOND_IDLE_BACKOFF_S
         if (
-            cycle_owned
-            and cycle_kind == "skill"
+            cycle_kind == "skill"
             and not cycle_selected
             and not self._passenger_mode()
         ):
@@ -16732,14 +16731,22 @@ class Mediator:
         # S0.5 Episode Liveness & Hard Deadline 守护（非 CLOSED/COOLDOWN 状态生效）
         if st not in (PanelState.CLOSED, PanelState.COOLDOWN):
             if self._panel_episode_started is not None:
+                last_progress = self._panel_last_progress_at or self._panel_episode_started
+                stale_duration = now - last_progress
                 episode_duration = now - self._panel_episode_started
                 hard_deadline = self._panel_hard_deadline_s
-                if episode_duration >= hard_deadline:
-                    print(f"[L1] 面板 episode {self._panel_episode_id or ''} ({self._panel_kind}) 超时 "
-                          f"{episode_duration:.1f}s >= {hard_deadline:.1f}s 无有效进展，强制脱困")
+                if stale_duration >= hard_deadline or episode_duration >= 30.0:
+                    timeout_reason = (
+                        f"无有效进展 {stale_duration:.1f}s >= {hard_deadline:.1f}s"
+                        if stale_duration >= hard_deadline
+                        else f"单次总停留 {episode_duration:.1f}s >= 30.0s"
+                    )
+                    print(f"[L1] 面板 episode {self._panel_episode_id or ''} ({self._panel_kind}) "
+                          f"{timeout_reason}，强制脱困")
                     self._record_fail_closed_incident(
                         f"panel_episode_timeout: kind={self._panel_kind} "
-                        f"ep_id={self._panel_episode_id} duration={episode_duration:.2f}s"
+                        f"ep_id={self._panel_episode_id} duration={episode_duration:.2f}s "
+                        f"stale={stale_duration:.2f}s"
                     )
                     kind = self._panel_kind or "unknown"
                     if kind in ("skill", "bond", "treasure"):
@@ -16747,8 +16754,12 @@ class Mediator:
                     self._panel_opened_by_us = None
                     self._skill_refresh_attempts = 0
                     self._panel_episode_started = None
-                    if self._passenger_mode() and anchor is not None:
-                        print(f"[L1] 蹭车面板超时脱困但画面仍有锚点，转 CLOSING 物理隐藏面板避免遮挡主线")
+                    if kind == "skill":
+                        self._skill_idle_until = now + self._SKILL_IDLE_BACKOFF_S
+                    elif kind == "bond":
+                        self._bond_idle_until = now + self._BOND_IDLE_BACKOFF_S
+                    if anchor is not None:
+                        print(f"[L1] 面板超时脱困但画面仍有锚点，转 CLOSING 物理隐藏面板避免遮挡主线")
                         self._panel_state = PanelState.CLOSING
                         self._panel_closing_attempts = 0
                         self._panel_closing_started_at = now

@@ -464,6 +464,15 @@ def assemble_policy_settings(
             continue
         stem = Path(text).stem
         text = str(fetter_labels.get(stem, stem))
+        lowered = text.lower()
+        if lowered in ("tz", "tiaozhan"):
+            text = "挑战"
+        elif lowered in ("jj", "jingji"):
+            text = "经济"
+        elif lowered in ("zhufu", "zf"):
+            text = "祝福"
+        elif lowered in ("chengzhang", "cz"):
+            text = "成长"
         if text and text not in card_presets:
             card_presets.append(text)
     for text in card_presets:

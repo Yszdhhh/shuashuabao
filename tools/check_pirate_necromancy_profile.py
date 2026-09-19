@@ -39,20 +39,20 @@ def main() -> int:
         defaults = assemble_policy_settings(settings=Settings(), policy_doc=policy_doc, **labels)
         expected_groups = tuple(
             tuple(next(group for group in policy_doc["bond"]["advanced_groups"] if name in group))
-            for name in ("海盗", "亡灵")
+            for name in ("海盗", "宝藏", "亡灵")
         )
-        assert settings.bonds == ["祝福", "成长", "经济"] and settings.attributes == [], "Old selections survived apply/persistence"
+        assert settings.bonds == ["祝福", "成长", "经济", "挑战"] and settings.attributes == [], "Old selections survived apply/persistence"
         assert before.bonds == ["贪婪"] and before.attributes == ["力量"], "Profile mutated caller Settings"
         assert settings.skills == before.skills, "Profile replaced the user's skills"
         # 同一局覆盖战后自动大秘境正式链路，仍走 Settings.auto_secret_realm。
         assert settings.cycle_num == 1 and settings.auto_secret_realm is True, "GT did not enable same-run post-battle auto secret realm"
         assert policy.bond_advanced_groups == expected_groups, "Existing advanced group order changed"
-        assert set(policy.bond_base_presets) == {"祝福", "成长", "经济", "藏宝图(三)"}, "Unexpected base selection"
-        assert policy.bond_base_presets[:3] == ("祝福", "成长", "经济"), "Bond base order violates priority"
+        assert set(policy.bond_base_presets) == {"祝福", "成长", "经济", "挑战", "藏宝图(三)"}, "Unexpected base selection"
+        assert policy.bond_base_presets[:4] == ("祝福", "成长", "经济", "挑战"), "Bond base order violates priority"
         assert not policy.bond_chain_presets, "Old attribute chain leaked into policy"
         assert "藏宝图(三)" in policy.bond_must_take, "Starter lost must-take priority"
         assert (defaults.bond_base_completion_ratio, defaults.bond_advanced_unlock_s) == (0.8, 480.0), "Production defaults changed"
-        assert (policy.bond_base_completion_ratio, policy.bond_advanced_unlock_s) == (0.8, 60.0), "Profile override not assembled"
+        assert (policy.bond_base_completion_ratio, policy.bond_advanced_unlock_s) == (0.0, 60.0), "Profile override not assembled"
         assert policy.min_confidence == defaults.min_confidence and policy.bond_whitelist_mode == defaults.bond_whitelist_mode == "hard", "Safety policy weakened"
         fields = (
             "bond_base_presets", "bond_advanced_groups", "bond_chain_presets", "bond_must_take",
