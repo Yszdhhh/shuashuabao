@@ -2753,7 +2753,7 @@ class Mediator:
             value = 45.0
         return max(30.0, min(60.0, value))
 
-    def _auto_task_unknown_fuse(self, state: str) -> LoopAction | None:
+    def _auto_task_unknown_fuse(self, state: str, frame: Frame | None = None) -> LoopAction | None:
         """Keep unknown loading surfaces input-free until the game UI returns."""
         normalized = str(state or "").strip().upper()
         if normalized in {"ON", "OFF"}:
@@ -2772,11 +2772,11 @@ class Mediator:
                 f"[L1] 自动任务 UNKNOWN 已持续 {elapsed:.1f}s "
                 f"(阈值 {timeout:.1f}s)，保持零输入等待页面恢复"
             )
-            if self._passenger_mode():
+            if self._passenger_mode() or (frame is not None and self._is_in_game_hud(frame)):
                 # Stop holding the round, but keep watching: explicit OFF
                 # evidence later (the real HUD after a long pre-round page)
                 # re-arms the enable click through the recheck path.
-                print("[L1] 蹭车自动任务暂无法确认，先放行局内流程，稍后看到未勾选再开启")
+                print("[L1] 自动任务暂无法确认但局内 HUD 正常，放行局内流程，稍后看到未勾选再开启")
                 self._auto_task_done = True
                 self._auto_task_recheck_at = time.time() + self.settings.ui_action_interval_s
                 self._auto_task_unknown_since = None
@@ -2792,6 +2792,10 @@ class Mediator:
         if getattr(self.settings, "auto_close_main_line", False) and getattr(self, "_close_main_line_triggered", False):
             return None
         if getattr(self, "_main_line_closed_done", False):
+            return None
+        # 广场(存档/挑战广场)或已处于大秘境中：无小怪波次自动任务面板，直接放行
+        if self._top_bar_mode(frame) == "plaza" or getattr(self, "_secret_realm_active", False):
+            self._auto_task_done = True
             return None
         now = time.time()
         state, hit = self._auto_task_state(frame)
@@ -2811,7 +2815,7 @@ class Mediator:
                 self._auto_task_recheck_at = now + self.settings.ui_action_interval_s
                 return None
         was_done = getattr(self, "_auto_task_done", False)
-        fuse = self._auto_task_unknown_fuse(state)
+        fuse = self._auto_task_unknown_fuse(state, frame)
         if fuse is not None:
             return fuse
         if not was_done and getattr(self, "_auto_task_done", False):
@@ -8359,10 +8363,11 @@ class Mediator:
             #    the hero challenge indicator.  Newer real frames omit the
             #    HeroChallenge marker, so the two page-specific hub labels are
             #    accepted as the equivalent second page evidence.
-            quit_hit = find("quit", 0.75)
+            quit_hit = find("quit", 0.75) or self._find_game_exit(frame)
             hero_hit = find("HeroChallenge", 0.85)
             hub_archive = self._find_post_game_hub_entry(frame, "archive")
             hub_heirloom = self._find_post_game_hub_entry(frame, "heirloom")
+            hub_rift = self._find_secret_realm_npc(frame)
             if (
                 getattr(self, "_post_game_route", "") != "boss_active"
                 and
@@ -8377,9 +8382,8 @@ class Mediator:
                     # every plaza frame, absent from wave HUDs) is the page
                     # evidence; one NPC label anchors the hub itself.
                     or (
-                        getattr(self, "_post_game_pending", False)
-                        and self._top_bar_mode(frame) == "plaza"
-                        and (hub_archive is not None or hub_heirloom is not None)
+                        self._top_bar_mode(frame) == "plaza"
+                        and (hub_archive is not None or hub_heirloom is not None or hub_rift is not None)
                     )
                 )
                 # B4：与 ARCHIVE_PANEL 互斥——关闭按钮可见时不分类为 NPC_HUB。
@@ -17433,15 +17437,10 @@ class Mediator:
             return LoopAction.Continue
         if post_game == "NPC_HUB":
             if not self._post_game_pending:
-                if self._unattended_recovery_enabled():
-                    print("[med] 未经胜利页直接识别到战后挑战广场，接管存档→传家宝链")
-                    self._post_game_pending = True
-                    self._post_game_route = "archive"
-                    return LoopAction.Continue
-                print("[med] 非胜利链路进入挑战广场，Fail-Closed 停止运行")
-                self.set_phase(Phase.ERROR, "unexpected post-game NPC hub")
-                self.stop()
-                return LoopAction.Break
+                print("[med] 未经胜利页直接识别到战后挑战广场，接管战后流程")
+                self._post_game_pending = True
+                self._post_game_route = "secret" if self.settings.auto_secret_realm else "archive"
+                return LoopAction.Continue
             if self._secret_realm_entering_since is not None:
                 # The real recording briefly returns one NPC-hub frame after
                 # clicking “是” and before the rift HUD appears.  During this
@@ -17655,12 +17654,14 @@ class Mediator:
                 and (
                     (self._post_game_pending and getattr(self, "_post_game_route", "") == "secret")
                     or (self._solo_heirloom_secret() and getattr(self, "_hitch_heirloom_exit_since", None))
+                    or getattr(self, "_great_rift_title_verified", False)
+                    or self._top_bar_mode(frame) == "plaza"
                 )
             ):
                 # The rift dialog can open before our own right-click (live
                 # 2026-09-14 f0584, 37s after the heirloom); on the rift
                 # route it is ours to accept, not a stray dialog to cancel.
-                print("[med] 秘境路由上出现大秘境确认框，视为本次秘境请求")
+                print("[med] 秘境已启用且出现大秘境确认框，采纳为本次秘境请求")
                 self._hitch_heirloom_exit_since = None
                 self._post_game_pending = True
                 self._post_game_route = "secret"
