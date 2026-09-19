@@ -24,7 +24,6 @@ DECLARED_TEST_ONLY_DELTA = frozenset({
     "config/choice_lexicon.json",
     "config/choice_policy.json",
     "config/dashboard_test_profiles.json",
-    "config/fetter_labels.json",
     "config/game_mechanics_kb.json",
     "config/runtime_asset_manifest.json",
     "src/shuabao/bond_capacity.py",
