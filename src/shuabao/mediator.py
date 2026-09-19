@@ -5555,9 +5555,15 @@ class Mediator:
                             kind="WAIT_SWALLOW_PILL_CONFIRM",
                             target_id="swallow_pill",
                             deadline=now + 2.0,
+                            # 消耗的唯一证据是羁绊格数真的变少。占用读不出来
+                            # （分辨率不支持、掉帧、栏被遮挡）是"未知"，必须显式
+                            # 判为未确认，而不是让 None < int 抛 TypeError 再由
+                            # PendingAction.is_confirmed 的兜底 except 吞掉——
+                            # 安全判据不能依赖被吞掉的异常。
                             verifier=lambda f: bool(
                                 baseline_occ is not None
-                                and getattr(self, "_bond_bar_occupancy", lambda _: baseline_occ)(f) < baseline_occ
+                                and (occ := self._bond_bar_occupancy(f)) is not None
+                                and occ < baseline_occ
                             ),
                         )
                         return LoopAction.Continue

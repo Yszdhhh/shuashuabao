@@ -208,7 +208,13 @@ def test_main_line_opportunistic_dispatch_cannot_bypass_the_gate(cls) -> None:
 
 
 def _forced_pending(frame: Frame):
-    """仅本节：强开闸门以构造真实产线已不可达的 WAIT_DEVOUR_DAN pending。"""
+    """仅本节：强开闸门以构造真实产线已不可达的吞噬 pending。
+
+    2026-09-19：Runtime 不再自带一份 `_maybe_use_inventory_item`，而是委托
+    Core，于是这里产生的 pending 从 Runtime 的 `WAIT_DEVOUR_DAN` 变成 Core 的
+    `WAIT_SWALLOW_PILL_CONFIRM`。变的只是"哪一份实现在跑"，下面两条 verifier
+    契约必须原样成立——这正是本节要证明的：合并实现没有放松后置判据。
+    """
     med = _med(RuntimeMediator, auto_devour_dan=True)
     pill = MatchResult("danGif", 0.95, 1100, 780, 20, 20, 1100, 780)
     with _pill_only_find(med, pill), patch.object(
@@ -216,7 +222,9 @@ def _forced_pending(frame: Frame):
     ), patch.object(med, "act_click", return_value=True):
         assert med._maybe_use_inventory_item(frame) is LoopAction.Continue
     pending = med._pending_action
-    assert pending is not None and pending.kind == "WAIT_DEVOUR_DAN"
+    assert pending is not None and pending.kind == "WAIT_SWALLOW_PILL_CONFIRM"
+    # 同一份实现：Runtime 实例拿到的必须就是 Core 的那一个。
+    assert RuntimeMediator._maybe_use_inventory_item is not CoreMediator._maybe_use_inventory_item
     return pending
 
 
@@ -230,6 +238,20 @@ def test_devour_verifier_rejects_disappearance_without_occupancy_drop() -> None:
 def test_devour_verifier_accepts_real_occupancy_decrease() -> None:
     pending = _forced_pending(_bond_frame(5))
     assert pending.is_confirmed(_bond_frame(4)) is True
+
+
+def test_devour_verifier_returns_false_instead_of_raising_on_unknown_occupancy() -> None:
+    """读不出占用时，verifier 本身要返回 False，而不是靠上层吞异常。
+
+    `PendingAction.is_confirmed` 外面裹着 `except Exception: return False`，
+    所以"拒绝"这个结果看起来是对的。但 Core 的 verifier 写的是
+    `occupancy(f) < baseline_occ`，占用读不出来时 `None < int` 抛 TypeError，
+    真正挡住它的是那层兜底，不是判据本身。安全契约不能建立在被吞掉的异常上：
+    一旦有人给 is_confirmed 换成不吞异常的实现，或在别处直接调 verifier，
+    这条路径就会从"拒绝"变成"崩"。这里直接调裸 verifier 把差别钉住。
+    """
+    pending = _forced_pending(_bond_frame(5))
+    assert pending.verifier(_unknown_bond_frame()) is False
 
 
 # ------------------------------------------- unrelated routes stay unchanged
