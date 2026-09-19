@@ -170,6 +170,108 @@ class TestF28ToF38TakeoverAuthority:
 
         assert executor.mock_calls == []
 
+    def test_f32_full_known_snapshot_with_rogue_authorizer_rejected(self) -> None:
+        """F32: 全 KNOWN snapshot + 假授权器 -> 必须拒绝。
+
+        结构性审查属性说明：
+        授权器内部是否真正执行了经审查的领域门禁（而非硬编码 return ActionContract(authorized=True)），
+        在 Python 动态运行期无法直接通过对象自省完全得知，是依赖架构接线和代码审查保证的结构性属性。
+        但在运行期，适配器必须对以下可检验属性做强校验：
+        1. 授权器必须来自构造时登记的白名单实例，拒绝未登记的任意外部鸭子类型对象；
+        2. Contract 的 action_id / target_id 必须与调度 grant 一致，严禁张冠李戴；
+        3. Contract 的 postcondition_id 必须为非空且已注册的具名后置。
+        任何一项不符均须拒绝授权（返回 None）。
+        """
+        executor = Mock()
+        clock = FakeClock(start=100.0)
+
+        # 假授权器：硬编码 authorized=True，且返回不匹配 grant 或未注册后置的 contract
+        class FakeAuthorizer:
+            def authorize(self, grant, snapshot):
+                return ActionContract("wrong_action", "wrong_target", "arbitrary_postcondition", authorized=True)
+
+        fake_authorizer = FakeAuthorizer()
+        # 全 KNOWN 的 snapshot
+        snapshot_all_known = make_snapshot(
+            observed_at=100.0,
+            task_facts={
+                "skill_points": Fact(Knowledge.KNOWN, 1, "ocr", "v1"),
+                "wood": Fact(Knowledge.KNOWN, 500, "ocr", "v1"),
+                "bag_free_slots": Fact(Knowledge.KNOWN, 3, "bag", "v1"),
+            },
+        )
+        grant = Mock(task="skill", token="t1", generation=1)
+
+        adapter = RuntimeCoreAdapter(
+            "r1",
+            TakeoverConfig(RuntimeCoreMode.CORE, TakeoverBatch.GFV_PICKUP),
+            clock,
+            fake_authorizer,
+        )
+
+        # 即使 snapshot 全 KNOWN，假授权器也必须被拒绝
+        contract = adapter.authorize(grant, snapshot_all_known)
+        assert contract is None
+        assert executor.mock_calls == []
+
+    def test_f32_authorizer_mismatched_target_or_unregistered_postcondition_rejected(self) -> None:
+        """F32: 校验 contract 的 target/action 必须与 grant 一致，postcondition 必须为已注册具名后置。"""
+        executor = Mock()
+        clock = FakeClock(start=100.0)
+
+        snapshot_all_known = make_snapshot(
+            observed_at=100.0,
+            task_facts={
+                "skill_points": Fact(Knowledge.KNOWN, 1, "ocr", "v1"),
+            },
+        )
+        grant = Mock(task="skill", token="t1", generation=1)
+
+        # 1. 任务张冠李戴：grant 是 skill，contract 返回 bond 的 action/target
+        class MismatchedTaskAuthorizer:
+            def authorize(self, grant, snapshot):
+                return ActionContract("act:bond", "tgt:bond", "post:bond", authorized=True)
+
+        mismatched_auth = MismatchedTaskAuthorizer()
+        adapter1 = RuntimeCoreAdapter(
+            "r1",
+            TakeoverConfig(RuntimeCoreMode.CORE, TakeoverBatch.GFV_PICKUP),
+            clock,
+            mismatched_auth,
+            allowed_authorizers=(mismatched_auth,),
+        )
+        assert adapter1.authorize(grant, snapshot_all_known) is None
+
+        # 2. postcondition_id 为空或未注册的任意字符串
+        class UnregisteredPostconditionAuthorizer:
+            def authorize(self, grant, snapshot):
+                return ActionContract("act:skill", "tgt:skill", "unregistered_random_postcondition_xyz", authorized=True)
+
+        unregistered_auth = UnregisteredPostconditionAuthorizer()
+        adapter2 = RuntimeCoreAdapter(
+            "r1",
+            TakeoverConfig(RuntimeCoreMode.CORE, TakeoverBatch.GFV_PICKUP),
+            clock,
+            unregistered_auth,
+            allowed_authorizers=(unregistered_auth,),
+        )
+        assert adapter2.authorize(grant, snapshot_all_known) is None
+
+        # 3. 授权器非构造时登记的白名单实例
+        whitelisted_auth = DummyAuthorizer()
+        rogue_auth = DummyAuthorizer()
+        adapter3 = RuntimeCoreAdapter(
+            "r1",
+            TakeoverConfig(RuntimeCoreMode.CORE, TakeoverBatch.GFV_PICKUP),
+            clock,
+            rogue_auth,
+            allowed_authorizers=(whitelisted_auth,),  # rogue_auth 不在白名单
+        )
+        assert adapter3.authorize(grant, snapshot_all_known) is None
+
+        assert executor.mock_calls == []
+
+
     def test_f33_demand_revision_containing_time_or_gen_fails_contract(self) -> None:
         """F33: Demand.revision 包含 time/generation/frame hash，造成每帧清退避 -> 契约失败。"""
         executor = Mock()

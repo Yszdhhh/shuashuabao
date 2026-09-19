@@ -170,3 +170,30 @@ class TestF21ToF27ShadowMode:
         assert adapter.coordinator.leases.current is None
         assert adapter.coordinator.arbiter.active is None
         assert executor.mock_calls == []
+
+    def test_shadow_probe_read_only_projection_leaves_arbiter_unmodified(self) -> None:
+        """验证 decide_without_commit 使用只读投影，不调用 copy.deepcopy，且探针前后状态不变。"""
+        import unittest.mock
+        executor = Mock()
+        comparator = RuntimeShadowComparator("r1", (TaskSpec("skill", 0, 10, 8),))
+        snapshot = make_snapshot(round_id="r1", observed_at=100.0)
+        demands = (Demand("skill", True, True, "v1"),)
+        comparator.observe(demands, snapshot)
+
+        # 记录探针前状态
+        seq_before = comparator.arbiter._seq
+        now_before = comparator.arbiter._now
+        active_before = comparator.arbiter.active
+        accounts_before = {k: v for k, v in comparator.arbiter.accounts.items()}
+
+        # 探针不准调用 copy.deepcopy
+        with unittest.mock.patch("copy.deepcopy", side_effect=AssertionError("copy.deepcopy is forbidden in decide_without_commit")):
+            decision = comparator.decide_without_commit(snapshot)
+
+        assert decision.grant is not None
+        assert comparator.arbiter._seq == seq_before
+        assert comparator.arbiter._now == now_before
+        assert comparator.arbiter.active == active_before
+        assert comparator.arbiter.accounts == accounts_before
+        assert executor.mock_calls == []
+
