@@ -528,6 +528,94 @@ REVIEWED_MACHINE_IDS: dict[str, str] = {
     "center_card_modal_anchor": "card_modal",
 }
 
+REGISTERED_POSTCONDITIONS: frozenset[str] = frozenset({
+    "skill_learned",
+    "target_equipped",
+    "item_consumed",
+    "post:skill",
+    "post:bond",
+    "post:treasure",
+    "post:pickup",
+    "post:hero",
+    "post:equipment",
+    "post:personal_bag",
+    "post:card_select",
+    "post:merchant_buy",
+    "post:inventory_consume",
+    "post:hero_select",
+})
+
+
+def _matches_grant_task(grant_task: str, action_id: str, target_id: str) -> bool:
+    if not action_id or not target_id:
+        return False
+    known_tasks = {"skill", "bond", "treasure", "pickup", "hero", "equipment", "personal_bag", "public_bag"}
+    other_tasks = known_tasks - {grant_task}
+    for other in other_tasks:
+        if (
+            action_id.startswith(f"act:{other}")
+            or action_id.startswith(f"{other}:")
+            or target_id.startswith(f"tgt:{other}")
+            or target_id.startswith(f"{other}:")
+        ):
+            return False
+    return (
+        grant_task in action_id
+        or grant_task in target_id
+        or action_id.startswith(f"act:{grant_task}")
+        or target_id.startswith(f"tgt:{grant_task}")
+        or action_id.startswith(f"{grant_task}:")
+        or target_id.startswith(f"{grant_task}:")
+    )
+
+
+def _arbiter_readonly_choose(arbiter: Arbiter, now: float, *, input_safe: bool) -> Decision:
+    if not math.isfinite(now) or now < arbiter._now:
+        raise ValueError("non-monotonic or non-finite time")
+    if arbiter.active is not None:
+        return Decision(None, "grant_requires_reconcile" if now >= arbiter.active.deadline else "grant_in_progress")
+    if input_safe is not True:
+        return Decision(None, "unsafe_surface_zero_input")
+    if now - arbiter._observed_at > arbiter.max_age:
+        return Decision(None, "stale_observation_zero_input")
+    ready: list[str] = []
+    for name, d in arbiter.demands.items():
+        a, s = arbiter.accounts[name], arbiter.specs[name]
+        if (
+            d.requested
+            and d.eligible
+            and now >= a.cooldown_until
+            and a.no_progress < s.no_progress_limit
+        ):
+            ready.append(name)
+    overdue = tuple(sorted(n for n in ready if arbiter.accounts[n].eligible_wait >= arbiter.specs[n].max_wait))
+    if not ready:
+        return Decision(None, "no_eligible_work", overdue)
+
+    def key(name: str) -> tuple:
+        a, s, d = arbiter.accounts[name], arbiter.specs[name], arbiter.demands[name]
+        if name in overdue:
+            return (0, s.max_wait - a.eligible_wait, a.last_service, name)
+        return (1, s.priority - d.urgency, -a.eligible_wait / s.max_wait, a.last_service, name)
+
+    winner = min(ready, key=key)
+    a, s, d = arbiter.accounts[winner], arbiter.specs[winner], arbiter.demands[winner]
+    counterfactual_seq = arbiter._seq + 1
+    reason = "deadline_service" if winner in overdue else "priority_with_aging"
+    grant = Grant(
+        f"{arbiter.round_id}:{counterfactual_seq}",
+        winner,
+        now,
+        now + s.quantum,
+        arbiter._generation,
+        d.revision,
+        reason,
+        a.eligible_wait,
+        now - a.pending_since if a.pending_since is not None else 0.0,
+    )
+    return Decision(grant, reason, overdue)
+
+
 
 class RuntimeSnapshotProjector:
     def __init__(self) -> None:
@@ -793,16 +881,14 @@ class RuntimeShadowComparator:
         self.arbiter.observe(demands, snapshot.observed_at, snapshot.generation)
 
     def decide_without_commit(self, snapshot: WorldSnapshot) -> Decision:
-        # F23: probe must not mutate arbiter state
-        arbiter_clone = copy.deepcopy(self.arbiter)
+        # F23: probe must not mutate arbiter state; use pure read-only projection
         input_safe = bool(
             snapshot.input_safe.knowledge == Knowledge.KNOWN
             and snapshot.input_safe.value is True
             and snapshot.cursor_empty.knowledge == Knowledge.KNOWN
             and snapshot.cursor_empty.value is True
         )
-        decision = arbiter_clone.choose(snapshot.observed_at, input_safe=input_safe)
-        return decision
+        return _arbiter_readonly_choose(self.arbiter, snapshot.observed_at, input_safe=input_safe)
 
     def align(
         self,
@@ -861,16 +947,25 @@ class RuntimeCoreAdapter:
         clock: MonotonicClock,
         authorizer: DomainAuthorizer,
         specs: tuple[TaskSpec, ...] = (),
+        allowed_authorizers: Sequence[DomainAuthorizer] | set[DomainAuthorizer] | None = None,
     ) -> None:
         self.round_id = round_id
         self.config = config
         self.clock = clock
         self.authorizer = authorizer
+        self._allowed_authorizers: set[DomainAuthorizer] | None = (
+            set(allowed_authorizers) if allowed_authorizers is not None else None
+        )
         self.specs = specs or DEFAULT_TASKS
         self._coordinator = Coordinator(round_id, self.specs)
         self._shadow = RuntimeShadowComparator(round_id, self.specs)
         self._last_time = -math.inf
         self._last_epoch = ""
+
+    def _is_authorizer_whitelisted(self) -> bool:
+        if self._allowed_authorizers is not None:
+            return self.authorizer in self._allowed_authorizers
+        return True
 
     @property
     def coordinator(self) -> Coordinator:
@@ -979,13 +1074,30 @@ class RuntimeCoreAdapter:
         grant: Grant,
         snapshot: WorldSnapshot,
     ) -> ActionContract | None:
-        # F32: Domain facts validation
+        # F32: 授权器白名单校验
+        if not self._is_authorizer_whitelisted():
+            return None
+
+        # F32: Domain facts validation - 任一领域事实 UNKNOWN 则拒绝
         for fact in snapshot.task_facts.values():
             if fact.knowledge == Knowledge.UNKNOWN:
                 return None
+
         contract = self.authorizer.authorize(grant, snapshot)
         if contract is None or not contract.authorized:
             return None
+
+        # F32: postcondition_id 必须非空且属于已注册具名后置
+        if (
+            not contract.postcondition_id
+            or contract.postcondition_id not in REGISTERED_POSTCONDITIONS
+        ):
+            return None
+
+        # F32: action_id / target_id 必须与 grant.task 对齐，严禁张冠李戴
+        if not _matches_grant_task(grant.task, contract.action_id, contract.target_id):
+            return None
+
         return contract
 
     def can_switch_authority(
