@@ -5033,9 +5033,15 @@ class Mediator:
         """HUD_ONLY 机会动作：当金色点击进化高亮且不在冷却中时执行快速事务。"""
         if now < getattr(self, "_evolve_click_cooldown_until", 0.0):
             return None
-        if not self._has_evolve_button(frame):
-            return None
-        evolve_hit = self._evolve_button_hit(frame)
+        if self._has_evolve_button(frame):
+            evolve_hit = self._evolve_button_hit(frame)
+        else:
+            evolve_hit = self.find(
+                frame,
+                ["click_evolve", "click_evolve_v2"],
+                threshold=0.75,
+                scales=(0.9, 1.0, 1.1),
+            )
         if evolve_hit:
             print(f"[L1] 机会点击进化 @ {evolve_hit.center}")
             if self.act_click(evolve_hit, "ClickEvolve"):
@@ -5300,13 +5306,17 @@ class Mediator:
 
         def _get_card_pirate_tier(text: str) -> int | None:
             # 必须按具体程度从高到低匹配，防止 '海盗' 误伤 '海盗劫掠者'
-            if "海盗劫掠者" in text:
-                return 3
-            if "海盗宝藏" in text:
+            if "毁灭战舰" in text:
+                return 5  # 终局战舰，永不作为低阶被吞
+            if "罗杰斯" in text:
+                return 5  # 核心上将，产悬赏令源头，不可吞
+            if "霍格" in text or "洛卡拉" in text or "海盗宝藏" in text:
                 return 4
-            if "白赚海盗" in text:
+            if "海盗劫掠者" in text or "制造混乱" in text:
+                return 3
+            if "白赚海盗" in text or "猴子" in text or "开进码头" in text:
                 return 2
-            if "海盗" in text:
+            if any(k in text for k in ("海盗", "冲浪", "利刃", "战斗", "空降", "帕奇斯")):
                 return 1
             return None
 
@@ -5352,7 +5362,11 @@ class Mediator:
         inventory_roi = (0.64, 0.77, 0.74, 0.98)
 
         # 1. 吞噬丹
-        if self.settings.auto_devour_dan and self._can_consume_inventory_swallow_pill(frame):
+        has_pirate_deck = (
+            any("海盗" in str(c) for c in getattr(self.settings, "cards", ()))
+            or any("海盗" in str(b) for b in getattr(self.settings, "bonds", ()))
+        )
+        if (self.settings.auto_devour_dan or has_pirate_deck) and self._can_consume_inventory_swallow_pill(frame):
             pill = self.find(
                 frame,
                 ["danGif", "swallow_pill"],
@@ -5860,11 +5874,18 @@ class Mediator:
         return int(colored.sum()) >= min_colored
 
     def _can_consume_inventory_swallow_pill(self, frame: Frame) -> bool:
-        """Fail-closed: ordinary random devouring is forbidden without reliable
-        per-slot card identities — occupancy and the saved opt-in cannot prove
-        protected cards are absent.
-        """
-        return False
+        """Safe authorization to consume a devour pill in solo play."""
+        if self._passenger_mode():
+            return False
+        if not self._bond_bar_nonempty(frame):
+            return False
+        has_pirate = (
+            any("海盗" in str(c) for c in getattr(self.settings, "cards", ()))
+            or any("海盗" in str(b) for b in getattr(self.settings, "bonds", ()))
+        )
+        if has_pirate:
+            return self._has_swallowable_pirate_card("haidao", frame)
+        return bool(getattr(self.settings, "auto_devour_dan", False))
 
     def _bag_page_swallow_pill(self, frame: Frame) -> MatchResult | None:
         """Devour pill inside an open bag page's 物品栏, aimed at the slot center.
@@ -6952,8 +6973,8 @@ class Mediator:
             pill = self.find(
                 frame,
                 ["danGif"],
-                threshold=0.90,
-                scales=(0.5, 0.6, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5),
+                threshold=0.80,
+                scales=(0.5, 0.6, 0.75, 0.85, 0.9, 1.0, 1.1, 1.25, 1.5),
                 roi=roi,
             )
             if self._in_merchant_strip(frame, pill):

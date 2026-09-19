@@ -592,7 +592,11 @@ def assemble_policy_settings(
             "bond_base_completion_ratio": (
                 float(getattr(settings, "bond_base_completion_ratio", None))
                 if getattr(settings, "bond_base_completion_ratio", None) is not None
-                else float(bond_cfg.get("base_completion_ratio", 0.80))
+                else (
+                    0.0
+                    if any(same_bond_identity(c, "海盗") for c in card_presets)
+                    else float(bond_cfg.get("base_completion_ratio", 0.80))
+                )
             ),
             "bond_advanced_unlock_s": (
                 bond_cfg.get("advanced_unlock_s", 0.0)

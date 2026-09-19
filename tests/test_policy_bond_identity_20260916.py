@@ -1126,6 +1126,70 @@ def test_devour_l_panel_inspection_flow():
     assert med._devour_check_next_at == now + 0.2 + 60.0
 
 
+def test_pirate_deck_defaults_base_completion_ratio_to_zero():
+    """验证配置海盗体系时，默认基础卡门禁比率为 0.0，使海盗卡可直接入选消耗木材。"""
+    from shuabao.mediator import Mediator
+    settings = Settings(
+        bonds=["祝福", "成长", "经济"],
+        cards=["海盗", "亡灵"],
+    )
+    med = Mediator(settings, project_root=Path("."))
+    ps = med._policy_settings()
+    assert ps.bond_base_completion_ratio == 0.0
+
+
+def test_can_consume_inventory_swallow_pill_authorization():
+    """验证吞噬丹在单人海盗有卡时授权使用，在蹭车或空栏时安全关闭。"""
+    from shuabao.mediator import Mediator
+    from shuabao.vision.capture import Frame
+    import numpy as np
+    settings = Settings(
+        bonds=["祝福", "成长", "经济"],
+        cards=["海盗", "亡灵"],
+        game_mode=0,
+    )
+    med = Mediator(settings, project_root=Path("."))
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), left=0, top=0)
+
+    # 1. 栏位为空：不浪费吞噬丹
+    med._bond_bar_nonempty = lambda f: False
+    assert med._can_consume_inventory_swallow_pill(frame) is False
+
+    # 2. 栏位有卡且有可吞噬海盗卡：允许使用
+    med._bond_bar_nonempty = lambda f: True
+    med._has_swallowable_pirate_card = lambda name, f: True
+    assert med._can_consume_inventory_swallow_pill(frame) is True
+
+    # 3. 蹭车模式：严格禁止吃丹，资产归公共背包
+    med.settings.mode_id = "lobby_hitch"
+    assert med._passenger_mode() is True
+    assert med._can_consume_inventory_swallow_pill(frame) is False
+
+
+def test_has_swallowable_pirate_card_protects_rogers_and_warship():
+    """验证 _has_swallowable_pirate_card 保护罗杰斯与毁灭战舰，仅下属散卡可被低阶吞噬。"""
+    from shuabao.mediator import Mediator
+    from shuabao.vision.capture import Frame
+    import numpy as np
+    settings = Settings(cards=["海盗"])
+    med = Mediator(settings, project_root=Path("."))
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), left=0, top=0)
+
+    # 仅持有罗杰斯上将时，绿/蓝/紫悬赏令不能吞噬罗杰斯
+    med._confirmed_bond_cards = lambda: ("罗杰斯上将",)
+    assert med._has_swallowable_pirate_card("haidao_bounty_n_green", frame) is False
+    assert med._has_swallowable_pirate_card("haidao_bounty_sr_purple", frame) is False
+
+    # 仅持有毁灭战舰时，不能被低阶吞噬
+    med._confirmed_bond_cards = lambda: ("毁灭战舰",)
+    assert med._has_swallowable_pirate_card("haidao_bounty_sr_purple", frame) is False
+
+    # 持有散卡（如冲浪海盗、白赚海盗）时，悬赏令可正常吞噬
+    med._confirmed_bond_cards = lambda: ("罗杰斯上将", "冲浪海盗")
+    assert med._has_swallowable_pirate_card("haidao_bounty_n_green", frame) is True
+
+
+
 
 
 

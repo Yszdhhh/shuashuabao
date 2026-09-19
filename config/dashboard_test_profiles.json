@@ -65,6 +65,8 @@
         "attributes": [],
         "bond_must_take": ["藏宝图(三)"],
         "bond_advanced_unlock_s": 60.0,
+        "bond_base_completion_ratio": 0.0,
+        "auto_devour_dan": true,
         "treasure_allow_negative": []
       }
     }
