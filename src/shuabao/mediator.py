@@ -17530,12 +17530,15 @@ class Mediator:
                     return LoopAction.Continue
                 rift_npc = self._rift_npc_body_hit(frame, rift_label)
                 self._secret_realm_request_attempts += 1
+                # 轮换点击：奇数次点 NPC 本体，偶数次点「大秘境」文字标签（与传家宝一致使用左键）
+                target = rift_npc if (self._secret_realm_request_attempts % 2 == 1) else rift_label
+                desc = f"NPC 本体 @ {target.center}" if target is rift_npc else f"文字标签 @ {target.center}"
                 print(
-                    f"[med] 自动秘境开启，右键大秘境 NPC 本体 @ {rift_npc.center} "
-                    f"（标签 @ {rift_label.center}，尝试 {self._secret_realm_request_attempts}/3）"
+                    f"[med] 自动秘境开启，左键点击大秘境 {desc} "
+                    f"（尝试 {self._secret_realm_request_attempts}/3）"
                 )
                 self._secret_realm_next_observe_at = now + self._RIFT_NPC_WALK_S
-                if self.act_right_click(rift_npc, "OpenGreatRift"):
+                if self.act_click(target, "OpenGreatRift"):
                     self._secret_realm_request_pending = True
                     self._main_line_since = now
                 return LoopAction.Continue
