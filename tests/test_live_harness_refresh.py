@@ -26,6 +26,7 @@ from tools.live_scenario_capture import (
     HitchLobbyChainObserver,
     SoloIngameChainObserver,
     _initial_phase_for_target,
+    _arm_direct_archaeology_after_stage_select,
     _invoke_target_handler,
     _start_surface_preflight,
 )
@@ -181,6 +182,18 @@ def test_solo_chain_keeps_dashboard_room_creation_and_run_settings(monkeypatch) 
     assert settings.auto_create_room is True
     assert settings.cycle_num == 5
     assert settings.stage_targets == ["1-21"]
+
+
+def test_direct_archaeology_arms_only_after_production_stage_select() -> None:
+    med = SimpleNamespace(phase=Phase.ROOM_WAITING)
+
+    assert _arm_direct_archaeology_after_stage_select(med, enabled=True) is False
+    assert not hasattr(med, "_archaeology_handoff_pending")
+
+    med.phase = Phase.STAGE_SELECT
+    assert _arm_direct_archaeology_after_stage_select(med, enabled=True) is True
+    assert med._archaeology_handoff_pending is True
+    assert _arm_direct_archaeology_after_stage_select(med, enabled=True) is False
 
 
 def test_solo_chain_preflight_accepts_production_l0_start_surface() -> None:

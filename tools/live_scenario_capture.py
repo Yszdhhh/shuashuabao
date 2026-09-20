@@ -4865,6 +4865,16 @@ def _initial_phase_for_target(target: str) -> Phase:
     return Phase.MAIN_LINE
 
 
+def _arm_direct_archaeology_after_stage_select(med: Mediator, enabled: bool) -> bool:
+    """Arm the harness-only archaeology handoff only after production reaches Stage Select."""
+    if not enabled or med.phase is not Phase.STAGE_SELECT:
+        return False
+    if bool(getattr(med, "_archaeology_handoff_pending", False)):
+        return False
+    med._archaeology_handoff_pending = True
+    return True
+
+
 def _resume_after_manual_intervention(med: Mediator) -> None:
     """Resume the observation loop only after an explicit manual bookmark."""
     med.stop_signal.reset()
@@ -4912,9 +4922,10 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
     if direct_archaeology:
         if target != "solo_ingame_chain":
             raise ValueError("--direct-archaeology 仅支持 solo_ingame_chain")
-        # This is a harness-only seed: production L0 still creates the room
-        # and reaches Stage Select; production archaeology handoff owns the
-        # actual click and fresh-anchor confirmation.
+        # This is a harness-only request.  It is armed only after production
+        # L0 has reached Stage Select, so room creation and RoomStart keep
+        # their normal production behavior.  Production archaeology handoff
+        # owns the actual click and fresh-anchor confirmation.
         settings.mode_id = "normal_farm"
         settings.auto_create_room = True
         settings.auto_archaeology = True
@@ -4943,8 +4954,6 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             runtime_mediator_error = "Real input requires an elevated process; accept the UAC prompt from the desktop launcher"
     initial_phase = _initial_phase_for_target(target)
     med.set_phase(initial_phase, f"{target} {'target probe' if probe else 'live capture'}")
-    if direct_archaeology:
-        med._archaeology_handoff_pending = True
     if target == "hitch_lobby_chain":
         med._hitch_re_search = False
         try:
@@ -5176,6 +5185,13 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                 time.sleep(min(0.2, max(0.01, float(args.interval))))
                 continue
             recorder.begin_tick()
+            if _arm_direct_archaeology_after_stage_select(med, direct_archaeology):
+                print("[scenario] 生产 L0 已确认选关页，启用直达考古 handoff")
+                recorder.manifest["direct_archaeology_arm"] = {
+                    "phase": med.phase.name,
+                    "tick": ticks,
+                }
+                recorder._write_manifest()
             phase_before = med.phase.name
             state_before = _state_snapshot(med)
             current_frame["value"] = None
