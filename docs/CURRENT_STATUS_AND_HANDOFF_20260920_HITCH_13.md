@@ -2,16 +2,15 @@
 
 ## 本轮结论
 
-当前 13 号试跑固定为：`1 局真实蹭车 → 离房 → 自建单人房 → 选关页点击考古 → fresh kaogu/kaoguMode 锚点确认 → 退出脚本`。
+当前 13 号默认试跑为：`1 局真实蹭车 → 离房 → 自建单人房 → 选关页点击考古 → fresh kaogu/kaoguMode 锚点确认 → 退出脚本`。
 
 13 号启动时会只读加载正式看板，再生成临时设置副本，强制写入：
 
-- `hitch_cycle_num=1`
-- `cycle_num=1`（兼容 production runtime 的通用局数字段）
+- `hitch_cycle_num` / `cycle_num` 默认是 `1`（兼容 production runtime 的通用局数字段）
 - `hitch_after_goal=arch`
 - `auto_archaeology=true`
 
-这是为了先验证“退出切入考古”链路；正式 `C:\Users\10639\AppData\Local\ShuaBao\user_settings.json` 不会被测试启动器改写。验证通过后再恢复 5 局长链。
+这是为了先验证“退出切入考古”链路；正式 `C:\Users\10639\AppData\Local\ShuaBao\user_settings.json` 不会被测试启动器改写。需要长链时，在启动器进程环境设置 `SHUABAO_HITCH_E2E_ROUNDS=5`，不设置则保持快速 1 局试跑。
 
 ## 生产收尾链路
 
@@ -19,7 +18,7 @@
 
 ## 今天已确认的蹭车问题与修复
 
-1. 13 号之前实际读取的是看板局数；本轮先用测试副本固定 1 局 + 考古收尾，专门验证退出切入链路。
+1. 13 号之前实际读取的是看板局数；本轮用隔离副本默认 1 局 + 考古收尾，专门验证退出切入链路。长线程通过 `SHUABAO_HITCH_E2E_ROUNDS` 切换，不再改代码。
 2. 蹭车链仍由 production `Mediator.tick()` 驱动，capture harness 只观察 trace/状态并汇总，不复制搜房、进房、Ready、压力、结算或回厅 FSM。
 3. 单人考古直达曾在 `BOOT` 阶段过早设置 handoff，导致房间页安全零输入；已在 `7ab6e27` 延后到 production 进入 `STAGE_SELECT` 后再 arm。
 4. 选关页的考古模板曾误用 `1-23` 关卡行残片，导致“考古模式”假命中；已在 `173dd8a` 替换为真实按钮模板，并更新运行时资源清单。该模板在实机 bundle 上命中 `1.000`，独立截图复核 `0.970`。
@@ -43,7 +42,12 @@
 
 ## 当前待真机确认
 
-本次代码和离线契约已完成；当前先用 13 号按钮跑一条新的 1 局实机 bundle，确认退出切入考古。通过后再把隔离副本恢复为 5 局长链，验证密钥挑战、传家宝、时光之穴等可选路线。此前的单人 14 号问题不能代替 13 号真机 PASS。
+本次代码和离线契约已完成；当前先用 13 号按钮跑一条新的 1 局实机 bundle，确认退出切入考古。通过后设置 `SHUABAO_HITCH_E2E_ROUNDS=5` 验证密钥挑战、传家宝、时光之穴等可选路线。此前的单人 14 号问题不能代替 13 号真机 PASS。
+
+## Owner 待裁决（本任务只记录，不改代码）
+
+1. `hitch_after_goal="solo"` 的看板标签是“去单人刷票”（`main_window.py:2810`），但 `_finish_hitch_round()` 当前实现为 `COMPLETE + stop + Break`，实际直接结束脚本，没有进入单人刷票。预期应有“考古 / 单刷 / 结束脚本”三个分支，目前只有两个且其中一个名不副实。
+2. `auto_create_room=True` 当前只写在 `arch` 分支内。按“目标局数到达后即解禁”的语义，应移到达标判断之后、分支判断之前；本轮 arch 不暴露问题，因为其他分支直接停止。
 
 ## 2026-09-20 20:45 bundle 复盘
 

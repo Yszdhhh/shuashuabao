@@ -205,16 +205,26 @@ function New-DashboardSettingsSnapshot {
 }
 
 function New-HitchE2ESettingsSnapshot {
-    # 当前 13 号先做一局退出→考古切入验证，不跟随看板里可能残留的局数配置。
+    # 当前 13 号默认做一局退出→考古切入验证；需要长链时设置
+    # SHUABAO_HITCH_E2E_ROUNDS=5。正式 user_settings.json 不会被改写。
     # 只改临时副本，正式 user_settings.json 保持不变；capture observer 与
-    # production Mediator 都从这份副本读取同一个 1 局 + archaeology 契约。
+    # production Mediator 都从这份副本读取同一个局数 + archaeology 契约。
     $loaded = Read-HarnessSettingsSource
-    $loaded.Value.hitch_cycle_num = 1
-    $loaded.Value.cycle_num = 1
+    $rounds = 1
+    $roundsText = [string]$env:SHUABAO_HITCH_E2E_ROUNDS
+    if (-not [string]::IsNullOrWhiteSpace($roundsText)) {
+        $parsedRounds = 0
+        if (-not [int]::TryParse($roundsText.Trim(), [ref]$parsedRounds) -or $parsedRounds -lt 1 -or $parsedRounds -gt 100) {
+            throw "SHUABAO_HITCH_E2E_ROUNDS 必须是 1-100 的整数：$roundsText"
+        }
+        $rounds = $parsedRounds
+    }
+    $loaded.Value.hitch_cycle_num = $rounds
+    $loaded.Value.cycle_num = $rounds
     $loaded.Value.hitch_after_goal = "arch"
     $loaded.Value.auto_archaeology = $true
     $path = Save-HarnessSettingsCopy $loaded.Value
-    Write-Host "[launcher] 13 号当前试跑契约：hitch_cycle_num=1, hitch_after_goal=arch" -ForegroundColor DarkGray
+    Write-Host "[launcher] 13 号试跑契约：hitch_cycle_num=$rounds, hitch_after_goal=arch" -ForegroundColor DarkGray
     Write-Host "[launcher] 已只读复制正式看板设置：$($loaded.Path)" -ForegroundColor DarkGray
     Write-Host "[launcher] 本次隔离设置副本：$path" -ForegroundColor DarkGray
     return $path
@@ -555,7 +565,8 @@ function Invoke-HitchLobbyChainCapture {
         "--target", "hitch_lobby_chain",
         "--out", $script:CaptureRoot,
         "--repo-root", $RepoRoot,
-        # 5 full hitch rounds (hitch_cycle_num=5) do not fit in one hour.
+        # Duration is bounded for both the default one-round handoff trial and
+        # an optional longer run selected by SHUABAO_HITCH_E2E_ROUNDS.
         "--duration", "10800",
         "--max-ticks", "60000",
         "--interval", "0.15",
@@ -565,7 +576,7 @@ function Invoke-HitchLobbyChainCapture {
     $cliArgs += @(Get-LiveRuntimeArgs)
     $cliArgs += @("--settings", $settingsPath)
     Write-Host "[launcher] PRIMARY HITCH_FULL_NATURAL_E2E：production Mediator.tick() 连续大厅蹭车链；Harness 不复制 FSM" -ForegroundColor Cyan
-    Write-Host "[launcher] 试跑验收：1 局蹭车退出 + fresh 考古锚点确认后退出脚本" -ForegroundColor Cyan
+    Write-Host "[launcher] 试跑验收：$rounds 局蹭车退出 + fresh 考古锚点确认后退出脚本" -ForegroundColor Cyan
     Invoke-CaptureTool $cliArgs
 }
 
