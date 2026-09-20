@@ -1599,7 +1599,7 @@ class PostGameBossRouteTests(unittest.TestCase):
             "缩小卡的匹配度低于常规阈值，战后专用阈值必须更低",
         )
 
-    def test_archive_boss_click_marks_the_time_cave_route(self):
+    def test_archive_boss_click_waits_for_time_cave_route_confirmation(self):
         med = self._med()
         frame = self._frame()
         hit = MatchResult("boss/53拉贾克斯将军", 0.9, 1200, 400, 60, 60, 1200, 400)
@@ -1608,7 +1608,8 @@ class PostGameBossRouteTests(unittest.TestCase):
              patch.object(med, "act_click", return_value=True) as click:
             med._maybe_challenge_configured_boss(frame, 100.0)
         click.assert_called_once_with(hit, "BossConfigured")
-        self.assertTrue(med._time_cave_boss_done)
+        self.assertFalse(med._time_cave_boss_done)
+        self.assertEqual(med._time_cave_boss_clicked_at, 100.0)
 
     # ---- 传家宝：HEIRLOOM_DIALOG 后置确认 ----------------------------------
 

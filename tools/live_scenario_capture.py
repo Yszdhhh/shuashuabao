@@ -4908,6 +4908,16 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
     _require_live_confirmation(args.live_input, args.confirm_live_input)
     repo_root = Path(args.repo_root).resolve()
     settings = _prepare_settings(Path(args.settings) if args.settings else None, target, args.live_input)
+    direct_archaeology = bool(getattr(args, "direct_archaeology", False))
+    if direct_archaeology:
+        if target != "solo_ingame_chain":
+            raise ValueError("--direct-archaeology 仅支持 solo_ingame_chain")
+        # This is a harness-only seed: production L0 still creates the room
+        # and reaches Stage Select; production archaeology handoff owns the
+        # actual click and fresh-anchor confirmation.
+        settings.mode_id = "normal_farm"
+        settings.auto_create_room = True
+        settings.auto_archaeology = True
     output_root = Path(args.out).resolve()
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     bundle_dir = output_root / f"{target}_{stamp}"
@@ -4933,6 +4943,8 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             runtime_mediator_error = "Real input requires an elevated process; accept the UAC prompt from the desktop launcher"
     initial_phase = _initial_phase_for_target(target)
     med.set_phase(initial_phase, f"{target} {'target probe' if probe else 'live capture'}")
+    if direct_archaeology:
+        med._archaeology_handoff_pending = True
     if target == "hitch_lobby_chain":
         med._hitch_re_search = False
         try:
@@ -5330,6 +5342,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             "production_readiness": _production_fact(target)["production_readiness"],
             "bookmark_file": str(bookmark_file),
             "continue_after_failure": bool(getattr(args, "continue_after_failure", False)),
+            "direct_archaeology": direct_archaeology,
         }
         recorder.finalize()
         if live_lane is not None:
@@ -5962,6 +5975,11 @@ def _common_live_args(parser: argparse.ArgumentParser) -> None:
         help="expected injected production SHA (required for GT runs when candidate source is injected)",
     )
     parser.add_argument("--settings", type=Path, default=None)
+    parser.add_argument(
+        "--direct-archaeology",
+        action="store_true",
+        help="仅单人链路：建房并到达选关页后，直接走 production 考古 handoff",
+    )
     parser.add_argument("--duration", type=float, default=60.0)
     parser.add_argument(
         "--start-surface-wait",

@@ -596,6 +596,26 @@ function Invoke-SoloIngameChainCapture {
     Invoke-CaptureTool $cliArgs
 }
 
+function Invoke-SoloDirectArchaeologyCapture {
+    Assert-ReadyForGt
+    $settingsPath = New-DashboardSettingsSnapshot
+    $cliArgs = @(
+        "capture",
+        "--target", "solo_ingame_chain",
+        "--direct-archaeology",
+        "--out", $script:SoloCaptureRoot,
+        "--repo-root", $RepoRoot,
+        "--duration", "600",
+        "--max-ticks", "5000",
+        "--interval", "0.15",
+        "--generate"
+    )
+    $cliArgs += @(Get-LiveRuntimeArgs)
+    $cliArgs += @("--settings", $settingsPath)
+    Write-Host "[launcher] 单人考古直达：production 建房→选关→点击考古→fresh kaogu 锚点确认" -ForegroundColor Cyan
+    Invoke-CaptureTool $cliArgs
+}
+
 function Invoke-SoloSettingsPanel {
     if (Show-HarnessSettingsPanel) {
         [System.Windows.Forms.MessageBox]::Show(
@@ -850,11 +870,12 @@ Add-MenuButton "单项实机测试`r`n    A-K 只调 production handler" 24 442 
 Add-MenuButton "9  打开最新 FAIL bundle`r`n    直接查看最近失败/阻塞证据" 390 442 { Open-LatestFailBundle } $blue
 Add-MenuButton "10 Reproduce 最新 FAIL`r`n    进入 Frozen Replay（离线回归）" 24 528 { Reproduce-LatestFail } $blue
 Add-MenuButton "单人临时设置（可选）`r`n    仅覆盖下一次 12；默认读取正式看板" 390 528 { Invoke-SoloSettingsPanel } $yellow
+Add-MenuButton "14 单人考古直达`r`n    建房→选关→直接考古；fresh 锚点确认" 24 586 { Invoke-SoloDirectArchaeologyCapture } $(if ($script:ReadyForGt) { $green } else { $locked })
 
 $exitButton = New-Object System.Windows.Forms.Button
 $exitButton.Text = "关闭菜单"
 $exitButton.Size = New-Object System.Drawing.Size(706, 44)
-$exitButton.Location = [System.Drawing.Point]::new(24, 624)
+$exitButton.Location = [System.Drawing.Point]::new(24, 676)
 $exitButton.Add_Click({ $script:MenuForm.Close() })
 $script:MenuForm.Controls.Add($exitButton)
 
@@ -862,7 +883,7 @@ $footer = New-Object System.Windows.Forms.Label
 $footer.Text = "注意：不要同时启动普通刷刷宝。UNKNOWN / 窗口身份不可信时 ZERO INPUT。点击测试按钮后本窗口暂时隐藏。"
 $footer.AutoSize = $false
 $footer.Size = New-Object System.Drawing.Size(700, 48)
-$footer.Location = [System.Drawing.Point]::new(24, 680)
+$footer.Location = [System.Drawing.Point]::new(24, 730)
 $footer.ForeColor = [System.Drawing.Color]::Firebrick
 $script:MenuForm.Controls.Add($footer)
 

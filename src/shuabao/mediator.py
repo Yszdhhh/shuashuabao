@@ -1012,6 +1012,7 @@ class Mediator:
         self._hub_label_ocr_next_at: float = 0.0
         self._time_cave_boss_search_attempts: int = 0
         self._time_cave_boss_done: bool = False
+        self._time_cave_boss_clicked_at: float | None = None
         self._hitch_postgame_hero_selected: bool = False
         self._hitch_postgame_returned_to_base: bool = False
         self._post_game_hub_entered_at: float | None = None
@@ -6751,7 +6752,18 @@ class Mediator:
             return False
         hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
         green = cv2.inRange(hsv, (42, 120, 100), (88, 255, 255))
-        return int(np.count_nonzero(green)) >= 100
+        green_pixels = int(np.count_nonzero(green))
+        # A dense green fill is used by replay fixtures.  In the live client
+        # the overlay itself is three compact glyphs; raw pixel count alone
+        # also accepted green chat text crossing the key card (5/8).
+        if green_pixels >= int(green.size * 0.75):
+            return True
+        count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(green)
+        glyphs = sum(
+            7 <= w <= 25 and 16 <= h <= 24 and area >= 80
+            for _x, _y, w, h, area in stats[1:count]
+        )
+        return bool(glyphs >= 3)
 
     def _archive_hitch_card_progress_state(self, frame: Frame, card_index: int) -> str:
         """解析存档挑战进度状态。
@@ -7378,7 +7390,11 @@ class Mediator:
             mode="post-game-boss-predicted",
         )
         if hit is not None:
-            return hit
+            px, py, pw, ph = pred_box
+            cx, cy = hit.center
+            if px <= cx <= px + pw and py <= cy <= py + ph:
+                return hit
+            print(f"[med] 预测格位命中越界，忽略 {hit.name} @ {hit.center}")
 
         # P0-1: OCR 验证路径，遵循 ShadowClient 真实签名 (frame, panel_id, slot) 并捕获异常
         ocr_client = getattr(self, "_ocr_client", None)
@@ -8016,6 +8032,17 @@ class Mediator:
                     if boss_hit is not None:
                         break
 
+        # A compact-list ROI clips candidate top-left positions, not their
+        # centres.  Reject a card whose click point spills outside the list;
+        # live 2026-09-20 otherwise clicked a notification at (1390, 602)
+        # instead of Time Cave card 15.
+        if boss_hit is not None and compact_roi is not None:
+            x0, y0, x1, y1 = self._normalized_bbox(frame, compact_roi)
+            cx, cy = boss_hit.center
+            if not (x0 <= cx <= x1 and y0 <= cy <= y1):
+                print(f"[med] Boss 列表命中越界，忽略 {boss_hit.name} @ {boss_hit.center}")
+                boss_hit = None
+
         used_fallback = False
         action_name = "BossConfigured"
         # A target can already be partly visible on the next row even though
@@ -8242,14 +8269,10 @@ class Mediator:
             if hasattr(self, "_boss_anomaly_skip_counts") and post_game in self._boss_anomaly_skip_counts:
                 self._boss_anomaly_skip_counts[post_game] = 0
             if post_game == "ARCHIVE_PANEL":
-                self._time_cave_boss_done = True
+                # A click request is not a Time Cave challenge.  Keep the
+                # panel owned until a later classified surface proves it left.
+                self._time_cave_boss_clicked_at = now
                 self._boss_challenge_next_at = now + self._post_game_action_recheck(recheck_s)
-                if self._passenger_mode():
-                    self._post_game_route = "archive"
-                else:
-                    self._post_game_route = (
-                        "boss_active" if self._team_mode_enabled() else "archive"
-                    )
             elif post_game == "HEIRLOOM_DIALOG" and getattr(self, "_post_game_pending", False):
                 self._post_game_route = "heirloom_active"
                 self._heirloom_boss_clicked_at = now
@@ -10173,6 +10196,7 @@ class Mediator:
             # 永久豁免，直至其他逻辑改写。
             self._post_game_route = "secret"
             self._time_cave_boss_done = False
+            self._time_cave_boss_clicked_at = None
             self._archive_challenge_index = 0
             self._archive_challenge_clicked = set()
             self._archive_challenge_verified = set()
@@ -16320,6 +16344,12 @@ class Mediator:
         # NPC / PAUSED 等）必须在压力门禁之前观察。压力尚未完成不得遮蔽
         # victory/failure；强失败/断线全局抢占仍在 _tick_impl 更早处。
         post_game = self._post_game_state(frame)
+        if (
+            getattr(self, "_time_cave_boss_clicked_at", None) is not None
+            and post_game in {"HEIRLOOM_DIALOG", "NPC_HUB"}
+        ):
+            self._time_cave_boss_done = True
+            self._time_cave_boss_clicked_at = None
 
         # The hard round deadline owns every MAIN_LINE page.  It must run
         # before repeatable chat/pressure inputs, otherwise a persistent
@@ -16837,6 +16867,13 @@ class Mediator:
                 else:
                     print("[med] 时光之穴 Boss 已发起，等待存档面板消失和局内 HUD（零动作）")
                     return LoopAction.Continue
+            clicked_at = getattr(self, "_time_cave_boss_clicked_at", None)
+            if clicked_at is not None:
+                if now - clicked_at < 1.0:
+                    print("[med] 时光之穴 Boss 点击后等待列表变化（零动作）")
+                    return LoopAction.Continue
+                self._time_cave_boss_clicked_at = None
+                print("[med] 时光之穴 Boss 点击后列表未变化，重新定位卡位")
             # 存档面板的八个挑战先逐项尝试；这不会复制生产策略，只消费已分类
             # 页面上的稳定卡位。完成八卡后先尝试时光之穴 Boss，全部完成后关闭面板并转传家宝。
             archive_action = self._maybe_click_archive_challenge(frame, now)
@@ -17029,6 +17066,9 @@ class Mediator:
                     bool(str(getattr(self.settings, "cjb_boss", "") or "").strip())
                     or self._passenger_mode()
                 )
+            ) or (
+                self._post_game_pending
+                and bool(str(getattr(self.settings, "cjb_boss", "") or "").strip())
             )
             if heirloom_chain_active and self._boss_challenge_attempts < 3:
                 # The page remains open after a successful click and displays
