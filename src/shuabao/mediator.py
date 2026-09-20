@@ -1063,6 +1063,12 @@ class Mediator:
         # 交接用的房间是不是我们自己建的。别人的蹭车房里绝不能点开始；
         # 自建房里必须点，否则选关页永远不出现（见 ROOM_WAITING 分支）。
         self._archaeology_handoff_own_room: bool = False
+        # 挑战券预算：最近一次可信读数 + 自那以后已完成的局数。
+        # 读不出不等于 0 —— balance 为 None 时预算模型直接弃权，不做任何限制。
+        self._ticket_balance: int | None = None
+        self._ticket_balance_at: float | None = None
+        self._ticket_rounds_since_read: int = 0
+        self._ticket_next_read_at: float = 0.0
         self._hitch_goal_archaeology_handoff: bool = False
         self._archaeology_click_at: float | None = None
         self._archaeology_click_generation: int | None = None
@@ -4361,6 +4367,14 @@ class Mediator:
     _BOND_LOW_WOOD = 300
     _WOOD_BALANCE_ROI = (1178 / 1600, 8 / 900, 1240 / 1600, 34 / 900)
     _WOOD_READ_INTERVAL_S = 3.0
+
+    # 挑战券剩余（选关页「开始游戏」下方的第一个数字，右对齐）。
+    # 与 _ticket_exhausted 用的是同一条文字带；那个只判"是不是 0"，
+    # 这个用 OCR 读出真实数字，供动态局数测算校正。
+    _TICKET_REMAINDER_ROI = (1067 / 1600, 850 / 900, 1102 / 1600, 888 / 900)
+    _TICKET_READ_INTERVAL_S = 5.0
+    _TICKET_COST_PER_ROUND = 2  # Owner 口述；读到真实读数一律以读数为准
+    _TICKET_READ_MAX = 999
     # A bond visit that ended without a pick (no wood / nothing eligible) lets
     # the other steps run for this long before the 80% lock resumes.
     _BOND_IDLE_BACKOFF_S = 30.0
@@ -9623,6 +9637,52 @@ class Mediator:
         self.set_phase(Phase.HERO_SETUP, "hero entry clicked")
         return LoopAction.Continue
 
+    def _observe_ticket_balance(self, frame: Frame, now: float | None = None) -> int | None:
+        """机会性读取挑战券剩余。读不出返回 None，**绝不当 0**。
+
+        选关页/游戏大厅才看得见这个计数；蹭车大部分时间待在 KK 房间列表里，
+        所以这里是"能读到就校正"，读不到完全正常，由死算兜着。
+        """
+        now = time.time() if now is None else now
+        if now < self._ticket_next_read_at:
+            return self._ticket_balance
+        self._ticket_next_read_at = now + self._TICKET_READ_INTERVAL_S
+        value = self._hud_counter(
+            frame, self._TICKET_REMAINDER_ROI, "ticket", max_value=self._TICKET_READ_MAX
+        )
+        if value is None:
+            return self._ticket_balance
+        # 真实读数一律覆盖死算结果 —— 跨零点补票、手动买票都靠这条自然收敛。
+        if value != self._ticket_projected_remaining():
+            print(f"[L0] 挑战券读数校正：{self._ticket_balance} -> {value}（死算已走 {self._ticket_rounds_since_read} 局）")
+        self._ticket_balance = int(value)
+        self._ticket_balance_at = now
+        self._ticket_rounds_since_read = 0
+        return self._ticket_balance
+
+    def _ticket_projected_remaining(self) -> int | None:
+        """死算剩余：最近读数 - 每局消耗 x 已完成局数。从没读到过则 None。"""
+        if self._ticket_balance is None:
+            return None
+        spent = self._TICKET_COST_PER_ROUND * max(0, self._ticket_rounds_since_read)
+        return self._ticket_balance - spent
+
+    def _ticket_budget_spent_one_round(self) -> None:
+        """完成一局后推进死算。有真实读数时下次读取会把它覆盖掉。"""
+        self._ticket_rounds_since_read += 1
+
+    def _ticket_budget_allows_another_round(self) -> bool:
+        """够不够再来一局。
+
+        **从没读到过读数时返回 True** —— 未知不是"耗尽"，这一条是有意的
+        fail-open：它只决定"要不要再搜一把房"，不授权任何输入，而误判成耗尽
+        会让长线程测试提前收工。真正的下限由 cycle_num 和 --duration 兜。
+        """
+        projected = self._ticket_projected_remaining()
+        if projected is None:
+            return True
+        return projected >= self._TICKET_COST_PER_ROUND
+
     def _ticket_exhausted(self, frame: Frame) -> bool:
         """True when the yellow challenge-ticket remainder is 0.
 
@@ -12575,8 +12635,22 @@ class Mediator:
         if not already_counted:
             self.game_count += 1
         self._hitch_game_exit_at = now
-        print(f"[med] 蹭车已完成离局 count={self.game_count}")
-        if self.settings.cycle_num > 0 and self.game_count >= self.settings.cycle_num:
+        self._ticket_budget_spent_one_round()
+        projected = self._ticket_projected_remaining()
+        print(
+            f"[med] 蹭车已完成离局 count={self.game_count}"
+            + (f" 挑战券估算剩余≈{projected}" if projected is not None else " 挑战券未读出")
+        )
+        goal_reached = self.settings.cycle_num > 0 and self.game_count >= self.settings.cycle_num
+        # 票不够再来一局 -> 下一局不再搜房，直接走同一条考古出口。
+        # 估算读不出时 _ticket_budget_allows_another_round() 返回 True（未知不是耗尽）。
+        budget_out = not goal_reached and not self._ticket_budget_allows_another_round()
+        if budget_out:
+            print(
+                f"[med] 挑战券估算剩余≈{projected} < 每局 {self._TICKET_COST_PER_ROUND}，"
+                f"不再搜房（已完成 {self.game_count} 局）"
+            )
+        if goal_reached or budget_out:
             if str(getattr(self.settings, "hitch_after_goal", "solo") or "solo") == "arch":
                 # The guest must leave the verified room before using the
                 # existing normal-farm route to its own stage page.  The
@@ -12594,10 +12668,12 @@ class Mediator:
                 self._room_leave_next_at = 0.0
                 self._room_action_deadline = now + min(self.settings.query_timeout, 30)
                 self.set_phase(Phase.ROOM_WAITING, "hitch cycle complete; leaving room for archaeology")
-                print(f"[med] 蹭车已完成 cycle_num={self.settings.cycle_num} 局，离房后进入考古")
+                why = "cycle_num 达标" if goal_reached else "挑战券预算不足"
+                print(f"[med] 蹭车收尾（{why}），离房后进入考古")
                 return LoopAction.Continue
-            print(f"[med] 蹭车已完成 cycle_num={self.settings.cycle_num} 局，转 COMPLETE 停止")
-            self.set_phase(Phase.COMPLETE, "cycle_num reached")
+            why = "cycle_num 达标" if goal_reached else "挑战券预算不足"
+            print(f"[med] 蹭车收尾（{why}），转 COMPLETE 停止")
+            self.set_phase(Phase.COMPLETE, "cycle_num reached" if goal_reached else "ticket budget exhausted")
             self.stop()
             return LoopAction.Break
         self._hitch_after_exit(now)
@@ -14157,6 +14233,10 @@ class Mediator:
 
     def _tick_l0(self, frame: Frame) -> LoopAction:
         """Handle map → create dialog → room → stage without guessing clicks."""
+        # 机会性校正挑战券读数：只有选关页/游戏大厅看得见这个计数，蹭车大部分
+        # 时间待在 KK 房间列表里，所以读不到是常态，由死算兜着（见
+        # _observe_ticket_balance）。内部有 5s 间隔闸，不会每 tick 都 OCR。
+        self._observe_ticket_balance(frame)
         if not getattr(self, "_awaiting_room_return", False) and self.phase in {
             Phase.BOOT,
             Phase.PREPARE,
