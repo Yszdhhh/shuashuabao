@@ -239,13 +239,13 @@ def test_harness_and_launcher_do_not_contain_a_second_lobby_fsm() -> None:
     assert "Mediator.tick()" in source
 
 
-def test_primary_launcher_pins_five_round_archaeology_contract_in_isolated_settings() -> None:
+def test_primary_launcher_pins_one_round_archaeology_trial_in_isolated_settings() -> None:
     launcher = (ROOT / "live_scenario_launcher.ps1").read_text(encoding="utf-8")
     assert "function New-HitchE2ESettingsSnapshot" in launcher
-    assert "hitch_cycle_num = 5" in launcher
-    assert "cycle_num = 5" in launcher
+    assert "hitch_cycle_num = 1" in launcher
+    assert "cycle_num = 1" in launcher
     assert 'hitch_after_goal = "arch"' in launcher
     assert "auto_archaeology = $true" in launcher
     assert '$cliArgs += @("--settings", $settingsPath)' in launcher
-    assert "5 局完整蹭车 + fresh 考古锚点确认后退出脚本" in launcher
+    assert "1 局蹭车退出 + fresh 考古锚点确认后退出脚本" in launcher
 

@@ -205,16 +205,16 @@ function New-DashboardSettingsSnapshot {
 }
 
 function New-HitchE2ESettingsSnapshot {
-    # 13 号是验收用的完整蹭车链，不跟随看板里可能残留的单局/短跑配置。
+    # 当前 13 号先做一局退出→考古切入验证，不跟随看板里可能残留的局数配置。
     # 只改临时副本，正式 user_settings.json 保持不变；capture observer 与
-    # production Mediator 都从这份副本读取同一个 5 局 + archaeology 契约。
+    # production Mediator 都从这份副本读取同一个 1 局 + archaeology 契约。
     $loaded = Read-HarnessSettingsSource
-    $loaded.Value.hitch_cycle_num = 5
-    $loaded.Value.cycle_num = 5
+    $loaded.Value.hitch_cycle_num = 1
+    $loaded.Value.cycle_num = 1
     $loaded.Value.hitch_after_goal = "arch"
     $loaded.Value.auto_archaeology = $true
     $path = Save-HarnessSettingsCopy $loaded.Value
-    Write-Host "[launcher] 13 号固定测试契约：hitch_cycle_num=5, hitch_after_goal=arch" -ForegroundColor DarkGray
+    Write-Host "[launcher] 13 号当前试跑契约：hitch_cycle_num=1, hitch_after_goal=arch" -ForegroundColor DarkGray
     Write-Host "[launcher] 已只读复制正式看板设置：$($loaded.Path)" -ForegroundColor DarkGray
     Write-Host "[launcher] 本次隔离设置副本：$path" -ForegroundColor DarkGray
     return $path
@@ -565,7 +565,7 @@ function Invoke-HitchLobbyChainCapture {
     $cliArgs += @(Get-LiveRuntimeArgs)
     $cliArgs += @("--settings", $settingsPath)
     Write-Host "[launcher] PRIMARY HITCH_FULL_NATURAL_E2E：production Mediator.tick() 连续大厅蹭车链；Harness 不复制 FSM" -ForegroundColor Cyan
-    Write-Host "[launcher] 验收条件：5 局完整蹭车 + fresh 考古锚点确认后退出脚本" -ForegroundColor Cyan
+    Write-Host "[launcher] 试跑验收：1 局蹭车退出 + fresh 考古锚点确认后退出脚本" -ForegroundColor Cyan
     Invoke-CaptureTool $cliArgs
 }
 
