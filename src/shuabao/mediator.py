@@ -3468,13 +3468,13 @@ class Mediator:
 
     def _find_panel_refresh(self, frame: Frame, kind: str) -> MatchResult | None:
         names = {
-            "skill": ["refresh", "bwRefresh", "cardRefresh", "heroRefresh"],
+            "skill": ["skill_refresh_btn", "refresh", "bwRefresh", "cardRefresh", "heroRefresh"],
             "bond": ["bond_refresh_btn", "refresh", "cardRefresh", "heroRefresh", "bwRefresh"],
             "treasure": ["treasure_refresh_btn", "refresh", "cardRefresh", "bwRefresh"],
-        }.get(kind, ["refresh", "bwRefresh", "cardRefresh"])
+        }.get(kind, ["skill_refresh_btn", "refresh", "bwRefresh", "cardRefresh"])
         def preferred(scales: tuple[float, ...]) -> MatchResult | None:
-            # Do not let a high-scoring generic `bwRefresh` template replace
-            # the panel-specific refresh button at a different coordinate.
+            # Do not let a high-scoring generic `refresh`/`bwRefresh` template
+            # replace the panel-specific refresh button at a different coordinate.
             for name in names:
                 hit = self.find(
                     frame, [name], threshold=min(0.70, self.settings.match_threshold),
