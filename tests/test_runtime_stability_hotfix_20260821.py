@@ -121,11 +121,22 @@ def test_merchant_disabled_does_not_implicitly_refresh_or_buy_other_items():
 
 
 def test_runtime_merchant_uses_integrated_core_handler():
+    """Runtime 仍然只是转交给 Core，但现在必须把 allow_reroll 一并转交。
+
+    覆写签名从 `(self, frame)` 改为 `(self, frame, allow_reroll=True)`，
+    所以转交调用多了这个关键字。本用例的原意「Runtime 不另起一套黑商
+    处理，而是走 Core 的统一实现」没有变，只更新期望的调用形态；同时
+    断言 False 也能原样传下去，防止覆写退化成吞掉参数。
+    """
     m = med()
     merchant_frame = frame()
     with patch.object(CoreMediator, "_maybe_black_merchant", return_value=LoopAction.Continue) as core_merchant:
         assert m._maybe_black_merchant(merchant_frame) is LoopAction.Continue
-    core_merchant.assert_called_once_with(merchant_frame)
+    core_merchant.assert_called_once_with(merchant_frame, allow_reroll=True)
+
+    with patch.object(CoreMediator, "_maybe_black_merchant", return_value=None) as core_merchant:
+        assert m._maybe_black_merchant(merchant_frame, allow_reroll=False) is None
+    core_merchant.assert_called_once_with(merchant_frame, allow_reroll=False)
 
 
 def test_physical_panel_deadline_is_telemetry_only_never_recovers_by_input():
