@@ -55,3 +55,9 @@
 ## 已定范围
 
 - `config/` 真源为 `GameScript-Local`；本次只在该树提交指定三文件，不向 `integration/runtime-core-20260919` 复制。
+
+## 蹭车整链考古收口（2026-09-20）
+
+- 正式设置已固定为 `hitch_cycle_num=5`、`hitch_after_goal=arch`。此前后者只保存/回显，生产 `_finish_hitch_round()` 在第 5 局确认离局后直接停止。
+- 现改为：第 5 局已验证离局 → 既有安全退房事务 → 既有单人建房/选关路由 → 考古按钮 request → fresh `kaogu`/`kaoguMode` 锚点确认；未确认时保持零输入或 Fail-Closed，绝不开始第 6 局。
+- `hitch_lobby_chain` 的验收读取配置局数，且 `arch` 目标额外要求考古确认；仍需一次新的真机 13 bundle 才能声明 Live PASS。

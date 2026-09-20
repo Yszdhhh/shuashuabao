@@ -46,13 +46,14 @@ def test_primary_lane_is_the_full_chain_not_the_s01_to_s06_diagnostics() -> None
 
     contract = TARGET_CONTRACTS[PRIMARY_LIVE_TARGET]
     assert "Mediator.tick()" in contract["production_entry"]
-    assert "至少 3 个完整 hitch round" in contract["success_postcondition"]
+    assert "配置的 hitch_cycle_num" in contract["success_postcondition"]
+    assert "fresh 考古锚点" in contract["success_postcondition"]
     assert "公共背包" in contract["success_postcondition"]
     assert contract["expected_steps"][:4] == (
         "ROOM_LIST", "SEARCH_CONFIRMED", "JOIN", "MODAL_RECOVERY",
     )
-    assert contract["expected_steps"][-3:] == (
-        "REAL_EXIT", "LOBBY_RETURN", "NEXT_ROUND",
+    assert contract["expected_steps"][-4:] == (
+        "REAL_EXIT", "LOBBY_RETURN", "NEXT_ROUND", "ARCHAEOLOGY_HANDOFF",
     )
 
 
@@ -79,6 +80,22 @@ def test_primary_ledger_exposes_required_metrics_and_does_not_pass_empty() -> No
     }
     assert required_metrics <= set(observer.metrics)
     assert observer.is_pass is False
+
+
+def test_primary_ledger_requires_archaeology_after_configured_hitch_goal() -> None:
+    observer = HitchLobbyChainObserver(required_rounds=5, require_archaeology=True)
+    observer.metrics["rounds_started"] = 5
+    observer.metrics["lobby_returns"] = 5
+    for checkpoint in (
+        "PRECHECK_OK", "ROOM_LIST_CONFIRMED", "SEARCH_CONFIRMED", "ROOM_JOINED",
+        "READY_CONFIRMED", "MODAL_RECOVERY", "INGAME_HUD_CONFIRMED", "PRESSURE_CONFIRMED",
+        "OUTCOME_OBSERVED", "LOBBY_RETURN_CONFIRMED", "CONFIGURED_ROUNDS_CONFIRMED",
+    ):
+        observer.checkpoints[checkpoint] = {"status": "PASS"}
+
+    assert observer.is_pass is False
+    observer.checkpoints["ARCHAEOLOGY_HANDOFF_CONFIRMED"] = {"status": "PASS"}
+    assert observer.is_pass is True
 
     observer.precheck(False, {"status": "BLOCKED_PRECHECK", "reason": "no KK window"})
     payload = observer.payload()

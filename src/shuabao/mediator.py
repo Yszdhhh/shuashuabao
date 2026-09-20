@@ -1059,6 +1059,7 @@ class Mediator:
         # G0 Phase B：考古模板 miss 时的有界 reobserve 计数；超界 FATAL。
         self._archaeology_template_miss_budget = 40
         self._archaeology_handoff_pending: bool = False
+        self._hitch_goal_archaeology_handoff: bool = False
         self._archaeology_click_at: float | None = None
         self._archaeology_click_generation: int | None = None
         self._archaeology_click_attempts: int = 0
@@ -9619,7 +9620,7 @@ class Mediator:
         ``kaogu``/``kaoguMode`` 业务锚点，才 COMPLETE +
         ARCHAEOLOGY_HANDOFF_COMPLETE。click success/frame mutation 绝不当成功。
         """
-        if not getattr(self.settings, "auto_archaeology", True):
+        if not getattr(self.settings, "auto_archaeology", True) and not getattr(self, "_archaeology_handoff_pending", False):
             return None
         click_at = getattr(self, "_archaeology_click_at", None)
         if click_at is not None:
@@ -12509,6 +12510,21 @@ class Mediator:
         self._hitch_game_exit_at = now
         print(f"[med] 蹭车已完成离局 count={self.game_count}")
         if self.settings.cycle_num > 0 and self.game_count >= self.settings.cycle_num:
+            if str(getattr(self.settings, "hitch_after_goal", "solo") or "solo") == "arch":
+                # The guest must leave the verified room before using the
+                # existing normal-farm route to its own stage page.  The
+                # pending flag then authorizes only the existing archaeology
+                # request/confirm transaction; it never starts another hitch round.
+                self.settings.mode_id = "normal_farm"
+                self._hitch_after_exit(now)
+                self._hitch_goal_archaeology_handoff = True
+                self._archaeology_handoff_pending = True
+                self._room_leave_pending = True
+                self._room_leave_next_at = 0.0
+                self._room_action_deadline = now + min(self.settings.query_timeout, 30)
+                self.set_phase(Phase.ROOM_WAITING, "hitch cycle complete; leaving room for archaeology")
+                print(f"[med] 蹭车已完成 cycle_num={self.settings.cycle_num} 局，离房后进入考古")
+                return LoopAction.Continue
             print(f"[med] 蹭车已完成 cycle_num={self.settings.cycle_num} 局，转 COMPLETE 停止")
             self.set_phase(Phase.COMPLETE, "cycle_num reached")
             self.stop()

@@ -493,12 +493,13 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
             "ROOM_LIST", "SEARCH_CONFIRMED", "JOIN", "MODAL_RECOVERY",
             "ROOM_READY", "INGAME_HUD_CONFIRMED", "PRESSURE_CONFIRMED",
             "OPTIONAL_ROUTES", "OUTCOME", "REAL_EXIT", "LOBBY_RETURN", "NEXT_ROUND",
+            "ARCHAEOLOGY_HANDOFF",
         ),
-        "success_postcondition": "至少 3 个完整 hitch round；每轮由 production fresh-confirm 搜索/进房/Ready/Pressure/Outcome/真实回厅，至少覆盖一次 blocking modal recovery 和一次 Victory 或 Failure；首次公共背包动作只作为 GT_CAPTURE/MANUAL_INTERVENTION，不计 Natural E2E PASS。",
+        "success_postcondition": "完成配置的 hitch_cycle_num 个 hitch round；每轮由 production fresh-confirm 搜索/进房/Ready/Pressure/Outcome/真实回厅，至少覆盖一次 blocking modal recovery 和一次 Victory 或 Failure；hitch_after_goal=arch 时，最后还须经既有单人选关路由得到 fresh 考古锚点。首次公共背包动作只作为 GT_CAPTURE/MANUAL_INTERVENTION，不计 Natural E2E PASS。",
         "fail_condition": "production runtime ERROR/静默停止/永久零输入 stall、UNKNOWN 上输入、ROOM_LIST-as-ROOM、ROOM-as-MODAL、重复 Ready、盲 GO_HOME、Pressure 未确认即放行、或回厅未 fresh-confirm。",
         "blocked_condition": "窗口身份/页面 UNKNOWN、无可信 ROOM_LIST、candidate source 未验证、或尚未取得 Public Backpack GT；BLOCKED 时零业务输入。",
         "max_probe_time_s": 3600.0,
-        "natural_e2e_eligible": "HITCH_FULL_NATURAL_E2E 只认连续真实 Mediator.tick()；至少 3 rounds 且无人工介入，public backpack GT capture 不算 PASS。",
+        "natural_e2e_eligible": "HITCH_FULL_NATURAL_E2E 只认连续真实 Mediator.tick()；完成配置的 rounds，hitch_after_goal=arch 时还须 fresh-confirm 考古，且无人工介入；public backpack GT capture 不算 PASS。",
         "bundle_replay": "沿用现有事件帧、trace、ReplayCaseLoader 和 FakeInputExecutor；只重放证据结构，不把大厅/局内 FSM 复制到 Harness。",
         "runbook_manual": "把 KK 停在英雄三国房间列表；确认普通刷刷宝未运行。紧急停止用 Shift+F12。",
         "runbook_hands_off": "启动后不要点房间、刷新、准备、开始、压力、黑商、宝物、背包或退出；让 production Mediator.tick() 接管。",
@@ -1229,8 +1230,9 @@ class HitchLobbyChainObserver:
         "Artifact-Q", "Artifact-W", "Artifact-E", "ClearPressureMonsters",
     }
 
-    def __init__(self, *, required_rounds: int = 3) -> None:
+    def __init__(self, *, required_rounds: int = 3, require_archaeology: bool = False) -> None:
         self.required_rounds = max(3, int(required_rounds or 3))
+        self.require_archaeology = bool(require_archaeology)
         self.failed_reason: str | None = None
         self.blocked_reason: str | None = None
         self.blocked_evidence: dict[str, Any] | None = None
@@ -1264,7 +1266,8 @@ class HitchLobbyChainObserver:
             "PRESSURE_CONFIRMED": {"status": "NOT_OBSERVED"},
             "OUTCOME_OBSERVED": {"status": "NOT_OBSERVED"},
             "LOBBY_RETURN_CONFIRMED": {"status": "NOT_OBSERVED"},
-            "THREE_ROUNDS_CONFIRMED": {"status": "NOT_OBSERVED"},
+            "CONFIGURED_ROUNDS_CONFIRMED": {"status": "NOT_OBSERVED"},
+            "ARCHAEOLOGY_HANDOFF_CONFIRMED": {"status": "NOT_REQUIRED"},
         }
         self.metrics: dict[str, Any] = {
             "rounds_started": 0,
@@ -1414,7 +1417,11 @@ class HitchLobbyChainObserver:
 
         if phase == "ERROR":
             self.fail("production runtime entered ERROR", evidence=evidence)
-        if str((trace_row or {}).get("loop_action") or "") == "Break" and phase != "ERROR":
+        if (
+            str((trace_row or {}).get("loop_action") or "") == "Break"
+            and phase != "ERROR"
+            and not (self.require_archaeology and bool(state.get("archaeology_handoff_confirmed")))
+        ):
             self.metrics["silent_stop_count"] += 1
             self.fail("production loop returned Break without ERROR evidence", evidence=evidence)
         if action is not None:
@@ -1436,7 +1443,7 @@ class HitchLobbyChainObserver:
                     self.metrics["unknown_seat_exit"] += 1
             if reason == "HitchGoHome" and not bool(surface.get("room") or surface.get("room_list")):
                 self.metrics["blind_go_home"] += 1
-            if reason.startswith(("CreateRoom", "QuickJoin", "RoomStart", "StartHeroMode")):
+            if reason.startswith(("CreateRoom", "QuickJoin", "RoomStart", "StartHeroMode")) and not bool(state.get("hitch_goal_archaeology_handoff")):
                 self.metrics["unexpected_inputs"] += 1
                 self.fail("forbidden positive Lobby input in hitch chain", evidence=evidence)
             if reason in self._PRESSURE_CORE_REASONS and not bool(state.get("hitch_pressure_transferred")):
@@ -1563,7 +1570,9 @@ class HitchLobbyChainObserver:
             self.metrics["rounds_started"] >= self.required_rounds
             and self.metrics["lobby_returns"] >= self.required_rounds
         ):
-            self._pass("THREE_ROUNDS_CONFIRMED", evidence={"metrics": self.metrics})
+            self._pass("CONFIGURED_ROUNDS_CONFIRMED", evidence={"metrics": self.metrics})
+        if self.require_archaeology and bool(state.get("archaeology_handoff_confirmed")):
+            self._pass("ARCHAEOLOGY_HANDOFF_CONFIRMED", evidence=evidence)
         return self.is_pass
 
     @property
@@ -1571,8 +1580,10 @@ class HitchLobbyChainObserver:
         required = {
             "PRECHECK_OK", "ROOM_LIST_CONFIRMED", "SEARCH_CONFIRMED", "ROOM_JOINED",
             "READY_CONFIRMED", "MODAL_RECOVERY", "INGAME_HUD_CONFIRMED", "PRESSURE_CONFIRMED",
-            "OUTCOME_OBSERVED", "LOBBY_RETURN_CONFIRMED", "THREE_ROUNDS_CONFIRMED",
+            "OUTCOME_OBSERVED", "LOBBY_RETURN_CONFIRMED", "CONFIGURED_ROUNDS_CONFIRMED",
         }
+        if self.require_archaeology:
+            required.add("ARCHAEOLOGY_HANDOFF_CONFIRMED")
         safety_zero = (
             self.metrics["silent_stop_count"] == 0
             and self.metrics["permanent_zero_input_stall"] == 0
@@ -1600,6 +1611,7 @@ class HitchLobbyChainObserver:
             "scenario": PRIMARY_LIVE_SCENARIO,
             "primary_target": PRIMARY_LIVE_TARGET,
             "required_rounds": self.required_rounds,
+            "require_archaeology": self.require_archaeology,
             "checkpoints": _jsonable(self.checkpoints),
             "metrics": _jsonable(self.metrics),
             "public_backpack": {
@@ -1974,6 +1986,8 @@ def _state_snapshot(med: Mediator, context: str | None = None) -> dict[str, Any]
         "hitch_ready_confirmed_at": getattr(med, "_hitch_ready_confirmed_at", None),
         "hitch_re_search": getattr(med, "_hitch_re_search", False),
         "hitch_status": getattr(med, "_hitch_status", None),
+        "hitch_goal_archaeology_handoff": getattr(med, "_hitch_goal_archaeology_handoff", False),
+        "archaeology_handoff_confirmed": getattr(med, "_archaeology_handoff_confirmed", False),
         "game_count": getattr(med, "game_count", None),
         "disconnect_count": getattr(med, "_disconnect_count", None),
         "timeout_count": getattr(med, "_timeout_count", None),
@@ -3179,7 +3193,10 @@ class BundleRecorder:
         elif target == "hitch_lobby_chain":
             self.solo_observer_key = "hitch_lobby_chain"
             configured_rounds = getattr(settings, "hitch_cycle_num", 3)
-            self.solo_observer = HitchLobbyChainObserver(required_rounds=configured_rounds)
+            self.solo_observer = HitchLobbyChainObserver(
+                required_rounds=configured_rounds,
+                require_archaeology=str(getattr(settings, "hitch_after_goal", "solo") or "solo") == "arch",
+            )
             self.manifest[self.solo_observer_key] = self.solo_observer.payload()
         else:
             self.solo_observer = None
@@ -3753,9 +3770,13 @@ class BundleRecorder:
                 self._record_authoritative_target_result(
                     event_id=last_event.get("event_id"),
                     postcondition={
-                        "kind": "hitch_rounds_complete",
+                        "kind": "hitch_rounds_and_archaeology_complete"
+                        if getattr(self.solo_observer, "require_archaeology", False)
+                        else "hitch_rounds_complete",
                     },
-                    target_stage="THREE_ROUNDS_CONFIRMED",
+                    target_stage="ARCHAEOLOGY_HANDOFF_CONFIRMED"
+                    if getattr(self.solo_observer, "require_archaeology", False)
+                    else "CONFIGURED_ROUNDS_CONFIRMED",
                 )
         window = self.manifest.get("window") or {}
         preflight_window = (self.manifest.get("live_preflight") or {}).get("window") or {}

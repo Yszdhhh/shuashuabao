@@ -272,6 +272,39 @@ def test_hitch_cycle_target_stops_only_after_verified_exit() -> None:
     assert med.stop_signal.is_set()
 
 
+def test_hitch_cycle_target_arch_handoff_leaves_guest_room_before_existing_archaeology_route() -> None:
+    med = Mediator(
+        Settings(
+            dry_run=True,
+            ocr_mode="off",
+            mode_id="lobby_hitch",
+            cycle_num=5,
+            hitch_after_goal="arch",
+            auto_archaeology=False,
+        ),
+        ROOT,
+    )
+    med.game_count = 4
+
+    assert med._finish_hitch_round(100.0, "verified fifth hitch exit") == LoopAction.Continue
+    assert med.game_count == 5
+    assert med.settings.mode_id == "normal_farm"
+    assert med.phase == Phase.ROOM_WAITING
+    assert med._room_leave_pending is True
+    assert med._archaeology_handoff_pending is True
+    assert med._hitch_goal_archaeology_handoff is True
+    assert not med.stop_signal.is_set()
+
+    # An explicit "结束后去考古" route is allowed even when the separate
+    # ticket-exhaustion automation switch is off; the existing fresh-anchor
+    # confirmation remains mandatory.
+    frame = _lobby_frame()
+    with patch.object(med, "find", return_value=_hit("lobby/stage_archaeology_btn")), \
+         patch.object(med, "act_click", return_value=True) as click:
+        assert med._maybe_switch_to_archaeology(frame) == LoopAction.Continue
+    click.assert_called_once()
+
+
 def test_hitch_lobby_reset_does_not_count_as_completed_round() -> None:
     med = _hitch_mediator()
     assert med._hitch_reset_lobby("home", 100.0) == LoopAction.Continue
