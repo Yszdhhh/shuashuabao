@@ -1060,6 +1060,9 @@ class Mediator:
         # G0 Phase B：考古模板 miss 时的有界 reobserve 计数；超界 FATAL。
         self._archaeology_template_miss_budget = 40
         self._archaeology_handoff_pending: bool = False
+        # 交接用的房间是不是我们自己建的。别人的蹭车房里绝不能点开始；
+        # 自建房里必须点，否则选关页永远不出现（见 ROOM_WAITING 分支）。
+        self._archaeology_handoff_own_room: bool = False
         self._hitch_goal_archaeology_handoff: bool = False
         self._archaeology_click_at: float | None = None
         self._archaeology_click_generation: int | None = None
@@ -10176,6 +10179,7 @@ class Mediator:
             self._hitch_pressure_request_attempts = 0
             self._hitch_pressure_core_failed = False
             self._archaeology_handoff_pending = False
+            self._archaeology_handoff_own_room = False
             self._archaeology_click_at = None
             self._archaeology_click_generation = None
             self._archaeology_click_attempts = 0
@@ -14403,6 +14407,8 @@ class Mediator:
             if not confirm:
                 if room_start:
                     self.set_phase(Phase.ROOM_WAITING, "dialog already closed")
+                    if getattr(self, "_archaeology_handoff_pending", False):
+                        self._archaeology_handoff_own_room = True
                     return LoopAction.Continue
                 if self._action_timed_out():
                     print("[L0] 建房弹窗超时，回到地图页等待，不假报建房成功")
@@ -14419,17 +14425,29 @@ class Mediator:
                 return LoopAction.Continue
             self._room_action_deadline = time.time() + self.settings.query_timeout
             self.set_phase(Phase.ROOM_WAITING, "create confirmed")
+            if getattr(self, "_archaeology_handoff_pending", False):
+                self._archaeology_handoff_own_room = True
             return LoopAction.Continue
 
         if self.phase == Phase.ROOM_WAITING:
             if stage_page:
                 self.set_phase(Phase.STAGE_SELECT, "stage page after room")
                 return LoopAction.Continue
-            if getattr(self, "_archaeology_handoff_pending", False):
-                # G0 P0 contract #8 / Stage1 P1-1：cycle 完成后考古 handoff 待处理，
-                # 绝不点 RoomStart 开新局（违反 S0⑥）。零输入等选关页自然出现，
-                # 进入上方 stage_page 分支后交给考古 request/confirm 路由收敛。
+            if getattr(self, "_archaeology_handoff_pending", False) and not getattr(
+                self, "_archaeology_handoff_own_room", False
+            ):
+                # G0 P0 contract #8 / Stage1 P1-1：考古 handoff 待处理且这间房
+                # **不是我们自己建的**（别人的蹭车房，或离房后还没建成），绝不点
+                # RoomStart 开新局（违反 S0⑥）。零输入等选关页自然出现，进入上方
+                # stage_page 分支后交给考古 request/confirm 路由收敛。
                 # 有界：选关页始终不出现则 Fail-Closed 停止（绝不改点房间开始/建房）。
+                #
+                # 20260921：本分支原先不区分房间归属，于是蹭车达标 → 离房 → 自建
+                # 新房之后仍然禁止点开始，而 ROOM_WAITING 下选关页**不会**自然出现
+                # （它是点了开始才有的），必然超时进 ERROR —— 实机表现为"进新房间
+                # 又不开始游戏"。自建房里点开始进的是 ROOM_STARTING → STAGE_SELECT，
+                # 不是直接开一局；真正开局要在选关页选关再确认，而那一步会被
+                # _maybe_switch_to_archaeology 抢先改成点考古。
                 if self._action_timed_out():
                     print("[L0] cycle 完成考古 handoff 超时仍未出现选关页，Fail-Closed 停止")
                     self.set_phase(Phase.ERROR, "archaeology handoff stage page timeout")
