@@ -787,6 +787,11 @@ class Mediator:
         self._trace_actions: list[dict] = []
         self._trace_scenes: list[dict] = []
         self._trace_controls: list[dict] = []
+        # 局内观测记录器（默认关闭；SHUABAO_OBSERVE=1 打开）。
+        # 只读旁路：不发输入、不改任何 live 状态，只往 JSONL 写观测。
+        self._observe = None
+        self._observe_ready = False
+        self._observe_plan = (None, "")
         # trace 帧指纹缓存：(Frame 强引用, fingerprint)；用 is 判同，避免
         # id 复用导致同址新 Frame 误命中旧指纹。
         self._trace_fingerprint_cache: tuple | None = None
@@ -3796,12 +3801,32 @@ class Mediator:
                 ),
                 self._choice_session,
             )
+        _obs_from, _obs_why = None, ""
         if kind == "bond" and decision.action == PolicyAction.REFRESH:
             affordable, wood, price = self._bond_refresh_affordable(frame)
             if not affordable:
+                _obs_from = str(PolicyAction.REFRESH)
+                _obs_why = f"木材不足：需 {price}，当前 {wood if wood is not None else '未读出'}"
                 decision = PolicyDecision.close(
                     f"羁绊刷新需 {price} 木，当前木头 {wood if wood is not None else '未读出'}，隐藏面板"
                 )
+        _obs = self._observe_log()
+        if _obs is not None:
+            try:
+                _obs.note_choice(
+                    round_id=self._observe_round_id(),
+                    panel_kind=kind, slots=slots, decision=decision,
+                    set_progress=bond_progress, free_slots=live_free_slots,
+                    refresh_count=self._choice_session.refreshes,
+                    can_refresh=can_refresh,
+                    has_giveup=self._panel_has_giveup(frame, kind),
+                    round_elapsed_s=self._round_elapsed_s(),
+                    wood=getattr(self, "_wood_balance", None),
+                    refresh_price=self._bond_refresh_price() if kind == "bond" else None,
+                    downgraded_from=_obs_from, downgrade_reason=_obs_why,
+                )
+            except Exception as exc:
+                print(f"[med][observe] 选卡记录失败，跳过：{exc}")
         owned = (
             getattr(self, "_panel_opened_by_us", None) == kind
             or (self._l1_cycle_owned_panel and self._panel_kind == kind)
@@ -4605,6 +4630,7 @@ class Mediator:
         # 实机 000229 木材耗尽后 F 冷却 60s 仍被锁在羁绊，技能 20+ 点一次没点。
         if not self._passenger_mode():
             planned, why = self._solo_plan_panel(frame, now, target)
+            self._observe_plan = (planned, why)
             if planned is None:
                 print(f"[L1] {why}，转下一步")
                 self._advance_l1_cycle(target)
@@ -16190,8 +16216,55 @@ class Mediator:
         self.set_phase(Phase.QUIT, f"secret realm abandoned: {why}")
         return LoopAction.Continue
 
+    def _observe_round_id(self) -> str:
+        """观测记录的分局键。局未开始时归到 lobby，不与任何一局混账。"""
+        started = getattr(self, "_round_started_at", None)
+        return "lobby" if started is None else f"r{int(started * 1000)}"
+
+    def _observe_log(self):
+        """惰性取观测记录器；关闭时永远返回 None，且只判定一次。"""
+        log = self._observe
+        if log is not None:
+            return None if getattr(log, "disabled", False) else log
+        if self._observe_ready:
+            return None
+        self._observe_ready = True
+        try:
+            from shuabao import observe_log as _ol
+
+            if not _ol.observe_enabled():
+                return None
+            self._observe = _ol.ObserveLog()
+            print("[med][observe] 局内观测记录器已开启（只读，零输入）")
+            return self._observe
+        except Exception as exc:
+            print(f"[med][observe] 记录器初始化失败，保持关闭：{exc}")
+            return None
+
+    def _observe_tick(self) -> None:
+        """每个 MAIN_LINE tick 记一次资源与编排。默认关闭时是一次属性读。"""
+        log = self._observe_log()
+        if log is None:
+            return
+        try:
+            target, reason = getattr(self, "_observe_plan", (None, ""))
+            log.note_tick(
+                round_id=self._observe_round_id(),
+                round_elapsed_s=self._round_elapsed_s(),
+                phase=getattr(getattr(self, "phase", None), "name", ""),
+                cycle_step=getattr(self, "_l1_cycle_step", None),
+                wood=getattr(self, "_wood_balance", None),
+                skill_points=getattr(self, "_skill_points_seen", None),
+                treasure_count=getattr(self, "_treasure_pending_seen", None),
+                plan_target=target,
+                plan_reason=reason,
+            )
+        except Exception as exc:
+            print(f"[med][observe] tick 记录失败，跳过：{exc}")
+
     def _tick_main_line(self, frame: Frame) -> LoopAction:
         now = time.time()
+        self._observe_tick()
         secret_entry_observation = self._secret_realm_entering_since is not None
         if not secret_entry_observation and self._hitch_enabled():
             event = classify_hitch_ocr(self._hitch_ocr_text())
