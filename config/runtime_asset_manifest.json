@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-10T12:35:54.213410+00:00",
+  "generated_at": "2026-09-20T12:15:05.673687+00:00",
   "spec": "ShuaBao.spec",
   "package_roots": [
     {
@@ -2348,10 +2348,10 @@
     {
       "path": "assets/Images/lobby/stage_archaeology_btn.png",
       "purpose": "runtime_ui",
-      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
-      "reason_required": "runtime UI/status/icon asset",
-      "size_bytes": 5889,
-      "sha256": "b93393e43cd9a7a737c8033f318847067bd8635f92d0114dd7c468046f3cea50"
+      "provenance": "cropped from live solo capture solo_ingame_chain_20260920_200632_180078/f0007",
+      "reason_required": "detect the Stage Select 考古模式 request button before a direct archaeology handoff",
+      "size_bytes": 13134,
+      "sha256": "8dce239feaf91714423851a888fc0456ab8c587f9833996b3e4fbe5966c80592"
     },
     {
       "path": "assets/Images/lobby/stage_begin_btn.png",
