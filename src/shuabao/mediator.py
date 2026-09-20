@@ -6671,7 +6671,10 @@ class Mediator:
     _POST_GAME_BOSS_BOTTOM_STABLE_FRAMES = 2
     _POST_GAME_BOSS_UNRESOLVED_LIMIT = 3
     _POST_GAME_BOSS_LOCATE_LIMIT = 3
-    _POST_GAME_BOSS_RETRY_THRESHOLD = 0.58
+    # The last visible row can be partly covered by the game's notification
+    # stack.  This threshold is used only inside a geometry-predicted card
+    # slot, never for a free-form page search.
+    _POST_GAME_BOSS_RETRY_THRESHOLD = 0.45
     _POST_GAME_ACTION_RECHECK_S = 0.35
     _ARCHIVE_CHALLENGE_NAMES = (
         "skill", "strengthen", "gem", "loot",
@@ -8015,6 +8018,32 @@ class Mediator:
 
         used_fallback = False
         action_name = "BossConfigured"
+        # A target can already be partly visible on the next row even though
+        # the all-card pass cannot clear its normal threshold.  Use the
+        # verified grid geometry to inspect that one slot before scrolling:
+        # this fixes the live Time Cave 15-slot being obscured by a toast,
+        # without broadening the click authority beyond a classified panel.
+        if boss_hit is None and compact_roi is not None and bosses:
+            target_name = bosses[0]
+            target_no = parse_boss_order_number(
+                target_name, getattr(self, "_boss_catalog_cache", None)
+            )
+            if target_no is not None:
+                visible_pairs = self._find_visible_post_game_boss_cards(frame, post_game)
+                predicted_box = predict_card_slot(
+                    target_no,
+                    [card for card, _hit in visible_pairs],
+                    cols_per_row=4,
+                )
+                if predicted_box is not None:
+                    boss_hit = self._verify_boss_predicted_slot(
+                        frame, post_game, target_name, predicted_box
+                    )
+                    if boss_hit is not None:
+                        print(
+                            f"[med] Boss {target_name} 在预测格位获得受限证据，"
+                            f"直接点击 @ {boss_hit.center}"
+                        )
         if boss_hit is None and compact_roi is not None:
             target_name = bosses[0] if bosses else None
             target_no = parse_boss_order_number(target_name, getattr(self, "_boss_catalog_cache", None))

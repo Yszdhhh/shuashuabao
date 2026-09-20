@@ -115,6 +115,36 @@ def test_archive_panel_target_above_visible_scrolls_up(base_patches):
     assert "BossConfigured-scroll-up" in reason
 
 
+def test_archive_panel_partially_visible_predicted_target_clicks_directly(base_patches):
+    """A toast-covered next-row target is clicked from its verified predicted slot."""
+    frame = load_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
+    settings = Settings(sgzx_boss="15莫格莱尼", mode_id="solo", ocr_mode="off")
+    med = Mediator(settings, ROOT)
+    med._post_game_pending = True
+
+    visible = []
+    for no in range(1, 13):
+        row, col = divmod(no - 1, 4)
+        x, y = 100 + col * 80, 200 + row * 75
+        card = VisibleCard(no, f"{no:02d}", x, y, 58, 58, 0.9)
+        hit = MatchResult(f"boss/{no:02d}", 0.9, x, y, 58, 58, x + 29, y + 29)
+        visible.append((card, hit))
+    predicted = MatchResult("boss/15莫格莱尼", 0.524, 260, 425, 58, 58, 289, 454)
+    clicked = []
+
+    with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+         patch.object(med, "find", return_value=None), \
+         patch.object(med, "_find_visible_post_game_boss_cards", return_value=visible), \
+         patch.object(med, "_verify_boss_predicted_slot", return_value=predicted) as verify, \
+         patch.object(med, "act_click", side_effect=lambda hit, reason="": clicked.append((hit, reason)) or True), \
+         contextlib.redirect_stdout(io.StringIO()):
+        action = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
+
+    assert action == LoopAction.Continue
+    verify.assert_called_once()
+    assert clicked == [(predicted, "BossConfigured")]
+
+
 def test_archive_panel_target_not_unlocked_bottom_fallback(base_patches):
     """Target 55吞咽者布鲁 with at_bottom=True clicks last card with BossBottomFallback."""
     frame = load_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
