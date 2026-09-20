@@ -201,6 +201,36 @@
       "status": "official_help",
       "vs_old_research": "旧研究把技能点约等于「三选一次数」。官方：经验→升级→技能点→G 抽技能。"
     },
+    "skill_bond_timing": {
+      "name": "技能点与羁绊的时序和机会成本",
+      "source": "owner_verbal_20260920",
+      "status": "user_confirmed",
+      "wired_to_decision": false,
+      "skill_points": {
+        "cap": "无上限",
+        "expiry": "不过期",
+        "opportunity_cost": "无",
+        "timing": "技能无成长性；早学和晚学等效。技能点积压仅表示尚未花费，不构成问题。"
+      },
+      "bonds": {
+        "opportunity_cost": "高",
+        "timing": "羁绊有成长；合成存在周期，晚获得可能赶不上进度。",
+        "devour_condition_examples": [
+          "击杀 200",
+          "时间 60 秒"
+        ],
+        "devour_condition_examples_exhaustive": false,
+        "condition_catalog": "未提供完整条件目录；示例不得外推为穷尽列表。"
+      },
+      "owner_strategy": "优先拿羁绊；羁绊接近成型或木材不再溢出后，再取其他项。",
+      "known_policy_conflict": {
+        "location": "src/shuabao/mediator.py:_solo_plan_panel",
+        "current_rule": "技能积压 >= 8 时，无论木材多少优先技能。",
+        "conflict": "该规则把技能积压当作紧急抢占条件，与本条“技能点无时序机会成本、羁绊优先”的 Owner 机制相反。",
+        "observations": "9 局中 6 局此规则影响 >=40% 的决策；20260918_210044 为 22 次调度（羁绊 13、技能抢占 9）。",
+        "resolution": "等待 TASK_H 的基线测试与 Owner 裁决；本条不调整策略代码。"
+      }
+    },
     "kill_count": {
       "name": "杀敌数",
       "primary_use": "黑商刷新",
