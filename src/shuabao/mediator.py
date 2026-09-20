@@ -13151,6 +13151,20 @@ class Mediator:
         stage_page: bool = False,
     ) -> LoopAction:
         now = time.time()
+        # 组队考古兜底：房名过滤只在 OCR 读得出时生效，而组队考古房未必在名字里
+        # 写"考古"。一旦在蹭车过程中看见考古业务锚点，说明进错了房 —— 拉黑并退出，
+        # 我们要的是蹭普通刷图局。
+        # 自己的考古交接（_archaeology_handoff_pending）下这个锚点是**成功**信号，
+        # 必须放过；那时 mode_id 已是 normal_farm，本函数根本不会被调用，这里再
+        # 显式挡一道，避免以后改动把两者混起来。
+        if (
+            not getattr(self, "_archaeology_handoff_pending", False)
+            and self._archaeology_mode_anchor(frame) is not None
+        ):
+            if self._hitch_pending_room_key is not None:
+                self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
+            print("[L0] hitch 进入的是组队考古房，拉黑并退出")
+            return self._hitch_reset_lobby("team archaeology room", now)
         # P0-1：蹭车在 ROOM_WAITING 收到已验证的游戏窗帧时，绝不强推 MAIN_LINE
         # （旧实现会把 game client 帧误判成已在局内而吞掉房内状态）；零输入交给
         # 后续 surface reconciliation（stage/hero/hud/战后入口各归其位）。
