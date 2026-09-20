@@ -1482,7 +1482,10 @@ class Mediator:
             or self.phase == Phase.CREATE_ROOM
         )
         hitch_join_probe = role == "l0" and self._hitch_sm.pending_join
-        hitch_exit_probe = role == "l0" and getattr(self, "_hitch_floor_exit_pending", False)
+        room_exit_probe = role == "l0" and (
+            getattr(self, "_hitch_floor_exit_pending", False)
+            or getattr(self, "_room_leave_pending", False)
+        )
         self._capture_candidates = len(targets)
         previous_confirmed_room = self._confirmed_room_hwnd
         self._confirmed_room_hwnd = None
@@ -1554,9 +1557,9 @@ class Mediator:
         # would otherwise starve the dialog forever.  Probe every candidate
         # only during this bounded episode and prefer the structurally
         # confirmed form.  No focus change or input is performed here.
-        if create_dialog_probe or hitch_join_probe or hitch_exit_probe:
+        if create_dialog_probe or hitch_join_probe or room_exit_probe:
             frames = [capture_one(target) for target in targets]
-            if hitch_exit_probe:
+            if room_exit_probe:
                 # The confirmation prompt may be hosted by its own KK child
                 # HWND.  KK's dialog frame template is version-sensitive;
                 # while exit is pending, the left-side blue Confirm control is
@@ -11631,6 +11634,10 @@ class Mediator:
             )
         return None
 
+    def _find_verified_room_exit_confirm(self, frame: Frame) -> MatchResult | None:
+        """Return KK's exit-room Confirm only after the existing modal proof."""
+        return self._find_hitch_exit_confirm_button(frame) if self._hitch_exit_modal_visible(frame) else None
+
     def _find_hitch_exit_button(self, frame: Frame) -> MatchResult | None:
         for hit, text_width in reversed(self._hitch_room_blue_controls(frame)):
             if hit.x > frame.width * 0.80 and text_width <= 45:
@@ -13226,7 +13233,7 @@ class Mediator:
                 )
                 and self._hitch_exit_modal_visible(frame)
             ):
-                exit_confirm = self._find_hitch_exit_confirm_button(frame)
+                exit_confirm = self._find_verified_room_exit_confirm(frame)
                 confirmed = getattr(self, "_hitch_floor_exit_confirmed", False)
                 confirm_at = getattr(self, "_hitch_floor_exit_confirm_at", None)
                 confirm_clicks = int(getattr(self, "_hitch_floor_exit_confirm_clicks", 0) or 0)
@@ -14099,6 +14106,17 @@ class Mediator:
         """
         if not self._room_leave_pending:
             return None
+        # KK moves "是否确认退出房间?" into a small same-title child HWND.
+        # _capture_best probes that child while this transaction is pending;
+        # confirm it before asking any page classifier to reason about it.
+        exit_confirm = self._find_verified_room_exit_confirm(frame)
+        if exit_confirm is not None:
+            if now >= self._room_leave_next_at:
+                if self.act_click(exit_confirm, "LeaveOldRoom-confirm"):
+                    self._room_leave_attempts += 1
+                self._room_leave_next_at = now + 3.0
+            print("[med] 确认退出旧房，等待 fresh room-list authority（零输入观察）")
+            return LoopAction.Continue
         # fresh room-list authority：真实房间列表证据成立才算已离房。
         if self._lobby_room_list_evidence(frame) and room_start is None:
             self._room_leave_pending = False

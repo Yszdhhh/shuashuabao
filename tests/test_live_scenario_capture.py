@@ -1371,6 +1371,32 @@ def test_lobby_hitch_pending_exit_prefers_confirm_child_without_dialog_template(
     assert selected.hwnd == 20
 
 
+def test_leave_old_room_pending_prefers_confirm_child() -> None:
+    """短链 normal_farm 同样必须采到 KK 的退房确认子窗口。"""
+    med = Mediator(Settings(mode_id="normal_farm"), ROOT)
+    lobby = Frame(
+        np.full((945, 1332, 3), (24, 22, 20), dtype=np.uint8),
+        window_title="KK官方对战平台", hwnd=10, role="l0",
+    )
+    confirm_image = np.full((260, 440, 3), (24, 22, 20), dtype=np.uint8)
+    cv2.rectangle(confirm_image, (44, 172), (211, 195), (200, 130, 20), -1)
+    confirm = Frame(confirm_image, window_title="KK官方对战平台", hwnd=20, role="l0")
+    med._room_leave_pending = True
+    targets = [
+        SimpleNamespace(hwnd=10, title="KK官方对战平台"),
+        SimpleNamespace(hwnd=20, title="KK官方对战平台"),
+    ]
+
+    with patch("shuabao.mediator.find_window_targets", return_value=targets), \
+         patch("shuabao.mediator.capture_target", side_effect=lambda target: (
+             confirm if target.hwnd == 20 else lobby
+         )), \
+         patch.object(med, "find_scene", return_value=None):
+        selected = med._capture_best("KK官方对战平台", "l0")
+
+    assert selected.hwnd == 20
+
+
 def test_lobby_search_ready_requires_button_state_change() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     before = Frame(
