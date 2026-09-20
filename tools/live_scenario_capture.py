@@ -4875,6 +4875,19 @@ def _arm_direct_archaeology_after_stage_select(med: Mediator, enabled: bool) -> 
     return True
 
 
+def _arm_current_room_archaeology_handoff(med: Mediator) -> None:
+    """Arm the short live handoff after the operator places self on floor one."""
+    med.settings.mode_id = "normal_farm"
+    med.settings.auto_create_room = True
+    med.settings.auto_archaeology = True
+    med._hitch_goal_archaeology_handoff = True
+    med._archaeology_handoff_pending = True
+    med._room_leave_pending = True
+    med._room_leave_next_at = 0.0
+    med._room_action_deadline = time.time() + min(med.settings.query_timeout, 30)
+    med.set_phase(Phase.ROOM_WAITING, "current room handoff; leave for archaeology")
+
+
 def _resume_after_manual_intervention(med: Mediator) -> None:
     """Resume the observation loop only after an explicit manual bookmark."""
     med.stop_signal.reset()
@@ -4929,6 +4942,15 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         settings.mode_id = "normal_farm"
         settings.auto_create_room = True
         settings.auto_archaeology = True
+    current_room_archaeology = bool(getattr(args, "current_room_archaeology", False))
+    if current_room_archaeology:
+        if target != "hitch_lobby_chain":
+            raise ValueError("--current-room-archaeology 仅支持 hitch_lobby_chain")
+        if not args.live_input:
+            raise ValueError("--current-room-archaeology 必须使用 --live-input")
+        settings.mode_id = "normal_farm"
+        settings.auto_create_room = True
+        settings.auto_archaeology = True
     output_root = Path(args.out).resolve()
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     bundle_dir = output_root / f"{target}_{stamp}"
@@ -4952,7 +4974,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         med = Mediator(settings, runtime_root, stop_signal=stop_signal, incident_dir=bundle_dir / "incidents")
         if elevation_blocked:
             runtime_mediator_error = "Real input requires an elevated process; accept the UAC prompt from the desktop launcher"
-    initial_phase = _initial_phase_for_target(target)
+    initial_phase = Phase.ROOM_WAITING if current_room_archaeology else _initial_phase_for_target(target)
     med.set_phase(initial_phase, f"{target} {'target probe' if probe else 'live capture'}")
     if target == "hitch_lobby_chain":
         med._hitch_re_search = False
@@ -4981,6 +5003,13 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         production_source_root=runtime_root if runtime_root != repo_root else None,
         production_source_sha=getattr(args, "production_source_sha", None),
     )
+    if current_room_archaeology:
+        recorder.solo_observer = None
+        recorder.solo_observer_key = None
+        recorder.manifest["current_room_archaeology"] = {
+            "operator_precondition": "当前 KK 房间内已把自己放到一楼",
+            "handoff": "leave_old_room -> fresh_lobby -> create_room -> archaeology",
+        }
     if probe_bootstrap:
         recorder.manifest["probe_bootstrap"] = probe_bootstrap
     if execution_mode == "ground_truth_only":
@@ -5005,6 +5034,10 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         if recorder.solo_observer is not None:
             recorder.solo_observer.precheck(preflight.get("status") == "READY", preflight)
             recorder.manifest[str(recorder.solo_observer_key)] = recorder.solo_observer.payload()
+        if current_room_archaeology:
+            if not _frame_is_valid(preflight_frame) or not med._is_confirmed_room_frame(preflight_frame):
+                raise ValueError("当前房间考古短链要求预检帧确认真实 ROOM 页面；请先把自己放到一楼")
+            _arm_current_room_archaeology_handoff(med)
     else:
         dry_identity = _scenario_identity(
             repo_root=repo_root,
@@ -5250,6 +5283,14 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                     after_frame=_capture_after(med) if recorder.inputs_this_tick else None,
                     loop_action=loop_action,
                 )
+            if current_room_archaeology and getattr(med, "_archaeology_handoff_confirmed", False):
+                if not recorder.manifest["target_result"].get("authoritative"):
+                    last_event = (recorder.manifest.get("events") or [{}])[-1]
+                    recorder._record_authoritative_target_result(
+                        event_id=last_event.get("event_id"),
+                        postcondition={"kind": "current_room_archaeology_handoff_complete"},
+                        target_stage="ARCHAEOLOGY_HANDOFF_CONFIRMED",
+                    )
             if not _frame_is_valid(current_frame["value"]):
                 # 坚韧容错原则：无论切屏、最小化还是转场黑屏，不直接退出进程自杀！记录并等待恢复
                 print(f"[live] 当前帧无效或正在过渡/最小化中，等待画面恢复 (tick {ticks})")
@@ -5359,6 +5400,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             "bookmark_file": str(bookmark_file),
             "continue_after_failure": bool(getattr(args, "continue_after_failure", False)),
             "direct_archaeology": direct_archaeology,
+            "current_room_archaeology": current_room_archaeology,
         }
         recorder.finalize()
         if live_lane is not None:
@@ -5995,6 +6037,11 @@ def _common_live_args(parser: argparse.ArgumentParser) -> None:
         "--direct-archaeology",
         action="store_true",
         help="仅单人链路：建房并到达选关页后，直接走 production 考古 handoff",
+    )
+    parser.add_argument(
+        "--current-room-archaeology",
+        action="store_true",
+        help="当前房间已把自己放到一楼：真实离旧房→自建房→选关→考古",
     )
     parser.add_argument("--duration", type=float, default=60.0)
     parser.add_argument(

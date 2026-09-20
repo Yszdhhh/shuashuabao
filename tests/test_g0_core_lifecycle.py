@@ -344,6 +344,24 @@ class G0LeaveOldRoomTests(unittest.TestCase):
         find_exit.assert_called_once_with(frame)
         self.assertEqual(clicks, ["LeaveOldRoom"])
 
+    def test_room_exit_fallback_works_when_room_start_is_disabled(self) -> None:
+        """结束态房间显示“游戏中”时仍必须点击右侧退出。"""
+        med = self._farm_mediator(FakeClock(start=100.0))
+        med._room_leave_pending = True
+        med.set_phase(Phase.ROOM_WAITING, "leaving completed room")
+        frame = _noise_frame(seed=75)
+        exit_hit = _hit("room_exit", 1100, 700)
+        clicks: list[str] = []
+        with patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+                patch.object(med, "_find_room_start", return_value=None), \
+                patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+                patch.object(med, "_hitch_action_hit", return_value=None), \
+                patch.object(med, "_find_hitch_exit_button", return_value=exit_hit) as find_exit, \
+                patch.object(med, "act_click", side_effect=lambda _h, reason="": clicks.append(reason) or True):
+            self.assertIs(med._tick_leave_old_room(frame, None, now=100.0), LoopAction.Continue)
+        find_exit.assert_called_once_with(frame)
+        self.assertEqual(clicks, ["LeaveOldRoom"])
+
 
 class G0ArchaeologyHandoffTests(unittest.TestCase):
     """契约 #6：click 仅 request；fresh generation kaogu 锚点才 COMPLETE。"""

@@ -580,6 +580,26 @@ function Invoke-HitchLobbyChainCapture {
     Invoke-CaptureTool $cliArgs
 }
 
+function Invoke-HitchRoomArchaeologyHandoffCapture {
+    Assert-ReadyForGt
+    $settingsPath = New-DashboardSettingsSnapshot
+    $cliArgs = @(
+        "capture",
+        "--target", "hitch_lobby_chain",
+        "--current-room-archaeology",
+        "--out", $script:CaptureRoot,
+        "--repo-root", $RepoRoot,
+        "--duration", "600",
+        "--max-ticks", "5000",
+        "--interval", "0.15",
+        "--generate"
+    )
+    $cliArgs += @(Get-LiveRuntimeArgs)
+    $cliArgs += @("--settings", $settingsPath)
+    Write-Host "[launcher] 当前房间短链：自己先放到一楼；退出旧房→自建房→选关→考古" -ForegroundColor Cyan
+    Invoke-CaptureTool $cliArgs
+}
+
 function Invoke-PublicBackpackDepositProbe {
     Assert-ReadyForGt
     $cliArgs = @(
@@ -898,6 +918,7 @@ Add-MenuButton "9  打开最新 FAIL bundle`r`n    直接查看最近失败/阻�
 Add-MenuButton "10 Reproduce 最新 FAIL`r`n    进入 Frozen Replay（离线回归）" 24 528 { Reproduce-LatestFail } $blue
 Add-MenuButton "单人临时设置（可选）`r`n    仅覆盖下一次 12；默认读取正式看板" 390 528 { Invoke-SoloSettingsPanel } $yellow
 Add-MenuButton "14 单人考古直达`r`n    建房→选关→直接考古；fresh 锚点确认" 24 586 { Invoke-SoloDirectArchaeologyCapture } $(if ($script:ReadyForGt) { $green } else { $locked })
+Add-MenuButton "15 当前房间短链`r`n    一楼→退出旧房→自建房→考古" 390 586 { Invoke-HitchRoomArchaeologyHandoffCapture } $(if ($script:ReadyForGt) { $green } else { $locked })
 
 $exitButton = New-Object System.Windows.Forms.Button
 $exitButton.Text = "关闭菜单"

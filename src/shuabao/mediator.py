@@ -14117,7 +14117,10 @@ class Mediator:
         if now >= self._room_leave_next_at:
             # 只发一次 request，然后等待 fresh 证据；click success 不构成离房。
             hit = self._hitch_action_hit(frame, HitchAction.GO_HOME)
-            if hit is None and room_start is not None:
+            # A completed/disabled room shows ``游戏中`` instead of an
+            # actionable room-start button. It is still a real room and the
+            # handoff must use its semantic Exit control.
+            if hit is None and (room_start is not None or self._is_confirmed_room_frame(frame)):
                 hit = self._find_hitch_exit_button(frame)
             if hit is not None:
                 if self.act_click(hit, "LeaveOldRoom"):
