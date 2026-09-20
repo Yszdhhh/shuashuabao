@@ -44,3 +44,14 @@
 ## 当前待真机确认
 
 本次代码和离线契约已完成；仍需用 13 号按钮跑一条新的 5 局实机 bundle，确认蹭车中途的密钥挑战、传家宝、时光之穴等可选路线以及第 5 局后的考古 handoff 在同一条 production 链中完整出现。此前的单人 14 号问题不能代替 13 号真机 PASS。
+
+## 2026-09-20 20:45 bundle 复盘
+
+`C:\tmp\shuabao-captures\hitch_lobby_chain_20260920_204522_885047` 已确认 `game_count=5`、`victory_count=5`。第 5 局退出确认点击成功，但随后旧房页面持续被识别为 `ROOM_WAITING`，最终因 UNKNOWN 输入保护而 FAIL。
+
+根因有两层：
+
+1. 旧房退出兜底直接取全屏最高分的 `room_exit_btn`，在这轮命中了房间内容区（约 `(731,261)` / `(768,344)`），没有命中右下角真实“退出”按钮，所以没有产生 fresh 房间列表；
+2. 13 号蹭车阶段为禁止自建房会把 `auto_create_room=false` 投影到内存设置。即便离房成功，收尾只切到 `normal_farm` 也不足以进入自建房考古路由。
+
+已修复：旧房收尾改用 `_find_hitch_exit_button()` 的右侧房间几何约束；`hitch_after_goal=arch` 收尾显式恢复 `auto_create_room=true`。下轮应看到“真实退出 → fresh 房间列表 → 自建房 → 选关考古”，而不是停在旧房。

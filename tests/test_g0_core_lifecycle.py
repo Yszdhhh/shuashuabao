@@ -328,6 +328,22 @@ class G0LeaveOldRoomTests(unittest.TestCase):
         self.assertFalse(med._room_leave_pending)
         self.assertIs(med.phase, Phase.LOBBY_ROOM, "超时保持手动房等待语义")
 
+    def test_room_exit_fallback_uses_semantic_room_exit_geometry(self) -> None:
+        clock = FakeClock(start=100.0)
+        med = self._farm_mediator(clock)
+        med._room_leave_pending = True
+        med.set_phase(Phase.PREPARE, "leaving old room")
+        frame = _noise_frame(seed=74)
+        exit_hit = _hit("room_exit", 1100, 700)
+        clicks: list[str] = []
+        with patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+                patch.object(med, "_hitch_action_hit", return_value=None), \
+                patch.object(med, "_find_hitch_exit_button", return_value=exit_hit) as find_exit, \
+                patch.object(med, "act_click", side_effect=lambda _h, reason="": clicks.append(reason) or True):
+            self.assertIs(med._tick_leave_old_room(frame, _hit("room_start"), now=100.0), LoopAction.Continue)
+        find_exit.assert_called_once_with(frame)
+        self.assertEqual(clicks, ["LeaveOldRoom"])
+
 
 class G0ArchaeologyHandoffTests(unittest.TestCase):
     """契约 #6：click 仅 request；fresh generation kaogu 锚点才 COMPLETE。"""

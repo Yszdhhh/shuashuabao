@@ -12557,9 +12557,12 @@ class Mediator:
         self.set_phase(Phase.QUIT, "hitch misopened stage page")
         return LoopAction.Continue
 
-    def _finish_hitch_round(self, now: float, note: str) -> LoopAction:
+    def _finish_hitch_round(
+        self, now: float, note: str, *, already_counted: bool = False
+    ) -> LoopAction:
         """记录一次已验证的蹭车离局，然后回到大厅继续找房。"""
-        self.game_count += 1
+        if not already_counted:
+            self.game_count += 1
         self._hitch_game_exit_at = now
         print(f"[med] 蹭车已完成离局 count={self.game_count}")
         if self.settings.cycle_num > 0 and self.game_count >= self.settings.cycle_num:
@@ -12569,6 +12572,10 @@ class Mediator:
                 # pending flag then authorizes only the existing archaeology
                 # request/confirm transaction; it never starts another hitch round.
                 self.settings.mode_id = "normal_farm"
+                # hitch_lobby_chain disables room creation while searching;
+                # archaeology handoff is a new solo run and must restore the
+                # normal-farm room owner before the fresh stage route.
+                self.settings.auto_create_room = True
                 self._hitch_after_exit(now)
                 self._hitch_goal_archaeology_handoff = True
                 self._archaeology_handoff_pending = True
@@ -14111,7 +14118,7 @@ class Mediator:
             # 只发一次 request，然后等待 fresh 证据；click success 不构成离房。
             hit = self._hitch_action_hit(frame, HitchAction.GO_HOME)
             if hit is None and room_start is not None:
-                hit = self.find(frame, ["room_exit_btn"], threshold=0.75)
+                hit = self._find_hitch_exit_button(frame)
             if hit is not None:
                 if self.act_click(hit, "LeaveOldRoom"):
                     self._room_leave_attempts += 1
@@ -14197,6 +14204,15 @@ class Mediator:
         if self._awaiting_room_return and self._hitch_enabled():
             self._awaiting_room_return = False
             self._hitch_re_search = True
+            # When the game window disappears before the room window returns,
+            # the generic return-proof branch increments game_count itself.
+            # Route the configured final round through the same finish logic;
+            # otherwise a 5th round falls back to ROOM_WAITING and waits for a
+            # host forever, never arming the archaeology handoff.
+            if self.settings.cycle_num > 0 and self.game_count >= self.settings.cycle_num:
+                return self._finish_hitch_round(
+                    time.time(), "same room verified; hitch cycle complete", already_counted=True
+                )
 
         if self._awaiting_room_return:
             if room_start:

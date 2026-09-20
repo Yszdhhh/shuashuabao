@@ -289,6 +289,7 @@ def test_hitch_cycle_target_arch_handoff_leaves_guest_room_before_existing_archa
     assert med._finish_hitch_round(100.0, "verified fifth hitch exit") == LoopAction.Continue
     assert med.game_count == 5
     assert med.settings.mode_id == "normal_farm"
+    assert med.settings.auto_create_room is True
     assert med.phase == Phase.ROOM_WAITING
     assert med._room_leave_pending is True
     assert med._archaeology_handoff_pending is True
@@ -303,6 +304,38 @@ def test_hitch_cycle_target_arch_handoff_leaves_guest_room_before_existing_archa
          patch.object(med, "act_click", return_value=True) as click:
         assert med._maybe_switch_to_archaeology(frame) == LoopAction.Continue
     click.assert_called_once()
+
+
+def test_hitch_cycle_target_reached_through_room_return_arms_archaeology() -> None:
+    """The disappear-first exit path must use the same final-round handoff."""
+    med = Mediator(
+        Settings(
+            dry_run=True,
+            ocr_mode="off",
+            mode_id="lobby_hitch",
+            cycle_num=5,
+            hitch_after_goal="arch",
+        ),
+        ROOT,
+    )
+    # The disappear-first exit path has already recorded this round before
+    # the room window is reacquired.
+    med.game_count = 5
+    med._awaiting_room_return = True
+    med.set_phase(Phase.PREPARE, "exit confirmed; verify same room")
+
+    with patch.object(med, "_startup_state", return_value="UNKNOWN"), \
+         patch.object(med, "_detect_context", return_value="ROOM_WAITING"), \
+         patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+         patch.object(med, "_find_hitch_room_list_tab", return_value=None), \
+         patch.object(med, "_find_room_start", return_value=_hit("room_start")):
+        assert med._tick_l0(_lobby_frame()) == LoopAction.Continue
+
+    assert med.game_count == 5
+    assert med._room_leave_pending is True
+    assert med._archaeology_handoff_pending is True
+    assert med._hitch_goal_archaeology_handoff is True
+    assert med.phase is Phase.ROOM_WAITING
 
 
 def test_hitch_lobby_reset_does_not_count_as_completed_round() -> None:
