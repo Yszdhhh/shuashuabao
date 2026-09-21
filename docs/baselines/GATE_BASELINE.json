@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-14 09:40:00",
-  "reason": "Add manifest-listed runtime template assets/Images/chuanjiabao_thin.png (thin, non-hovered heirloom plaza label; live 2026-09-14 f0707) -> asset_files/asset_allowlisted 398->399. Targeted edit: frozen_replay/contract re-run PASS unchanged; a full --update-baseline run on this machine was corrupted by memory exhaustion (subprocess STATUS_DLL_INIT_FAILED), so other stages keep their verified values. pytest split run: 742+5(identity, fixed by 34c103f) / 1384+6(DLL init, 15/15 pass in isolation).",
+  "updated_at": "2026-09-21 17:15:39",
+  "reason": "Add formally referenced title templates assets/Images/env/great_rift_title.png and assets/Images/env/tqtz_confirm_title.png (447c2f4, Mediator._grey_yes_dialog_kind) -> asset_files/asset_allowlisted 399->401. Pytest/contract passed counts follow hitch candidate; failed=0.",
   "note": "发版门禁快照。任何偏离都会让 tools/release_gate.py 失败。known_failures 里的每一项必须写明原因；修好后请重新 --update-baseline。",
   "stages": {
     "pytest": {
       "title": "单元/回归测试（tests/）",
       "observed": {
-        "passed": 2063,
+        "passed": 2445,
         "xfailed": 2,
-        "skipped": 13
+        "skipped": 2
       }
     },
     "frozen_replay": {
@@ -35,8 +35,8 @@
         "asset_spec_assets_root": 1,
         "asset_manifest_schema": 1,
         "asset_package_root_whole_tree": 1,
-        "asset_files": 399,
-        "asset_allowlisted": 399,
+        "asset_files": 401,
+        "asset_allowlisted": 401,
         "asset_missing_allowlist": 0,
         "asset_stale_manifest": 0,
         "asset_forbidden_paths": 0,
@@ -47,7 +47,7 @@
     "contract": {
       "title": "L0 大厅全链契约回放（tests/contract/）",
       "observed": {
-        "passed": 56,
+        "passed": 58,
         "present": 1
       }
     }
