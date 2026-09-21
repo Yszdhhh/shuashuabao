@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "0d562bbbaeffc5b92a9923c4d3da0ee1f0201522",
-  "anchored_at": "2026-09-21T15:46:26Z",
+  "candidate_sha": "1c990141bdc8b829bf8154b3d29082a68cfaa71b",
+  "anchored_at": "2026-09-21T15:59:52Z",
   "branch": "fix/hitch-goal-archaeology-20260920",
-  "note": "UI-21 发布前接受的 hitch stage false-positive 修复候选"
+  "note": "hitch 选关页需≥3行 + 真实帧回归（在 0d562bb 之上）"
 }
