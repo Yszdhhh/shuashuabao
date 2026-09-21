@@ -72,6 +72,11 @@ def has_prefix_evidence(text: str, prefix: str) -> bool:
     expected = unicodedata.normalize("NFKC", str(prefix or "")).strip()
     if not expected or len(expected) > MAX_LENGTH:
         return False
+    expected_counter = parse_counter(expected)
+    if expected_counter is not None:
+        observed_counter = parse_counter(normalized)
+        if observed_counter is not None and observed_counter == expected_counter:
+            return True
     if not expected.isdecimal():
         return verify_expected_text(normalized, expected)
     compact = "".join(normalized.split())
