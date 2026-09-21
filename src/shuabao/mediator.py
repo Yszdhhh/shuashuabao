@@ -848,6 +848,7 @@ class Mediator:
         # Session-local blacklist keyed by the visible lobby room-number cell.
         self._hitch_blacklisted_room_keys = AgingBlacklist(ttl_s=1800.0)
         self._hitch_pending_room_key: str | None = None
+        self._hitch_host_difficulty_since: float | None = None
         self._hitch_floor_exit_pending = False
         self._hitch_floor_exit_confirmed = False
         self._hitch_floor_exit_attempted_at: float | None = None
@@ -12379,6 +12380,7 @@ class Mediator:
             self._exit_since = now
         elif self.phase == Phase.ROOM_WAITING:
             self._hitch_seat_streak = None
+            self._hitch_host_difficulty_since = None
 
     def _liveness_reset(self, now: float) -> None:
         self._liveness_last_progress_at = now
@@ -12577,6 +12579,7 @@ class Mediator:
         self._hitch_pending_row_y = None
         self._hitch_join_origin_hwnd = None
         self._hitch_pending_room_key = None
+        self._hitch_host_difficulty_since = None
         # Task 2: floor-exit transient must not leak across episode re-entry;
         # every hitch reset path converges here, so clear the pending/confirmed
         # latch at this single real episode boundary.
@@ -13037,6 +13040,10 @@ class Mediator:
     _HITCH_STALL_ESC_L0_S = 30.0
     _HITCH_STALL_ESC_GAME_S = 60.0
     _HITCH_READY_WAIT_S = 70.0
+    # 蹭车在游戏内等待房主选难度的超时时间（秒）。
+    # 正常房主选关在 5~15s 内完成；若超过 60s 仍未选，说明房主挂机/掉线或卡死，
+    # 蹭车客人应主动退出避免无进展死等；与 _HITCH_STALL_ESC_GAME_S (60s) 和 _HITCH_READY_WAIT_S (70s) 同量级。
+    _HITCH_HOST_DIFFICULTY_TIMEOUT_S = 60.0
     # Upper bound for holding the lobby flow while our readied room's window
     # still exists but is not recognised (ready wait + exit + margin).
     _HITCH_MEMBER_ROOM_HOLD_S = 150.0
@@ -13143,6 +13150,28 @@ class Mediator:
         self.act_key("esc", "HitchStallWatchdogEsc")
         return LoopAction.Continue
 
+    def _tick_hitch_host_choosing_difficulty(self, now: float) -> LoopAction:
+        """非一楼在游戏内等待房主选难度：有界等待；超时则拉黑该房并走真实退出链。"""
+        self._hitch_status = "host_choosing_difficulty"
+        if self._hitch_host_difficulty_since is None:
+            self._hitch_host_difficulty_since = now
+        elapsed = now - self._hitch_host_difficulty_since
+        if elapsed >= self._HITCH_HOST_DIFFICULTY_TIMEOUT_S:
+            print(
+                f"[L0] hitch 游戏内等待 1 号位选择难度超时（{elapsed:.0f}s >= "
+                f"{self._HITCH_HOST_DIFFICULTY_TIMEOUT_S:.0f}s），退出游戏并拉黑"
+            )
+            self._hitch_host_difficulty_since = None
+            if self._hitch_pending_room_key is not None:
+                self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
+            self.set_phase(Phase.QUIT, "hitch host difficulty timeout")
+            return LoopAction.Continue
+        print(
+            f"[L0] hitch 游戏内等待 1 号位选择难度（已等待 "
+            f"{elapsed:.0f}s/{self._HITCH_HOST_DIFFICULTY_TIMEOUT_S:.0f}s，零输入）"
+        )
+        return LoopAction.Continue
+
     def _tick_lobby_hitch(
         self,
         frame: Frame,
@@ -13151,25 +13180,12 @@ class Mediator:
         stage_page: bool = False,
     ) -> LoopAction:
         now = time.time()
-        # 组队考古兜底：房名过滤只在 OCR 读得出时生效，而组队考古房未必在名字里
-        # 写"考古"。一旦在蹭车过程中看见考古业务锚点，说明进错了房 —— 拉黑并退出，
-        # 我们要的是蹭普通刷图局。
-        # 自己的考古交接（_archaeology_handoff_pending）下这个锚点是**成功**信号，
-        # 必须放过；那时 mode_id 已是 normal_farm，本函数根本不会被调用，这里再
-        # 显式挡一道，避免以后改动把两者混起来。
-        if (
-            not getattr(self, "_archaeology_handoff_pending", False)
-            and self._archaeology_mode_anchor(frame) is not None
-        ):
-            if self._hitch_pending_room_key is not None:
-                self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
-            print("[L0] hitch 进入的是组队考古房，拉黑并退出")
-            return self._hitch_reset_lobby("team archaeology room", now)
         # P0-1：蹭车在 ROOM_WAITING 收到已验证的游戏窗帧时，绝不强推 MAIN_LINE
         # （旧实现会把 game client 帧误判成已在局内而吞掉房内状态）；零输入交给
         # 后续 surface reconciliation（stage/hero/hud/战后入口各归其位）。
         if self.phase == Phase.ROOM_WAITING and self._is_game_client_frame(frame):
             if self._is_in_game_hud(frame):
+                self._hitch_host_difficulty_since = None
                 # A successful guest Ready transition is the authoritative
                 # natural-entry proof.  Room-number OCR is only needed for
                 # blacklist bookkeeping and must not suppress the opening
@@ -13184,9 +13200,7 @@ class Mediator:
                 print("[L0] hitch ROOM_WAITING 观察到游戏客户端帧，零输入移交状态对齐")
                 return LoopAction.Continue
             if self._host_choosing_difficulty(frame):
-                self._hitch_status = "host_choosing_difficulty"
-                print("[L0] hitch 游戏内等待 1 号位选择难度（零输入）")
-                return LoopAction.Continue
+                return self._tick_hitch_host_choosing_difficulty(now)
             if stage_page or self._find_stage_page(frame):
                 return self._hitch_quit_misopened_stage()
             if getattr(self, "_hitch_ready_timeout_pending", False):
@@ -13195,6 +13209,7 @@ class Mediator:
             print("[L0] hitch ROOM_WAITING 观察到游戏客户端帧，零输入移交状态对齐")
             return LoopAction.Continue
         if context in ("MAIN_LINE", "IN_GAME"):
+            self._hitch_host_difficulty_since = None
             self._hitch_re_search = False
             if self.phase == Phase.ROOM_WAITING and self._hitch_arm_opening_pressure(
                 "room -> in-game context"
@@ -13208,9 +13223,7 @@ class Mediator:
             # 出现即误开或自己成了房主，立刻退出，不要零输入干等。
             # 例外：「等待玩家1选择难度」是客人看到的正常开局前页面。
             if self._host_choosing_difficulty(frame):
-                self._hitch_status = "host_choosing_difficulty"
-                print("[L0] hitch 游戏内等待 1 号位选择难度（零输入）")
-                return LoopAction.Continue
+                return self._tick_hitch_host_choosing_difficulty(now)
             if self._is_game_client_frame(frame):
                 return self._hitch_quit_misopened_stage()
             print("[L0] hitch 忽略非游戏窗口的 STAGE_SELECT 晋级请求，零输入保持大厅状态")
@@ -17919,7 +17932,7 @@ class Mediator:
 
     def _classify_exit_surface(self, frame: Frame) -> str:
         """Reclassify a disappeared exit confirmation without inferring HUD."""
-        if self._find_room_start(frame):
+        if not self._is_game_client_frame(frame) and self._find_room_start(frame):
             return "room"
         if self._is_in_game_hud(frame):
             return "hud"
@@ -17957,7 +17970,7 @@ class Mediator:
         elapsed = time.time() - self._exit_since if self._exit_since else 0.0
 
         if self.phase == Phase.QUIT:
-            if self._find_room_start(frame):
+            if not self._is_game_client_frame(frame) and self._find_room_start(frame):
                 print("[med] 局内退出阶段检测到已在房间准备界面，退出完成")
                 self._awaiting_room_return = True
                 self.set_phase(Phase.PREPARE, "already back in room")
@@ -18001,7 +18014,7 @@ class Mediator:
             return LoopAction.Continue
 
         if self.phase == Phase.NEXT:
-            if self._find_room_start(frame):
+            if not self._is_game_client_frame(frame) and self._find_room_start(frame):
                 print("[med] 退出确认阶段检测到已在房间准备界面")
                 if self._hitch_enabled():
                     return self._finish_hitch_round(time.time(), "exit confirmed; hitch re-search")
