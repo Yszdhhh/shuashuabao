@@ -1478,24 +1478,31 @@ class P1B0PostGameTests(unittest.TestCase):
         boss_target = MatchResult("33玛格曼达", 0.85, 1075, 453, 51, 51, 1075, 453)
         close_target = MatchResult("archive_panel_close", 0.99, 976, 197, 43, 31, 997, 212)
 
+        bottom_calls = {"n": 0}
+
+        def at_bottom(_frame, _post_game=None):
+            # Two scrolls, then the list is at bottom for the fallback click and
+            # any post-click relocate ticks (time-cave deadlock recovery).
+            bottom_calls["n"] += 1
+            return bottom_calls["n"] >= 3
+
         with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
              patch.object(med, "act_scroll", return_value=True) as scroll, \
-             patch.object(med, "_post_game_boss_list_at_bottom", side_effect=[False, False, True]), \
+             patch.object(med, "_post_game_boss_list_at_bottom", side_effect=at_bottom), \
              patch.object(med, "_find_last_recognized_post_game_boss", return_value=boss_target), \
              patch.object(med, "_find_archive_panel_close", return_value=close_target), \
              patch.object(med, "act_click", return_value=True) as click:
-            med._tick_main_line(frame_archive)
-            med._boss_challenge_next_at = 0.0
-            med._tick_main_line(frame_archive)
-            med._boss_challenge_next_at = 0.0
-            med._tick_main_line(frame_archive)
-            med._boss_challenge_next_at = 0.0
-            med._tick_main_line(frame_archive)
+            for _ in range(8):
+                med._tick_main_line(frame_archive)
+                med._boss_challenge_next_at = 0.0
+                if med._time_cave_boss_done:
+                    break
             self.assertTrue(med._time_cave_boss_done)
             med._tick_main_line(frame_archive)
             self.assertEqual(med._post_game_route, "heirloom")
 
         self.assertEqual(scroll.call_count, 2)
+        self.assertGreaterEqual(click.call_count, 1)
 
 
 if __name__ == "__main__":
