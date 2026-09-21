@@ -38,7 +38,10 @@ def _med(**kw) -> Mediator:
     base = dict(auto_create_room=True, dry_run=True, hitch_after_goal="arch",
                 auto_archaeology=True, cycle_num=100, mode_id="lobby_hitch")
     base.update(kw)
-    return Mediator(Settings(**base), ROOT)
+    med = Mediator(Settings(**base), ROOT)
+    # 计数只在选关页存在；读数用例默认站在选关页上。
+    med._find_stage_page = lambda frame: True
+    return med
 
 
 class TicketReadingCalibrates(unittest.TestCase):
@@ -75,6 +78,24 @@ class TicketReadingCalibrates(unittest.TestCase):
             self.assertEqual(counter.call_count, 1, "间隔内不得重复 OCR")
             med._observe_ticket_balance(_frame(), now=1000.0 + med._TICKET_READ_INTERVAL_S)
             self.assertEqual(counter.call_count, 2)
+
+
+class TicketReadIsSideInfoOnly(unittest.TestCase):
+    """挑战券是支线信息：不在选关页不读、读取异常不冒泡，都不得影响蹭车主线。"""
+
+    def test_non_stage_frame_is_never_read(self) -> None:
+        med = _med()
+        med._find_stage_page = lambda frame: False
+        with patch.object(med, "_hud_counter", return_value=0) as counter:
+            self.assertIsNone(med._observe_ticket_balance(_frame(), now=1000.0))
+        self.assertEqual(counter.call_count, 0, "KK 房间列表/加载图上的固定 ROI 杂数不得当票数")
+        self.assertTrue(med._ticket_budget_allows_another_round())
+
+    def test_read_error_does_not_break_tick(self) -> None:
+        med = _med()
+        with patch.object(med, "_hud_counter", side_effect=RuntimeError("ocr down")):
+            self.assertIsNone(med._observe_ticket_balance(_frame(), now=1000.0))
+        self.assertTrue(med._ticket_budget_allows_another_round())
 
 
 class TicketBudgetGatesNextRound(unittest.TestCase):

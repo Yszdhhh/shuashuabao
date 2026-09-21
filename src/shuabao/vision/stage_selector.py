@@ -134,9 +134,6 @@ def _classify_glyph(glyph: np.ndarray, templates: dict[str, list[np.ndarray]]) -
     glyph = glyph[ys.min() : ys.max() + 1, :]
     if glyph.shape[0] < 2 or glyph.shape[1] < 2:
         return None
-    aspect = glyph.shape[1] / glyph.shape[0]
-    if aspect < 0.38 and glyph.shape[0] >= 12:
-        return "1"
     best: tuple[float, str] | None = None
     for char, candidates in templates.items():
         for candidate in candidates:
@@ -150,6 +147,22 @@ def _classify_glyph(glyph: np.ndarray, templates: dict[str, list[np.ndarray]]) -
                 best = (score, char)
     # A bad crop should not turn into a random stage number.
     return best[1] if best is not None and best[0] <= 0.45 else None
+
+
+def _classify_topbar_one(glyph: np.ndarray) -> str | None:
+    """Top-bar font only: a thin, tall stroke is "1".
+
+    Kept out of ``_classify_glyph`` on purpose: the stage-list parser shares
+    that classifier, and there loading-screen streaks became "1-1" rows that
+    faked a stage page and quit the hitch round (20260921 f0150).
+    """
+    ys, _ = np.where(glyph)
+    if not len(ys):
+        return None
+    height = int(ys.max() - ys.min() + 1)
+    if height >= 12 and glyph.shape[1] / height < 0.38:
+        return "1"
+    return None
 
 
 def detect_ingame_stage_label(frame: Frame, images_dir: Path) -> StageId | None:
@@ -177,7 +190,7 @@ def detect_ingame_stage_label(frame: Frame, images_dir: Path) -> StageId | None:
     chars: list[str] = []
     for c_start, c_end in columns:
         glyph = submask[:, c_start:c_end]
-        char = _classify_glyph(glyph, templates)
+        char = _classify_topbar_one(glyph) or _classify_glyph(glyph, templates)
         if char:
             chars.append(char)
     text = "".join(chars)

@@ -202,6 +202,28 @@ class LobbyDetectorTests(unittest.TestCase):
         self.assertTrue(kwargs["early_stop"])
         self.assertNotEqual(kwargs["scales"], med._hot_scales())
 
+    def test_stage_page_single_row_is_not_authority(self):
+        root = Path(__file__).resolve().parents[1]
+        med = Mediator(Settings(), root)
+        fr = Frame(
+            np.zeros((900, 1600, 3), dtype=np.uint8),
+            window_title="英雄三国KK", hwnd=10002,
+        )
+        with patch.object(med, "_visible_stage_rows", return_value=[object()]), \
+                patch.object(med, "find_scene", return_value=None), \
+                patch.object(med, "find", return_value=None):
+            self.assertFalse(med._find_stage_page(fr))
+
+    def test_stage_page_two_rows_keep_authority(self):
+        root = Path(__file__).resolve().parents[1]
+        med = Mediator(Settings(), root)
+        fr = Frame(
+            np.zeros((900, 1600, 3), dtype=np.uint8),
+            window_title="英雄三国KK", hwnd=10003,
+        )
+        with patch.object(med, "_visible_stage_rows", return_value=[object(), object()]):
+            self.assertTrue(med._find_stage_page(fr))
+
     @staticmethod
     def images_dir():
         from pathlib import Path

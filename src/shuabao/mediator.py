@@ -9712,9 +9712,18 @@ class Mediator:
         if now < self._ticket_next_read_at:
             return self._ticket_balance
         self._ticket_next_read_at = now + self._TICKET_READ_INTERVAL_S
-        value = self._hud_counter(
-            frame, self._TICKET_REMAINDER_ROI, "ticket", max_value=self._TICKET_READ_MAX
-        )
+        # 挑战券是支线信息：只在确认的选关页上读（计数只在那里存在），
+        # 否则固定 ROI 会读 KK 房间列表 / 加载图上的杂数，误判"票不够"提前收工。
+        # 读取出错同样视为"没读到"，绝不打断主线 tick。
+        try:
+            if not self._find_stage_page(frame):
+                return self._ticket_balance
+            value = self._hud_counter(
+                frame, self._TICKET_REMAINDER_ROI, "ticket", max_value=self._TICKET_READ_MAX
+            )
+        except Exception as exc:
+            print(f"[L0] 挑战券读取失败，跳过（不影响主线）：{exc}")
+            return self._ticket_balance
         if value is None:
             return self._ticket_balance
         # 真实读数一律覆盖死算结果 —— 跨零点补票、手动买票都靠这条自然收敛。
@@ -9788,12 +9797,18 @@ class Mediator:
         return int((gray > 150).sum()) < 18
 
     def _archaeology_mode_anchor(self, frame: Frame) -> MatchResult | None:
-        """考古模式业务锚点：kaogu/kaoguMode 任一命中即视为考古页证据。"""
+        """考古模式业务锚点：只认考古地图顶栏的「考古模式」标题（kaoguMode）。
+
+        ``kaogu`` 是选关页右下角「考古模式」按钮本身（普通选关页 0.865、点击后
+        未切换 0.96），当确认锚点会把"点了没反应"判成考古成功，故不再使用。
+        kaoguMode 顶栏：真实考古页 0.925、选关页 0.65（20260920 实机帧）。
+        """
         return self.find(
             frame,
-            ["kaogu", "kaoguMode"],
-            threshold=0.70,
+            ["kaoguMode"],
+            threshold=0.80,
             scales=self._hot_scales(),
+            roi=(0.30, 0.0, 0.70, 0.08),
         )
 
     def _maybe_switch_to_archaeology(self, frame: Frame) -> LoopAction | None:
@@ -14059,7 +14074,9 @@ class Mediator:
             # 明确属于 KK 平台窗口、且不是已知 game-client title 时，在 _visible_stage_rows 之前拒绝
             if title and any(kw in title for kw in ("kk", "对战平台", "platform")) and not self._is_game_client_frame(frame):
                 return False
-            if self._visible_stage_rows(frame):
+            # 真实选关页是一整列关卡行；单行孤立读数多半是背景纹理，不给
+            # 选关页 authority（蹭车会因此误判"误开房"而退局）。
+            if len(self._visible_stage_rows(frame)) >= 2:
                 return True
             # The numbered-row parser above is the preferred detector.  The
             # legacy image fallback is only meaningful on the actual game window;
@@ -16587,7 +16604,12 @@ class Mediator:
             print(f"[med] 蹭车开局计数：已开局 {self._hitch_stats_started} 把")
 
         if self._passenger_mode() and not getattr(self, "_hitch_stats_difficulty_recorded_this_round", False):
-            stage = detect_ingame_stage_label(frame, self.images)
+            # 难度统计是纯展示支线：读不出、读错、抛异常都不得影响本 tick 的主线。
+            try:
+                stage = detect_ingame_stage_label(frame, self.images)
+            except Exception as exc:
+                print(f"[med][stats] 局内关卡读取失败，跳过：{exc}")
+                stage = None
             if stage is not None:
                 self._hitch_stats_difficulties[stage.chapter] = (
                     self._hitch_stats_difficulties.get(stage.chapter, 0) + 1
