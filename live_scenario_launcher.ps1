@@ -560,15 +560,28 @@ function Invoke-HitchRuntimeCapture {
 function Invoke-HitchLobbyChainCapture {
     Assert-ReadyForGt
     $settingsPath = New-HitchE2ESettingsSnapshot
+    # Duration is bounded for both the default one-round handoff trial and
+    # an optional longer run selected by SHUABAO_HITCH_E2E_ROUNDS.  Overnight
+    # runs raise the bound via SHUABAO_HITCH_E2E_DURATION_S (1800-43200).
+    $durationS = 10800
+    $maxTicks = 60000
+    $durationText = [string]$env:SHUABAO_HITCH_E2E_DURATION_S
+    if (-not [string]::IsNullOrWhiteSpace($durationText)) {
+        $parsedDuration = 0
+        if (-not [int]::TryParse($durationText.Trim(), [ref]$parsedDuration) -or $parsedDuration -lt 1800 -or $parsedDuration -gt 43200) {
+            throw "SHUABAO_HITCH_E2E_DURATION_S 必须是 1800-43200 的整数：$durationText"
+        }
+        $durationS = $parsedDuration
+        $maxTicks = [int][Math]::Max(60000, [Math]::Ceiling($durationS / 0.15))
+    }
+    Write-Host "[launcher] 13 号时长上限：duration=${durationS}s, max_ticks=$maxTicks" -ForegroundColor DarkGray
     $cliArgs = @(
         "capture",
         "--target", "hitch_lobby_chain",
         "--out", $script:CaptureRoot,
         "--repo-root", $RepoRoot,
-        # Duration is bounded for both the default one-round handoff trial and
-        # an optional longer run selected by SHUABAO_HITCH_E2E_ROUNDS.
-        "--duration", "10800",
-        "--max-ticks", "60000",
+        "--duration", "$durationS",
+        "--max-ticks", "$maxTicks",
         "--interval", "0.15",
         "--continue-after-failure",
         "--generate"
