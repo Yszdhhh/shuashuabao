@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "e5faff23b88e0e70ccae9fbb083073699a12f875",
-  "anchored_at": "2026-09-21T12:00:00Z",
+  "candidate_sha": "0d562bbbaeffc5b92a9923c4d3da0ee1f0201522",
+  "anchored_at": "2026-09-21T15:46:26Z",
   "branch": "fix/hitch-goal-archaeology-20260920",
-  "note": "Canonical runtime identity anchor. Updated ONLY by the commit that lands a newly accepted candidate. Runtime gates compare live src/shuabao against this SHA; never edit casually, never auto-regenerate. Entitlement UA fix landed at e5faff2."
+  "note": "UI-21 发布前接受的 hitch stage false-positive 修复候选"
 }
