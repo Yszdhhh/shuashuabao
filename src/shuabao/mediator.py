@@ -11222,10 +11222,12 @@ class Mediator:
         if search is not None and not (int(frame.height * 0.15) <= search.y <= int(frame.height * 0.45)):
             return False
         refresh = self.find_scene(frame, "lobby_refresh")
-        tab = frame.bgr[
-            int(frame.height * 0.24):int(frame.height * 0.29),
-            int(frame.width * 0.22):int(frame.width * 0.32),
-        ] if frame.bgr is not None else None
+        if refresh is not None and not (int(frame.height * 0.15) <= refresh.y <= int(frame.height * 0.45)):
+            refresh = None
+        y0 = max(int(frame.height * 0.23), 208)
+        y1 = max(int(frame.height * 0.29), 262)
+        x0, x1 = int(frame.width * 0.22), int(frame.width * 0.32)
+        tab = frame.bgr[y0:y1, x0:x1] if frame.bgr is not None else None
         selected_pixels = 0
         if tab is not None and tab.size:
             blue, green, red = cv2.split(tab)
@@ -11234,9 +11236,13 @@ class Mediator:
                 & ((blue.astype(np.int16) - red.astype(np.int16)) > 70)
             ))
         rows = self._hitch_room_list_row_count(frame, search or header)
+        has_anchor = (search is not None) or (selected_pixels >= 20)
         return bool(
-            (rows >= 2 and (refresh is not None or selected_pixels >= 20))
-            or (refresh is not None and selected_pixels >= 20)
+            has_anchor
+            and (
+                (rows >= 2 and (refresh is not None or selected_pixels >= 20))
+                or (refresh is not None and selected_pixels >= 20)
+            )
         )
 
     def _find_hitch_room_list_tab(self, frame: Frame) -> MatchResult | None:
@@ -13815,7 +13821,7 @@ class Mediator:
             if hit is not None:
                 clicked = bool(self.act_double_click(hit, "HitchJoin"))
                 if clicked:
-                    self._hitch_sm.note_join_click(now)
+                    self._hitch_sm.note_join_click(time.time())
                     self._hitch_join_origin_hwnd = frame.hwnd
                     self._hitch_join_preexisting_hwnds = frozenset(
                         getattr(self, "_last_l0_target_hwnds", ())

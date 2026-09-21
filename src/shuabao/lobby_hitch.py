@@ -172,7 +172,7 @@ class HitchSearchSM:
         self.refresh_s_min = max(0.0, lo)
         self.refresh_s_max = max(self.refresh_s_min, hi)
         self.continuous = bool(continuous)
-        self.join_confirm_timeout_s = 1.0
+        self.join_confirm_timeout_s = 2.0
         # A navigation click is an input, not a navigation.  If GO_HOME never
         # produces lobby-page evidence, stop re-sending it and take the
         # bounded sleep instead of clicking the same dead anchor forever.
