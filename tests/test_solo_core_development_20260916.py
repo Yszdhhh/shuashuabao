@@ -17,7 +17,7 @@ Skill refresh:
 10. Readable cards, no focus match, refresh exists -> REFRESH action
 11. Refresh click success but card fingerprint unchanged -> do not deduct refresh budget
 12. Refresh click + confirmed mutation -> refresh count +1
-13. Fake/old skill_refresh_btn never gains click authority
+13. Dedicated skill_refresh_btn is the preferred skill-panel refresh hit
 14. True refresh template matches real coordinates
 
 Merchant:
@@ -277,22 +277,33 @@ def test_12_refresh_click_with_confirmed_mutation_increments_budget() -> None:
     assert med._panel_state == PanelState.ACTIVE
 
 
-def test_13_fake_skill_refresh_btn_never_gains_click_authority() -> None:
-    """13. Fake/old skill_refresh_btn is excluded from refresh button candidates."""
+def test_13_dedicated_skill_refresh_btn_wins_over_generic_refresh() -> None:
+    """13. Dedicated skill_refresh_btn is searched first and keeps click authority.
+
+    giveup_panel_not_fail / C-skill-refresh contract: generic ``refresh`` at a
+    different coordinate must not beat the panel-specific button.
+    """
     med = _med()
     frame = _blank_frame()
     searched: list[str] = []
+    dedicated = MatchResult("skill_refresh_btn", 0.759, 1000, 640, 40, 28, 1020, 654)
+    generic = MatchResult("refresh", 0.936, 1151, 663, 40, 28, 1171, 677)
 
     def mock_find(_frame, names, *a, **kw):
         searched.extend(names)
-        if "skill_refresh_btn" in names:
-            return MatchResult("skill_refresh_btn", 0.95, 500, 500, 50, 50, 500, 500)
+        key = names[0] if names else None
+        if key == "skill_refresh_btn":
+            return dedicated
+        if key == "refresh":
+            return generic
         return None
 
     with patch.object(med, "find", side_effect=mock_find):
         res = med._find_panel_refresh(frame, "skill")
-    assert res is None
-    assert "skill_refresh_btn" not in searched
+    assert res is not None
+    assert res.name == "skill_refresh_btn"
+    assert res.center == (1020, 654)
+    assert searched[0] == "skill_refresh_btn"
 
 
 def test_14_true_refresh_template_searched_for_skill() -> None:
