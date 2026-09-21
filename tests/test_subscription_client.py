@@ -6,7 +6,11 @@ import sys
 from urllib.error import URLError
 from unittest.mock import patch
 
-from shuabao.subscription_client import activate_device, validate_entitlement
+from shuabao.subscription_client import (
+    CLIENT_USER_AGENT,
+    activate_device,
+    validate_entitlement,
+)
 
 
 class _Response:
@@ -57,6 +61,29 @@ def test_ssl_error_does_not_expose_non_symbolic_details():
     error = ssl.SSLError(1, "sensitive-test-key")
     error.library, error.reason = "private path", "https://private.example"
     assert _transport_error("失败", error) == "失败: TLS 初始化/连接失败"
+
+
+def test_subscription_requests_send_fixed_client_user_agent() -> None:
+    seen: list = []
+
+    def opener(request, **_kwargs):
+        seen.append(request)
+        return _Response({"valid": False, "status": "UNKNOWN"})
+
+    env = {
+        "SHUABAO_SUBSCRIPTION_BASE_URL": "http://127.0.0.1:8000",
+        "SHUABAO_SUBSCRIPTION_DEVICE_FINGERPRINT": "device",
+    }
+    validate_entitlement("test-key", env=env, opener=opener)
+    activate_device("test-key", env=env, opener=opener)
+
+    assert CLIENT_USER_AGENT == "shuabao-client/internal-pilot"
+    assert len(seen) == 2
+    for request in seen:
+        headers = {key.lower(): value for key, value in request.header_items()}
+        assert headers["user-agent"] == "shuabao-client/internal-pilot"
+        assert headers["content-type"] == "application/json"
+        assert headers["accept"] == "application/json"
 
 
 def test_subscription_requests_use_verified_tls_context(monkeypatch):
