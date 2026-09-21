@@ -14074,9 +14074,10 @@ class Mediator:
             # 明确属于 KK 平台窗口、且不是已知 game-client title 时，在 _visible_stage_rows 之前拒绝
             if title and any(kw in title for kw in ("kk", "对战平台", "platform")) and not self._is_game_client_frame(frame):
                 return False
-            # 真实选关页是一整列关卡行；单行孤立读数多半是背景纹理，不给
-            # 选关页 authority（蹭车会因此误判"误开房"而退局）。
-            if len(self._visible_stage_rows(frame)) >= 2:
+            # 真实选关页是一整列关卡行（实机每帧 12 行）；背景纹理的杂读最多
+            # 两行（加载图 1-1、考古地图 1-17/1-18、局内 13-1/0-1），不给选关页
+            # authority（蹭车会因此误判"误开房"而退局）。
+            if len(self._visible_stage_rows(frame)) >= 3:
                 return True
             # The numbered-row parser above is the preferred detector.  The
             # legacy image fallback is only meaningful on the actual game window;

@@ -1212,7 +1212,7 @@ def test_stage_page_ownership_rejects_kk_platform_title() -> None:
     frame_kk = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="KK官方对战平台", role="l0")
     frame_game = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="英雄三国KK", role="l1")
 
-    with patch.object(med, "_visible_stage_rows", return_value=["1-1", "1-2"]):
+    with patch.object(med, "_visible_stage_rows", return_value=["1-1", "1-2", "1-3"]):
         assert med._find_stage_page(frame_kk) is False, "KK 平台窗口即便检测到数字行也不得获得 stage authority"
         assert med._find_stage_page(frame_game) is True, "游戏客户端窗口检测到数字行获得 stage authority"
 
