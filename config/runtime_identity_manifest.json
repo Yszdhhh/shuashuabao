@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "c40747bc46255803c08613a3b8fe61a0f3924a35",
-  "anchored_at": "2026-09-21T08:30:00Z",
+  "candidate_sha": "e5faff23b88e0e70ccae9fbb083073699a12f875",
+  "anchored_at": "2026-09-21T12:00:00Z",
   "branch": "fix/hitch-goal-archaeology-20260920",
-  "note": "Canonical runtime identity anchor. Updated ONLY by the commit that lands a newly accepted candidate. Runtime gates compare live src/shuabao against this SHA; never edit casually, never auto-regenerate. Hitch archaeology/search/stats candidate landed at c40747b."
+  "note": "Canonical runtime identity anchor. Updated ONLY by the commit that lands a newly accepted candidate. Runtime gates compare live src/shuabao against this SHA; never edit casually, never auto-regenerate. Entitlement UA fix landed at e5faff2."
 }
