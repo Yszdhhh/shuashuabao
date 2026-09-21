@@ -134,6 +134,9 @@ def _classify_glyph(glyph: np.ndarray, templates: dict[str, list[np.ndarray]]) -
     glyph = glyph[ys.min() : ys.max() + 1, :]
     if glyph.shape[0] < 2 or glyph.shape[1] < 2:
         return None
+    aspect = glyph.shape[1] / glyph.shape[0]
+    if aspect < 0.38 and glyph.shape[0] >= 12:
+        return "1"
     best: tuple[float, str] | None = None
     for char, candidates in templates.items():
         for candidate in candidates:
@@ -147,6 +150,39 @@ def _classify_glyph(glyph: np.ndarray, templates: dict[str, list[np.ndarray]]) -
                 best = (score, char)
     # A bad crop should not turn into a random stage number.
     return best[1] if best is not None and best[0] <= 0.45 else None
+
+
+def detect_ingame_stage_label(frame: Frame, images_dir: Path) -> StageId | None:
+    """Read the top-bar in-game stage label (e.g. 2-7, 3-4, 1-16) from a live frame."""
+    if frame.width < 600 or frame.height < 400:
+        return None
+    x0 = int(frame.width * 0.550)
+    x1 = int(frame.width * 0.600)
+    y0 = int(frame.height * 0.018)
+    y1 = int(frame.height * 0.055)
+
+    gray = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2GRAY)
+    crop = gray[y0:y1, x0:x1]
+    mask = (crop > 170).astype(np.uint8)
+
+    y_sums = mask.sum(axis=1) > 0
+    y_runs = _runs(y_sums, minimum=10)
+    if not y_runs:
+        return None
+    gy0, gy1 = y_runs[0]
+    submask = mask[gy0:gy1, :]
+
+    columns = _runs(submask.sum(axis=0) > 0, minimum=2)
+    templates = _glyph_templates(images_dir)
+    chars: list[str] = []
+    for c_start, c_end in columns:
+        glyph = submask[:, c_start:c_end]
+        char = _classify_glyph(glyph, templates)
+        if char:
+            chars.append(char)
+    text = "".join(chars)
+    return StageId.parse(text)
+
 
 
 def _read_row(mask: np.ndarray, x_offset: int, y_offset: int, templates: dict[str, list[np.ndarray]]) -> StageRow | None:

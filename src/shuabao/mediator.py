@@ -73,6 +73,7 @@ from shuabao.vision.stage_selector import (
     selected_stage_row,
     stage_list_scroll_point,
     visible_stage_rows,
+    detect_ingame_stage_label,
 )
 from shuabao.policy.boss_order import (
     BossOrderAction,
@@ -1048,6 +1049,15 @@ class Mediator:
         self._boss_challenge_unresolved_attempts: int = 0
         self._boss_challenge_locate_attempts: int = 0
         self._boss_challenge_next_at: float = 0.0
+        self._boss_anomaly_parked: bool = False
+        # 蹭车局数与关卡统计
+        self._hitch_stats_started: int = 0
+        self._hitch_stats_victories: int = 0
+        self._hitch_stats_failures: int = 0
+        self._hitch_stats_difficulties: dict[int, int] = {}
+        self._hitch_stats_current_difficulty: int | None = None
+        self._hitch_stats_difficulty_recorded_this_round: bool = False
+        self._hitch_round_started_counted: bool = False
         self._exit_button_attempts: int = 0
         self._exit_confirm_attempts: int = 0
         self._exit_since: float | None = None
@@ -7208,24 +7218,29 @@ class Mediator:
         anomaly_limit = self._POST_GAME_BOSS_UNRESOLVED_LIMIT * 2
         self._boss_anomaly_retry_attempts = getattr(self, "_boss_anomaly_retry_attempts", 0) + 1
 
-        # 1. 鼠标停车清理悬停遮挡
-        if self._POINTER_PARK is not None:
-            self.act_move(
-                int(frame.width * self._POINTER_PARK[0]),
-                int(frame.height * self._POINTER_PARK[1]),
-                "BossAnomalyParkPointer",
-            )
-
-        # 2. 用更宽尺度重新识别一次
+        # 1. 先用宽尺度重新识别一次
         wide_card = self._find_last_recognized_post_game_boss(
             frame, post_game, scales=self._adapt_scales(self._BOSS_WIDE_SCALES)
         )
         if wide_card is not None:
+            self._boss_anomaly_parked = False
             self._boss_anomaly_retry_attempts = 0
             self._boss_challenge_unresolved_attempts = 0
             print(f"[med] [BossLastVisibleFallback] 宽尺度重试成功命中末卡 {wide_card.name} @ {wide_card.center}")
             return (LoopAction.Continue, wide_card, "BossLastVisibleFallback")
 
+        # 2. 一张卡都认不出时，才鼠标停车清理悬停遮挡（单 tick 零动作等待生效）
+        if self._POINTER_PARK is not None and not getattr(self, "_boss_anomaly_parked", False):
+            self._boss_anomaly_parked = True
+            self.act_move(
+                int(frame.width * self._POINTER_PARK[0]),
+                int(frame.height * self._POINTER_PARK[1]),
+                "BossAnomalyParkPointer",
+            )
+            self._boss_challenge_next_at = now + self._post_game_action_recheck(recheck_s)
+            return (LoopAction.Continue, None, "")
+
+        self._boss_anomaly_parked = False
         if self._boss_anomaly_retry_attempts < anomaly_limit:
             self._boss_challenge_next_at = now + self._post_game_action_recheck(recheck_s)
             print(
@@ -7945,6 +7960,51 @@ class Mediator:
         )
         return max(hits, key=lambda hit: (hit.y + hit.h, hit.x + hit.w), default=None)
 
+    def _reset_boss_challenge_round_state(self) -> None:
+        """每局重置战后 Boss（时光之穴/传家宝）状态与防呆滞计数器。"""
+        self._boss_challenge_attempts = 0
+        self._boss_challenge_scroll_attempts = 0
+        self._boss_challenge_scroll_signature = None
+        self._boss_challenge_scroll_stable_frames = 0
+        self._boss_challenge_scroll_top_stable_frames = 0
+        self._boss_challenge_unresolved_attempts = 0
+        self._boss_challenge_locate_attempts = 0
+        self._boss_challenge_locate_exhausted = False
+        self._boss_challenge_bottom_scroll_attempts = 0
+        self._boss_challenge_next_at = 0.0
+        self._boss_challenge_page = None
+        self._boss_anomaly_retry_attempts = 0
+        self._boss_anomaly_parked = False
+        self._time_cave_boss_done = False
+        self._time_cave_boss_clicked_at = None
+        self._time_cave_boss_search_attempts = 0
+        self._heirloom_boss_clicked_at = None
+        self._heirloom_boss_result_confirmed = False
+        if hasattr(self, "_aux_dialog_attempts") and isinstance(self._aux_dialog_attempts, dict):
+            self._aux_dialog_attempts["HEIRLOOM_DIALOG"] = 0
+
+    def format_hitch_difficulty_summary(self) -> str:
+        if not self._hitch_stats_difficulties:
+            return "无"
+        return " ".join(f"难{ch}:{cnt}把" for ch, cnt in sorted(self._hitch_stats_difficulties.items()))
+
+    def format_hitch_stats_progress(self) -> str:
+        if not self._passenger_mode() or self._hitch_stats_started == 0:
+            return ""
+        diff_str = f"难{self._hitch_stats_current_difficulty}" if self._hitch_stats_current_difficulty else ""
+        parts = []
+        if self._hitch_stats_victories or self._hitch_stats_failures:
+            parts.append(f"胜{self._hitch_stats_victories} 败{self._hitch_stats_failures}")
+        if diff_str:
+            parts.append(diff_str)
+        return " ".join(parts)
+
+    def format_hitch_stats_summary(self) -> str:
+        if not self._passenger_mode() or self._hitch_stats_started == 0:
+            return ""
+        diff_text = self.format_hitch_difficulty_summary()
+        return f"共开局 {self._hitch_stats_started} 把 (胜 {self._hitch_stats_victories} / 败 {self._hitch_stats_failures}) · {diff_text}"
+
     def _maybe_challenge_configured_boss(
         self, frame: Frame, now: float, *, recheck_s: float | None = None
     ) -> LoopAction | None:
@@ -8002,7 +8062,10 @@ class Mediator:
                 print("[med] 传家宝 Boss 已发起，等待‘已挑战’后置（零动作）")
             return LoopAction.Continue
         if self._boss_challenge_attempts >= 3:
-            return LoopAction.Continue
+            if post_game == "ARCHIVE_PANEL":
+                self._time_cave_boss_done = True
+                self._post_game_route = "archive"
+            return None
         if now < self._boss_challenge_next_at:
             return LoopAction.Continue
 
@@ -10304,12 +10367,7 @@ class Mediator:
             self._secret_realm_hud_confirmations = 0
             self._secret_realm_last_hud_frame_id = None
             self._secret_realm_active = False
-            self._boss_challenge_attempts = 0
-            self._boss_challenge_scroll_attempts = 0
-            self._boss_challenge_scroll_signature = None
-            self._boss_challenge_scroll_stable_frames = 0
-            self._boss_challenge_next_at = 0.0
-            self._boss_challenge_page = None
+            self._reset_boss_challenge_round_state()
             self._aux_dialog_attempts = {"HEIRLOOM_DIALOG": 0, "GREAT_RIFT_CONFIRM": 0}
             # A verified game start owns a fresh retry/recovery episode.  A
             # timeout retry keeps its budget until this transition succeeds.
@@ -10775,6 +10833,12 @@ class Mediator:
             print(f"[med] outcome={outcome.name}（{reason}）failure_streak={self._failure_streak}"
                   f"/{self.settings.failure_streak_limit}")
             self._maybe_downgrade_stage_target()
+        if self._passenger_mode():
+            if outcome == RoundOutcome.VICTORY:
+                self._hitch_stats_victories += 1
+            else:
+                self._hitch_stats_failures += 1
+            print(f"[med] 蹭车战绩更新：{self.format_hitch_stats_summary()}")
 
     def _maybe_downgrade_stage_target(self) -> None:
         """打不过自动降级（Owner 2026-09-15）：连续 N 局非胜利后选关目标降一级。
@@ -12622,6 +12686,10 @@ class Mediator:
         self._round_deadline = None
         self._outcome_recorded = False
         self._round_outcome = None
+        self._hitch_round_started_counted = False
+        self._hitch_stats_difficulty_recorded_this_round = False
+        self._hitch_stats_current_difficulty = None
+        self._reset_boss_challenge_round_state()
 
     def _hitch_quit_misopened_stage(self) -> LoopAction:
         """Solo stage/map page means we accidentally hosted. Quit, don't wait."""
@@ -12643,6 +12711,7 @@ class Mediator:
         print(
             f"[med] 蹭车已完成离局 count={self.game_count}"
             + (f" 挑战券估算剩余≈{projected}" if projected is not None else " 挑战券未读出")
+            + (f" 战绩: {self.format_hitch_stats_summary()}" if self.format_hitch_stats_summary() else "")
         )
         goal_reached = self.settings.cycle_num > 0 and self.game_count >= self.settings.cycle_num
         # 票不够再来一局 -> 下一局不再搜房，直接走同一条考古出口。
@@ -16496,6 +16565,24 @@ class Mediator:
     def _tick_main_line(self, frame: Frame) -> LoopAction:
         now = time.time()
         self._observe_tick()
+        if self._passenger_mode() and not getattr(self, "_hitch_round_started_counted", False):
+            self._hitch_round_started_counted = True
+            self._hitch_stats_started += 1
+            print(f"[med] 蹭车开局计数：已开局 {self._hitch_stats_started} 把")
+
+        if self._passenger_mode() and not getattr(self, "_hitch_stats_difficulty_recorded_this_round", False):
+            stage = detect_ingame_stage_label(frame, self.images)
+            if stage is not None:
+                self._hitch_stats_difficulties[stage.chapter] = (
+                    self._hitch_stats_difficulties.get(stage.chapter, 0) + 1
+                )
+                self._hitch_stats_current_difficulty = stage.chapter
+                self._hitch_stats_difficulty_recorded_this_round = True
+                print(
+                    f"[med] 蹭车局内识别关卡 {stage}（难{stage.chapter}），"
+                    f"难度分布：{self.format_hitch_difficulty_summary()}"
+                )
+
         secret_entry_observation = self._secret_realm_entering_since is not None
         if not secret_entry_observation and self._hitch_enabled():
             event = classify_hitch_ocr(self._hitch_ocr_text())

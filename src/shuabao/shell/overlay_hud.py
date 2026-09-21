@@ -350,6 +350,7 @@ class OverlayHud(QWidget):
         target: str = "",
         mode: str = "",
         strategy: str = "",
+        stats_text: str = "",
     ) -> None:
         phase_text = str(phase or "").strip()
         ocr_text = str(ocr_status or "").strip()
@@ -361,15 +362,21 @@ class OverlayHud(QWidget):
         strategy_text = str(strategy or "自动推进").strip()
         round_text = f"第 {count} / {cycle} 局" if cycle else f"第 {count} 局"
         preview = running and mode_key == "hitch"
+        stats_display = str(stats_text or "").strip()
         if running:
             text = headline
-            self.detail_label.setText(f"{mode_label} · {round_text} · 目标 {target_text}")
+            if stats_display:
+                self.detail_label.setText(f"{mode_label} · {round_text} · {stats_display}")
+            else:
+                self.detail_label.setText(f"{mode_label} · {round_text} · 目标 {target_text}")
             self.live_label.setText("● 预览中" if preview else "● 运行中")
             self.btn_stop.show()
         else:
             text = "已停止，等待下一次指令"
             detail = round_text
-            if reason:
+            if stats_display:
+                detail = f"{detail} · {stats_display}"
+            elif reason:
                 detail = f"{detail} · {reason}"
             if last_action:
                 self.setToolTip(f"最后动作：{last_action}")
@@ -379,7 +386,8 @@ class OverlayHud(QWidget):
 
         self.label.setText(text)
         self.target_chip.setText(f"关卡 {target_text}")
-        self.round_chip.setText(round_text)
+        round_chip_text = f"{round_text} ({stats_display})" if (running and stats_display) else round_text
+        self.round_chip.setText(round_chip_text)
         self.strategy_chip.setText(strategy_text)
         self._status_state = self._state_for(running, phase_text, reason)
         if preview:

@@ -435,8 +435,13 @@ class WebConfigShell(QMainWindow):
         )
         worker = getattr(self.runner, "worker", None)
         mediator = getattr(worker, "mediator", None)
+        stats_text = ""
         if mediator is not None:
             self.overlay_hud.anchor_to_target(getattr(mediator, "_last_frame", None))
+            if active and hasattr(mediator, "format_hitch_stats_progress"):
+                stats_text = mediator.format_hitch_stats_progress()
+            elif not active and hasattr(mediator, "format_hitch_stats_summary"):
+                stats_text = mediator.format_hitch_stats_summary()
         self.overlay_hud.update_status(
             active,
             str(run.get("phase") or ""),
@@ -448,6 +453,7 @@ class WebConfigShell(QMainWindow):
             target=target,
             mode=mode,
             strategy=strategy,
+            stats_text=stats_text,
         )
         if active and not self._runtime_active:
             self.showMinimized()

@@ -471,3 +471,122 @@ def test_case_c_lobby_plus_pet_plus_room_selects_room(monkeypatch):
     best_frame = med._capture_best("KK官方对战平台", role="l0")
     assert med._confirmed_room_hwnd == 1003
     assert best_frame.hwnd == 1003
+
+
+# ===========================================================================
+# 蹭车统计（局数/胜负/难度）与 Boss 防呆滞防死锁验证
+# ===========================================================================
+
+def test_hitch_stats_tracking_and_formatting(monkeypatch):
+    """验证蹭车局数、胜负、难度统计以及格式化输出。"""
+    from shuabao.vision.stage_selector import StageId
+    from shuabao.mediator import RoundOutcome
+
+    settings = Settings(mode_id="lobby_hitch")
+    root = Path(__file__).resolve().parents[1]
+    med = Mediator(settings, root)
+    med.set_phase(Phase.MAIN_LINE, "test")
+
+    # 1. 初始状态为空
+    assert med.format_hitch_stats_progress() == ""
+    assert med.format_hitch_stats_summary() == ""
+    assert med.format_hitch_difficulty_summary() == "无"
+
+    # 2. 局 1 进入 MAIN_LINE 并识别出 2-7（难2）
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=1001)
+    monkeypatch.setattr(
+        "shuabao.mediator.detect_ingame_stage_label",
+        lambda f, img_dir: StageId(2, 7),
+    )
+    med._tick_main_line(frame)
+    assert med._hitch_stats_started == 1
+    assert med._hitch_stats_current_difficulty == 2
+    assert med._hitch_stats_difficulties == {2: 1}
+    assert med.format_hitch_stats_progress() == "难2"
+
+    # 局 1 取得胜利
+    med._record_round_outcome(RoundOutcome.VICTORY, "victory test")
+    assert med._hitch_stats_victories == 1
+    assert med._hitch_stats_failures == 0
+    assert med.format_hitch_stats_progress() == "胜1 败0 难2"
+    assert med.format_hitch_stats_summary() == "共开局 1 把 (胜 1 / 败 0) · 难2:1把"
+
+    # 3. 局 1 退出，进入 episode 重置
+    med._hitch_after_exit(100.0)
+    assert med._hitch_round_started_counted is False
+    assert med._hitch_stats_difficulty_recorded_this_round is False
+    assert med._hitch_stats_current_difficulty is None
+    # 累计统计保留
+    assert med._hitch_stats_started == 1
+    assert med._hitch_stats_victories == 1
+
+    # 4. 局 2 进入 MAIN_LINE 并识别出 3-4（难3）
+    monkeypatch.setattr(
+        "shuabao.mediator.detect_ingame_stage_label",
+        lambda f, img_dir: StageId(3, 4),
+    )
+    med._tick_main_line(frame)
+    assert med._hitch_stats_started == 2
+    assert med._hitch_stats_current_difficulty == 3
+    assert med._hitch_stats_difficulties == {2: 1, 3: 1}
+    assert med.format_hitch_difficulty_summary() == "难2:1把 难3:1把"
+
+    # 局 2 超时失败
+    med._record_round_outcome(RoundOutcome.TIMEOUT, "timeout test")
+    assert med._hitch_stats_victories == 1
+    assert med._hitch_stats_failures == 1
+    assert med.format_hitch_stats_summary() == "共开局 2 把 (胜 1 / 败 1) · 难2:1把 难3:1把"
+
+
+def test_overlay_hud_stats_display(qapp):
+    """验证 OverlayHud 在运行中与停止后正确渲染统计文案。"""
+    hud = OverlayHud()
+
+    # 运行中带进度统计
+    hud.update_status(
+        running=True,
+        phase="MAIN_LINE",
+        game_count=3,
+        cycle_num=10,
+        mode="lobby_hitch",
+        stats_text="胜2 败0 难2",
+    )
+    assert "胜2 败0 难2" in hud.round_chip.text()
+    assert "胜2 败0 难2" in hud.detail_label.text()
+
+    # 停止后带总战绩统计
+    hud.update_status(
+        running=False,
+        game_count=10,
+        cycle_num=10,
+        mode="lobby_hitch",
+        terminal_reason="cycle_num reached",
+        stats_text="共开局 10 把 (胜 6 / 败 3) · 难1:1把 难2:6把 难3:2把",
+    )
+    assert "共开局 10 把 (胜 6 / 败 3) · 难1:1把 难2:6把 难3:2把" in hud.detail_label.text()
+
+
+def test_boss_challenge_attempt_limit_deadlock_prevention(monkeypatch):
+    """验证 Boss 挑战达到 3 次上限时返回 None 并推进到 archive 关闭路径，绝不死锁循环。"""
+    settings = Settings(sgzx_boss="15莫格莱尼", ocr_mode="off")
+    root = Path(__file__).resolve().parents[1]
+    med = Mediator(settings, root)
+    med.set_phase(Phase.MAIN_LINE, "test")
+    med._boss_challenge_attempts = 3
+
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=1001)
+    monkeypatch.setattr(med, "_post_game_state", lambda f: "ARCHIVE_PANEL")
+
+    # 达到 3 次必须返回 None，且设置 _time_cave_boss_done = True
+    action = med._maybe_challenge_configured_boss(frame, 10.0)
+    assert action is None
+    assert med._time_cave_boss_done is True
+    assert med._post_game_route == "archive"
+
+    # 调用重置函数后所有计数清空
+    med._reset_boss_challenge_round_state()
+    assert med._boss_challenge_attempts == 0
+    assert med._time_cave_boss_done is False
+    assert med._time_cave_boss_search_attempts == 0
+    assert med._boss_anomaly_retry_attempts == 0
+
