@@ -850,6 +850,7 @@ class Mediator:
         self._hitch_blacklisted_room_keys = AgingBlacklist(ttl_s=1800.0)
         self._hitch_pending_room_key: str | None = None
         self._hitch_host_difficulty_since: float | None = None
+        self._hitch_unstarted_exit_pending = False
         self._hitch_floor_exit_pending = False
         self._hitch_floor_exit_confirmed = False
         self._hitch_floor_exit_attempted_at: float | None = None
@@ -12644,6 +12645,7 @@ class Mediator:
         self._hitch_join_origin_hwnd = None
         self._hitch_pending_room_key = None
         self._hitch_host_difficulty_since = None
+        self._hitch_unstarted_exit_pending = False
         # Task 2: floor-exit transient must not leak across episode re-entry;
         # every hitch reset path converges here, so clear the pending/confirmed
         # latch at this single real episode boundary.
@@ -12750,6 +12752,13 @@ class Mediator:
             return LoopAction.Break
         self._hitch_after_exit(now)
         self.set_phase(Phase.LOBBY_ROOM, note)
+        return LoopAction.Continue
+
+    def _finish_hitch_unstarted_exit(self, now: float) -> LoopAction:
+        """Fresh room evidence closed a pre-game abort; do not count or spend a ticket."""
+        self._hitch_unstarted_exit_pending = False
+        self._hitch_after_exit(now)
+        self.set_phase(Phase.LOBBY_ROOM, "hitch pre-game exit verified; re-search")
         return LoopAction.Continue
 
     def _hitch_reset_lobby(self, evidence: str, now: float) -> LoopAction:
@@ -13233,6 +13242,7 @@ class Mediator:
             self._hitch_host_difficulty_since = None
             if self._hitch_pending_room_key is not None:
                 self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
+            self._hitch_unstarted_exit_pending = True
             self.set_phase(Phase.QUIT, "hitch host difficulty timeout")
             return LoopAction.Continue
         print(
@@ -18058,6 +18068,8 @@ class Mediator:
 
         if self.phase == Phase.QUIT:
             if not self._is_game_client_frame(frame) and self._find_room_start(frame):
+                if self._hitch_unstarted_exit_pending:
+                    return self._finish_hitch_unstarted_exit(time.time())
                 print("[med] 局内退出阶段检测到已在房间准备界面，退出完成")
                 self._awaiting_room_return = True
                 self.set_phase(Phase.PREPARE, "already back in room")
@@ -18103,6 +18115,8 @@ class Mediator:
         if self.phase == Phase.NEXT:
             if not self._is_game_client_frame(frame) and self._find_room_start(frame):
                 print("[med] 退出确认阶段检测到已在房间准备界面")
+                if self._hitch_unstarted_exit_pending:
+                    return self._finish_hitch_unstarted_exit(time.time())
                 if self._hitch_enabled():
                     return self._finish_hitch_round(time.time(), "exit confirmed; hitch re-search")
                 self._awaiting_room_return = True
@@ -18122,6 +18136,9 @@ class Mediator:
                 self._exit_confirm_attempts += 1
                 print(f"[med] 确认退出当前游戏 @ {confirm_hit.center} (尝试 {self._exit_confirm_attempts}/3)")
                 if not self.act_click(confirm_hit, "QuitGame-confirm"):
+                    return LoopAction.Continue
+                if self._hitch_unstarted_exit_pending:
+                    print("[med] 蹭车未开局退出已确认，等待 fresh 房间画面（零动作）")
                     return LoopAction.Continue
                 if self._hitch_enabled():
                     return self._finish_hitch_round(time.time(), "exit confirmed; hitch re-search")
