@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "5b23f9c710b609cb072cf7b62b2eb65ed7660be2",
-  "anchored_at": "2026-09-22T10:36:22Z",
+  "candidate_sha": "b7ae0bbdcf2347d9de9a71e13d1771823046cd4c",
+  "anchored_at": "2026-09-22T12:35:29Z",
   "branch": "fix/hitch-goal-archaeology-20260920",
-  "note": "Boss 双帧无卡仅收敛：停止空滚但业务受理保持 unconfirmed"
+  "note": "宝物负面夹具入库+Owner 09-22 默认不拿名单/pattern/UI 勾选+13号计分修复"
 }
