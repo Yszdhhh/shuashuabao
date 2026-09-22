@@ -48,6 +48,7 @@ except ImportError as exc:
     ) from exc
 
 from shuabao.shell.dashboard_facade import DashboardFacade
+from shuabao.shell.live_execute import source_quick_test_window_title
 from shuabao.shell.bridge_contract import BRIDGE_SCHEMA_VERSION
 from shuabao.shell.mode_catalog import get_spec
 from shuabao.shell.overlay_hud import OverlayHud
@@ -255,7 +256,8 @@ class WebConfigShell(QMainWindow):
         else:
             index = resolve_dist_index(self.root)
 
-        self.setWindowTitle(APP_TITLE)
+        # 源码快速测试（冻结包恒 False）必须在标题上自报身份，防止被当成签名包/GT。
+        self.setWindowTitle(source_quick_test_window_title(APP_TITLE))
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setFixedSize(*_DASHBOARD_SIZE)
 
