@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import sys
 from pathlib import Path
 
 LOGGER = logging.getLogger("ShuaBao")
@@ -16,6 +17,9 @@ LOGGER = logging.getLogger("ShuaBao")
 APP_ID = "ShuaBao"
 USER_SETTINGS_NAME = "user_settings.json"
 LIVE_LOCK_NAME = "ShuaBao.live.lock"
+# 源码快速测试把 SHUABAO_APP_DATA 指到独立目录，但控制游戏窗口的 LIVE 锁必须与
+# 签名包共用同一把（%LOCALAPPDATA%\ShuaBao）。仅源码生效；冻结包忽略此变量。
+LIVE_LOCK_DIR_ENV = "SHUABAO_LIVE_LOCK_DIR"
 HABIT_PREFERENCE_NAME = "habit_preference.json"
 INCIDENTS_DIRNAME = "incidents"
 LEARNING_DIRNAME = "learning"
@@ -46,6 +50,10 @@ def user_settings_path(app_data: Path | None = None) -> Path:
 
 
 def live_lock_path(app_data: Path | None = None) -> Path:
+    """LIVE 输入互斥锁；源码下 $SHUABAO_LIVE_LOCK_DIR 优先于 app_data（冻结包忽略）。"""
+    override = "" if getattr(sys, "frozen", False) else os.environ.get(LIVE_LOCK_DIR_ENV, "").strip()
+    if override:
+        return Path(override).resolve() / LIVE_LOCK_NAME
     base = Path(app_data) if app_data is not None else get_canonical_app_data_dir()
     return base / LIVE_LOCK_NAME
 

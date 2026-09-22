@@ -331,7 +331,10 @@ def _verify_live_permission(
 
 
 def live_lock_path(app_data: Path) -> Path:
-    return Path(app_data) / LIVE_LOCK_NAME
+    # 单一来源：honor $SHUABAO_LIVE_LOCK_DIR（源码共享签名包的 LIVE 锁）。
+    from shuabao.paths import live_lock_path as _canonical_live_lock_path
+
+    return _canonical_live_lock_path(app_data)
 
 
 def execute_runtime_mediator(
