@@ -312,3 +312,72 @@ def test_records_once_per_free_stretch(tmp_path, monkeypatch):
     assert writes[2]["boundary"] == "phase_exit"
     assert writes[2]["actual_plan_target"] is None
     assert getattr(med, "_solo_shadow_pending", None) is None
+
+
+def test_shadow_refreshes_current_frame_before_building_boundary(monkeypatch):
+    monkeypatch.setenv("SHUABAO_SOLO_SHADOW", "1")
+    from shuabao.mediator import Mediator
+
+    events = []
+
+    class Log:
+        disabled = False
+
+        def note_boundary(self, **_kw):
+            events.append("write")
+
+    class FakeMed:
+        phase = SimpleNamespace(name="MAIN_LINE")
+        _solo_shadow = Log()
+        _solo_shadow_ready = True
+        _solo_shadow_at_boundary = False
+        _pending_action = None
+        _evolve_feedback_pending = False
+        _evolve_awaiting_hero_pick = False
+        _equipment_fsm = SimpleNamespace(pending_slot=None)
+        _merchant_fsm = SimpleNamespace(phase=None)
+        _public_bag_fsm = SimpleNamespace(active=False)
+        _panel_state = SimpleNamespace(name="CLOSED")
+        _observe_plan = (None, "")
+        _l1_cycle_step = "bond"
+        _wood_balance = None
+        _skill_points_seen = 0
+        _skill_points_seen_at = 1.0
+        _treasure_pending_seen = 0
+        _treasure_pending_seen_at = 1.0
+        _bond_cards_pending = []
+        _skill_cards_pending = []
+        _bond_picks_round = 0
+        _main_line_stall_stage = None
+        _main_line_stall_reason = None
+        _merchant_kill_balance_value = None
+        _choice_policy_doc = {}
+        _round_started_at = 1.0
+        _evidence = SimpleNamespace(gen=7)
+        settings = SimpleNamespace(auto_bond=True, auto_treasure=True, auto_devour_dan=False, treasure_allow_negative=[])
+
+        def _solo_shadow_log(self):
+            return Mediator._solo_shadow_log(self)
+
+        def _passenger_mode(self):
+            return False
+
+        def _refresh_solo_signals(self, frame, now):
+            assert frame == "fresh-frame"
+            self._wood_balance = 321
+            events.append("refresh")
+
+        def _confirmed_bond_cards(self):
+            return ()
+
+        def _confirmed_skill_cards(self):
+            return ()
+
+        def _observe_round_id(self):
+            return "r7"
+
+    med = FakeMed()
+    Mediator._solo_shadow_tick(med, "fresh-frame")
+    assert events == ["refresh"]
+    assert med._solo_shadow_pending["snapshot"].wood.value == 321
+    assert med._solo_shadow_pending["snapshot"].page_generation.value == 7

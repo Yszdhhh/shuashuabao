@@ -245,6 +245,16 @@ def build_snapshot(mediator: Any, now: float | None = None) -> Snapshot:
         tab_window=tab_window,
         artifact_ready=artifact_ready,
         merchant_kill_balance=merchant_fact,
+        page_generation=(
+            Fact.observed(getattr(g("_evidence"), "gen"), "mediator._evidence.gen", observed_at=ts)
+            if getattr(g("_evidence"), "gen", None) is not None
+            else Fact.unknown("mediator._evidence.gen")
+        ),
+        round_generation=Fact.observed(
+            str(g("_observe_round_id")() if callable(g("_observe_round_id")) else g("_round_started_at")),
+            "mediator.round_id",
+            observed_at=ts,
+        ),
         service_wait_skill=_wait("skill"),
         service_wait_bond=_wait("bond"),
         service_wait_treasure=_wait("treasure"),
@@ -295,6 +305,8 @@ def snapshot_summary(snap: Snapshot) -> dict:
         "tab_window": f(snap.tab_window),
         "artifact_ready": f(snap.artifact_ready),
         "merchant_kill_balance": f(snap.merchant_kill_balance),
+        "page_generation": f(snap.page_generation),
+        "round_generation": f(snap.round_generation),
         "bond_draw_price": f(snap.bond_draw_price),
         "bond_refresh_price": f(snap.bond_refresh_price),
         "service_wait": {

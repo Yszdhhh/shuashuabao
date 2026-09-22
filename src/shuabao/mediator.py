@@ -16746,7 +16746,7 @@ class Mediator:
             print(f"[med][solo-shadow] 记录器初始化失败，保持关闭：{exc}")
             return None
 
-    def _solo_shadow_tick(self) -> None:
+    def _solo_shadow_tick(self, frame: Frame | None = None) -> None:
         """单人 MAIN_LINE 事务边界记一次影子推荐 vs 旧逻辑实际选择。"""
         log = self._solo_shadow_log()
         if log is None:
@@ -16776,6 +16776,12 @@ class Mediator:
             from shuabao import solo_shadow as _ss
 
             now = time.time()
+            # Shadow must compare against the same current-frame facts that
+            # _solo_plan_panel will consume later in this tick.  The normal
+            # 3-second throttle makes the later refresh a no-op, so enabling
+            # shadow adds no second OCR/read pass.
+            if frame is not None:
+                self._refresh_solo_signals(frame, now)
             panel_name = getattr(getattr(self, "_panel_state", None), "name", "") or ""
             merchant_name = getattr(getattr(getattr(self, "_merchant_fsm", None), "phase", None), "name", "") or ""
             busy = bool(
@@ -16828,7 +16834,7 @@ class Mediator:
     def _tick_main_line(self, frame: Frame) -> LoopAction:
         now = time.time()
         self._observe_tick()
-        self._solo_shadow_tick()
+        self._solo_shadow_tick(frame)
         if self._passenger_mode() and not getattr(self, "_hitch_round_started_counted", False):
             self._hitch_round_started_counted = True
             self._hitch_stats_started += 1
