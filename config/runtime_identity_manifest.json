@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "b7ae0bbdcf2347d9de9a71e13d1771823046cd4c",
-  "anchored_at": "2026-09-22T12:35:29Z",
-  "branch": "fix/hitch-goal-archaeology-20260920",
-  "note": "宝物负面夹具入库+Owner 09-22 默认不拿名单/pattern/UI 勾选+13号计分修复"
+  "candidate_sha": "f353dad1d8f82e70772c366168c5dc10c28322a6",
+  "anchored_at": "2026-09-23T00:12:00+08:00",
+  "branch": "integrate/night-fixes-20260922",
+  "note": "云端影子审计修复 + UI-23 正式看板 + 蹭车三分支收尾"
 }
