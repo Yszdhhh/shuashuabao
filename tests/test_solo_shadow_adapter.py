@@ -210,8 +210,16 @@ def test_records_once_per_free_stretch(tmp_path, monkeypatch):
             return False
 
     med = FakeMed()
+    # 边界：影子推荐暂存，旧逻辑本窗口尚未出计划 → 不写
     Mediator._solo_shadow_tick(med)
     Mediator._solo_shadow_tick(med)
+    assert len(writes) == 0
+    # 旧逻辑在本空闲期出了新计划（新 tuple 对象）→ 与本窗口配对写一次
+    med._observe_plan = ("skill", "y")
+    Mediator._solo_shadow_tick(med)
+    assert len(writes) == 1
+    assert writes[0]["actual_plan_target"] == "skill"
+    assert writes[0]["boundary"] == "plan_in_window"
     Mediator._solo_shadow_tick(med)
     assert len(writes) == 1
     # 进入事务
@@ -219,7 +227,22 @@ def test_records_once_per_free_stretch(tmp_path, monkeypatch):
     Mediator._solo_shadow_tick(med)
     assert len(writes) == 1
     assert med._solo_shadow_at_boundary is False
-    # 事务结束 → 再记一次
+    # 事务结束 → 新边界暂存；未出计划就再次进入事务 → 如实记“窗口内无计划”，不借用旧计划
+    med._pending_action = None
+    Mediator._solo_shadow_tick(med)
+    assert len(writes) == 1
+    med._pending_action = object()
+    Mediator._solo_shadow_tick(med)
+    assert len(writes) == 2
+    assert writes[1]["actual_plan_target"] is None
+    assert writes[1]["boundary"] == "window_closed_without_plan"
+    # 新边界暂存后离开主线 → 如实落盘 phase_exit，不跨局配对
     med._pending_action = None
     Mediator._solo_shadow_tick(med)
     assert len(writes) == 2
+    med.phase = SimpleNamespace(name="POST_GAME")
+    Mediator._solo_shadow_tick(med)
+    assert len(writes) == 3
+    assert writes[2]["boundary"] == "phase_exit"
+    assert writes[2]["actual_plan_target"] is None
+    assert getattr(med, "_solo_shadow_pending", None) is None

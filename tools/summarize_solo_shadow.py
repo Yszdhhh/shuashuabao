@@ -45,7 +45,8 @@ def summarize(rows: list[dict]) -> dict:
     for rid, items in by_round.items():
         items.sort(key=lambda x: x.get("seq", 0))
         kinds = Counter((r.get("decision") or {}).get("kind", "?") for r in items)
-        agree = disagree = non_recommend = 0
+        agree = disagree = non_recommend = recommend_no_actual = 0
+        boundary_kinds = Counter(str(r.get("boundary") or "?") for r in items)
         review = Counter()
         incompar = 0
         rejects = Counter()
@@ -63,6 +64,9 @@ def summarize(rows: list[dict]) -> dict:
                     agree += 1
                 elif chosen and target:
                     disagree += 1
+                else:
+                    # 旧逻辑该窗口未出计划（window_closed_without_plan / phase_exit）
+                    recommend_no_actual += 1
             for reason in dec.get("review_required") or []:
                 review[str(reason)] += 1
             if dec.get("incomparable"):
@@ -90,6 +94,8 @@ def summarize(rows: list[dict]) -> dict:
             "recommend_vs_actual_agree": agree,
             "recommend_vs_actual_disagree": disagree,
             "non_recommend": non_recommend,
+            "recommend_no_actual_plan": recommend_no_actual,
+            "boundary_kinds": dict(boundary_kinds),
             "review_required": review.most_common(),
             "incomparable_boundaries": incompar,
             "incomparable_rate": (incompar / total) if total else None,
@@ -111,7 +117,8 @@ def render(s: dict) -> str:
     for rid, d in s["rounds"].items():
         out.append(f"== 局 {rid} ==  边界 {d['boundaries']}")
         out.append("  decision: " + "  ".join(f"{k}:{v}" for k, v in d["decision_counts"].items()))
-        out.append(f"  RECOMMEND vs 旧逻辑  一致 {d['recommend_vs_actual_agree']}  分歧 {d['recommend_vs_actual_disagree']}  非推荐 {d['non_recommend']}")
+        out.append(f"  RECOMMEND vs 旧逻辑  一致 {d['recommend_vs_actual_agree']}  分歧 {d['recommend_vs_actual_disagree']}  旧逻辑无计划 {d['recommend_no_actual_plan']}  非推荐 {d['non_recommend']}")
+        out.append(f"  边界类型 {d['boundary_kinds']}")
         rate = d["incomparable_rate"]
         out.append(f"  不可比边界 {d['incomparable_boundaries']}" + (f"  ({rate*100:.0f}%)" if rate is not None else ""))
         if d["review_required"]:

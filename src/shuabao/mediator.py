@@ -16729,6 +16729,21 @@ class Mediator:
             if getattr(self, "phase", None) is not None:
                 phase_name = getattr(getattr(self, "phase", None), "name", "")
                 if phase_name != "MAIN_LINE":
+                    # 离开主线（换局/战后）：未配对的影子记录如实落盘为“无实际计划”，
+                    # 不留到下一局去配对。
+                    pending = getattr(self, "_solo_shadow_pending", None)
+                    self._solo_shadow_pending = None
+                    self._solo_shadow_at_boundary = False
+                    if pending is not None:
+                        log.note_boundary(
+                            snapshot=pending["snapshot"],
+                            decision=pending["decision"],
+                            actual_plan_target=None,
+                            actual_plan_reason="phase_exit",
+                            cycle_step=pending["cycle_step"],
+                            actual_act="",
+                            boundary="phase_exit",
+                        )
                     return
             if getattr(self, "_passenger_mode", lambda: False)():
                 return
@@ -16746,6 +16761,28 @@ class Mediator:
                 or bool(getattr(getattr(self, "_public_bag_fsm", None), "active", False))
                 or panel_name not in ("", "CLOSED", "COOLDOWN")
             )
+            # 影子推荐在边界时刻算出，但旧逻辑本 tick 稍后才在 _solo_plan_panel 里
+            # 赋值 _observe_plan。先暂存，等本空闲期内旧逻辑真的出了新计划（对象身份
+            # 变化）或空闲期结束，再与“这一窗口”的实际选择配对写盘，避免错位一格。
+            plan_now = getattr(self, "_observe_plan", (None, ""))
+            pending = getattr(self, "_solo_shadow_pending", None)
+            if pending is not None and (busy or plan_now is not pending["plan_before"]):
+                self._solo_shadow_pending = None
+                if plan_now is not pending["plan_before"]:
+                    target, reason = plan_now
+                    matched = "plan_in_window"
+                else:
+                    target, reason = None, "no_plan_in_window"
+                    matched = "window_closed_without_plan"
+                log.note_boundary(
+                    snapshot=pending["snapshot"],
+                    decision=pending["decision"],
+                    actual_plan_target=target,
+                    actual_plan_reason=reason,
+                    cycle_step=pending["cycle_step"],
+                    actual_act=str(target or ""),
+                    boundary=matched,
+                )
             if busy:
                 self._solo_shadow_at_boundary = False
                 return
@@ -16753,17 +16790,12 @@ class Mediator:
                 return
             self._solo_shadow_at_boundary = True
             snap = _ss.build_snapshot(self, now=now)
-            decision = _ss.decide(snap)
-            target, reason = getattr(self, "_observe_plan", (None, ""))
-            log.note_boundary(
-                snapshot=snap,
-                decision=decision,
-                actual_plan_target=target,
-                actual_plan_reason=reason,
-                cycle_step=getattr(self, "_l1_cycle_step", None),
-                actual_act=str(target or ""),
-                boundary="free",
-            )
+            self._solo_shadow_pending = {
+                "snapshot": snap,
+                "decision": _ss.decide(snap),
+                "plan_before": plan_now,
+                "cycle_step": getattr(self, "_l1_cycle_step", None),
+            }
         except Exception as exc:
             print(f"[med][solo-shadow] tick 记录失败，跳过：{exc}")
 
