@@ -58,8 +58,12 @@ from shuabao.shell.runner_service import (
 )
 from shuabao.shell.runner_service import live_lock_busy
 from shuabao.shell.live_execute import (
+    SOURCE_QUICK_TEST_EVIDENCE,
     _git_source_sha,
     check_live_start_permission,
+    identity_allows_live,
+    identity_block_reasons,
+    identity_evidence_line,
     live_permit_request_context,
     live_permission_preflight,
     runtime_identity_preflight,
@@ -427,8 +431,10 @@ def _build_identity_preflight(root: Path | None, runner: Any) -> tuple[bool, str
         return True, "源码/测试模式由构建入口负责身份校验"
     if not getattr(sys, "frozen", False):
         identity = runtime_identity_preflight(Path(root))
-        if not identity["ready_for_gt"]:
-            return False, "BLOCKED_PRECONDITION: identity: " + "; ".join(identity["blocked_reasons"])
+        if not identity_allows_live(identity):
+            return False, "BLOCKED_PRECONDITION: identity: " + "; ".join(identity_block_reasons(identity))
+        if identity.get("evidence_class") == SOURCE_QUICK_TEST_EVIDENCE:
+            return True, "SOURCE_QUICK_TEST（非 GT）: " + identity_evidence_line(identity)
         return True, f"source_sha={identity['harness_head']}; candidate_anchor_sha={identity['candidate_anchor_sha']}"
     base = Path(root) if root is not None else Path.cwd()
     exe_dir = (

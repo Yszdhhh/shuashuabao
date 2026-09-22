@@ -43,6 +43,13 @@ LIVE_REPLAY_DB_NAME = "ShuaBao.live.replay.sqlite3"
 _LIVE_REPLAY_STORE: InMemoryReplayStore | PersistentReplayStore | None = None
 _TRUSTED_ISSUER_TOKEN = object()
 
+# 源码快速测试 profile：只放宽"候选派生/生产 diff"这一条源码身份要求，证据等级
+# 恒为 SOURCE_QUICK_TEST（≠ GT ≠ 授权验收）。冻结包里完全忽略该变量——签名身份、
+# permit、订阅路径一律不受影响。
+SOURCE_QUICK_TEST_ENV = "SHUABAO_SOURCE_QUICK_TEST"
+SOURCE_QUICK_TEST_EVIDENCE = "SOURCE_QUICK_TEST"
+SOURCE_QUICK_TEST_TITLE_SUFFIX = " · 源码快速测试 · 不做卡密验收"
+
 
 @dataclass(frozen=True)
 class _LiveIdentity:
@@ -159,6 +166,97 @@ def _live_identity(root: Path) -> _LiveIdentity:
         return _LiveIdentity("", "", "", True)
 
 
+def source_quick_test_enabled(env: Mapping[str, str] | None = None) -> bool:
+    """True only for a source (non-frozen) run with SHUABAO_SOURCE_QUICK_TEST=1."""
+    if getattr(sys, "frozen", False):
+        return False
+    source = os.environ if env is None else env
+    return str(source.get(SOURCE_QUICK_TEST_ENV, "") or "").strip() == "1"
+
+
+def _worktree_dirty_files(root: Path) -> list[str] | None:
+    """Staged, unstaged and untracked paths of the whole checkout; None when git fails."""
+    kwargs: dict[str, Any] = {
+        "capture_output": True, "text": True, "encoding": "utf-8",
+        "errors": "replace", "timeout": 10, "check": False,
+    }
+    if os.name == "nt":
+        kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=all"],
+            **kwargs,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    return [line[3:].strip() for line in proc.stdout.splitlines() if len(line) > 3]
+
+
+def _apply_source_quick_test(
+    report: dict[str, Any], root: Path, forbidden_shas: tuple[str, ...],
+) -> dict[str, Any]:
+    """Add the source-test verdict next to (never instead of) ready_for_gt."""
+    head = str(report.get("harness_head") or "")
+    reasons: list[str] = []
+    if not head or head == "unknown":
+        reasons.append("Harness HEAD SHA unavailable")
+    elif head in forbidden_shas:
+        reasons.append(f"Harness HEAD is a forbidden old runtime SHA: {head}")
+    if report.get("runtime_source_verified") is not True:
+        reasons.append("imported shuabao is not this checkout's src (or is a forbidden old worktree)")
+    dirty = _worktree_dirty_files(root)
+    if dirty is None:
+        reasons.append("git status unavailable; cannot record HEAD+dirty evidence")
+        dirty = []
+    advisories = [
+        str(reason) for reason in report.get("blocked_reasons") or []
+        if "candidate anchor" in str(reason) or "production code diff" in str(reason)
+    ]
+    report["evidence_class"] = SOURCE_QUICK_TEST_EVIDENCE
+    report["advisories"] = advisories
+    report["worktree_dirty"] = bool(dirty)
+    report["worktree_dirty_files"] = dirty
+    report["ready_for_source_test"] = not reasons
+    report["source_test_blocked_reasons"] = reasons
+    return report
+
+
+def identity_allows_live(identity: Mapping[str, Any]) -> bool:
+    """Single LIVE identity verdict: GT identity, or source quick test when that profile is on."""
+    if source_quick_test_enabled():
+        return (
+            identity.get("evidence_class") == SOURCE_QUICK_TEST_EVIDENCE
+            and identity.get("ready_for_source_test") is True
+        )
+    return identity.get("ready_for_gt") is True
+
+
+def identity_block_reasons(identity: Mapping[str, Any]) -> list[str]:
+    if source_quick_test_enabled() and identity.get("evidence_class") == SOURCE_QUICK_TEST_EVIDENCE:
+        return [str(item) for item in identity.get("source_test_blocked_reasons") or []]
+    return [str(item) for item in identity.get("blocked_reasons") or []]
+
+
+def identity_evidence_line(identity: Mapping[str, Any]) -> str:
+    """One log line that never lets a source quick test pass itself off as GT."""
+    dirty = [str(item) for item in identity.get("worktree_dirty_files") or []]
+    preview = ", ".join(dirty[:5]) + (", ..." if len(dirty) > 5 else "")
+    return (
+        f"evidence_class={identity.get('evidence_class') or 'GT_IDENTITY'}; "
+        f"head={identity.get('harness_head') or 'unknown'}; "
+        f"branch={identity.get('harness_branch') or 'unknown'}; "
+        f"dirty={bool(identity.get('worktree_dirty'))} ({len(dirty)} files{': ' + preview if dirty else ''}); "
+        f"ready_for_gt={identity.get('ready_for_gt') is True}"
+    )
+
+
+def source_quick_test_window_title(base: str) -> str:
+    """Window title that self-identifies a source quick test (frozen: always the base title)."""
+    return base + SOURCE_QUICK_TEST_TITLE_SUFFIX if source_quick_test_enabled() else base
+
+
 def runtime_identity_preflight(root_dir: Path) -> dict[str, Any]:
     """Fail closed before permissions or input; frozen builds retain signed identity."""
     try:
@@ -176,9 +274,12 @@ def runtime_identity_preflight(root_dir: Path) -> dict[str, Any]:
         if inserted:
             sys.path.insert(0, root_s)
         try:
-            from tools.live_harness_identity import identity_report
+            from tools.live_harness_identity import FORBIDDEN_RUNTIME_SHAS, identity_report
 
-            return identity_report(repo_root=root)
+            report = identity_report(repo_root=root)
+            if source_quick_test_enabled():
+                report = _apply_source_quick_test(report, root, tuple(FORBIDDEN_RUNTIME_SHAS))
+            return report
         finally:
             if inserted:
                 sys.path.remove(root_s)
@@ -331,7 +432,10 @@ def _verify_live_permission(
 
 
 def live_lock_path(app_data: Path) -> Path:
-    return Path(app_data) / LIVE_LOCK_NAME
+    # 单一来源：honor $SHUABAO_LIVE_LOCK_DIR（源码共享签名包的 LIVE 锁）。
+    from shuabao.paths import live_lock_path as _canonical_live_lock_path
+
+    return _canonical_live_lock_path(app_data)
 
 
 def execute_runtime_mediator(
@@ -360,8 +464,8 @@ def execute_runtime_mediator(
         return result
     identity = runtime_identity_preflight(root_dir)
     result["identity"] = identity
-    if not identity["ready_for_gt"]:
-        result["terminal_reason"] = "BLOCKED_PRECONDITION: identity: " + "; ".join(identity["blocked_reasons"])
+    if not identity_allows_live(identity):
+        result["terminal_reason"] = "BLOCKED_PRECONDITION: identity: " + "; ".join(identity_block_reasons(identity))
         result["phase"] = "ERROR"
         LOGGER.error("[启动失败] %s", result["terminal_reason"])
         return result
@@ -374,6 +478,22 @@ def execute_runtime_mediator(
     log_file = Path(incident_dir) / "live.log" if incident_dir else None
     sink, file_handler = install_live_logging(log=log, log_file=log_file)
     result["log_sink"] = sink
+    if identity.get("evidence_class") == SOURCE_QUICK_TEST_EVIDENCE:
+        LOGGER.warning("[identity] %s（源码快速测试，不是 GT，不是授权验收）", identity_evidence_line(identity))
+        if incident_dir:
+            try:
+                target = Path(incident_dir)
+                target.mkdir(parents=True, exist_ok=True)
+                evidence = {key: identity.get(key) for key in (
+                    "evidence_class", "harness_head", "harness_branch", "candidate_anchor_sha",
+                    "worktree_dirty", "worktree_dirty_files", "advisories", "ready_for_gt",
+                    "ready_for_source_test", "runtime_source_path",
+                )}
+                (target / "source_quick_test_identity.json").write_text(
+                    json.dumps(evidence, ensure_ascii=False, indent=2), encoding="utf-8",
+                )
+            except OSError:
+                LOGGER.exception("[identity] 无法写入 source_quick_test_identity.json")
     mediator = None
     try:
         try:
