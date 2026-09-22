@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""SHUABAO_SOLO_SHADOW=0 / =1 各跑同一组测试，对比结果是否一致。
+"""Compare offline pytest results with solo shadow disabled/enabled.
 
-用法::
-
-    python tools/compare_solo_shadow_behavior.py
+Equal successful summaries are not proof that _tick_main_line was exercised
+or that action sequences, state, and timing were unchanged. Those require
+separate integration evidence; this tool must never label them as proven.
 """
 
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -26,52 +27,56 @@ TARGETS = [
 
 def run(env_flag: str) -> str:
     env = os.environ.copy()
-    if env_flag == "0":
-        env.pop("SHUABAO_SOLO_SHADOW", None)
-        env["SHUABAO_SOLO_SHADOW"] = "0"
-    else:
-        env["SHUABAO_SOLO_SHADOW"] = env_flag
+    env["SHUABAO_SOLO_SHADOW"] = env_flag
     cmd = [PY, "-m", "pytest", *TARGETS, "-q", "--tb=line"]
-    proc = subprocess.run(cmd, cwd=str(ROOT), env=env, capture_output=True, text=True)
-    tail = (proc.stdout or "")[-2000:]
+    proc = subprocess.run(
+        cmd, cwd=str(ROOT), env=env, capture_output=True, text=True,
+        encoding="utf-8", errors="replace", timeout=1800,
+    )
+    tail = ((proc.stdout or "") + (proc.stderr or ""))[-8000:]
     return f"exit={proc.returncode}\n{tail}"
 
 
+def _successful_counts(text: str) -> dict[str, int] | None:
+    lines = text.splitlines()
+    if not lines or lines[0] != "exit=0":
+        return None
+    for line in reversed(lines[1:]):
+        clean = re.sub(r"\x1b\[[0-9;]*m", "", line)
+        if " in " not in clean:
+            continue
+        counts = {
+            label: int(number)
+            for number, label in re.findall(
+                r"\b(\d+) (passed|failed|errors?|skipped|xfailed|xpassed|deselected)\b",
+                clean,
+            )
+        }
+        if not counts:
+            continue
+        if counts.get("passed", 0) <= 0 or any(
+            counts.get(label, 0) for label in ("failed", "error", "errors", "xpassed")
+        ):
+            return None
+        return counts
+    return None
+
+
 def main() -> int:
-    a = run("0")
-    b = run("1")
+    try:
+        a, b = run("0"), run("1")
+    except (OSError, subprocess.SubprocessError) as exc:
+        print(f"RESULT: RUN_FAILED ({type(exc).__name__})", file=sys.stderr)
+        return 1
     print("=== SHUABAO_SOLO_SHADOW=0 ===")
     print(a)
     print("=== SHUABAO_SOLO_SHADOW=1 ===")
     print(b)
-    # 比较 pytest 最后一行统计（passed/failed）
-    def stats(text: str) -> str:
-        for line in reversed(text.splitlines()):
-            if "passed" in line or "failed" in line or "error" in line:
-                # 去掉耗时，只留计数
-                return " ".join(line.strip().split()[:-2]) if " in " in line else line.strip()
-        return text.strip().splitlines()[-1] if text.strip() else ""
-
-    sa, sb = stats(a), stats(b)
-    print("=== compare ===")
-    print(f"0: {sa}")
-    print(f"1: {sb}")
-    # 允许 solo_shadow 新测试在两边都跑；比较失败/错误数
-    def fails(text: str) -> str:
-        s = stats(text)
-        for token in s.replace(",", " ").split():
-            if token.isdigit():
-                continue
-        return s
-
-    ok = sa == sb or (sa.replace(" ", "") == sb.replace(" ", ""))
-    # 至少两边 exit code 同号且 passed 计数相同
-    def parse_exit(text: str) -> str:
-        return text.splitlines()[0] if text else ""
-
-    same_exit = parse_exit(a) == parse_exit(b)
-    print("RESULT:", "IDENTICAL_STATS" if ok else "DIFF_STATS", "EXIT", "SAME" if same_exit else "DIFFER")
-    return 0 if (ok and same_exit and "0 passed" not in sa) else (0 if "passed" in sa and "passed" in sb else 1)
+    ca, cb = _successful_counts(a), _successful_counts(b)
+    ok = ca is not None and cb is not None and ca == cb
+    print("RESULT:", "IDENTICAL_SUCCESSFUL_STATS" if ok else "FAILED_OR_DIFFERENT_STATS")
+    print("NOT_BEHAVIOR_PROOF: requires _tick_main_line hook coverage and action-sequence comparison.")
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":
