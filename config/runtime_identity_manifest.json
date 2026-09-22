@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "e16182db0710140c97e733bab07e9d796b8c43b2",
-  "anchored_at": "2026-09-22T05:49:25Z",
+  "candidate_sha": "5b23f9c710b609cb072cf7b62b2eb65ed7660be2",
+  "anchored_at": "2026-09-22T10:36:22Z",
   "branch": "fix/hitch-goal-archaeology-20260920",
-  "note": "合入时光之穴 Boss 点击后置确认与真实帧回归"
+  "note": "Boss 双帧无卡仅收敛：停止空滚但业务受理保持 unconfirmed"
 }
