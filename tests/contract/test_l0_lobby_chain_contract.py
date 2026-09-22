@@ -183,6 +183,10 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_tick_post_confirm": False,
         "_boss_challenge_scroll_signature": "polluted",
         "_boss_challenge_scroll_stable_frames": 7,
+        "_time_cave_boss_result_confirmed": True,
+        "_time_cave_boss_confirm_unconfirmed": True,
+        "_time_cave_boss_clear_frames": 5,
+        "_time_cave_boss_clear_last_frame": object(),
     }
 
     def _pollute(self, med: Mediator) -> None:
