@@ -1,0 +1,247 @@
+{
+  "_comment": "2026-09-22 入库原帧追溯。source_sha256 指向 _facts / Lark 原件；png_sha256 为转码后 panel。",
+  "images": [
+    {
+      "card": "力之极",
+      "fixture_path": "fixtures/treasure_negative/力之极/panel_010357_352_f63f4ba1.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\力之极\\panel_010357_352_f63f4ba1.jpg",
+      "source_sha256": "edb4deacf7faa1270c69578f5fef232d477e1e69d8474dc1f184810634d3c9dc",
+      "slot": 2,
+      "shared_with": [],
+      "png_sha256": "7f905f621d41fac23ee6386d582fd2ed97d91ceb88a06c8b6af47c8d6cd720dc"
+    },
+    {
+      "card": "力之极",
+      "fixture_path": "fixtures/treasure_negative/力之极/panel_030308_666_6e5a9909.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\力之极\\panel_030308_666_6e5a9909.jpg",
+      "source_sha256": "d04b57952865b1ad2289676753fa5ebec2654d642ba009c4e27733e291cfaa15",
+      "slot": 0,
+      "shared_with": [
+        "混乱转换"
+      ],
+      "png_sha256": "fd96242d2218bcc56b3ee0ef3cf54036f8a07748b4f6be273698f6ee160e8691"
+    },
+    {
+      "card": "命运骰子",
+      "fixture_path": "fixtures/treasure_negative/命运骰子/panel_010952_626_abdd003a.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\命运骰子\\panel_010952_626_abdd003a.jpg",
+      "source_sha256": "72ebc4b88609d93b8ba159045cbbec6ba838d433490a245e4c6ba8b31fc67a3e",
+      "slot": 1,
+      "shared_with": [],
+      "png_sha256": "41249002de39fc933ac36ef676a27080f16c0d47040cb27e2555c12e34599481"
+    },
+    {
+      "card": "命运骰子",
+      "fixture_path": "fixtures/treasure_negative/命运骰子/panel_015148_242_5981a06a.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\命运骰子\\panel_015148_242_5981a06a.jpg",
+      "source_sha256": "56dce1d375f6bcc59c0dac84712920adef84c4c21c602d250a397905c787c5fe",
+      "slot": 2,
+      "shared_with": [],
+      "png_sha256": "ba741c3a13af9a294b73403c34537f0fa4f313d35e9968443fa2e02fdd926d8f"
+    },
+    {
+      "card": "恶魔契约",
+      "fixture_path": "fixtures/treasure_negative/恶魔契约/panel_224832_196_1a8248a7.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\恶魔契约\\panel_224832_196_1a8248a7.jpg",
+      "source_sha256": "e03fde499fa98af48903b20ae8a4f601df04a2f1c4fac578fc9ad24159468b8d",
+      "slot": 2,
+      "shared_with": [],
+      "png_sha256": "cdb7cd641c8daf62e3c041016e6785c5611b8e033eb88a3db728d28f91913198"
+    },
+    {
+      "card": "恶魔契约",
+      "fixture_path": "fixtures/treasure_negative/恶魔契约/panel_204112_528_1e1e99b4.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\恶魔契约\\panel_204112_528_1e1e99b4.jpg",
+      "source_sha256": "b5621b41150392c3971de85e85863a0fe33ded3f1551e1b635287e92225a11c9",
+      "slot": 0,
+      "shared_with": [],
+      "png_sha256": "faa0a8fbfeb3dfd04d189bdc1f0024c943bf9fff6d0021c3eb055d61ab1b8977"
+    },
+    {
+      "card": "提高上限",
+      "fixture_path": "fixtures/treasure_negative/提高上限/panel_185040_112_8b9790d7.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\提高上限\\panel_185040_112_8b9790d7.jpg",
+      "source_sha256": "999f2244efe632149e23caf670abcff7bd78f08c06c2bf6cb49a8c9985a9bb39",
+      "slot": 1,
+      "shared_with": [
+        "经验压制"
+      ],
+      "png_sha256": "88236dbd81d25b7d050b01c5696a11a820e977fb9874ede679f36a0820c19f22"
+    },
+    {
+      "card": "提高上限",
+      "fixture_path": "fixtures/treasure_negative/提高上限/panel_003339_375_1feb9109.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\提高上限\\panel_003339_375_1feb9109.jpg",
+      "source_sha256": "ad43a7468994bca62c9cde93d51aa68d77a2de841ce2811149697544f17fb8c9",
+      "slot": 2,
+      "shared_with": [],
+      "png_sha256": "f2738ce3629c65612785f8f241da5b95f6c59cfb0c86024101d70cc075d3a1a2"
+    },
+    {
+      "card": "敏之极",
+      "fixture_path": "fixtures/treasure_negative/敏之极/panel_024047_510_2a1de354.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\敏之极\\panel_024047_510_2a1de354.jpg",
+      "source_sha256": "f901e86f3e41e52c06a230f46cd357c76780be7f03806a55b29fe6cf1b22af02",
+      "slot": 2,
+      "shared_with": [],
+      "png_sha256": "5f27f63609586f851713fe390e5b16646e659daef9a4ae7e86f99849182ee89a"
+    },
+    {
+      "card": "敏之极",
+      "fixture_path": "fixtures/treasure_negative/敏之极/panel_024041_520_45091041.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\敏之极\\panel_024041_520_45091041.jpg",
+      "source_sha256": "6166eabf548d8f2d65a0b3c11351b99f059e8e85b0b052e7008eb70d505d18d5",
+      "slot": 2,
+      "shared_with": [],
+      "png_sha256": "790e0655db5fe8393cd891ca8c14386291f6908948813fd681427a3c5603d9ed"
+    },
+    {
+      "card": "智之极",
+      "fixture_path": "fixtures/treasure_negative/智之极/panel_020043_011_4900b098.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\智之极\\panel_020043_011_4900b098.jpg",
+      "source_sha256": "3e3f0d2bddc6774fddd0d4ecc2394638c5e19f009fa15870cf5d9dcd0f58ea8a",
+      "slot": 0,
+      "shared_with": [],
+      "png_sha256": "bb4827fad5c9f8fc4b61789a35da851b6fed47d8b220255b0f75bae9abe1b2a9"
+    },
+    {
+      "card": "智之极",
+      "fixture_path": "fixtures/treasure_negative/智之极/panel_020036_447_983259de.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\智之极\\panel_020036_447_983259de.jpg",
+      "source_sha256": "2695f0e614d31335cc947dd2bfca369e65c8858c7ef16a88d8298a9d8856042f",
+      "slot": 0,
+      "shared_with": [],
+      "png_sha256": "983143ff7f6c40cd6e585482923a0b86c1eb2715a40188150c0601f7a6e55d24"
+    },
+    {
+      "card": "木材梭哈",
+      "fixture_path": "fixtures/treasure_negative/木材梭哈/panel_010322_206_257a6635.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\木材梭哈\\panel_010322_206_257a6635.jpg",
+      "source_sha256": "3fc3f0e3e221c44c26476db217ff5e4fbbfce96829b92f5c857caada258f8079",
+      "slot": 1,
+      "shared_with": [],
+      "png_sha256": "0a9a5b9905ea92330d351b3ea4de5c644ef5a4816ad180ee23c5983860e7683a"
+    },
+    {
+      "card": "木材梭哈",
+      "fixture_path": "fixtures/treasure_negative/木材梭哈/panel_010318_135_637a248d.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\木材梭哈\\panel_010318_135_637a248d.jpg",
+      "source_sha256": "a21fb7074392a91ee42e7e9e3a0cdb9f1db2df0ace7c78207744e5d17cbf5e80",
+      "slot": 1,
+      "shared_with": [],
+      "png_sha256": "51d769e0dc32e834c7ac4e1b602e789d3f41d446c3126762637e557ab5c76966"
+    },
+    {
+      "card": "混乱转换",
+      "fixture_path": "fixtures/treasure_negative/混乱转换/panel_030308_666_6e5a9909.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\混乱转换\\panel_030308_666_6e5a9909.jpg",
+      "source_sha256": "d04b57952865b1ad2289676753fa5ebec2654d642ba009c4e27733e291cfaa15",
+      "slot": 1,
+      "shared_with": [
+        "力之极"
+      ],
+      "png_sha256": "fd96242d2218bcc56b3ee0ef3cf54036f8a07748b4f6be273698f6ee160e8691"
+    },
+    {
+      "card": "混乱转换",
+      "fixture_path": "fixtures/treasure_negative/混乱转换/panel_011210_617_57527ff7.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\混乱转换\\panel_011210_617_57527ff7.jpg",
+      "source_sha256": "74a94230499db70f37ad5e5c003769f4228e79fd7567da3cda2816dcc25d7f2b",
+      "slot": 2,
+      "shared_with": [],
+      "png_sha256": "ef80fe97cb0214ddcc5bc9fcd22c725449528ca85703f2f9ad222684f32eb693"
+    },
+    {
+      "card": "玻璃大炮",
+      "fixture_path": "fixtures/treasure_negative/玻璃大炮/panel_011316_987_f55eed81.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\玻璃大炮\\panel_011316_987_f55eed81.jpg",
+      "source_sha256": "7fb564c15cd548f92a12e040203c96aaf4b2c85c26dfaeee924de214285e4ea9",
+      "slot": 0,
+      "shared_with": [],
+      "png_sha256": "76ac09e0a82c833158835caa702acfc7d598bb971775a93b6348116a0091cd66"
+    },
+    {
+      "card": "玻璃大炮",
+      "fixture_path": "fixtures/treasure_negative/玻璃大炮/panel_011313_112_2fe287e1.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\玻璃大炮\\panel_011313_112_2fe287e1.jpg",
+      "source_sha256": "e4c90a3df4c2f628b74b901bf08f17b7e2607358ed7cd8ea0884247fd182a34d",
+      "slot": 0,
+      "shared_with": [],
+      "png_sha256": "a09d4fead13235eaf2c49f5a5a329832c180bd760a991062fdc2141108b8d5d6"
+    },
+    {
+      "card": "登神长阶",
+      "fixture_path": "fixtures/treasure_negative/登神长阶/panel_013909_223_2f68ed51.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\登神长阶\\panel_013909_223_2f68ed51.jpg",
+      "source_sha256": "ef7dbc952f235bc1b4304934ddd7689918fccc75e98de92aa170a42ac06b5edc",
+      "slot": 2,
+      "shared_with": [],
+      "png_sha256": "0cfc1e4b8e2203a01d9eb0a66008bfb506cdb20243753a87c504c178485df393"
+    },
+    {
+      "card": "登神长阶",
+      "fixture_path": "fixtures/treasure_negative/登神长阶/panel_013902_288_e8074dbe.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\登神长阶\\panel_013902_288_e8074dbe.jpg",
+      "source_sha256": "61e78bd52fc6fc29414e081cd11f267b520c34e3af622e11231eb8242faf2882",
+      "slot": 2,
+      "shared_with": [],
+      "png_sha256": "6d24f9e8306995767c71120c34036e6365afbd31f4096f2abd8509293d5bdc2c"
+    },
+    {
+      "card": "经验压制",
+      "fixture_path": "fixtures/treasure_negative/经验压制/panel_185040_112_8b9790d7.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\经验压制\\panel_185040_112_8b9790d7.jpg",
+      "source_sha256": "999f2244efe632149e23caf670abcff7bd78f08c06c2bf6cb49a8c9985a9bb39",
+      "slot": 0,
+      "shared_with": [
+        "提高上限"
+      ],
+      "png_sha256": "88236dbd81d25b7d050b01c5696a11a820e977fb9874ede679f36a0820c19f22"
+    },
+    {
+      "card": "经验压制",
+      "fixture_path": "fixtures/treasure_negative/经验压制/panel_172145_829_5f653c51.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\经验压制\\panel_172145_829_5f653c51.jpg",
+      "source_sha256": "7886a16f90248dbfd5c49a898732b018a9235d9505ac2ff9021501d3b5b3ca76",
+      "slot": 2,
+      "shared_with": [],
+      "png_sha256": "1b8818797ede9ab6e06e5f53fb0045059445093d25ad66641942f0e91a9945d8"
+    },
+    {
+      "card": "贪婪契约",
+      "fixture_path": "fixtures/treasure_negative/贪婪契约/panel_183207_476_61758acc.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\贪婪契约\\panel_183207_476_61758acc.jpg",
+      "source_sha256": "b6b9012da9e35c7bcf970ffe8817c0eeeea4db87992737d0d59144e8d2d1ba66",
+      "slot": 0,
+      "shared_with": [],
+      "png_sha256": "12fa8540ea832485c44dce4277d294f5e91130f8684eaa7741c67ca15d78f3f8"
+    },
+    {
+      "card": "贪婪契约",
+      "fixture_path": "fixtures/treasure_negative/贪婪契约/panel_183109_859_767ab1d9.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\贪婪契约\\panel_183109_859_767ab1d9.jpg",
+      "source_sha256": "34330944d6a757d3ac10616a067c7cb9d008f2340fab8bc886f305fa4aede45f",
+      "slot": 0,
+      "shared_with": [],
+      "png_sha256": "b5a042c1eac28b8fefd6196faee1555b2a9d252cfa28e64df8d85cad159a5d1c"
+    },
+    {
+      "card": "金币梭哈",
+      "fixture_path": "fixtures/treasure_negative/金币梭哈/panel_015322_653_7c66d569.png",
+      "source_path": "G:\\刷刷宝\\_facts_20260922\\treasure_debuff_frames\\金币梭哈\\panel_015322_653_7c66d569.jpg",
+      "source_sha256": "d2eb0815fe2a1bd1614048d33dc7e6c1273fb7f03b1d98a8066390021964ee99",
+      "slot": 1,
+      "shared_with": [],
+      "png_sha256": "e3ee8eb51c0fe39df8ad55018fa162f475af6eb786e5938417e67e3b13503614"
+    },
+    {
+      "card": "诅咒之力",
+      "fixture_path": "fixtures/treasure_negative/诅咒之力/panel_img_v3_0215p_31b47da6.png",
+      "source_path": "C:\\Users\\10639\\AppData\\Roaming\\LarkShell\\sdk_storage\\2fb38f2e7af030f12d6b7d4976252c48\\resources\\images\\img_v3_0215p_31b47da6-e1bd-412f-91f3-84feecf3958g.jpg",
+      "source_sha256": "e785078f6e7d498631ca10ee0e7fbee374cd942b841dcc9ff15605217725768d",
+      "slot": 0,
+      "shared_with": [],
+      "png_sha256": "e7065dd2cd3291f9302e2593f39133bbc6f03de9386343b981c86a911088a08d"
+    }
+  ]
+}
