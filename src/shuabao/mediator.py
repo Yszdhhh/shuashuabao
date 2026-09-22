@@ -1334,6 +1334,8 @@ class Mediator:
         self._main_line_stall_reason: str | None = None
         self._close_main_line_triggered: bool = False
         self._main_line_closed_done: bool = False
+        self._main_line_close_attempts: int = 0
+        self._main_line_close_next_at: float = 0.0
 
 
     # ---------- 感知 / 执行（Jobs 唯一入口）----------
@@ -9088,13 +9090,23 @@ class Mediator:
         if state == "OFF":
             print("[med] 5-5 后已成功取消【自动任务】主线挑战")
             self._main_line_closed_done = True
+            self._main_line_close_attempts = 0
+            self._main_line_close_next_at = 0.0
             return None
         if state == "ON" and hit is not None:
-            print(f"[med] 5-5 完成，按配置点击取消【自动任务】@ {hit.center}")
-            if self.act_click(hit, "DisableAutoTask"):
-                self._main_line_closed_done = True
-                self._main_line_since = now
+            if now < getattr(self, "_main_line_close_next_at", 0.0):
                 return LoopAction.Continue
+            if getattr(self, "_main_line_close_attempts", 0) >= 3:
+                return None
+            print(f"[med] 5-5 完成，按配置点击取消【自动任务】@ {hit.center}")
+            self._main_line_close_attempts += 1
+            self._main_line_close_next_at = now + 1.0
+            if self.act_click(hit, "DisableAutoTask"):
+                self._main_line_since = now
+            # A click request is not proof that the toggle changed.  Suspend
+            # other actions for one observation window and only finish after a
+            # later frame explicitly reports OFF.
+            return LoopAction.Continue
         return None
 
 
@@ -10383,6 +10395,8 @@ class Mediator:
             self._pause_resume_next_at = 0.0
             self._close_main_line_triggered = False
             self._main_line_closed_done = False
+            self._main_line_close_attempts = 0
+            self._main_line_close_next_at = 0.0
             self._main_line_ocr_next_at = 0.0
             self._main_line_stall_stage = None
             self._main_line_stall_since = None
