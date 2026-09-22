@@ -151,6 +151,41 @@ class GuestStageSelectRecoveryTests(unittest.TestCase):
         self.assertEqual(med.game_count, 0)
         self.assertEqual(med._ticket_rounds_since_read, 0)
 
+    def test_host_difficulty_without_exit_button_uses_semantic_escape(self) -> None:
+        """The known guest waiting page must not fall through to UNKNOWN timeout."""
+        med = _med()
+        med._hitch_unstarted_exit_pending = True
+        med.set_phase(Phase.QUIT, "hitch host difficulty timeout")
+        with patch.object(med, "_find_exit_confirm", return_value=None), \
+                patch.object(med, "_find_game_exit", return_value=None), \
+                patch.object(med, "_find_stage_page", return_value=False), \
+                patch.object(med, "_host_choosing_difficulty", return_value=True), \
+                patch.object(med, "act_key", return_value=True) as key:
+            med._tick_l1_tail(_game_frame())
+
+        key.assert_called_once_with("esc", "HitchLeaveHostDifficulty")
+        self.assertEqual(med.phase, Phase.NEXT)
+
+    def test_host_difficulty_abort_re_searches_even_when_arch_configured(self) -> None:
+        """An aborted pre-game room is not counted and does not end the hitch cycle.
+
+        Owner 2026-09-22: one slow host must not cut a 30-round run short;
+        archaeology stays reserved for cycle_num / ticket budget endings.
+        """
+        med = Mediator(
+            Settings(mode_id="lobby_hitch", hitch_after_goal="arch", dry_run=True), ROOT
+        )
+        med._hitch_unstarted_exit_pending = True
+        med.set_phase(Phase.NEXT, "host difficulty exit requested")
+
+        room_start = MatchResult("room_start", 0.95, 980, 760, 140, 50, 1050, 785)
+        with patch.object(med, "_find_room_start", return_value=room_start):
+            med._tick_l1_tail(_platform_frame())
+
+        self.assertEqual(med.game_count, 0)
+        self.assertEqual(med.settings.mode_id, "lobby_hitch")
+        self.assertFalse(getattr(med, "_archaeology_handoff_pending", False))
+        self.assertEqual(med.phase, Phase.LOBBY_ROOM)
 
 if __name__ == "__main__":
     unittest.main()

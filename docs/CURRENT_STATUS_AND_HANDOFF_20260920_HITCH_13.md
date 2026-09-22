@@ -44,6 +44,20 @@
 
 本次代码和离线契约已完成；当前先用 13 号按钮跑一条新的 1 局实机 bundle，确认退出切入考古。通过后设置 `SHUABAO_HITCH_E2E_ROUNDS=5` 验证密钥挑战、传家宝、时光之穴等可选路线。此前的单人 14 号问题不能代替 13 号真机 PASS。
 
+## 2026-09-22 长线程异常收尾补充
+
+昨晚长线程在第 11 个房间遇到“等待 1 号位选择难度”超时。该页面是已识别的客号预开局页，但没有常规局内左上退出按钮；旧 QUIT 分支将其降为 UNKNOWN，15 秒后以 `exit button timeout` 停止。
+
+已补齐：该已知页面找不到专用退出按钮时，只发送一次语义 `Esc` 并进入既有确认/回房观察链；取得 fresh 房间证据后拉黑该房并**继续搜房**（Owner 2026-09-22 裁定：单个房主磨蹭不得提前结束长线程；考古只由 cycle_num 达标 / 挑战券预算触发）。该异常不增加 `game_count`，不扣挑战券。
+
+已知限制：客号全程看不到选关页，`_ticket_balance` 恒为 None（fail-open），蹭车模式下"门票耗尽转考古"不会触发，长线程终点只能由 cycle_num 决定。
+
+搁置：同批次的「诅咒之力/提高上限 默认不拿」改动未提交——违反 `test_treasure_negative_fixtures_contract`（每张负面卡须 ≥1 真机面板帧），待补实机帧后单独提交。
+
+离线验证：`python -m pytest tests/test_hitch_guest_stage_select_recovery_20260921.py tests/test_s0_hitch_failure_exit.py tests/test_ticket_budget_20260921.py tests/contract -q` → `86 passed, 111 subtests passed`（Owner 裁定后重跑）。
+
+仍需真机：在房主选难度页超过阈值后，确认 `Esc → 退出确认/平台房间 → 拉黑并继续搜房` 的实际 UI 变更；若 `Esc` 未产生可观察变化，保持零输入并记录为 BLOCKED，不把点击发送当作成功。
+
 ## Owner 待裁决（本任务只记录，不改代码）
 
 1. `hitch_after_goal="solo"` 的看板标签是“去单人刷票”（`main_window.py:2810`），但 `_finish_hitch_round()` 当前实现为 `COMPLETE + stop + Break`，实际直接结束脚本，没有进入单人刷票。预期应有“考古 / 单刷 / 结束脚本”三个分支，目前只有两个且其中一个名不副实。

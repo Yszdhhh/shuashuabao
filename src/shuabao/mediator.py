@@ -12747,25 +12747,8 @@ class Mediator:
             )
         if goal_reached or budget_out:
             if str(getattr(self.settings, "hitch_after_goal", "solo") or "solo") == "arch":
-                # The guest must leave the verified room before using the
-                # existing normal-farm route to its own stage page.  The
-                # pending flag then authorizes only the existing archaeology
-                # request/confirm transaction; it never starts another hitch round.
-                self.settings.mode_id = "normal_farm"
-                # hitch_lobby_chain disables room creation while searching;
-                # archaeology handoff is a new solo run and must restore the
-                # normal-farm room owner before the fresh stage route.
-                self.settings.auto_create_room = True
-                self._hitch_after_exit(now)
-                self._hitch_goal_archaeology_handoff = True
-                self._archaeology_handoff_pending = True
-                self._room_leave_pending = True
-                self._room_leave_next_at = 0.0
-                self._room_action_deadline = now + min(self.settings.query_timeout, 30)
-                self.set_phase(Phase.ROOM_WAITING, "hitch cycle complete; leaving room for archaeology")
                 why = "cycle_num 达标" if goal_reached else "挑战券预算不足"
-                print(f"[med] 蹭车收尾（{why}），离房后进入考古")
-                return LoopAction.Continue
+                return self._begin_hitch_archaeology_handoff(now, why)
             why = "cycle_num 达标" if goal_reached else "挑战券预算不足"
             print(f"[med] 蹭车收尾（{why}），转 COMPLETE 停止")
             self.set_phase(Phase.COMPLETE, "cycle_num reached" if goal_reached else "ticket budget exhausted")
@@ -12773,6 +12756,20 @@ class Mediator:
             return LoopAction.Break
         self._hitch_after_exit(now)
         self.set_phase(Phase.LOBBY_ROOM, note)
+        return LoopAction.Continue
+
+    def _begin_hitch_archaeology_handoff(self, now: float, why: str) -> LoopAction:
+        """Leave the guest episode before the existing solo archaeology route."""
+        self.settings.mode_id = "normal_farm"
+        self.settings.auto_create_room = True
+        self._hitch_after_exit(now)
+        self._hitch_goal_archaeology_handoff = True
+        self._archaeology_handoff_pending = True
+        self._room_leave_pending = True
+        self._room_leave_next_at = 0.0
+        self._room_action_deadline = now + min(self.settings.query_timeout, 30)
+        self.set_phase(Phase.ROOM_WAITING, "hitch exit; leaving room for archaeology")
+        print(f"[med] 蹭车收尾（{why}），离房后进入考古")
         return LoopAction.Continue
 
     def _finish_hitch_unstarted_exit(self, now: float) -> LoopAction:
@@ -18132,6 +18129,11 @@ class Mediator:
             if not exit_hit:
                 if self._passenger_mode() and self._find_stage_page(frame):
                     self.act_key("esc", "HitchLeaveMisopenedStage")
+                    return LoopAction.Continue
+                if self._hitch_unstarted_exit_pending and self._host_choosing_difficulty(frame):
+                    print("[med] 蹭车房主选难度页无专用退出按钮，发送语义 Esc 并等待退出结果")
+                    if self.act_key("esc", "HitchLeaveHostDifficulty"):
+                        self.set_phase(Phase.NEXT, "host difficulty exit requested")
                     return LoopAction.Continue
                 print("[med] 等待局内左上角专用退出按钮（零动作）")
                 return LoopAction.Continue
