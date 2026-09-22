@@ -307,7 +307,7 @@ def test_hitch_settings_and_search_prefix_round_trip(qapp, tmp_path: Path):
     assert Settings.validate_patch({"hitch_cycle_num": 100, "follow_cycle_num": 100}, fallback) == []
     assert Settings.validate_patch({"hitch_after_goal": "solo"}, fallback) == []
     assert Settings.validate_patch({"hitch_after_goal": "arch"}, fallback) == []
-    assert len(Settings.validate_patch({"hitch_after_goal": "end"}, fallback)) > 0
+    assert Settings.validate_patch({"hitch_after_goal": "end"}, fallback) == []
     assert Settings.validate_patch({"follow_after_room": "solo"}, fallback) == []
     assert Settings.validate_patch({"follow_after_room": "hitch"}, fallback) == []
     assert Settings.validate_patch({"follow_after_room": "arch"}, fallback) == []

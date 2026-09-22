@@ -12872,16 +12872,30 @@ class Mediator:
                 f"不再搜房（已完成 {self.game_count} 局）"
             )
         if goal_reached or budget_out:
-            if str(getattr(self.settings, "hitch_after_goal", "solo") or "solo") == "arch":
-                why = "cycle_num 达标" if goal_reached else "挑战券预算不足"
-                return self._begin_hitch_archaeology_handoff(now, why)
             why = "cycle_num 达标" if goal_reached else "挑战券预算不足"
+            after_goal = str(getattr(self.settings, "hitch_after_goal", "solo") or "solo")
+            if after_goal == "arch":
+                return self._begin_hitch_archaeology_handoff(now, why)
+            if after_goal == "solo":
+                return self._begin_hitch_solo_handoff(now, why)
             print(f"[med] 蹭车收尾（{why}），转 COMPLETE 停止")
             self.set_phase(Phase.COMPLETE, "cycle_num reached" if goal_reached else "ticket budget exhausted")
             self.stop()
             return LoopAction.Break
         self._hitch_after_exit(now)
         self.set_phase(Phase.LOBBY_ROOM, note)
+        return LoopAction.Continue
+
+    def _begin_hitch_solo_handoff(self, now: float, why: str) -> LoopAction:
+        """离开蹭车房，回到已有的单刷自建房链。"""
+        self.settings.mode_id = "normal_farm"
+        self.settings.auto_create_room = True
+        self._hitch_after_exit(now)
+        self._room_leave_pending = True
+        self._room_leave_next_at = 0.0
+        self._room_action_deadline = now + min(self.settings.query_timeout, 30)
+        self.set_phase(Phase.ROOM_WAITING, "hitch exit; leaving room for solo")
+        print(f"[med] 蹭车收尾（{why}），离房后转单人刷票")
         return LoopAction.Continue
 
     def _begin_hitch_archaeology_handoff(self, now: float, why: str) -> LoopAction:
