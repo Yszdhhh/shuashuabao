@@ -1077,6 +1077,13 @@
       "confusions": [],
       "set_membership": null
     },
+    "木材梭哈": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "live-2026-09-22(fixtures/treasure_negative/木材梭哈)",
+      "confusions": [],
+      "set_membership": null
+    },
     "提高上限": {
       "aliases": [],
       "kind": "treasure",

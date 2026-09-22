@@ -42,8 +42,16 @@ DESCRIPTIONS_PATH = FIXTURE_DIR / "DESCRIPTIONS.json"
 INDEX_PATH = FIXTURE_DIR / "INDEX.json"
 SOURCES_PATH = FIXTURE_DIR / "SOURCES.json"
 
-# 2026-09-22 批次：Owner 只批准默认不拿这两张（Commit B 起进 DEFAULT_NEGATIVE_NAMES）。
-OWNER_APPROVED_DEFAULT_SKIP = ("诅咒之力", "提高上限")
+# 2026-09-22 批次：Owner 批准默认不拿（进 DEFAULT_NEGATIVE_NAMES）。
+# 木材梭哈为 Owner 2026-09-22 晚追加；等级优势同批移出名单（默认拿）。
+OWNER_APPROVED_DEFAULT_SKIP = ("诅咒之力", "提高上限", "木材梭哈")
+# Owner 2026-09-22 晚批准的描述 pattern：命中即默认不拿（UI 勾选可放行）。
+OWNER_APPROVED_PATTERN_SKIP = {
+    "恶魔契约": "无法再升级",
+    "玻璃大炮": "受到的所有伤害提高",
+    "木材梭哈": "木材清0",
+    "金币梭哈": "金币清0",
+}
 # 同批次仅入库、不改默认拿/不拿的 12 张。
 FIXTURE_ONLY_20260922 = (
     "力之极",
@@ -192,11 +200,12 @@ class TreasureNegativeNameAndDescription(unittest.TestCase):
         """
         settings = PolicySettings()
         cards = _load_descriptions()["cards"]
-        # 当前会被 pattern 命中的仅入库卡（report.md §6）。
-        pattern_hit = {"贪婪契约"}
+        # 当前会被 pattern 命中的仅入库卡（report.md §6 + Owner 09-22 晚批准的 pattern）。
+        pattern_hit = {"贪婪契约"} | set(OWNER_APPROVED_PATTERN_SKIP)
         for name in FIXTURE_ONLY_20260922:
             with self.subTest(name=name):
-                self.assertNotIn(name, DEFAULT_NEGATIVE_NAMES, f"{name} 本轮不得进默认不拿名单")
+                if name not in OWNER_APPROVED_DEFAULT_SKIP:
+                    self.assertNotIn(name, DEFAULT_NEGATIVE_NAMES, f"{name} 未经 Owner 批准不得进默认不拿名单")
                 hit = is_negative_treasure(
                     _slot(0, name, description=cards[name]["description"]),
                     settings,
@@ -290,15 +299,11 @@ class TreasureNegativePatternCoverage(unittest.TestCase):
             "等级优势",
             "力之极",
             "命运骰子",
-            "恶魔契约",
             "敏之极",
             "智之极",
-            "木材梭哈",
             "混乱转换",
-            "玻璃大炮",
             "登神长阶",
             "经验压制",
-            "金币梭哈",
             "诅咒之力",
         }
         self.assertEqual(
@@ -310,7 +315,8 @@ class TreasureNegativePatternCoverage(unittest.TestCase):
         covered = set(cards) - set(gaps)
         self.assertEqual(
             covered,
-            {"透支力量", "金转木", "杀敌梭哈", "伐木契约", "提高上限", "贪婪契约"},
+            {"透支力量", "金转木", "杀敌梭哈", "伐木契约", "提高上限", "贪婪契约",
+             "恶魔契约", "玻璃大炮", "木材梭哈", "金币梭哈"},
         )
         anon = PolicySettings(treasure_negative_names=())
         for name in covered:
@@ -353,9 +359,16 @@ class TreasureNegativePatternCoverage(unittest.TestCase):
             with self.subTest(name=name, phrase=phrase):
                 self.assertIn(name, cards)
                 self.assertIn(phrase, cards[name]["description"], f"{name} 描述应含缺口短语 {phrase!r}")
+                if name in OWNER_APPROVED_PATTERN_SKIP:
+                    self.assertEqual(
+                        (OWNER_APPROVED_PATTERN_SKIP[name],),
+                        _patterns_hit(cards[name]["description"]),
+                        f"{name} 应仅由 Owner 批准的 pattern 命中",
+                    )
+                    continue
                 self.assertFalse(
                     _patterns_hit(cards[name]["description"]),
-                    f"{name} 当前仍无 DEFAULT_NEGATIVE_PATTERNS 命中（本轮不改 patterns）",
+                    f"{name} 当前仍无 DEFAULT_NEGATIVE_PATTERNS 命中（待 Owner 裁决）",
                 )
         # 「无法再升级」不得被「无法升级」误判为已覆盖。
         self.assertNotIn("无法升级", cards["恶魔契约"]["description"])

@@ -288,8 +288,8 @@ class S3NegativeTreasureOptIn(unittest.TestCase):
                 )
 
     CONFIRMED_NEGATIVE = (
-        "透支力量", "贪婪献祭", "金转木", "杀敌梭哈", "伐木契约", "等级优势",
-        "诅咒之力", "提高上限",
+        "透支力量", "贪婪献祭", "金转木", "杀敌梭哈", "伐木契约",
+        "诅咒之力", "提高上限", "木材梭哈",
     )
 
     def test_confirmed_negative_names_blocked_without_description(self):

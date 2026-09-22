@@ -120,6 +120,10 @@ DEFAULT_NEGATIVE_PATTERNS = (
     "宝物效果-",
     "攻击间隔",
     "基础攻击间隔",
+    "无法再升级",
+    "受到的所有伤害提高",
+    "木材清0",
+    "金币清0",
 )
 DEFAULT_NEGATIVE_NAMES = (
     "透支力量",
@@ -127,9 +131,9 @@ DEFAULT_NEGATIVE_NAMES = (
     "金转木",
     "杀敌梭哈",
     "伐木契约",
-    "等级优势",
     "诅咒之力",
     "提高上限",
+    "木材梭哈",
 )
 DEFAULT_MAX_ATTEMPTS = 12
 DEFAULT_MAX_REFRESHES = 3
