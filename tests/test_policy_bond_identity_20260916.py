@@ -104,19 +104,18 @@ def test_active_advanced_presets_no_substring_inflation():
     assert active == ("海盗", "探险")
 
 
-def test_runtime_mediator_stage_bond_card_no_substring_leak():
-    """RuntimeMediator _stage_bond_card 不通过 substring 误放行未配置的卡牌。"""
+def test_runtime_mediator_stages_policy_authorized_nonpreset_bond_card():
+    """点击已由 Core 策略授权；Runtime 不得再用预设卡组过滤确认账本。"""
     from shuabao.runtime_mediator import Mediator as RuntimeMediator
 
     med = RuntimeMediator(Settings(cards=[]), ROOT)
     med._bond_cards_owned = ["海盗"]
     med._bond_cards_pending.clear()
 
-    # 试图 stage 白赚海盗，既非 configured preset，也非已拥有的确切卡
+    # soft 模式可在刷新预算用尽后选择非预设品质回退；点击后必须记账。
     med._stage_bond_card("白赚海盗")
-    assert "白赚海盗" not in med._bond_cards_pending
-    assert not med._bond_cards_pending
+    assert med._bond_cards_pending == ["白赚海盗"]
 
-    # 试图 stage 海盗，与已拥有的海盗相同，用于升级合并
+    # 重复卡仍保留次数，用于升级合并。
     med._stage_bond_card("海盗")
-    assert med._bond_cards_pending == ["海盗"]
+    assert med._bond_cards_pending == ["白赚海盗", "海盗"]
