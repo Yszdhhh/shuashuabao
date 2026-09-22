@@ -1486,6 +1486,25 @@ class P1B0PostGameTests(unittest.TestCase):
             bottom_calls["n"] += 1
             return bottom_calls["n"] >= 3
 
+        # Production post-confirm requires two *distinct* Frame instances with
+        # no Boss cards (list closed = challenge accepted). Reusing one Frame
+        # object can never raise _time_cave_boss_clear_frames past 1.
+        master_bgr = frame_archive.bgr.copy()
+
+        def next_tick_frame(clicked: bool) -> Frame:
+            if clicked:
+                # List replaced by the loot popup: zero Boss-card anchors.
+                return Frame(
+                    np.zeros_like(master_bgr),
+                    window_title="英雄三国KK",
+                    hwnd=10001,
+                )
+            return Frame(
+                master_bgr.copy(),
+                window_title="英雄三国KK",
+                hwnd=10001,
+            )
+
         with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
              patch.object(med, "act_scroll", return_value=True) as scroll, \
              patch.object(med, "_post_game_boss_list_at_bottom", side_effect=at_bottom), \
@@ -1493,12 +1512,14 @@ class P1B0PostGameTests(unittest.TestCase):
              patch.object(med, "_find_archive_panel_close", return_value=close_target), \
              patch.object(med, "act_click", return_value=True) as click:
             for _ in range(8):
-                med._tick_main_line(frame_archive)
+                clicked = getattr(med, "_time_cave_boss_clicked_at", None) is not None
+                med._tick_main_line(next_tick_frame(clicked))
                 med._boss_challenge_next_at = 0.0
                 if med._time_cave_boss_done:
                     break
             self.assertTrue(med._time_cave_boss_done)
-            med._tick_main_line(frame_archive)
+            self.assertTrue(med._time_cave_boss_result_confirmed)
+            med._tick_main_line(next_tick_frame(False))
             self.assertEqual(med._post_game_route, "heirloom")
 
         self.assertEqual(scroll.call_count, 2)
@@ -1526,12 +1547,18 @@ class PostGameBossRouteTests(unittest.TestCase):
     # ---- 时光之穴：ARCHIVE_PANEL 右侧列表 ----------------------------------
 
     def test_archive_boss_list_scrolls_inside_its_own_roi(self):
-        """配置 Boss 不在可见行时，滚轮必须落在存档面板右侧列表内。"""
+        """列表锚点已授权滚动时，滚轮必须落在存档面板右侧列表内。
+
+        本用例验证「已经获得列表卡片锚点」时的滚动 ROI，因此显式授权
+        `_post_game_boss_list_alive=True`。无锚点零滚动由
+        `tests/test_boss_challenge_20260922.py` 覆盖，此处不重复业务判断。
+        """
         med = self._med()
         frame = self._frame()
         roi = med._POST_GAME_BOSS_ROIS["ARCHIVE_PANEL"]
         with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
              patch.object(med, "find", return_value=None), \
+             patch.object(med, "_post_game_boss_list_alive", return_value=True), \
              patch.object(med, "_post_game_boss_list_at_bottom", return_value=False), \
              patch.object(med, "_find_last_recognized_post_game_boss", return_value=None), \
              patch.object(med, "act_scroll", return_value=True) as scroll, \
@@ -1552,11 +1579,16 @@ class PostGameBossRouteTests(unittest.TestCase):
         click.assert_not_called()
 
     def test_archive_boss_scroll_is_bounded_and_does_not_burn_click_budget(self):
-        """滚动预算独立且有界，滚完还没找到也不许乱点。"""
+        """列表锚点已授权滚动时，滚动预算独立且有界，滚完还没找到也不许乱点。
+
+        显式授权 `_post_game_boss_list_alive=True`：纯黑无锚点帧上不得期望
+        滚动（那是 fail-closed 路径，由 `test_boss_challenge_20260922.py` 覆盖）。
+        """
         med = self._med()
         frame = self._frame()
         with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
              patch.object(med, "find", return_value=None), \
+             patch.object(med, "_post_game_boss_list_alive", return_value=True), \
              patch.object(med, "_post_game_boss_list_at_bottom", return_value=False), \
              patch.object(med, "_find_last_recognized_post_game_boss", return_value=None), \
              patch.object(med, "act_scroll", return_value=True) as scroll, \
