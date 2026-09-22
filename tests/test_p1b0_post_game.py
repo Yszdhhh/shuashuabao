@@ -1487,13 +1487,14 @@ class P1B0PostGameTests(unittest.TestCase):
             return bottom_calls["n"] >= 3
 
         # Production post-confirm requires two *distinct* Frame instances with
-        # no Boss cards (list closed = challenge accepted). Reusing one Frame
-        # object can never raise _time_cave_boss_clear_frames past 1.
+        # no Boss cards (convergence only; not challenge acceptance). Reusing
+        # one Frame object can never raise _time_cave_boss_clear_frames past 1.
         master_bgr = frame_archive.bgr.copy()
 
         def next_tick_frame(clicked: bool) -> Frame:
             if clicked:
-                # List replaced by the loot popup: zero Boss-card anchors.
+                # Synthetic zero-card unit input (black frame). Not a loot
+                # popup and not live-machine evidence.
                 return Frame(
                     np.zeros_like(master_bgr),
                     window_title="英雄三国KK",

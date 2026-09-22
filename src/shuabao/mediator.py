@@ -7045,10 +7045,11 @@ class Mediator:
     ) -> bool:
         """Positive evidence that a scrollable Boss list is still on screen.
 
-        2026-09-22 真机（f0309→f0310→f0318）：点击「18瑟莱德丝公主」后右侧
-        时光之穴列表被掉落弹窗整体替换；f0318 上法术特效在滚动条 ROI 里留下
-        亮斑，旧的「滑块在=列表在」会把空列表误判为可滚。因此列表存活只认
-        **卡片命中**——看不到卡片就零输入，交给未决收敛走安全跳过并留证据。
+        2026-09-22 真机（f0309→f0310→f0318）：点击「18瑟莱德丝公主」后原帧显示
+        右侧列表关闭/无卡；f0318 上法术特效在滚动条 ROI 里留下
+        亮斑，旧的「滑块在=列表在」会把无卡画面误判为可滚。因此列表存活只认
+        **卡片命中**——算法仅检测是否识别到卡片，用于停止重复定位/空滚，
+        不证明挑战受理/成功。
         """
         if visible_pairs is None:
             visible_pairs = self._find_visible_post_game_boss_cards(frame, post_game)
@@ -8217,9 +8218,9 @@ class Mediator:
             visible_cards = [vc for vc, mr in visible_pairs]
             card_map = {vc.no: mr for vc, mr in visible_pairs}
 
-            # 2026-09-22 真机：时光之穴列表被掉落弹窗替换后卡片全无，旧逻辑
-            # 仍把 can_scroll 置真并在空列表上滚动。看不到锚点（卡片/滑块）
-            # 就零输入，交给未决收敛走安全跳过并留证据。
+            # 2026-09-22 真机：点击后双帧未识别到卡片（原帧显示列表关闭），
+            # 旧逻辑仍把 can_scroll 置真并继续滚动。看不到卡片锚点
+            # 就零输入；仅用于停止重复定位，不证明挑战受理/成功。
             list_alive = self._post_game_boss_list_alive(frame, post_game, visible_pairs)
             can_scroll = list_alive and not self._post_game_boss_has_no_scrollbar(frame, post_game)
 
@@ -8428,9 +8429,10 @@ class Mediator:
     #: 传家宝 Boss 点击后等待「已挑战」的上限。3s 在实测 1.64s/tick 的节拍下
     #: 只够 1.8 个 tick，等于没给后置确认第二次机会；6s 至少覆盖三帧新证据。
     _HEIRLOOM_BOSS_CONFIRM_TIMEOUT_S = 6.0
-    #: 时光之穴 Boss 点击后等待列表关闭（掉落弹窗替换列表）的上限。
-    #: 2026-09-22 真机：18瑟莱德丝公主 点击后列表立刻被掉落弹窗替换，
-    #: 原 1.0s 盲等后重新定位会在已关闭的列表上空滚。
+    #: 时光之穴 Boss 点击后等待双帧无卡（停止重复定位）的上限。
+    #: 2026-09-22 真机：18瑟莱德丝公主 点击后原帧显示列表关闭/无卡，
+    #: 原 1.0s 盲等后重新定位会在无卡区域继续空滚。
+    #: 该信号不证明挑战受理/成功。
     _TIME_CAVE_BOSS_CONFIRM_TIMEOUT_S = 6.0
 
     def _time_cave_boss_result_visible(self, frame: Frame) -> bool:
