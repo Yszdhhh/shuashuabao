@@ -1518,7 +1518,9 @@ class P1B0PostGameTests(unittest.TestCase):
                 if med._time_cave_boss_done:
                     break
             self.assertTrue(med._time_cave_boss_done)
-            self.assertTrue(med._time_cave_boss_result_confirmed)
+            self.assertFalse(med._time_cave_boss_result_confirmed)
+            self.assertTrue(med._time_cave_boss_confirm_unconfirmed)
+            self.assertIsNone(med._time_cave_boss_clicked_at)
             med._tick_main_line(next_tick_frame(False))
             self.assertEqual(med._post_game_route, "heirloom")
 

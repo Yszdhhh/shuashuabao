@@ -8088,18 +8088,19 @@ class Mediator:
                 print("[med] 传家宝 Boss 已发起，等待‘已挑战’后置（零动作）")
             return LoopAction.Continue
         # Time Cave is the same one-shot shape as heirloom. 2026-09-22 真机：
-        # 点击后列表被掉落弹窗替换；原 1.0s 盲等后「重新定位卡位」会在已
-        # 关闭的列表上继续滚动（tick 332–335 四次 BossConfigured-scroll），
-        # 最终误判 anomaly 跳过。点击后只等列表关闭后置，不再搜索/滚动。
+        # 点击输入成功后双帧未再识别到 Boss 卡；原 1.0s 盲等后「重新定位卡位」
+        # 会在无卡区域继续滚动（tick 332–335 四次 BossConfigured-scroll）。
+        # 双帧无卡只支持停止重复定位，不证明挑战受理/成功。
         if (
             post_game == "ARCHIVE_PANEL"
             and self._boss_challenge_attempts > 0
             and getattr(self, "_time_cave_boss_clicked_at", None) is not None
         ):
             if self._time_cave_boss_result_visible(frame):
-                print("[med] 时光之穴 Boss 后置已确认（列表已关闭），停止重复定位")
+                print("[med] 时光之穴 Boss 点击后双帧未识别到卡片，停止重复定位（不确认挑战受理）")
                 self._time_cave_boss_done = True
-                self._time_cave_boss_result_confirmed = True
+                self._time_cave_boss_result_confirmed = False
+                self._time_cave_boss_confirm_unconfirmed = True
                 self._time_cave_boss_clicked_at = None
             elif self._time_cave_boss_confirm_expired(now):
                 print(
@@ -8433,13 +8434,13 @@ class Mediator:
     _TIME_CAVE_BOSS_CONFIRM_TIMEOUT_S = 6.0
 
     def _time_cave_boss_result_visible(self, frame: Frame) -> bool:
-        """True once the Time Cave list has closed after a configured Boss click.
+        """True once two distinct frames show no Time Cave Boss cards after a click.
 
         2026-09-22 真机 bundle hitch_lobby_chain_20260922_002105_993691
         （帧 frames/f0309_action_before.png → f0310_action_after.png）：点击
-        「18瑟莱德丝公主」后右侧时光之穴列表被掉落弹窗整体替换（掉落
-        瑟莱德丝之眼 / 聊天「击杀BOSS」），卡片模板不再命中。列表关闭就是
-        挑战已受理的后置；双帧稳定，避免把单帧遮挡当成关闭。
+        「18瑟莱德丝公主」后右侧卡片模板不再命中（f0310 上未见掉落弹窗或
+        「击杀BOSS」文本）。双帧无卡仅是停止重复定位/空滚的保守收敛信号，
+        不证明物理列表关闭，更不证明挑战受理或成功。
         """
         if frame.bgr is None or frame.width < 480 or frame.height < 270:
             return False
@@ -17257,12 +17258,13 @@ class Mediator:
             clicked_at = getattr(self, "_time_cave_boss_clicked_at", None)
             if clicked_at is not None:
                 # 2026-09-22：原 1.0s 盲等后清标记并「重新定位卡位」，会在
-                # 列表已被掉落弹窗替换的空地上继续滚动。改为与 _maybe_challenge
-                # _configured_boss 同源的有界后置：确认/超时前零动作。
+                # 无卡区域继续滚动。改为与 _maybe_challenge_configured_boss
+                # 同源的有界后置：收敛/超时前零动作。双帧无卡不确认受理。
                 if self._time_cave_boss_result_visible(frame):
-                    print("[med] 时光之穴 Boss 点击后列表已关闭，确认挑战受理")
+                    print("[med] 时光之穴 Boss 点击后双帧未识别到卡片，停止重复定位（不确认挑战受理）")
                     self._time_cave_boss_done = True
-                    self._time_cave_boss_result_confirmed = True
+                    self._time_cave_boss_result_confirmed = False
+                    self._time_cave_boss_confirm_unconfirmed = True
                     self._time_cave_boss_clicked_at = None
                 elif self._time_cave_boss_confirm_expired(now):
                     print(

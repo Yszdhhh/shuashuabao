@@ -2,7 +2,7 @@
 
 ## 结论一句话
 
-**点击生效且挑战已受理（掉落弹窗出现），但「列表关闭」这一成功后置没被识别**；原逻辑 1 秒盲等后清标记继续「重新定位卡位」，在已被掉落弹窗替换的空列表上滚动，最终误判 anomaly 跳过。
+**点击输入成功，但双帧未再识别到 Boss 卡（f0310 上未见掉落弹窗或「击杀BOSS」）**；原逻辑 1 秒盲等后清标记继续「重新定位卡位」，在无卡区域滚动，最终误判 anomaly 跳过。双帧无卡只支持停止重复定位，**不证明挑战受理/成功**。
 
 ---
 
@@ -37,8 +37,8 @@
 | 帧文件 | 观察 |
 |---|---|
 | `frames/f0309_action_before.png` | 右侧「时光之穴」Boss 列表打开，可见 阿扎达斯 / **瑟莱德丝公主** / 加兹瑞拉 …（点击前） |
-| `frames/f0310_action_after.png` | **列表已关闭**，原列表位置出现掉落弹窗：剑师护手 / 岩石公主护腕 / 云石 / **瑟莱德丝之眼**；聊天「击杀BOSS，获得大量物资奖励」「掉落存档装备:瑟莱德丝之眼」 |
-| `frames/f0311_action_before.png` | 掉落弹窗已收，右侧为空地图，仅剩左侧「存档挑战」已挑战卡；此时代码开始 scroll @ [1360,480]（空地） |
+| `frames/f0310_action_after.png` | 右侧 Boss 卡片不再命中；左侧存档挑战八卡仍在。**未见**掉落弹窗或「击杀BOSS」文本（旧描述已撤回，SHA256 `48edd941…0c2c7`） |
+| `frames/f0311_action_before.png` | 右侧无 Boss 卡；代码开始 scroll @ [1360,480]（无卡区域） |
 | `frames/f0318_action_after.png` | 4 次滚动后仍无时光之穴列表，画面右侧是地图/法术特效 |
 | `frames/f0326_action_before.png` | 传家宝列表打开，可见「17年兽」 |
 | `frames/f0327_action_after.png` | 17年兽 点击后正常进入挑战 |
@@ -50,8 +50,8 @@
 | 假设 | 判定 | 依据 |
 |---|---|---|
 | 滚动定位失败 | **否** | f0309 列表打开且 18瑟莱德丝公主 可见，e0197 点击 ok=true |
-| 点击没生效 | **否** | f0310 出现「瑟莱德丝之眼」掉落 + 聊天「击杀BOSS」 |
-| **确认画面没识别** | **是** | f0310 列表已被掉落弹窗替换 = 挑战已受理；旧逻辑 `_time_cave_boss_clicked_at` 仅盲等 1.0s 就清标记并「重新定位卡位」，随后 4 次 scroll + 3 次 ParkPointer + skip |
+| 点击没生效 | **否** | input_success=true（仅表示输入被接受，不等于业务受理） |
+| **后置语义过强** | **是** | 双帧无卡只支持停止重复定位；旧逻辑却置 `result_confirmed=True` 并称「挑战受理」，随后仍滚动 4 次 + 3 次 ParkPointer + skip |
 
 ### 1.5 代码缺陷（仓库代码，worktree file:line）
 
@@ -92,7 +92,7 @@ Bundle：`G:\刷刷宝\captures\hitch_lobby_chain_20260922_004851_422384`（trac
 | 传家宝 17年兽 | 1 | 2 | 7（6 兜底非目标 + 1 点击失败） | 0 |
 
 **证据类型**：以上全部为实机 GT（bundle trace + 动作 reason），n=10。  
-**推断（标注）**：结合问题 bundle 的帧证据（点击后掉落弹窗 = 已受理），时光之穴 10 局的「异常跳过 / 空滚」大概率都是**成功被误判**；但 004851 bundle 未逐局抽帧核对掉落弹窗，该项为**推断**，仍需补采确认。
+**推断（标注）**：004851 各局「异常跳过 / 空滚」与本样本同属「点击后无卡 + 旧链继续滚动」；**不得**再外推为「成功被误判」或「掉落弹窗=受理」。业务受理/成功均为 UNKNOWN。
 
 ---
 
@@ -112,14 +112,14 @@ Bundle：`G:\刷刷宝\captures\hitch_lobby_chain_20260922_004851_422384`（trac
 - 新增 `_post_game_boss_list_alive()`：**仅卡片命中**才算列表还活着（滚动条滑块在 f0318 上被法术特效污染，已去掉）。
 - `decide_boss_order_action(..., can_scroll=can_scroll)`，其中  
   `can_scroll = list_alive and not _post_game_boss_has_no_scrollbar(...)`。  
-  列表被掉落弹窗替换后两者皆无 → 零输入，绝不滚动。
+  双帧无卡后两者皆无 → 零输入，绝不滚动。
 
 ### 4.2 点击后 one-shot 后置（对齐传家宝）
 
-- 新增 `_time_cave_boss_result_visible()`：时光之穴卡片全无（双帧稳定）= 列表关闭 = 挑战受理。真机依据 f0310。
+- 新增 `_time_cave_boss_result_visible()`：时光之穴双帧未识别到卡片 = 停止重复定位的收敛信号（**不**证明列表关闭，**不**证明挑战受理）。真机依据 f0310（未见掉落/击杀文本）。
 - 新增 `_time_cave_boss_confirm_expired()` + `_TIME_CAVE_BOSS_CONFIRM_TIMEOUT_S = 6.0`（与传家宝同量级；原 1.0s 在 ~2.2s/tick 节拍下只够 0.5 tick）。
 - `_maybe_challenge_configured_boss` 与 `_tick_impl` 的 ARCHIVE_PANEL 分支共用同一后置：  
-  确认 → `_time_cave_boss_done=True` / `_time_cave_boss_result_confirmed=True`；  
+  收敛 → `_time_cave_boss_done=True` / `_time_cave_boss_result_confirmed=False` / `_time_cave_boss_confirm_unconfirmed=True`；  
   超时 → 记 unconfirmed 事件并安全跳过。
 
 ### 4.3 找不到就安全跳过并留证据
@@ -149,7 +149,7 @@ Bundle：`G:\刷刷宝\captures\hitch_lobby_chain_20260922_004851_422384`（trac
 | `test_time_cave_list_not_alive_after_click` | f0310/f0311/f0318 无锚点 |
 | `test_time_cave_result_visible_after_click` | 双帧稳定后后置成立 |
 | `test_time_cave_clear_frames_reset_when_cards_return` | **卡片重现必须重置双帧计数**（Review M1） |
-| `test_no_scroll_after_click_on_replaced_list` | **点击后 0 scroll / 0 click / done+confirmed** |
+| `test_no_scroll_after_click_on_replaced_list` | **点击后 0 scroll / 0 click / done + confirmed=False + unconfirmed=True** |
 | `test_no_scroll_when_no_anchor_without_click` | 无锚点 0 scroll |
 | `test_unconfirmed_timeout_skips_with_evidence` | 超时记 `post_click_unconfirmed`、不滚动 |
 | `test_post_click_wait_is_zero_action` | 后置窗口内零动作 |

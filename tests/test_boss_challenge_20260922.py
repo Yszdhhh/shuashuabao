@@ -1,7 +1,7 @@
 """时光之穴 Boss 点击后置确认（2026-09-22 真机回归）。
 
 Bundle: C:\\tmp\\shuabao-captures\\hitch_lobby_chain_20260922_002105_993691
-tick 320–351：点击「18瑟莱德丝公主」后列表被掉落弹窗替换（f0310），
+tick 320–351：点击「18瑟莱德丝公主」后双帧未再识别到 Boss 卡（f0310），
 旧逻辑 1.0s 盲等后继续在空列表上滚动 4 次 → BossAnomalyParkPointer ×3
 → boss_challenge_skipped。
 
@@ -72,7 +72,7 @@ def test_time_cave_list_alive_on_open_panel(base_patches):
 
 
 def test_time_cave_list_not_alive_after_click(base_patches):
-    """f0310/f0311/f0318：列表被掉落弹窗/地图替换 → 无锚点，禁止滚动。"""
+    """f0310/f0311/f0318：双帧未识别到 Boss 卡 → 无锚点，禁止滚动。"""
     med = make_med()
     for name in ("f0310_after_click_18.png", "f0311_before_scroll1.png", "f0318_after_scroll4.png"):
         frame = load_frame(name)
@@ -82,7 +82,7 @@ def test_time_cave_list_not_alive_after_click(base_patches):
 
 
 def test_time_cave_result_visible_after_click(base_patches):
-    """点击后列表关闭即挑战受理后置，双帧稳定后为 True。"""
+    """点击后双帧无卡仅为收敛信号（停止重复定位），不等于挑战受理。"""
     med = make_med()
     med._time_cave_boss_clicked_at = 100.0
     f1 = load_frame("f0310_after_click_18.png")
@@ -134,7 +134,9 @@ def test_no_scroll_after_click_on_replaced_list(base_patches):
     assert scrolled == [], f"点击后不得滚动，实际: {scrolled}"
     assert clicked == [], f"点击后不得重复点击，实际: {clicked}"
     assert med._time_cave_boss_done is True
-    assert med._time_cave_boss_result_confirmed is True
+    assert med._time_cave_boss_result_confirmed is False
+    assert med._time_cave_boss_confirm_unconfirmed is True
+    assert med._time_cave_boss_clicked_at is None
 
 
 def test_no_scroll_when_no_anchor_without_click(base_patches):
