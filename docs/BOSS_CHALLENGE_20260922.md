@@ -2,7 +2,7 @@
 
 ## 结论一句话
 
-**点击生效且挑战已受理（掉落弹窗出现），但「列表关闭」这一成功后置没被识别**；原逻辑 1 秒盲等后清标记继续「重新定位卡位」，在已被掉落弹窗替换的空列表上滚动，最终误判 anomaly 跳过。
+**点击输入成功，但双帧未再识别到 Boss 卡（f0310 上未见掉落弹窗或「击杀BOSS」）**；原逻辑 1 秒盲等后清标记继续「重新定位卡位」，在无卡区域滚动，最终误判 anomaly 跳过。双帧无卡只支持停止重复定位，**不证明挑战受理/成功**。
 
 ---
 
@@ -30,18 +30,18 @@
 | **343** | — | **boss_challenge_skipped reason=anomaly page=ARCHIVE_PANEL** | — | **误判跳过** |
 | 344 | e0203 | CloseArchivePanel | f0320→f0321 | 关面板 |
 | 345 | e0204 | OpenHeirloomChallenges | f0322→f0323 | 转传家宝 |
-| 346–347 | e0205–e0206 | scroll → click:17年兽 ok=true | f0324–f0327 | **传家宝正常** |
+| 346–347 | e0205–e0206 | scroll → click:17年兽 ok=true | f0324–f0327 | 传家宝输入被接受（受理/成功 UNKNOWN） |
 
 ### 1.3 帧证据（决定性）
 
 | 帧文件 | 观察 |
 |---|---|
 | `frames/f0309_action_before.png` | 右侧「时光之穴」Boss 列表打开，可见 阿扎达斯 / **瑟莱德丝公主** / 加兹瑞拉 …（点击前） |
-| `frames/f0310_action_after.png` | **列表已关闭**，原列表位置出现掉落弹窗：剑师护手 / 岩石公主护腕 / 云石 / **瑟莱德丝之眼**；聊天「击杀BOSS，获得大量物资奖励」「掉落存档装备:瑟莱德丝之眼」 |
-| `frames/f0311_action_before.png` | 掉落弹窗已收，右侧为空地图，仅剩左侧「存档挑战」已挑战卡；此时代码开始 scroll @ [1360,480]（空地） |
+| `frames/f0310_action_after.png` | 右侧 Boss 卡片不再命中；左侧存档挑战八卡仍在。**未见**掉落弹窗或「击杀BOSS」文本（旧描述已撤回，SHA256 `48edd941…0c2c7`） |
+| `frames/f0311_action_before.png` | 右侧无 Boss 卡；代码开始 scroll @ [1360,480]（无卡区域） |
 | `frames/f0318_action_after.png` | 4 次滚动后仍无时光之穴列表，画面右侧是地图/法术特效 |
 | `frames/f0326_action_before.png` | 传家宝列表打开，可见「17年兽」 |
-| `frames/f0327_action_after.png` | 17年兽 点击后正常进入挑战 |
+| `frames/f0327_action_after.png` | 17年兽 点击输入被接受；业务受理/成功 **UNKNOWN**（未经独立证实，不写「正常进入挑战」） |
 
 **n=1 局（tick 320–351）**；帧文件名见上表，均在 bundle `frames/` 下。
 
@@ -50,8 +50,8 @@
 | 假设 | 判定 | 依据 |
 |---|---|---|
 | 滚动定位失败 | **否** | f0309 列表打开且 18瑟莱德丝公主 可见，e0197 点击 ok=true |
-| 点击没生效 | **否** | f0310 出现「瑟莱德丝之眼」掉落 + 聊天「击杀BOSS」 |
-| **确认画面没识别** | **是** | f0310 列表已被掉落弹窗替换 = 挑战已受理；旧逻辑 `_time_cave_boss_clicked_at` 仅盲等 1.0s 就清标记并「重新定位卡位」，随后 4 次 scroll + 3 次 ParkPointer + skip |
+| 游戏是否受理点击 | **UNKNOWN** | input_success=true 仅表示输入被接受，不证明游戏受理 |
+| **后置语义问题（两代）** | **是** | **历史版本**：点击后继续空滚（tick 332–335）。**第一版修复**：停止空滚，但把「双帧无卡」升级为业务确认（`result_confirmed=True`/「挑战受理」）——证据不足。两者不是同一时序 |
 
 ### 1.5 代码缺陷（仓库代码，worktree file:line）
 
@@ -65,34 +65,34 @@
 
 ---
 
-## 2. 10 局 Boss 结果统计（实机 GT）
+## 2. 10 个战后事件段的 Boss 动作统计（实机 trace）
 
-Bundle：`G:\刷刷宝\captures\hitch_lobby_chain_20260922_004851_422384`（trace.jsonl，n=10 局战后链）
+Bundle：`G:\刷刷宝\captures\hitch_lobby_chain_20260922_004851_422384`（trace.jsonl，n=10 个战后事件段；与完整对局的映射仍未知）
 
 设置同为 cjb_boss=17年兽、sgzx_boss=18瑟莱德丝公主。
 
-| 局 | game_count | 时光之穴（18瑟莱德丝公主） | 传家宝（17年兽） | 备注 |
+| 事件段 | game_count | 时光之穴（18瑟莱德丝公主） | 传家宝（17年兽） | 备注 |
 |---|---|---|---|---|
-| 1 | 0 | 点击 ok → 异常跳过 | **异常兜底** BossNotUnlockedLast → 12战争之王 | 传家宝 17 未解锁 |
-| 2 | 1 | 点击 ok → 异常跳过 | **成功** click 17年兽 | 唯一传家宝成功 |
-| 3 | 3 | 点击 ok → 异常跳过 | **异常兜底** BossNotUnlockedLast → 13蛇王纳什 | game_count 0→1→3，缺 2 |
-| 4 | 4 | 点击 ok → 异常跳过 | **异常兜底** BossNotUnlockedLast → 13蛇王纳什 | |
-| 5 | 5 | 点击 ok → 异常跳过 | **异常兜底** BossNotUnlockedLast → 13蛇王纳什 | |
-| 6 | 6 | 点击 ok → 异常跳过 | **异常兜底** BossNotUnlockedLast → 13蛇王纳什 | 局 TIMEOUT |
-| 7 | 7 | 点击 ok → 空滚 13 次 → 兜底误点 52库林纳克斯 | **跳过**（scroll-bottom 后 Dismiss，未点 17） | 空滚变体 |
-| 8 | 8 | 点击 ok → 异常跳过 | **异常兜底** BossNotUnlockedLast → 13蛇王纳什 | 局 TIMEOUT |
-| 9 | 9 | 点击 ok → 空滚 13 次 → 兜底误点 52库林纳克斯 | **跳过**（scroll-bottom 后 Dismiss，未点 17） | 空滚变体 |
-| 10 | 10 | 点击 ok → 空滚 13 次 → 兜底误点 52库林纳克斯 | **失败** click 17年兽 ok=false | 局 TIMEOUT |
+| 1 | 0 | 点击 ok → 异常跳过 | **兜底** BossNotUnlockedLast → 12战争之王 | 17 解锁状态 UNKNOWN |
+| 2 | 1 | 点击 ok → 异常跳过 | **输入被接受** click 17年兽 ok=true | 受理/成功 UNKNOWN |
+| 3 | 3 | 点击 ok → 异常跳过 | **兜底** BossNotUnlockedLast → 13蛇王纳什 | game_count 0→1→3，缺 2 |
+| 4 | 4 | 点击 ok → 异常跳过 | **兜底** BossNotUnlockedLast → 13蛇王纳什 | 17 解锁状态 UNKNOWN |
+| 5 | 5 | 点击 ok → 异常跳过 | **兜底** BossNotUnlockedLast → 13蛇王纳什 | |
+| 6 | 6 | 点击 ok → 异常跳过 | **兜底** BossNotUnlockedLast → 13蛇王纳什 | 局 TIMEOUT |
+| 7 | 7 | 点击 ok → 空滚 13 次 → 兜底误点 52库林纳克斯 | **未点目标**（scroll-bottom 后 Dismiss，未点 17） | 空滚变体 |
+| 8 | 8 | 点击 ok → 异常跳过 | **兜底** BossNotUnlockedLast → 13蛇王纳什 | 局 TIMEOUT |
+| 9 | 9 | 点击 ok → 空滚 13 次 → 兜底误点 52库林纳克斯 | **未点目标**（scroll-bottom 后 Dismiss，未点 17） | 空滚变体 |
+| 10 | 10 | 点击 ok → 空滚 13 次 → 兜底误点 52库林纳克斯 | **目标点击被拒绝** click 17年兽 ok=false | 局 TIMEOUT |
 
-### 汇总（每列 n=10）
+### 汇总（每列 n=10；动作分类，非业务成功统计）
 
-| 页面 | 成功 | 跳过 | 异常 | 空滚/兜底误点 |
+| 页面 | 输入被接受 | 未点目标 | 目标点击被拒绝 | 兜底点击 |
 |---|---|---|---|---|
-| 时光之穴 18瑟莱德丝公主 | 0 | 7（anomaly skip） | 0 | 3（13 次空滚 + 误点 52库林纳克斯） |
-| 传家宝 17年兽 | 1 | 2 | 7（6 兜底非目标 + 1 点击失败） | 0 |
+| 时光之穴 18瑟莱德丝公主 | 10（其后 7 anomaly skip / 3 空滚变体） | — | 0 | 空滚变体段内误点 52×2/段 |
+| 传家宝 17年兽 | **1** | **2** | **1** | **6**（BossNotUnlockedLast） |
 
-**证据类型**：以上全部为实机 GT（bundle trace + 动作 reason），n=10。  
-**推断（标注）**：结合问题 bundle 的帧证据（点击后掉落弹窗 = 已受理），时光之穴 10 局的「异常跳过 / 空滚」大概率都是**成功被误判**；但 004851 bundle 未逐局抽帧核对掉落弹窗，该项为**推断**，仍需补采确认。
+**证据类型**：以上全部为实机 GT（bundle trace + 动作 reason），n=10。
+**推断（标注）**：004851 各局「异常跳过 / 空滚」与本样本同属「点击后无卡 + 旧链继续滚动」；**不得**再外推为「成功被误判」或「掉落弹窗=受理」。业务受理/成功均为 UNKNOWN。
 
 ---
 
@@ -104,22 +104,22 @@ Bundle：`G:\刷刷宝\captures\hitch_lobby_chain_20260922_004851_422384`（trac
 
 ## 4. 修复（仅恢复与战后层）
 
-改动文件：`src/shuabao/mediator.py`、`tests/contract/test_l0_lobby_chain_contract.py`、`tests/test_boss_challenge_20260922.py`。  
+改动文件：`src/shuabao/mediator.py`、`tests/contract/test_l0_lobby_chain_contract.py`、`tests/test_boss_challenge_20260922.py`。
 **未碰** L0 大厅 / L1 局内选卡 / `config/scenes.json` / 感知模板。
 
 ### 4.1 有界滚动 + 看不到锚点零输入
 
 - 新增 `_post_game_boss_list_alive()`：**仅卡片命中**才算列表还活着（滚动条滑块在 f0318 上被法术特效污染，已去掉）。
-- `decide_boss_order_action(..., can_scroll=can_scroll)`，其中  
-  `can_scroll = list_alive and not _post_game_boss_has_no_scrollbar(...)`。  
-  列表被掉落弹窗替换后两者皆无 → 零输入，绝不滚动。
+- `decide_boss_order_action(..., can_scroll=can_scroll)`，其中
+  `can_scroll = list_alive and not _post_game_boss_has_no_scrollbar(...)`。
+  双帧无卡后两者皆无 → 零输入，绝不滚动。
 
 ### 4.2 点击后 one-shot 后置（对齐传家宝）
 
-- 新增 `_time_cave_boss_result_visible()`：时光之穴卡片全无（双帧稳定）= 列表关闭 = 挑战受理。真机依据 f0310。
+- 新增 `_time_cave_boss_result_visible()`：时光之穴双帧未识别到卡片 = 停止重复定位的收敛信号（**不**证明列表关闭，**不**证明挑战受理）。真机依据 f0310（未见掉落/击杀文本）。
 - 新增 `_time_cave_boss_confirm_expired()` + `_TIME_CAVE_BOSS_CONFIRM_TIMEOUT_S = 6.0`（与传家宝同量级；原 1.0s 在 ~2.2s/tick 节拍下只够 0.5 tick）。
-- `_maybe_challenge_configured_boss` 与 `_tick_impl` 的 ARCHIVE_PANEL 分支共用同一后置：  
-  确认 → `_time_cave_boss_done=True` / `_time_cave_boss_result_confirmed=True`；  
+- `_maybe_challenge_configured_boss` 与 `_tick_impl` 的 ARCHIVE_PANEL 分支共用同一后置：
+  收敛 → `_time_cave_boss_done=True` / `_time_cave_boss_result_confirmed=False` / `_time_cave_boss_confirm_unconfirmed=True`；
   超时 → 记 unconfirmed 事件并安全跳过。
 
 ### 4.3 找不到就安全跳过并留证据
@@ -149,7 +149,7 @@ Bundle：`G:\刷刷宝\captures\hitch_lobby_chain_20260922_004851_422384`（trac
 | `test_time_cave_list_not_alive_after_click` | f0310/f0311/f0318 无锚点 |
 | `test_time_cave_result_visible_after_click` | 双帧稳定后后置成立 |
 | `test_time_cave_clear_frames_reset_when_cards_return` | **卡片重现必须重置双帧计数**（Review M1） |
-| `test_no_scroll_after_click_on_replaced_list` | **点击后 0 scroll / 0 click / done+confirmed** |
+| `test_no_scroll_after_click_on_replaced_list` | **点击后 0 scroll / 0 click / done + confirmed=False + unconfirmed=True** |
 | `test_no_scroll_when_no_anchor_without_click` | 无锚点 0 scroll |
 | `test_unconfirmed_timeout_skips_with_evidence` | 超时记 `post_click_unconfirmed`、不滚动 |
 | `test_post_click_wait_is_zero_action` | 后置窗口内零动作 |
@@ -164,10 +164,10 @@ Bundle：`G:\刷刷宝\captures\hitch_lobby_chain_20260922_004851_422384`（trac
 
 ## 6. 仍需实机验证 / 补采
 
-1. **补采确认（高优）**：004851 bundle 中时光之穴 7 次 anomaly skip + 3 次空滚局，是否同样出现掉落弹窗（= 成功被误判）。需要逐局战后 tick 的 frames 或录屏。  
-2. **修复后真机跑一次 hitch_lobby_chain**：确认 18瑟莱德丝公主 点击后不再出现 `BossConfigured-scroll` / `BossAnomalyParkPointer` / `boss_challenge_skipped`，且 `_time_cave_boss_result_confirmed=True`。  
-3. **传家宝 17年兽 低成功率**（1/10）：6 次 `BossNotUnlockedLast` 兜底到 12/13、2 次未点、1 次 ok=false。属**账号解锁进度**还是**列表定位失败**需补采：战后传家宝列表整帧 + 账号已解锁 Boss 截图。  
-4. **空滚变体（3/10）**：为何部分局列表关闭后走了 13 次 scroll + 误点 52库林纳克斯，而不是 anomaly skip。可能与 `has_no_scrollbar` ROI 被地图/特效污染有关；修复的 `list_alive` 门应消除该路径，需真机确认。  
+1. **补采确认（高优）**：004851 各事件段是否另有业务受理锚（掉落条/战果 HUD）。局部目视样本 **不得** 外推为十个事件均已帧级核实。
+2. **修复后真机跑一次 hitch_lobby_chain**：确认 18瑟莱德丝公主 点击后不再出现 `BossConfigured-scroll` / `BossAnomalyParkPointer` / `boss_challenge_skipped`，且无业务锚时保持 `result_confirmed=False` + `confirm_unconfirmed=True`。
+3. **传家宝 17年兽 动作分布**：目标输入被接受 1 次、6 次 `BossNotUnlockedLast` 兜底到 12/13、2 次未点、1 次 ok=false；这不是挑战成功率。属**账号解锁进度**还是**列表定位失败**需补采：战后传家宝列表整帧 + 账号已解锁 Boss 截图。
+4. **空滚变体（3/10）**：为何部分局列表关闭后走了 13 次 scroll + 误点 52库林纳克斯，而不是 anomaly skip。可能与 `has_no_scrollbar` ROI 被地图/特效污染有关；修复的 `list_alive` 门应消除该路径，需真机确认。
 5. **game_count 0→1→3**：缺一局战后链，需确认是否该局未进战后（如断线/强失败）。
 6. **Review 补充**：非连续空帧误确认（已用单测钉住重置语义，仍需真机闪断样本）；主路径 `_tick_impl` 与 `_maybe_challenge_configured_boss` 双份后置逻辑是否同刻一致（M2，未抽公共 helper）；无锚点未点击是否留下 `boss_challenge_skipped` incident。
 

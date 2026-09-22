@@ -7045,10 +7045,11 @@ class Mediator:
     ) -> bool:
         """Positive evidence that a scrollable Boss list is still on screen.
 
-        2026-09-22 真机（f0309→f0310→f0318）：点击「18瑟莱德丝公主」后右侧
-        时光之穴列表被掉落弹窗整体替换；f0318 上法术特效在滚动条 ROI 里留下
-        亮斑，旧的「滑块在=列表在」会把空列表误判为可滚。因此列表存活只认
-        **卡片命中**——看不到卡片就零输入，交给未决收敛走安全跳过并留证据。
+        2026-09-22 真机（f0309→f0310→f0318）：点击「18瑟莱德丝公主」后原帧显示
+        右侧列表关闭/无卡；f0318 上法术特效在滚动条 ROI 里留下
+        亮斑，旧的「滑块在=列表在」会把无卡画面误判为可滚。因此列表存活只认
+        **卡片命中**——算法仅检测是否识别到卡片，用于停止重复定位/空滚，
+        不证明挑战受理/成功。
         """
         if visible_pairs is None:
             visible_pairs = self._find_visible_post_game_boss_cards(frame, post_game)
@@ -8088,18 +8089,19 @@ class Mediator:
                 print("[med] 传家宝 Boss 已发起，等待‘已挑战’后置（零动作）")
             return LoopAction.Continue
         # Time Cave is the same one-shot shape as heirloom. 2026-09-22 真机：
-        # 点击后列表被掉落弹窗替换；原 1.0s 盲等后「重新定位卡位」会在已
-        # 关闭的列表上继续滚动（tick 332–335 四次 BossConfigured-scroll），
-        # 最终误判 anomaly 跳过。点击后只等列表关闭后置，不再搜索/滚动。
+        # 点击输入成功后双帧未再识别到 Boss 卡；原 1.0s 盲等后「重新定位卡位」
+        # 会在无卡区域继续滚动（tick 332–335 四次 BossConfigured-scroll）。
+        # 双帧无卡只支持停止重复定位，不证明挑战受理/成功。
         if (
             post_game == "ARCHIVE_PANEL"
             and self._boss_challenge_attempts > 0
             and getattr(self, "_time_cave_boss_clicked_at", None) is not None
         ):
             if self._time_cave_boss_result_visible(frame):
-                print("[med] 时光之穴 Boss 后置已确认（列表已关闭），停止重复定位")
+                print("[med] 时光之穴 Boss 点击后双帧未识别到卡片，停止重复定位（不确认挑战受理）")
                 self._time_cave_boss_done = True
-                self._time_cave_boss_result_confirmed = True
+                self._time_cave_boss_result_confirmed = False
+                self._time_cave_boss_confirm_unconfirmed = True
                 self._time_cave_boss_clicked_at = None
             elif self._time_cave_boss_confirm_expired(now):
                 print(
@@ -8216,9 +8218,9 @@ class Mediator:
             visible_cards = [vc for vc, mr in visible_pairs]
             card_map = {vc.no: mr for vc, mr in visible_pairs}
 
-            # 2026-09-22 真机：时光之穴列表被掉落弹窗替换后卡片全无，旧逻辑
-            # 仍把 can_scroll 置真并在空列表上滚动。看不到锚点（卡片/滑块）
-            # 就零输入，交给未决收敛走安全跳过并留证据。
+            # 2026-09-22 真机：点击后双帧未识别到卡片（原帧显示列表关闭），
+            # 旧逻辑仍把 can_scroll 置真并继续滚动。看不到卡片锚点
+            # 就零输入；仅用于停止重复定位，不证明挑战受理/成功。
             list_alive = self._post_game_boss_list_alive(frame, post_game, visible_pairs)
             can_scroll = list_alive and not self._post_game_boss_has_no_scrollbar(frame, post_game)
 
@@ -8427,19 +8429,20 @@ class Mediator:
     #: 传家宝 Boss 点击后等待「已挑战」的上限。3s 在实测 1.64s/tick 的节拍下
     #: 只够 1.8 个 tick，等于没给后置确认第二次机会；6s 至少覆盖三帧新证据。
     _HEIRLOOM_BOSS_CONFIRM_TIMEOUT_S = 6.0
-    #: 时光之穴 Boss 点击后等待列表关闭（掉落弹窗替换列表）的上限。
-    #: 2026-09-22 真机：18瑟莱德丝公主 点击后列表立刻被掉落弹窗替换，
-    #: 原 1.0s 盲等后重新定位会在已关闭的列表上空滚。
+    #: 时光之穴 Boss 点击后等待双帧无卡（停止重复定位）的上限。
+    #: 2026-09-22 真机：18瑟莱德丝公主 点击后原帧显示列表关闭/无卡，
+    #: 原 1.0s 盲等后重新定位会在无卡区域继续空滚。
+    #: 该信号不证明挑战受理/成功。
     _TIME_CAVE_BOSS_CONFIRM_TIMEOUT_S = 6.0
 
     def _time_cave_boss_result_visible(self, frame: Frame) -> bool:
-        """True once the Time Cave list has closed after a configured Boss click.
+        """True once two distinct frames show no Time Cave Boss cards after a click.
 
         2026-09-22 真机 bundle hitch_lobby_chain_20260922_002105_993691
         （帧 frames/f0309_action_before.png → f0310_action_after.png）：点击
-        「18瑟莱德丝公主」后右侧时光之穴列表被掉落弹窗整体替换（掉落
-        瑟莱德丝之眼 / 聊天「击杀BOSS」），卡片模板不再命中。列表关闭就是
-        挑战已受理的后置；双帧稳定，避免把单帧遮挡当成关闭。
+        「18瑟莱德丝公主」后右侧卡片模板不再命中（f0310 上未见掉落弹窗或
+        「击杀BOSS」文本）。双帧无卡仅是停止重复定位/空滚的保守收敛信号，
+        不证明物理列表关闭，更不证明挑战受理或成功。
         """
         if frame.bgr is None or frame.width < 480 or frame.height < 270:
             return False
@@ -17257,12 +17260,13 @@ class Mediator:
             clicked_at = getattr(self, "_time_cave_boss_clicked_at", None)
             if clicked_at is not None:
                 # 2026-09-22：原 1.0s 盲等后清标记并「重新定位卡位」，会在
-                # 列表已被掉落弹窗替换的空地上继续滚动。改为与 _maybe_challenge
-                # _configured_boss 同源的有界后置：确认/超时前零动作。
+                # 无卡区域继续滚动。改为与 _maybe_challenge_configured_boss
+                # 同源的有界后置：收敛/超时前零动作。双帧无卡不确认受理。
                 if self._time_cave_boss_result_visible(frame):
-                    print("[med] 时光之穴 Boss 点击后列表已关闭，确认挑战受理")
+                    print("[med] 时光之穴 Boss 点击后双帧未识别到卡片，停止重复定位（不确认挑战受理）")
                     self._time_cave_boss_done = True
-                    self._time_cave_boss_result_confirmed = True
+                    self._time_cave_boss_result_confirmed = False
+                    self._time_cave_boss_confirm_unconfirmed = True
                     self._time_cave_boss_clicked_at = None
                 elif self._time_cave_boss_confirm_expired(now):
                     print(

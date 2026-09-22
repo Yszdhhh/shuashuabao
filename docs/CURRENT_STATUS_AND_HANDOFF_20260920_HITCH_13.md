@@ -73,3 +73,14 @@
 2. 13 号蹭车阶段为禁止自建房会把 `auto_create_room=false` 投影到内存设置。即便离房成功，收尾只切到 `normal_farm` 也不足以进入自建房考古路由。
 
 已修复：旧房收尾改用 `_find_hitch_exit_button()` 的右侧房间几何约束；`hitch_after_goal=arch` 收尾显式恢复 `auto_create_room=true`。下轮应看到“真实退出 → fresh 房间列表 → 自建房 → 选关考古”，而不是停在旧房。
+
+## 2026-09-22 Boss 后置语义最小收口（恢复与战后层）
+
+视觉验收（`G:\刷刷宝\_facts_20260922\mechanics_solo\BOSS_VISUAL_ACCEPTANCE_20260922.md`）撤回旧「掉落弹窗/击杀BOSS=受理」结论。双帧未识别到卡 **只支持停止重复定位/空滚**，不证明受理或成功。
+
+改动（`src/shuabao/mediator.py` 两条调用路径 + 测试 + `docs/BOSS_CHALLENGE_20260922.md`）：
+
+- 双帧无卡时：`_time_cave_boss_done=True`、`_time_cave_boss_result_confirmed=False`、`_time_cave_boss_confirm_unconfirmed=True`、`_time_cave_boss_clicked_at=None`
+- 不新增 list_closed / 掉落 OCR / 战果识别；保留有界滚动、无锚点零输入、卡片重现重置、超时 incident
+
+仍需实机：业务受理/成功锚（掉落条或战果 HUD）；tick4081 拒点窗；game_count 映射；六次兜底时 17 解锁状态。验收目标是「收敛不虚报受理」，不是 Boss 实机成功。
