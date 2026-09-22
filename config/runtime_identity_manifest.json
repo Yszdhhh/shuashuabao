@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "1c990141bdc8b829bf8154b3d29082a68cfaa71b",
-  "anchored_at": "2026-09-21T15:59:52Z",
+  "candidate_sha": "0f7060100e3d0f9e37f020e289ed0cdbe09d9d49",
+  "anchored_at": "2026-09-22T02:34:22Z",
   "branch": "fix/hitch-goal-archaeology-20260920",
-  "note": "hitch 选关页需≥3行 + 真实帧回归（在 0d562bb 之上）"
+  "note": "房主选难度页语义 Esc 退出后继续搜房（在 ca84a28 之上）"
 }
