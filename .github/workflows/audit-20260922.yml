@@ -1,0 +1,56 @@
+name: Isolated 20260922 audit tests
+
+on:
+  push:
+    branches: [audit/full-review-20260922]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-20260922-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install existing CI dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-subtests opencv-python-headless numpy PySide6 mss pyautogui Pillow cryptography
+          pip install -r requirements-build.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: ui-v2/package-lock.json
+      - name: Install existing UI dependencies
+        working-directory: ui-v2
+        run: npm ci
+      - name: Full pytest (no baseline updates)
+        if: ${{ !cancelled() }}
+        run: python -m pytest -q --tb=short -ra
+      - name: UI type check
+        if: ${{ !cancelled() }}
+        working-directory: ui-v2
+        run: npm run check
+      - name: UI tests
+        if: ${{ !cancelled() }}
+        working-directory: ui-v2
+        run: npm test
+      - name: UI build
+        if: ${{ !cancelled() }}
+        working-directory: ui-v2
+        run: npm run build
+      - name: Read-only release gate (no signing or publishing)
+        if: ${{ !cancelled() }}
+        run: python tools/release_gate.py
