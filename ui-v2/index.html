@@ -3634,6 +3634,95 @@
     .win[data-theme="light"] body[data-win="compact"] #startErr.show { background: #fff4f4; }
     body[data-win="compact"][data-theme="light"] #startErr.show { background: #fff4f4; }
     body[data-win="compact"][data-theme="dark"] #startErr.show { background: #3a2427; }
+
+    /* ===== 补丁 UI-23 · 宝物与羁绊防重叠、折叠分组、卡组排布与动效优化 ===== */
+    .brand .brand-sep { color: var(--p-faint); font-size: 11px; user-select: none; }
+
+    /* 宝物模块独立在第 2 列，防止与第 1 列的羁绊面板互相重叠争抢 */
+    #farmBody .main-workspace > .sb-treasure {
+      grid-column: 2 !important;
+      grid-row: 1 / 3 !important;
+      min-height: 0 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      overflow: hidden !important;
+    }
+    #farmBody .sb-treasure .sb-treasure-body {
+      flex: 1 1 auto !important;
+      min-height: 0 !important;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+      padding-right: 2px !important;
+    }
+
+    /* 羁绊面板在非编辑态下收在第 1 列第 2 行，不再横跨整行覆盖到宝物下方 */
+    #farmBody:not(.sb-bond-editing) .main-workspace > .bond-config {
+      grid-column: 1 !important;
+      grid-row: 2 !important;
+    }
+
+    /* 羁绊锁定态卡组排布：左已选、右高级紧密排列，消除右侧大块空白 */
+    #farmBody #bonds:not(:has(.chips)) {
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: wrap !important;
+      align-items: flex-start !important;
+      justify-content: flex-start !important;
+      gap: 16px !important;
+    }
+    #farmBody #bonds:not(:has(.chips)) > .bond-actions {
+      position: absolute !important;
+      top: 8px !important;
+      right: 12px !important;
+      border: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+
+    /* 特殊宝物可折叠分组：默认收起，紧凑清晰 */
+    .neg-fold {
+      border: 1px solid var(--p-line);
+      border-radius: 8px;
+      margin-bottom: 6px;
+      background: var(--p-bg);
+      overflow: hidden;
+    }
+    .neg-fold > summary.neg-group {
+      margin: 0 !important;
+      padding: 6px 10px !important;
+      cursor: pointer;
+      display: flex !important;
+      align-items: center !important;
+      gap: 6px !important;
+      font-size: 12px !important;
+      font-weight: 650 !important;
+      color: var(--p-ink) !important;
+      user-select: none;
+      background: var(--p-paper) !important;
+      list-style: none;
+    }
+    .neg-fold > summary::-webkit-details-marker { display: none; }
+    .neg-fold > summary .fold-title { font-weight: 700; color: var(--p-ink); flex: 0 0 auto; }
+    .neg-fold > summary .fold-sum { font-size: 11px; font-weight: 500; color: var(--p-muted); margin-left: auto; white-space: nowrap; }
+    .neg-fold > summary .fold-caret { margin-left: 4px; color: var(--p-faint); }
+    .neg-fold > summary.neg-group::after { display: none !important; }
+    .neg-fold[open] > summary { border-bottom: 1px solid var(--p-line); }
+    .neg-fold .neg-items {
+      padding: 4px 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    /* 动效尊重 prefers-reduced-motion */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
 </style>
 </head>
 <body data-scene="farm" data-theme="dark" data-win="board" data-running="false">
@@ -3671,7 +3760,8 @@
         <div class="brand pywebview-drag-region">
           <span class="logo-box"><img src="./assets/app_logo.png" alt="刷刷宝" width="28" height="28" draggable="false" /></span>
           <h1>刷刷宝</h1>
-          <span class="ver chrome-wide" id="versionLabel">v0.3</span>
+          <span class="brand-sep" aria-hidden="true">·</span>
+          <span class="ver chrome-wide" id="versionLabel" title="构建身份：待预检">v0.3 · UI-23</span>
         </div>
         <div class="grow pywebview-drag-region"></div>
         <span class="sr-only" id="evidencePill" data-status="unknown" data-historical-status="unknown" aria-hidden="true"></span>
@@ -3837,9 +3927,10 @@
             </div>
             <div class="field">
               <span id="hitchAfterGoal">目标结束后</span>
-              <div class="after-choice" role="radiogroup" aria-labelledby="hitchAfterGoal" data-od-id="hitch-after-goal">
+              <div class="after-choice cols-3" role="radiogroup" aria-labelledby="hitchAfterGoal" data-od-id="hitch-after-goal">
                 <button type="button" role="radio" data-team-rule="afterGoal" data-value="solo" aria-checked="true">去单刷</button>
                 <button type="button" role="radio" data-team-rule="afterGoal" data-value="arch" aria-checked="false">去考古</button>
+                <button type="button" role="radio" data-team-rule="afterGoal" data-value="end" aria-checked="false">结束脚本</button>
               </div>
             </div>
             <div class="field">
@@ -4048,22 +4139,26 @@
     // 特殊宝物（默认不拿；勾选=放行）。须与 config/choice_policy.json 的 negative_names + negative_patterns 命中卡保持一致。
     // Owner 2026-09-22：等级优势移出（默认拿）；其余默认不拿的卡都必须在这里有勾选框。卡面文案取自 fixtures/treasure_negative 实机原文。
     const NEG_GROUPS = [
-      { label:"梭哈 · 可能清零", items:[
+      { label:"梭哈", items:[
         { name:"杀敌梭哈", effect:"55% 概率杀敌数翻倍；45% 概率杀敌数清 0；梭哈成功奖励倍率提高至 2.5。" },
         { name:"木材梭哈", effect:"55% 概率木材翻倍；45% 概率木材清 0。" },
         { name:"金币梭哈", effect:"55% 概率金币翻倍；45% 概率金币清 0。[1星效果] 梭哈成功奖励倍率提高至 2.5。" }
       ]},
-      { label:"木材 / 金币", items:[
+      { label:"资源", items:[
         { name:"伐木契约", effect:"立即获得 3000 木材。3 分钟后，本局木材将恒定。" },
         { name:"贪婪契约", effect:"立即获得 100w 金币。3 分钟后，本局金币将恒定为 0。" },
         { name:"金转木", effect:"消耗全部金币，按 0.5% 转为木材。最低 100 木，最高消耗 20 万金币得 1000 木。" },
         { name:"贪婪献祭", effect:"每消耗 500 金币，获得 1 点随机属性。" }
       ]},
-      { label:"属性 / 成长", items:[
+      { label:"属性", items:[
         { name:"透支力量", effect:"全属性增幅 +120%。本局每获得一个宝物，宝物效果 -10%（之前获得的也计算在内）。" },
-        { name:"恶魔契约", effect:"立即升至 25 级，本局无法再升级。" }
+        { name:"恶魔契约", effect:"立即升至 25 级，本局无法再升级。" },
+        { name:"命运骰子", effect:"50%的概率全属性增幅+25%，50%的概率全属性增幅-15%。" },
+        { name:"力之极", effect:"立即扣除当前20%的敏捷与智力，将其转为力量。[1星效果]力量增幅+3%。" },
+        { name:"敏之极", effect:"立即扣除当前20%的力量与智力，将其转为敏捷。[1星效果]敏捷增幅+3%。[2星效果]敏捷增幅+5%。" },
+        { name:"智之极", effect:"立即扣除当前20%的敏捷与力量，将其转为智力。[1星效果]智力增幅+3%。" }
       ]},
-      { label:"战斗 · 代价换输出", items:[
+      { label:"战斗", items:[
         { name:"诅咒之力", effect:"造成的所有伤害 ×1.75；自身受到诅咒，恢复效果 -99%，护甲 -10000。" },
         { name:"玻璃大炮", effect:"造成的所有伤害提高 25%；受到的所有伤害提高 50%。" },
         { name:"提高上限", effect:"攻击间隔 -0.2，攻速 -200%。[1星效果] 普攻伤害 +5%。" },
@@ -4152,7 +4247,10 @@
     let delConfirmId = null;
     let delTimer = null;
     function allBuilds() {
-      return [...state.presets, ...state.custom];
+      const presets = (Array.isArray(state.presets) && state.presets.length > 0)
+        ? state.presets
+        : DEFAULT_PRESETS;
+      return [...presets, ...(Array.isArray(state.custom) ? state.custom : [])];
     }
     function currentCustom() {
       return state.custom.find((x) => x.id === state.selected) || null;
@@ -5267,7 +5365,19 @@
       });
     }
     function renderNegatives() {
-      $("negatives").innerHTML=NEG_GROUPS.map((g)=>`<p class="neg-group">${g.label}</p>`+g.items.map((card)=>`<label class="neg-item"><input type="checkbox" data-neg="${card.name}" ${state.negative.has(card.name)?"checked":""} /><span><b>${card.name}</b><span class="fx">${card.effect}</span></span></label>`).join("")).join("");
+      const container = $("negatives");
+      if (!container) return;
+      container.innerHTML = NEG_GROUPS.map((g, idx) => {
+        const checkedCount = g.items.filter((card) => state.negative && state.negative.has(card.name)).length;
+        const sumText = checkedCount > 0 ? `已选 ${checkedCount}` : "默认不拿";
+        const foldKey = `neg_${idx}`;
+        const isOpen = Boolean(state.folds && state.folds[foldKey]);
+        const items = g.items.map((card) => {
+          const isChecked = Boolean(state.negative && state.negative.has(card.name));
+          return `<label class="neg-item" data-fx="${esc(card.effect)}" title="${esc(card.name)}：${esc(card.effect)}"><input type="checkbox" data-neg="${card.name}" aria-label="放行${esc(card.name)}" ${isChecked ? "checked" : ""} /><span><b>${card.name}</b><span class="fx">${card.effect}</span></span></label>`;
+        }).join("");
+        return `<details class="neg-fold" data-fold="${foldKey}"${isOpen ? " open" : ""}><summary class="neg-group"><span class="fold-title">${esc(g.label)}</span><span class="fold-sum">${sumText}</span>${CARET}</summary><div class="neg-items">${items}</div></details>`;
+      }).join("");
     }
     function renderNames() {
       const cjb=stemLabel(state.cjb), boss=stemLabel(state.boss);
@@ -5790,7 +5900,18 @@
       if (d.dataset.fold === "bonds" && !state.bondSaved) return;  // 编辑中的强制展开不算用户选择
       state.folds[d.dataset.fold] = d.open;
     }, true);
-    on("negatives","change",(e)=>{ const box=e.target.closest("input[data-neg]"); if (!box) return; if (box.checked) state.negative.add(box.dataset.neg); else state.negative.delete(box.dataset.neg); });
+    on("negatives","change",(e)=>{
+      const box=e.target.closest("input[data-neg]");
+      if (!box) return;
+      if (box.checked) state.negative.add(box.dataset.neg); else state.negative.delete(box.dataset.neg);
+      const fold = box.closest(".neg-fold");
+      if (fold) {
+        const count = fold.querySelectorAll("input[type='checkbox']:checked").length;
+        const sumEl = fold.querySelector(".fold-sum");
+        if (sumEl) sumEl.textContent = count > 0 ? `已选 ${count}` : "默认不拿";
+      }
+      renderLaunchSummary();
+    });
     
     // 大小窗互切：先藏一帧再改布局/宿主尺寸，避免小窗摊在大窗里；不再整窗淡出 120ms。
     let sceneSwapping = false;
@@ -6359,18 +6480,6 @@
       // 蹭车搜房：外面只显示「自动」，词条进「高级搜房」
       const row = document.querySelector(".hitch-search-row");
       if (row && !row.querySelector(".sb-auto")) row.insertAdjacentHTML("afterbegin", '<span class="sb-auto">自动搜房</span>');
-      // 目标结束后 / 房间解散后：补「结束脚本」
-      // 后端 Settings 目前只认 solo/arch(/hitch)，发 "stop" 会让配置队列 BROKEN；等后端支持后置 __SB_ALLOW_STOP_AFTER__ = true 再开放
-      if (window.__SB_ALLOW_STOP_AFTER__) document.querySelectorAll('[data-od-id="hitch-after-goal"], [data-od-id="follow-after-room"]').forEach((g) => {
-        if (g.querySelector('[data-value="stop"]')) return;
-        const rule = g.querySelector("[data-team-rule]");
-        if (!rule) return;
-        const b = document.createElement("button");
-        b.type = "button"; b.setAttribute("role", "radio"); b.setAttribute("aria-checked", "false");
-        b.dataset.teamRule = rule.dataset.teamRule; b.dataset.value = "stop"; b.textContent = "结束脚本";
-        g.appendChild(b);
-        g.classList.add("cols-3");
-      });
     })();
 
     /* ===== 补丁 O 脚本：自定义策略的保存 / 修改技能 ===== */
@@ -6465,10 +6574,11 @@
         if (box) box.innerHTML = '<svg viewBox="0 0 256 256" fill="currentColor"><path d="M216,72H180.92c.39-.33.79-.65,1.17-1A29.53,29.53,0,0,0,192,49.57,32.62,32.62,0,0,0,158.44,16,29.53,29.53,0,0,0,137,25.91a54.94,54.94,0,0,0-9,14.48,54.94,54.94,0,0,0-9-14.48A29.53,29.53,0,0,0,97.56,16,32.62,32.62,0,0,0,64,49.57,29.53,29.53,0,0,0,73.91,71c.38.33.78.65,1.17,1H40A16,16,0,0,0,24,88v32a16,16,0,0,0,16,16v64a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V136a16,16,0,0,0,16-16V88A16,16,0,0,0,216,72ZM149,36.51a13.69,13.69,0,0,1,10-4.5h.49A16.62,16.62,0,0,1,176,49.08a13.69,13.69,0,0,1-4.5,10c-9.49,8.4-25.24,11.36-35,12.4C137.7,61.73,140.65,46,149,36.51Zm-64.5,22.5a13.69,13.69,0,0,1-4.5-10A16.62,16.62,0,0,1,96.54,32H97a13.69,13.69,0,0,1,10,4.5c8.39,9.48,11.35,25.2,12.39,35C109.71,70.37,94,67.41,84.53,59ZM40,88h80v32H40Zm16,48h64v64H56Zm144,64H136V136h64Zm16-80H136V88h80v32Z"/></svg>';
         const lead = [...panel.querySelectorAll("h4")].find((e) => /特殊宝物/.test(e.textContent));
         if (lead) lead.classList.add("sb-lead");
-        const MAP = [[/梭哈/, "梭哈"], [/木材|金币|资源/, "资源"], [/属性/, "属性"]];
+        const MAP = [[/梭哈/, "梭哈"], [/木材|金币|资源/, "资源"], [/属性/, "属性"], [/战斗/, "战斗"]];
         const rename = () => panel.querySelectorAll(".neg-group").forEach((g) => {
           const hit = MAP.find(([re]) => re.test(g.textContent));
-          if (hit && g.textContent.trim() !== hit[1]) g.textContent = hit[1];
+          const titleEl = g.querySelector(".fold-title") || g;
+          if (hit && titleEl.textContent.trim() !== hit[1]) titleEl.textContent = hit[1];
         });
         const neg = document.getElementById("negatives");
         if (neg) new MutationObserver(rename).observe(neg, { childList: true, subtree: true });
@@ -6965,14 +7075,16 @@
     })();
     /* ===== 补丁 V15 脚本：在版本号后面标出 UI 构建号 ===== */
     (function () {
-      const UI_BUILD = "UI-22";
+      const UI_BUILD = "UI-23";
       const el = document.getElementById("versionLabel");
       if (!el) return;
       let busy = false;
       function tag() {
         if (busy) return;
-        const base = (el.textContent || "").replace(/\s*·\s*UI-[\w.-]+\s*$/, "").trim();
-        const want = base ? base + " · " + UI_BUILD : UI_BUILD;
+        const raw = (el.textContent || "").trim();
+        const m = raw.match(/v\d+(\.\d+)*(\.[a-zA-Z0-9_-]+)*/);
+        const ver = m ? m[0] : "v0.3";
+        const want = `${ver} · ${UI_BUILD}`;
         if (el.textContent.trim() === want) return;
         busy = true;
         el.textContent = want;
