@@ -289,10 +289,11 @@ class S3NegativeTreasureOptIn(unittest.TestCase):
 
     CONFIRMED_NEGATIVE = (
         "透支力量", "贪婪献祭", "金转木", "杀敌梭哈", "伐木契约", "等级优势",
+        "诅咒之力", "提高上限",
     )
 
     def test_confirmed_negative_names_blocked_without_description(self):
-        """用户 2026-08-12 逐张确认的 6 张：描述 OCR 失败时也必须拦住。"""
+        """默认阻断特殊宝物：描述 OCR 失败时也必须拦住。"""
         settings = PolicySettings()
         for name in self.CONFIRMED_NEGATIVE:
             with self.subTest(name=name):

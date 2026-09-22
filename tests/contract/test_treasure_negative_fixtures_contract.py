@@ -166,30 +166,23 @@ class TreasureNegativeNameAndDescription(unittest.TestCase):
                     is_negative_treasure(_slot(0, name, description=""), settings)
                 )
 
-    def test_owner_approved_cards_current_behavior(self):
-        """Owner 批准的两张：锁定 Commit A/B 边界上的当前实际行为。
-
-        提高上限：描述含「攻击间隔」→ 现有 pattern 已命中。
-        诅咒之力：无 pattern、Commit A 尚未进名单 → 当前不拦（Commit B 进 DEFAULT_NEGATIVE_NAMES）。
-        """
+    def test_owner_approved_default_skip_names_blocked(self):
+        """Owner 2026-09-22 批准的两张：名字路径必须拦住（含空描述）。"""
         settings = PolicySettings()
         cards = _load_descriptions()["cards"]
-        raise_cap = is_negative_treasure(
-            _slot(0, "提高上限", description=cards["提高上限"]["description"]),
-            settings,
-        )
-        self.assertTrue(raise_cap, "提高上限描述命中「攻击间隔」pattern（当前实际）")
-        self.assertTrue(_patterns_hit(cards["提高上限"]["description"]))
-
-        curse = is_negative_treasure(
-            _slot(0, "诅咒之力", description=cards["诅咒之力"]["description"]),
-            settings,
-        )
-        # Commit B 之前诅咒之力不在名单；若已进名单则必须拦住。
-        if "诅咒之力" in DEFAULT_NEGATIVE_NAMES:
-            self.assertTrue(curse, "诅咒之力进名单后必须拦住")
-        else:
-            self.assertFalse(curse, "Commit A：诅咒之力尚未进名单、无 pattern，当前不拦")
+        for name in OWNER_APPROVED_DEFAULT_SKIP:
+            with self.subTest(name=name):
+                self.assertIn(name, DEFAULT_NEGATIVE_NAMES)
+                self.assertTrue(
+                    is_negative_treasure(_slot(0, name, description=""), settings),
+                    f"{name} Owner 已批准默认不拿，缺描述时仍应拦截",
+                )
+                self.assertTrue(
+                    is_negative_treasure(
+                        _slot(0, name, description=cards[name]["description"]),
+                        settings,
+                    )
+                )
 
     def test_fixture_only_cards_current_actual_behavior(self):
         """其余 12 张：只断言当前实际命中/未命中，不改期望去迎合。
@@ -518,6 +511,62 @@ class TreasureNegativeE2EChooseAction(unittest.TestCase):
         )
         self.assertIn(decision.action, NO_PICK)
 
+    def test_owner_approved_default_skip_panel_takes_no_card(self):
+        """诅咒之力 + 提高上限 同面板：端到端不得被选中。"""
+        cards = _load_descriptions()["cards"]
+        decision = choose_action(
+            _panel(
+                [
+                    _slot(
+                        0,
+                        "诅咒之力",
+                        rarity="red",
+                        description=cards["诅咒之力"]["description"],
+                    ),
+                    _slot(
+                        1,
+                        "提高上限",
+                        rarity="orange",
+                        description=cards["提高上限"]["description"],
+                    ),
+                    _slot(
+                        2,
+                        "赏金神符",
+                        rarity="green",
+                        description="在接下来45秒内，杀敌金币+100%",
+                    ),
+                ],
+                settings=PolicySettings(),
+            )
+        )
+        if decision.action == PolicyAction.SELECT_SLOT:
+            self.assertEqual(decision.index, 2, "只能选非默认不拿的赏金神符")
+        else:
+            self.assertIn(decision.action, NO_PICK)
+
+    def test_curse_power_real_panel_not_selected(self):
+        """真机面板语义：诅咒之力（slot0，对位刷新券/杀敌小）不得被选中。"""
+        cards = _load_descriptions()["cards"]
+        decision = choose_action(
+            _panel(
+                [
+                    _slot(
+                        0,
+                        "诅咒之力",
+                        rarity="red",
+                        description=cards["诅咒之力"]["description"],
+                    ),
+                    _slot(1, "刷新券", rarity="blue", description="技能免费刷新次数+1"),
+                    _slot(2, "杀敌(小)", rarity="green", description="杀敌数+400"),
+                ],
+                settings=PolicySettings(),
+            )
+        )
+        if decision.action == PolicyAction.SELECT_SLOT:
+            self.assertIn(decision.index, (1, 2))
+        else:
+            self.assertIn(decision.action, NO_PICK)
+
     def test_raise_cap_real_panel_not_selected(self):
         """真机面板语义：提高上限（攻速-200%）不得被选中。"""
         cards = _load_descriptions()["cards"]
@@ -540,37 +589,6 @@ class TreasureNegativeE2EChooseAction(unittest.TestCase):
             self.assertIn(decision.index, (0, 2))
         else:
             self.assertIn(decision.action, NO_PICK)
-
-    def test_curse_power_not_blocked_until_default_skip(self):
-        """Commit A 边界：诅咒之力尚未进名单时端到端仍可能被选中（记录现状）。
-
-        Commit B 进 DEFAULT_NEGATIVE_NAMES 后改为「不得选中」——见
-        ``test_owner_approved_default_skip_panel_takes_no_card``。
-        """
-        cards = _load_descriptions()["cards"]
-        decision = choose_action(
-            _panel(
-                [
-                    _slot(
-                        0,
-                        "诅咒之力",
-                        rarity="red",
-                        description=cards["诅咒之力"]["description"],
-                    ),
-                    _slot(1, "刷新券", rarity="blue", description="技能免费刷新次数+1"),
-                    _slot(2, "杀敌(小)", rarity="green", description="杀敌数+400"),
-                ],
-                settings=PolicySettings(),
-            )
-        )
-        if "诅咒之力" in DEFAULT_NEGATIVE_NAMES:
-            if decision.action == PolicyAction.SELECT_SLOT:
-                self.assertIn(decision.index, (1, 2))
-            else:
-                self.assertIn(decision.action, NO_PICK)
-        else:
-            # 当前实际：名字未拦、无 pattern → 可能被选中 slot0。
-            self.assertIsNotNone(decision.action)
 
 
 class TreasureNegativeEvidencePaths(unittest.TestCase):

@@ -128,6 +128,8 @@ DEFAULT_NEGATIVE_NAMES = (
     "杀敌梭哈",
     "伐木契约",
     "等级优势",
+    "诅咒之力",
+    "提高上限",
 )
 DEFAULT_MAX_ATTEMPTS = 12
 DEFAULT_MAX_REFRESHES = 3
