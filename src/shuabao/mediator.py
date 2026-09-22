@@ -4415,6 +4415,11 @@ class Mediator:
         self._skill_idle_until = 0.0
         self._skill_points_seen = None
         self._treasure_pending_seen = None
+        self._skill_points_seen_at = None
+        self._treasure_pending_seen_at = None
+        self._last_confirmed_skill_service = None
+        self._last_confirmed_bond_service = None
+        self._last_confirmed_treasure_service = None
         self._wood_balance = None
         self._wood_next_read_at = 0.0
 
@@ -4429,9 +4434,11 @@ class Mediator:
         skill = self._hud_skill_points(frame)
         if skill is not None:
             self._skill_points_seen = skill
+            self._skill_points_seen_at = now
         treasure = self._hud_treasure_pending(frame)
         if treasure is not None:
             self._treasure_pending_seen = treasure
+            self._treasure_pending_seen_at = now
 
     # Unspent skill picks that pre-empt the early bond priority (Owner:
     # 前期 羁绊>技能>其它, but live 000229 banked 32 picks and lost 4-5).
@@ -15816,10 +15823,13 @@ class Mediator:
                 self._l1_cycle_step_successes = getattr(self, "_l1_cycle_step_successes", 0) + 1
             if self._panel_kind == "skill":
                 self._last_skill_panel = 0.0
+                self._last_confirmed_skill_service = now
             elif self._panel_kind == "bond":
                 self._last_bond_attempt = 0.0
+                self._last_confirmed_bond_service = now
             elif self._panel_kind == "treasure":
                 self._last_treasure_attempt = 0.0
+                self._last_confirmed_treasure_service = now
             self._hitch_last_treasure_unconfirmed_fp = None
         elif action == "close":
             fp = self._panel_pending_choice_fingerprint
@@ -15827,6 +15837,8 @@ class Mediator:
             if "giveup" in hit_name:
                 self._l1_cycle_selected = True
             self._arm_panel_reopen_cooldown(self._panel_kind, now)
+            if self._panel_kind in ("skill", "bond", "treasure"):
+                setattr(self, f"_last_confirmed_{self._panel_kind}_service", now)
         elif action == "refresh":
             self._skill_refresh_attempts = getattr(self, "_skill_refresh_attempts", 0) + 1
             if self._panel_kind == "treasure":

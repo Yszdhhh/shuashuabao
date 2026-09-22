@@ -38,7 +38,7 @@ SOLO_SHADOW_ENV = "SHUABAO_SOLO_SHADOW"
 SOLO_SHADOW_DIR_ENV = "SHUABAO_SOLO_SHADOW_DIR"
 
 _MAX_FAILURES = 5
-_SCHEMA = 1
+_SCHEMA = 2
 
 
 def solo_shadow_enabled(env: Mapping[str, str] | None = None) -> bool:
@@ -113,13 +113,20 @@ def build_snapshot(mediator: Any, now: float | None = None) -> Snapshot:
     g = lambda n, d=None: getattr(mediator, n, d)
 
     wood = _fact_num(g("_wood_balance"), "mediator._wood_balance")
-    skill = _fact_num(g("_skill_points_seen"), "mediator._skill_points_seen")
-    # 角标 sticky：None 仅表示尚未首见 / 被遮挡沿用旧值 —— 照实标注
-    if skill.state == "missing" and g("_skill_points_seen") is None:
-        skill = Fact(value=None, state="missing", source="mediator._skill_points_seen:sticky_or_unread")
-    treasure = _fact_num(g("_treasure_pending_seen"), "mediator._treasure_pending_seen")
-    if treasure.state == "missing" and g("_treasure_pending_seen") is None:
-        treasure = Fact(value=None, state="missing", source="mediator._treasure_pending_seen:sticky_or_unread")
+
+    def _sticky_badge(value_name: str, time_name: str) -> Fact:
+        value = g(value_name)
+        observed_at = g(time_name)
+        if value is None:
+            return Fact.missing(f"mediator.{value_name}:sticky_or_unread")
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            return Fact.invalid(f"mediator.{value_name}")
+        if not isinstance(observed_at, (int, float)) or isinstance(observed_at, bool):
+            return Fact.unknown(f"mediator.{value_name}:timestamp_missing")
+        return Fact.observed(value, f"mediator.{value_name}:sticky", float(observed_at))
+
+    skill = _sticky_badge("_skill_points_seen", "_skill_points_seen_at")
+    treasure = _sticky_badge("_treasure_pending_seen", "_treasure_pending_seen_at")
 
     pending_records = tuple(
         ActionRecord(action_id=str(name), state="requested", detail="pending_not_confirmed")
@@ -141,14 +148,8 @@ def build_snapshot(mediator: Any, now: float | None = None) -> Snapshot:
     panel_open = panel_state not in (None, "CLOSED", "COOLDOWN")
     active_tx = bool(pending_action or eq_pending or evolve_locked or merch_verifying or bag_active or panel_open)
 
-    # 吞噬丹守卫恒 False（生产代码 _can_consume_inventory_swallow_pill）
+    # 不从快照路径调用 mediator 方法；当前生产守卫是明确的常 False 不变量。
     swallow_ok = False
-    try:
-        fn = g("_can_consume_inventory_swallow_pill")
-        if callable(fn):
-            swallow_ok = bool(fn(None))
-    except Exception:
-        swallow_ok = False
 
     # 黑商余额：指纹缓存值；None → unknown（不可授权消费）
     merchant_bal = g("_merchant_kill_balance_value")
@@ -191,22 +192,34 @@ def build_snapshot(mediator: Any, now: float | None = None) -> Snapshot:
     # 价格：模型价标 model-derived（经 solo_scheduler.Cost）
     picks = g("_bond_picks_round")
     try:
-        picks_i = int(picks or 0)
+        if isinstance(picks, bool) or not isinstance(picks, (int, float)):
+            raise ValueError("bond picks unavailable")
+        picks_i = int(picks)
+        if picks_i < 0:
+            raise ValueError("bond picks invalid")
         draw_price = 100 if picks_i >= 4 else 20 * (picks_i + 1)
         refresh_price = (40, 60, 80, 100)[min(picks_i, 3)]
     except Exception:
         draw_price = UNKNOWN_PRICE
         refresh_price = UNKNOWN_PRICE
 
-    # 反饿死时钟
-    def _wait(last_name: str) -> Fact:
+    # 反饿死时钟只基于已确认服务，不再混用“打开尝试”时间。
+    def _wait(kind: str) -> Fact:
+        last_name = f"_last_confirmed_{kind}_service"
         last = g(last_name)
+        source = f"mediator.{last_name}"
         if last is None:
-            return Fact.unknown(f"mediator.{last_name}")
+            last = g("_round_started_at")
+            source = "mediator._round_started_at:no_confirmed_service"
+        if last is None:
+            return Fact.unknown(source)
         try:
-            return Fact.observed(max(0.0, ts - float(last)), f"mediator.{last_name}")
+            last_f = float(last)
+            if last_f <= 0 or last_f > ts:
+                return Fact.unknown(source)
+            return Fact.observed(max(0.0, ts - last_f), source, observed_at=ts)
         except Exception:
-            return Fact.unknown(f"mediator.{last_name}")
+            return Fact.unknown(source)
 
     plan = g("_observe_plan") or (None, "")
     plan_target, plan_reason = plan[0], plan[1] if isinstance(plan, tuple) else (None, str(plan))
@@ -222,18 +235,27 @@ def build_snapshot(mediator: Any, now: float | None = None) -> Snapshot:
         pending_records=pending_records,
         evolution_locked=Fact.observed(evolve_locked, "mediator._evolve_feedback_pending/_evolve_awaiting_hero_pick"),
         active_transaction=Fact.observed(active_tx, "mediator._has_active_transaction:state_only"),
-        panel_state=Fact.observed(str(panel_state), "mediator._panel_state"),
+        panel_state=(
+            Fact.observed(str(panel_state), "mediator._panel_state")
+            if panel_state is not None else Fact.unknown("mediator._panel_state")
+        ),
         swallow_guard_allows=Fact.observed(swallow_ok, "mediator._can_consume_inventory_swallow_pill:const_false"),
         main_line_stage=main_stage,
         failure_event=failure,
         tab_window=tab_window,
         artifact_ready=artifact_ready,
         merchant_kill_balance=merchant_fact,
-        service_wait_skill=_wait("_last_skill_panel"),
-        service_wait_bond=_wait("_last_bond_attempt"),
-        service_wait_treasure=_wait("_last_treasure_attempt"),
-        bond_draw_price=Fact.observed(draw_price, "model:_bond_next_price", observed_at=ts),
-        bond_refresh_price=Fact.observed(refresh_price, "model:_bond_refresh_price", observed_at=ts),
+        service_wait_skill=_wait("skill"),
+        service_wait_bond=_wait("bond"),
+        service_wait_treasure=_wait("treasure"),
+        bond_draw_price=(
+            Fact.observed(draw_price, "model:_bond_next_price", observed_at=ts)
+            if draw_price != UNKNOWN_PRICE else Fact.unknown("model:_bond_next_price:picks_unknown")
+        ),
+        bond_refresh_price=(
+            Fact.observed(refresh_price, "model:_bond_refresh_price", observed_at=ts)
+            if refresh_price != UNKNOWN_PRICE else Fact.unknown("model:_bond_refresh_price:picks_unknown")
+        ),
         merchant_pill_price=Fact.observed(400, "model:_MERCHANT_DEVOUR_PILL_KILL_COST", observed_at=ts),
         merchant_wood_price=Fact.observed(300, "model:_MERCHANT_WOOD_KILL_COST", observed_at=ts),
         merchant_refresh_price=Fact.observed(350, "model:_MERCHANT_REFRESH_KILL_COST", observed_at=ts),
@@ -409,9 +431,11 @@ class SoloShadowLog:
             }
             fh = self._file()
             fh.write(json.dumps(payload, ensure_ascii=False, default=str) + "\n")
-            fh.flush()
+            if self._seq % 8 == 0:
+                fh.flush()
             self._last_key = key
             self.boundaries_written += 1
+            self.failures = 0
         except Exception as exc:
             self._fail("note_boundary", exc)
 

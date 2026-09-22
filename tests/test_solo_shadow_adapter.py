@@ -42,6 +42,8 @@ def test_enabled_builds_snapshot_marks_missing(monkeypatch, tmp_path):
         _wood_balance = 120
         _skill_points_seen = None  # 缺 → missing，不为 0
         _treasure_pending_seen = 2
+        _skill_points_seen_at = None
+        _treasure_pending_seen_at = 190.0
         _bond_cards_owned = ["法术"]
         _skill_cards_owned = []
         _bond_cards_pending = ["藏宝图"]
@@ -87,6 +89,68 @@ def test_enabled_builds_snapshot_marks_missing(monkeypatch, tmp_path):
     assert any(r.action_id == "藏宝图" and r.state == "requested" for r in snap.pending_records)
     assert snap.swallow_guard_allows.value is False
     assert snap.merchant_kill_balance.state == "missing"
+    assert snap.treasure_badge.observed_at == 190.0
+    assert snap.service_wait_treasure.value == 100.0
+
+
+def test_snapshot_does_not_call_mediator_guard_and_unknown_picks_stay_unknown():
+    from shuabao import solo_shadow as ss
+
+    class FakeMed:
+        settings = SimpleNamespace(auto_bond=True, auto_treasure=True, auto_devour_dan=False, treasure_allow_negative=[])
+        _wood_balance = 100
+        _skill_points_seen = 0
+        _skill_points_seen_at = 9.0
+        _treasure_pending_seen = 0
+        _treasure_pending_seen_at = 9.0
+        _bond_cards_pending = []
+        _skill_cards_pending = []
+        _evolve_feedback_pending = False
+        _evolve_awaiting_hero_pick = False
+        _pending_action = None
+        _equipment_fsm = SimpleNamespace(pending_slot=None)
+        _merchant_fsm = SimpleNamespace(phase=None)
+        _public_bag_fsm = SimpleNamespace(active=False)
+        _panel_state = SimpleNamespace(name="CLOSED")
+        _main_line_stall_stage = None
+        _main_line_stall_reason = None
+        _merchant_kill_balance_value = None
+        _bond_picks_round = None
+        _l1_cycle_step = "bond"
+        _observe_plan = (None, "")
+        _choice_policy_doc = {}
+        _round_started_at = 1.0
+
+        def _confirmed_bond_cards(self):
+            return ()
+
+        def _confirmed_skill_cards(self):
+            return ()
+
+        def _observe_round_id(self):
+            return "r"
+
+        def _can_consume_inventory_swallow_pill(self, _frame):
+            raise AssertionError("snapshot must not call mediator methods")
+
+    snap = ss.build_snapshot(FakeMed(), now=10.0)
+    assert snap.swallow_guard_allows.value is False
+    assert snap.bond_draw_price.state == "unknown"
+    assert snap.bond_refresh_price.state == "unknown"
+
+
+def test_confirmed_panel_service_clock_is_distinct_from_open_attempt() -> None:
+    from shuabao.mediator import Mediator
+    from shuabao.settings import Settings
+
+    med = Mediator(Settings(), ROOT)
+    med._panel_kind = "treasure"
+    med._panel_pending_choice_action = "select"
+    med._last_treasure_attempt = 50.0
+    med._confirm_panel_choice_action(75.0)
+
+    assert med._last_treasure_attempt == 0.0
+    assert med._last_confirmed_treasure_service == 75.0
 
 
 def test_recorder_five_failures_disables_without_raise(tmp_path):
@@ -182,6 +246,8 @@ def test_records_once_per_free_stretch(tmp_path, monkeypatch):
         _wood_balance = 10
         _skill_points_seen = 0
         _treasure_pending_seen = 0
+        _skill_points_seen_at = 1.0
+        _treasure_pending_seen_at = 1.0
         _bond_cards_owned = []
         _skill_cards_owned = []
         _bond_cards_pending = []
