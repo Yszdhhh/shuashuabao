@@ -314,8 +314,9 @@ def _build_candidates(snap: Snapshot) -> list[Candidate]:
     # --- 已展示合法卡（若有）：仅余额可比即合法，禁止“余额档位”排除 ---
     if snap.shown_card_price.price_known and snap.shown_card_id.ok:
         price = float(snap.shown_card_price.value)
+        shown_price_is_model = bool(snap.shown_card_price.source.startswith("model"))
         legal, reason = _paid_legal(
-            [Cost("wood", price, model_derived=bool(snap.shown_card_price.source.startswith("model")))],
+            [Cost("wood", price, model_derived=shown_price_is_model)],
             bal,
             spend_id="shown_card",
         )
@@ -327,7 +328,7 @@ def _build_candidates(snap: Snapshot) -> list[Candidate]:
             legal=legal,
             reject_reason=reason,
             fact_refs=("shown_card_price", "shown_card_id", "wood"),
-            costs=(Cost("wood", price, model_derived=False),),
+            costs=(Cost("wood", price, model_derived=shown_price_is_model),),
             expected_cash_in="confirmed_card_ledger",
             bottleneck="card_slot",
             executor="choice_policy",
@@ -337,18 +338,19 @@ def _build_candidates(snap: Snapshot) -> list[Candidate]:
             evidence_rank=2,
         ))
 
-    # --- G 技能：READ_EXISTING_PANEL（角标 0=无待处理；未知仍可读取） ---
+    # --- G 技能：只有正向观测到待处理角标才授权打开 ---
     skill_n = _num(snap.skill_badge)
     if snap.skill_badge.ok and skill_n == 0:
         pass
     else:
         wait = _num(snap.service_wait_skill)
+        badge_known = snap.skill_badge.ok and skill_n is not None and skill_n > 0
         cands.append(Candidate(
             action_id="open_skill_panel",
             target="skill",
             kind=CAND_READ,
-            legal=True,
-            reject_reason="",
+            legal=badge_known,
+            reject_reason="" if badge_known else "BADGE_UNKNOWN",
             fact_refs=("skill_badge",),
             costs=(),
             expected_cash_in="confirmed_skill_ledger",
@@ -361,18 +363,22 @@ def _build_candidates(snap: Snapshot) -> list[Candidate]:
             service_wait_s=wait,
         ))
 
-    # --- V 宝物：READ_EXISTING_PANEL ---
+    # --- V 宝物：只有正向观测到待领取角标才授权打开 ---
     tre_n = _num(snap.treasure_badge)
     if snap.treasure_badge.ok and tre_n == 0:
         pass
     else:
         wait = _num(snap.service_wait_treasure)
+        badge_known = snap.treasure_badge.ok and tre_n is not None and tre_n > 0
         cands.append(Candidate(
             action_id="open_treasure_panel",
             target="treasure",
             kind=CAND_READ,
-            legal=bool(snap.owner.auto_treasure),
-            reject_reason="" if snap.owner.auto_treasure else "OWNER_DISABLED",
+            legal=bool(snap.owner.auto_treasure) and badge_known,
+            reject_reason=(
+                "OWNER_DISABLED" if not snap.owner.auto_treasure else
+                "" if badge_known else "BADGE_UNKNOWN"
+            ),
             fact_refs=("treasure_badge", "treasure_allow_negative"),
             costs=(),
             expected_cash_in="confirmed_treasure_ledger",
@@ -420,6 +426,9 @@ def _build_candidates(snap: Snapshot) -> list[Candidate]:
             [Cost("wood", refresh_amt, model_derived=True, note="model:_bond_refresh_price")],
             bal, spend_id="bond_refresh",
         )
+        if refresh_legal and not draw_price.price_known:
+            refresh_legal = False
+            refresh_reason = "TARGET_PRICE_UNKNOWN"
         if refresh_legal and draw_price.price_known and refresh_price.price_known and _fact_ok(snap.wood):
             wood_v = _num(snap.wood)
             if wood_v is not None and wood_v < float(refresh_amt) + float(draw_amt):
@@ -523,6 +532,23 @@ def decide(snapshot: Snapshot) -> Decision:
     snap = snapshot
 
     # A. 事务/强恢复优先
+    surface_gaps = []
+    if not snap.active_transaction.ok:
+        surface_gaps.append("active_transaction")
+    if not snap.panel_state.ok or str(snap.panel_state.value) not in ("CLOSED", "COOLDOWN"):
+        if not snap.panel_state.ok:
+            surface_gaps.append("panel_state")
+    if surface_gaps:
+        safe = tuple(
+            entry for entry in snap.safe_observe_entries
+            if entry.split(":", 1)[0] in surface_gaps
+        )
+        return Decision(
+            kind=KIND_WAIT_OR_OBSERVE,
+            observe_gaps=tuple(surface_gaps),
+            safe_entries=safe,
+            notes="authorized surface is not established",
+        )
     if _in_txn(snap):
         return Decision(kind=KIND_CONTINUE, notes="active transaction / evolve lock / open panel")
 
@@ -538,6 +564,27 @@ def decide(snapshot: Snapshot) -> Decision:
             observe_gaps=("no_legal_candidate",),
             safe_entries=tuple(snap.safe_observe_entries),
             notes="no legal candidates after §11.3B",
+        )
+
+    # F applies to the whole candidate set, not only to the single-frontier
+    # tail below.  A safely readable unknown badge can introduce another
+    # legal opportunity and therefore change the choice.
+    choice_gaps = []
+    if not snap.skill_badge.ok:
+        choice_gaps.append("skill_badge")
+    if snap.owner.auto_treasure and not snap.treasure_badge.ok:
+        choice_gaps.append("treasure_badge")
+    safe_for_gaps = tuple(
+        entry for entry in snap.safe_observe_entries
+        if entry.split(":", 1)[0] in choice_gaps
+    )
+    if choice_gaps and safe_for_gaps:
+        return Decision(
+            kind=KIND_WAIT_OR_OBSERVE,
+            alternatives=tuple(rejected),
+            observe_gaps=tuple(choice_gaps),
+            safe_entries=safe_for_gaps,
+            notes="missing facts can change the legal candidate set",
         )
 
     # C. 紧迫阻塞：失败只证明需检查战力；无效果依据不把某技能封成唯一解
@@ -602,26 +649,7 @@ def decide(snapshot: Snapshot) -> Decision:
             for c in front:
                 curs = frozenset(cost.currency for cost in c.costs)
                 single.setdefault(curs, []).append(c)
-            # 无单一明确赢家 → 不可比 + 饿死让位
-            by_wait = sorted(
-                front,
-                key=lambda c: (
-                    -(c.service_wait_s if c.service_wait_s is not None else -1.0),
-                    c.action_id,
-                ),
-            )
-            if by_wait and by_wait[0].service_wait_s is not None:
-                chosen = by_wait[0]
-                return Decision(
-                    kind=KIND_RECOMMEND,
-                    chosen=chosen,
-                    alternatives=tuple(
-                        (c.action_id, "INCOMPARABLE_CURRENCY" if c.action_id != chosen.action_id else "CHOSEN_BY_STARVATION")
-                        for c in front
-                    ),
-                    incomparable=ids,
-                    notes="cross-currency incomparable; anti-starvation service",
-                )
+            # 跨币种候选未证明等价，服务等待时间不得代替收益尺度。
             return Decision(
                 kind=KIND_WAIT_OR_OBSERVE,
                 incomparable=ids,
@@ -653,7 +681,11 @@ def decide(snapshot: Snapshot) -> Decision:
                 oldest.service_wait_s is not None
                 and second.service_wait_s is not None
                 and oldest.service_wait_s > second.service_wait_s
-                and oldest.evidence_rank <= second.evidence_rank
+                and oldest.goal == second.goal
+                and oldest.kind == second.kind
+                and oldest.cash_in_rank == second.cash_in_rank
+                and oldest.evidence_rank == second.evidence_rank
+                and {c.currency for c in oldest.costs} == {c.currency for c in second.costs}
             ):
                 return Decision(
                     kind=KIND_RECOMMEND,
@@ -706,12 +738,12 @@ def decide(snapshot: Snapshot) -> Decision:
     if missing:
         safe = tuple(snap.safe_observe_entries)
         # 只有存在安全读取入口才 OBSERVE
-        usable = tuple(e for e in safe if e.split(":")[0] in missing or e in missing or True)
-        if safe:
+        usable = tuple(e for e in safe if e.split(":", 1)[0] in missing or e in missing)
+        if usable:
             return Decision(
                 kind=KIND_WAIT_OR_OBSERVE,
                 observe_gaps=tuple(missing),
-                safe_entries=safe,
+                safe_entries=usable,
                 alternatives=tuple(rejected),
                 notes="missing facts affect choice; safe observe available",
             )
