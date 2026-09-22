@@ -109,7 +109,7 @@ Bundle：`G:\刷刷宝\captures\hitch_lobby_chain_20260922_004851_422384`（trac
 
 ### 4.1 有界滚动 + 看不到锚点零输入
 
-- 新增 `_post_game_boss_list_alive()`：**卡片命中 或 滚动条滑块** 才算列表还活着。
+- 新增 `_post_game_boss_list_alive()`：**仅卡片命中**才算列表还活着（滚动条滑块在 f0318 上被法术特效污染，已去掉）。
 - `decide_boss_order_action(..., can_scroll=can_scroll)`，其中  
   `can_scroll = list_alive and not _post_game_boss_has_no_scrollbar(...)`。  
   列表被掉落弹窗替换后两者皆无 → 零输入，绝不滚动。
@@ -129,7 +129,7 @@ Bundle：`G:\刷刷宝\captures\hitch_lobby_chain_20260922_004851_422384`（trac
 
 ### 4.4 新增状态（已同步 C2 INGAME_POLLUTION）
 
-`_time_cave_boss_result_confirmed` / `_time_cave_boss_confirm_unconfirmed` / `_time_cave_boss_clear_frames`（+ `_time_cave_boss_clear_last_frame`）。
+`_time_cave_boss_result_confirmed` / `_time_cave_boss_confirm_unconfirmed` / `_time_cave_boss_clear_frames` / `_time_cave_boss_clear_last_frame`（后两者已入 `INGAME_POLLUTION`）。
 
 ---
 
@@ -148,6 +148,7 @@ Bundle：`G:\刷刷宝\captures\hitch_lobby_chain_20260922_004851_422384`（trac
 | `test_time_cave_list_alive_on_open_panel` | f0309 列表活着 |
 | `test_time_cave_list_not_alive_after_click` | f0310/f0311/f0318 无锚点 |
 | `test_time_cave_result_visible_after_click` | 双帧稳定后后置成立 |
+| `test_time_cave_clear_frames_reset_when_cards_return` | **卡片重现必须重置双帧计数**（Review M1） |
 | `test_no_scroll_after_click_on_replaced_list` | **点击后 0 scroll / 0 click / done+confirmed** |
 | `test_no_scroll_when_no_anchor_without_click` | 无锚点 0 scroll |
 | `test_unconfirmed_timeout_skips_with_evidence` | 超时记 `post_click_unconfirmed`、不滚动 |
@@ -168,6 +169,7 @@ Bundle：`G:\刷刷宝\captures\hitch_lobby_chain_20260922_004851_422384`（trac
 3. **传家宝 17年兽 低成功率**（1/10）：6 次 `BossNotUnlockedLast` 兜底到 12/13、2 次未点、1 次 ok=false。属**账号解锁进度**还是**列表定位失败**需补采：战后传家宝列表整帧 + 账号已解锁 Boss 截图。  
 4. **空滚变体（3/10）**：为何部分局列表关闭后走了 13 次 scroll + 误点 52库林纳克斯，而不是 anomaly skip。可能与 `has_no_scrollbar` ROI 被地图/特效污染有关；修复的 `list_alive` 门应消除该路径，需真机确认。  
 5. **game_count 0→1→3**：缺一局战后链，需确认是否该局未进战后（如断线/强失败）。
+6. **Review 补充**：非连续空帧误确认（已用单测钉住重置语义，仍需真机闪断样本）；主路径 `_tick_impl` 与 `_maybe_challenge_configured_boss` 双份后置逻辑是否同刻一致（M2，未抽公共 helper）；无锚点未点击是否留下 `boss_challenge_skipped` incident。
 
 ---
 
@@ -176,4 +178,5 @@ Bundle：`G:\刷刷宝\captures\hitch_lobby_chain_20260922_004851_422384`（trac
 - `tests/test_boss_challenge_20260922.py`：**10 passed**（2026-09-22，worktree，`GameScript-Local/.venv`）
 - 防回归（同批）：`tests/test_boss_order_integration.py` + `tests/test_hitch_heirloom_scroll_20260914.py` + `tests/test_hitch_bag_panel_20260912.py` + `tests/test_hitch_l0_and_hud_fixes.py` + `tests/contract/test_l0_lobby_chain_contract.py`：**72 passed, 25 subtests passed**
 - 未跑全量 `release_gate`（按任务纪律只跑针对性测试）。
+- Review 跟进（M1/M3/m1）：`_time_cave_boss_result_visible` 在卡片重现时重置双帧计数；`_time_cave_boss_clear_last_frame` 入 `INGAME_POLLUTION`；`list_alive` 文档改为「仅卡片」。新增 `test_time_cave_clear_frames_reset_when_cards_return`。
 - `list_alive` 最终判据：**仅卡片命中**。真机 f0318 上法术特效在滚动条 ROI 留亮斑，「滑块在=列表在」会把已关闭列表误判为可滚，故去掉滑块分支（见 `_post_game_boss_list_alive` docstring）。

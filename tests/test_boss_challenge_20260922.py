@@ -92,6 +92,23 @@ def test_time_cave_result_visible_after_click(base_patches):
     assert med._time_cave_boss_clear_frames >= 2
 
 
+def test_time_cave_clear_frames_reset_when_cards_return(base_patches):
+    """卡片重现必须重置双帧计数：非连续空帧不得确认列表已关。"""
+    med = make_med()
+    med._time_cave_boss_clicked_at = 100.0
+    f_empty = load_frame("f0310_after_click_18.png")
+    f_cards = load_frame("f0309_before_click_18.png")
+    assert med._time_cave_boss_result_visible(f_empty) is False
+    assert med._time_cave_boss_clear_frames == 1
+    # 卡片重现 → 计数清零，不得沿用上一轮空帧
+    assert med._time_cave_boss_result_visible(f_cards) is False
+    assert med._time_cave_boss_clear_frames == 0
+    assert med._time_cave_boss_clear_last_frame is None
+    # 再一次空帧只累计 1，不能直接 >=2
+    assert med._time_cave_boss_result_visible(f_empty) is False
+    assert med._time_cave_boss_clear_frames == 1
+
+
 def test_no_scroll_after_click_on_replaced_list(base_patches):
     """核心回归：点击后在 f0310/f0311（列表已关）上绝不 act_scroll。"""
     med = make_med()

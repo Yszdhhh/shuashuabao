@@ -8445,6 +8445,10 @@ class Mediator:
             return False
         pairs = self._find_visible_post_game_boss_cards(frame, "ARCHIVE_PANEL")
         if pairs:
+            # 卡片重现即证据消失：必须重置双帧计数，否则「空→有卡→空」
+            # 这种非连续空帧会被误判为列表已关（对齐传家宝 _solo_heirloom_boss_is_clear）。
+            self._time_cave_boss_clear_frames = 0
+            self._time_cave_boss_clear_last_frame = None
             return False
         if frame is not getattr(self, "_time_cave_boss_clear_last_frame", None):
             self._time_cave_boss_clear_last_frame = frame

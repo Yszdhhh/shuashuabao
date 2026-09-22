@@ -186,6 +186,7 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_time_cave_boss_result_confirmed": True,
         "_time_cave_boss_confirm_unconfirmed": True,
         "_time_cave_boss_clear_frames": 5,
+        "_time_cave_boss_clear_last_frame": object(),
     }
 
     def _pollute(self, med: Mediator) -> None:
