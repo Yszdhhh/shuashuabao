@@ -89,6 +89,24 @@ def _fact_num(value: Any, source: str) -> Fact:
     return Fact(value=None, state="invalid", source=source)
 
 
+def _confirmed_ledger_fact(obj: Any, name: str) -> Fact:
+    """Keep unavailable/invalid ledgers distinct from a confirmed empty one."""
+    source = f"mediator.{name}"
+    try:
+        value = getattr(obj, name, None)
+        if callable(value):
+            value = value()
+    except Exception:
+        return Fact.invalid(source)
+    if value is None:
+        return Fact.missing(source)
+    if not isinstance(value, (list, tuple)) or any(
+        not isinstance(card, str) or not card.strip() for card in value
+    ):
+        return Fact.invalid(source)
+    return Fact.observed(list(value), source)
+
+
 def build_snapshot(mediator: Any, now: float | None = None) -> Snapshot:
     """只读 Mediator 已有字段构造快照。字段可用性按 EVIDENCE 矩阵。"""
     ts = float(now if now is not None else time.time())
@@ -102,25 +120,6 @@ def build_snapshot(mediator: Any, now: float | None = None) -> Snapshot:
     treasure = _fact_num(g("_treasure_pending_seen"), "mediator._treasure_pending_seen")
     if treasure.state == "missing" and g("_treasure_pending_seen") is None:
         treasure = Fact(value=None, state="missing", source="mediator._treasure_pending_seen:sticky_or_unread")
-
-    confirmed_bond: tuple[str, ...] = ()
-    try:
-        fn = g("_confirmed_bond_cards")
-        if callable(fn):
-            confirmed_bond = tuple(fn())
-        elif isinstance(fn, (list, tuple)):
-            confirmed_bond = tuple(fn)
-    except Exception:
-        confirmed_bond = ()
-    confirmed_skill: tuple[str, ...] = ()
-    try:
-        fn = g("_confirmed_skill_cards")
-        if callable(fn):
-            confirmed_skill = tuple(fn())
-        elif isinstance(fn, (list, tuple)):
-            confirmed_skill = tuple(fn)
-    except Exception:
-        confirmed_skill = ()
 
     pending_records = tuple(
         ActionRecord(action_id=str(name), state="requested", detail="pending_not_confirmed")
@@ -218,8 +217,8 @@ def build_snapshot(mediator: Any, now: float | None = None) -> Snapshot:
         wood=wood,
         skill_badge=skill,
         treasure_badge=treasure,
-        confirmed_bond_cards=Fact.observed(list(confirmed_bond), "mediator._confirmed_bond_cards"),
-        confirmed_skill_cards=Fact.observed(list(confirmed_skill), "mediator._confirmed_skill_cards"),
+        confirmed_bond_cards=_confirmed_ledger_fact(mediator, "_confirmed_bond_cards"),
+        confirmed_skill_cards=_confirmed_ledger_fact(mediator, "_confirmed_skill_cards"),
         pending_records=pending_records,
         evolution_locked=Fact.observed(evolve_locked, "mediator._evolve_feedback_pending/_evolve_awaiting_hero_pick"),
         active_transaction=Fact.observed(active_tx, "mediator._has_active_transaction:state_only"),
