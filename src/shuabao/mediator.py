@@ -16698,9 +16698,79 @@ class Mediator:
         except Exception as exc:
             print(f"[med][observe] tick 记录失败，跳过：{exc}")
 
+    def _solo_shadow_log(self):
+        """惰性取单人影子记录器；关闭时永远返回 None，且只判定一次。"""
+        log = getattr(self, "_solo_shadow", None)
+        if log is not None:
+            return None if getattr(log, "disabled", False) else log
+        if getattr(self, "_solo_shadow_ready", False):
+            return None
+        self._solo_shadow_ready = True
+        try:
+            import os as _os
+
+            if str(_os.environ.get("SHUABAO_SOLO_SHADOW", "")).strip().lower() not in ("1", "true", "yes", "on"):
+                return None
+            from shuabao import solo_shadow as _ss
+
+            self._solo_shadow = _ss.SoloShadowLog()
+            print("[med][solo-shadow] 单人影子调度记录器已开启（只记录，不改线上动作）")
+            return self._solo_shadow
+        except Exception as exc:
+            print(f"[med][solo-shadow] 记录器初始化失败，保持关闭：{exc}")
+            return None
+
+    def _solo_shadow_tick(self) -> None:
+        """单人 MAIN_LINE 事务边界记一次影子推荐 vs 旧逻辑实际选择。"""
+        log = self._solo_shadow_log()
+        if log is None:
+            return
+        try:
+            if getattr(self, "phase", None) is not None:
+                phase_name = getattr(getattr(self, "phase", None), "name", "")
+                if phase_name != "MAIN_LINE":
+                    return
+            if getattr(self, "_passenger_mode", lambda: False)():
+                return
+            from shuabao import solo_shadow as _ss
+
+            now = time.time()
+            panel_name = getattr(getattr(self, "_panel_state", None), "name", "") or ""
+            merchant_name = getattr(getattr(getattr(self, "_merchant_fsm", None), "phase", None), "name", "") or ""
+            busy = bool(
+                getattr(self, "_pending_action", None) is not None
+                or getattr(self, "_evolve_feedback_pending", False)
+                or getattr(self, "_evolve_awaiting_hero_pick", False)
+                or getattr(getattr(self, "_equipment_fsm", None), "pending_slot", None) is not None
+                or merchant_name == "VERIFYING"
+                or bool(getattr(getattr(self, "_public_bag_fsm", None), "active", False))
+                or panel_name not in ("", "CLOSED", "COOLDOWN")
+            )
+            if busy:
+                self._solo_shadow_at_boundary = False
+                return
+            if getattr(self, "_solo_shadow_at_boundary", False):
+                return
+            self._solo_shadow_at_boundary = True
+            snap = _ss.build_snapshot(self, now=now)
+            decision = _ss.decide(snap)
+            target, reason = getattr(self, "_observe_plan", (None, ""))
+            log.note_boundary(
+                snapshot=snap,
+                decision=decision,
+                actual_plan_target=target,
+                actual_plan_reason=reason,
+                cycle_step=getattr(self, "_l1_cycle_step", None),
+                actual_act=str(target or ""),
+                boundary="free",
+            )
+        except Exception as exc:
+            print(f"[med][solo-shadow] tick 记录失败，跳过：{exc}")
+
     def _tick_main_line(self, frame: Frame) -> LoopAction:
         now = time.time()
         self._observe_tick()
+        self._solo_shadow_tick()
         if self._passenger_mode() and not getattr(self, "_hitch_round_started_counted", False):
             self._hitch_round_started_counted = True
             self._hitch_stats_started += 1
