@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "0f7060100e3d0f9e37f020e289ed0cdbe09d9d49",
-  "anchored_at": "2026-09-22T02:34:22Z",
+  "candidate_sha": "58ecc4c24a9fae375da40daeba97920ec8067df4",
+  "anchored_at": "2026-09-22T03:45:30Z",
   "branch": "fix/hitch-goal-archaeology-20260920",
-  "note": "房主选难度页语义 Esc 退出后继续搜房（在 ca84a28 之上）"
+  "note": "合入源码快速测试入口：冻结态隔离、共享 LIVE 锁与非 GT 身份标识"
 }
