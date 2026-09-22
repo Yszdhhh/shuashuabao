@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field, replace
 from typing import Any, Mapping, Sequence
 
@@ -37,6 +38,17 @@ CAND_CONSUME = "PAID_CONSUME"
 UNKNOWN_PRICE = "UNKNOWN_PRICE"
 
 
+def _finite_number(value: Any) -> float | None:
+    """Return a finite numeric value, never a bool or an overflow sentinel."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        number = float(value)
+    except OverflowError:
+        return None
+    return number if math.isfinite(number) else None
+
+
 @dataclass(frozen=True)
 class Fact:
     """带状态与出处的单点事实。unknown/missing/invalid 永不被当成 0。"""
@@ -58,16 +70,12 @@ class Fact:
     def known_num(self) -> float | None:
         if self.state != FACT_OBSERVED:
             return None
-        v = self.value
-        if isinstance(v, bool):
-            return None
-        if isinstance(v, (int, float)):
-            return float(v)
-        return None
+        return _finite_number(self.value)
 
     @property
     def price_known(self) -> bool:
-        return self.state == FACT_OBSERVED and self.value != UNKNOWN_PRICE and isinstance(self.value, (int, float)) and not isinstance(self.value, bool)
+        value = self.known_num
+        return value is not None and value >= 0
 
     @classmethod
     def observed(cls, value: Any, source: str = "", observed_at: float | None = None) -> "Fact":
@@ -114,7 +122,8 @@ class Cost:
 
     @property
     def price_known(self) -> bool:
-        return self.amount != UNKNOWN_PRICE and isinstance(self.amount, (int, float)) and not isinstance(self.amount, bool)
+        value = _finite_number(self.amount)
+        return value is not None and value >= 0
 
 
 @dataclass(frozen=True)
@@ -142,10 +151,15 @@ class Candidate:
     notes: str = ""
 
     def cost_of(self, currency: str) -> Cost | None:
-        for c in self.costs:
-            if c.currency == currency:
-                return c
-        return None
+        costs = [c for c in self.costs if c.currency == currency]
+        if not costs:
+            return None
+        amount = sum(float(c.amount) for c in costs) if all(c.price_known for c in costs) else UNKNOWN_PRICE
+        return Cost(
+            currency, amount,
+            model_derived=any(c.model_derived for c in costs),
+            note="; ".join(c.note for c in costs if c.note),
+        )
 
 
 @dataclass(frozen=True)
@@ -235,6 +249,7 @@ def _num(f: Fact) -> float | None:
 
 def _paid_legal(costs: Sequence[Cost], balances: Mapping[str, Fact], *, spend_id: str) -> tuple[bool, str]:
     """§11.3B：消费类余额/价格不可信 → 不授权该消费。未知 ≠ 0。"""
+    totals: dict[str, float] = {}
     for cost in costs:
         bal = balances.get(cost.currency)
         if bal is None or not _fact_ok(bal):
@@ -242,10 +257,14 @@ def _paid_legal(costs: Sequence[Cost], balances: Mapping[str, Fact], *, spend_id
         if not cost.price_known:
             return False, "UNKNOWN_PRICE"
         bal_v = _num(bal)
-        if bal_v is None:
+        if bal_v is None or bal_v < 0:
             return False, "BALANCE_UNKNOWN"
-        if bal_v < float(cost.amount):
+        total = totals.get(cost.currency, 0.0) + float(cost.amount)
+        if not math.isfinite(total):
+            return False, "UNKNOWN_PRICE"
+        if bal_v < total:
             return False, "INSUFFICIENT_BALANCE"
+        totals[cost.currency] = total
     return True, ""
 
 
