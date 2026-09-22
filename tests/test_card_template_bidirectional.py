@@ -18,7 +18,9 @@ NEGATIVE_TREASURES = (
     "金转木",
     "杀敌梭哈",
     "伐木契约",
-    "等级优势",
+    "诅咒之力",
+    "提高上限",
+    "木材梭哈",
 )
 
 
@@ -86,7 +88,7 @@ class CardBidirectionalTests(unittest.TestCase):
 
 
 class NegativeTreasureLexiconTests(unittest.TestCase):
-    def test_six_negative_treasures_in_lexicon(self):
+    def test_default_blocked_treasures_in_lexicon(self):
         data = json.loads(LEXICON.read_text(encoding="utf-8"))
         entries = data["entries"]
         for name in NEGATIVE_TREASURES:

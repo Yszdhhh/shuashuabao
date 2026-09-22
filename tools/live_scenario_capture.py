@@ -1231,7 +1231,8 @@ class HitchLobbyChainObserver:
     }
 
     def __init__(self, *, required_rounds: int = 3, require_archaeology: bool = False) -> None:
-        self.required_rounds = max(3, int(required_rounds or 3))
+        # 配置 1 局也要能达标：只兜底非法值，不再把下限抬到 3。
+        self.required_rounds = max(1, int(required_rounds or 3))
         self.require_archaeology = bool(require_archaeology)
         self.failed_reason: str | None = None
         self.blocked_reason: str | None = None
@@ -1267,7 +1268,9 @@ class HitchLobbyChainObserver:
             "OUTCOME_OBSERVED": {"status": "NOT_OBSERVED"},
             "LOBBY_RETURN_CONFIRMED": {"status": "NOT_OBSERVED"},
             "CONFIGURED_ROUNDS_CONFIRMED": {"status": "NOT_OBSERVED"},
-            "ARCHAEOLOGY_HANDOFF_CONFIRMED": {"status": "NOT_REQUIRED"},
+            "ARCHAEOLOGY_HANDOFF_CONFIRMED": {
+                "status": "NOT_OBSERVED" if self.require_archaeology else "NOT_REQUIRED"
+            },
         }
         self.metrics: dict[str, Any] = {
             "rounds_started": 0,

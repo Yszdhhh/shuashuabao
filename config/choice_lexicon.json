@@ -1070,6 +1070,27 @@
       "confusions": [],
       "set_membership": null
     },
+    "诅咒之力": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "live-2026-09-22; fixtures/treasure_negative/诅咒之力/panel_img_v3_0215p_31b47da6.png",
+      "confusions": [],
+      "set_membership": null
+    },
+    "木材梭哈": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "live-2026-09-22(fixtures/treasure_negative/木材梭哈)",
+      "confusions": [],
+      "set_membership": null
+    },
+    "提高上限": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "live-2026-09-22; fixtures/treasure_negative/提高上限/panel_185040_112_8b9790d7.png",
+      "confusions": [],
+      "set_membership": null
+    },
     "圣堂刺客": {
       "aliases": [],
       "kind": "bond",

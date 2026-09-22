@@ -104,6 +104,37 @@ def test_primary_ledger_requires_archaeology_after_configured_hitch_goal() -> No
     assert observer.is_pass is False
 
 
+_CORE_CHECKPOINTS = (
+    "PRECHECK_OK", "ROOM_LIST_CONFIRMED", "SEARCH_CONFIRMED", "ROOM_JOINED",
+    "READY_CONFIRMED", "MODAL_RECOVERY", "INGAME_HUD_CONFIRMED", "PRESSURE_CONFIRMED",
+    "OUTCOME_OBSERVED", "LOBBY_RETURN_CONFIRMED", "CONFIGURED_ROUNDS_CONFIRMED",
+)
+
+
+def test_single_configured_round_can_pass_without_three_round_floor() -> None:
+    observer = HitchLobbyChainObserver(required_rounds=1, require_archaeology=True)
+    assert observer.required_rounds == 1
+    observer.metrics["rounds_started"] = 1
+    observer.metrics["lobby_returns"] = 1
+    for checkpoint in _CORE_CHECKPOINTS:
+        observer.checkpoints[checkpoint] = {"status": "PASS"}
+    observer.checkpoints["ARCHAEOLOGY_HANDOFF_CONFIRMED"] = {"status": "PASS"}
+    assert observer.is_pass is True
+
+
+def test_required_archaeology_starts_unobserved_and_blocks_pass() -> None:
+    observer = HitchLobbyChainObserver(required_rounds=30, require_archaeology=True)
+    assert observer.checkpoints["ARCHAEOLOGY_HANDOFF_CONFIRMED"]["status"] == "NOT_OBSERVED"
+    observer.metrics["rounds_started"] = 30
+    observer.metrics["lobby_returns"] = 30
+    for checkpoint in _CORE_CHECKPOINTS:
+        observer.checkpoints[checkpoint] = {"status": "PASS"}
+    assert observer.is_pass is False
+
+    plain = HitchLobbyChainObserver(required_rounds=3, require_archaeology=False)
+    assert plain.checkpoints["ARCHAEOLOGY_HANDOFF_CONFIRMED"]["status"] == "NOT_REQUIRED"
+
+
 def test_candidate_source_identity_is_explicit_and_clean() -> None:
     candidate_sha = _candidate_sha()
     completed = subprocess.run(
