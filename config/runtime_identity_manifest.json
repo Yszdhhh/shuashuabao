@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "c93bca5f99d02a3c262a7b4fc0ca4fbb4cc33d40",
-  "anchored_at": "2026-09-23T20:21:28+08:00",
+  "candidate_sha": "217caa347d88b5058e737f698b7faa048e99d04d",
+  "anchored_at": "2026-09-23T22:07:28+08:00",
   "branch": "fix/desktop-sync-20260923",
-  "note": "Desktop sync candidate: solo inventory, bond EX policy, dashboard and live harness"
+  "note": "Desktop sync candidate after live-frame replay, hitch recount fix, and complete gate timeout adjustment"
 }
