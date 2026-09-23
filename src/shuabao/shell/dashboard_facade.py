@@ -526,6 +526,10 @@ class DashboardFacade(QObject):
         self._poll.setInterval(400)
         self._poll.timeout.connect(self._poll_runtime)
         self._last_run_json = ""
+        self._last_game_count = 0
+        self._last_run_summary: dict[str, Any] | None = None
+        self._run_started_monotonic: float | None = None
+        self._run_finished_duration_s: int | None = None
         self._path = user_settings_path(self.app_data)
         # 20260831 审查（P2）：显式注入的 env key 优先级高于磁盘 saved key，
         # 只在 env 为空时才回填，避免覆盖启动器/上层会话已设定的授权。
@@ -781,12 +785,17 @@ class DashboardFacade(QObject):
         state = str(getattr(runner, "runner_state", "") or RUNNER_IDLE)
         mediator = getattr(worker, "mediator", None)
         phase = ""
-        game_count = 0
+        game_count = self._last_game_count
+        if mediator is not None:
+            try:
+                game_count = max(game_count, int(getattr(mediator, "game_count", 0) or 0))
+            except (TypeError, ValueError):
+                pass
+            self._last_game_count = game_count
         if mediator is not None and runtime_status_from_mediator is not None:
             try:
                 status = runtime_status_from_mediator(mediator)
                 phase = str(status.phase or "")
-                game_count = int(getattr(mediator, "_game_count", 0) or 0)
             except Exception:
                 pass
         started_settings = None
@@ -809,7 +818,51 @@ class DashboardFacade(QObject):
             "terminal_reason": str(getattr(worker, "terminal_reason", "") or ""),
             "ocr_status": str(getattr(worker, "ocr_status", "") or ""),
             "last_action": str(getattr(worker, "last_action", "") or ""),
+            "summary": self._run_summary_dto(mediator, game_count),
         }
+
+    def _run_summary_dto(self, mediator: Any, game_count: int) -> dict[str, Any]:
+        """Read-only, evidence-labeled totals for the completion card."""
+        duration = self._run_finished_duration_s
+        if duration is None and self._run_started_monotonic is not None:
+            duration = max(0, int(time.monotonic() - self._run_started_monotonic))
+        summary: dict[str, Any] = {"available": mediator is not None, "duration_seconds": duration or 0}
+        if mediator is None:
+            if self._last_run_summary is not None:
+                return {**self._last_run_summary, "duration_seconds": duration or 0}
+            return summary
+
+        def count(name: str) -> int:
+            try:
+                return max(0, int(getattr(mediator, name, 0) or 0))
+            except (TypeError, ValueError):
+                return 0
+
+        hitch_started = count("_hitch_stats_started")
+        hitch_wins = count("_hitch_stats_victories")
+        hitch_losses = count("_hitch_stats_failures")
+        hitch_completed = min(max(0, game_count), hitch_started)
+        stages = getattr(mediator, "_hitch_stats_stages", {})
+        stage_counts = {
+            stage: max(0, int(value))
+            for stage, value in stages.items()
+            if isinstance(stage, str) and type(value) is int and value > 0
+        } if isinstance(stages, dict) else {}
+        total_losses = count("_failure_count") + count("_disconnect_count") + count("_timeout_count")
+        summary["hitch"] = {
+            "started": hitch_started,
+            "completed": hitch_completed,
+            "success": hitch_wins,
+            "failure": hitch_losses,
+            "stages": stage_counts,
+        }
+        summary["solo"] = {
+            "completed": max(0, game_count - hitch_completed),
+            "success": max(0, count("_success_count") - hitch_wins),
+            "failure": max(0, total_losses - hitch_losses),
+        }
+        self._last_run_summary = summary
+        return summary
 
     @staticmethod
     def _parse_object(payload: str) -> tuple[dict[str, Any] | None, str | None]:
@@ -1184,6 +1237,10 @@ class DashboardFacade(QObject):
             worker = runner.start(mode_id, self._settings, permission=permission)
         except Exception as exc:  # ModeNotEnabled / already running / live.lock 占用
             return json.dumps(self._rpc_response(False, error=str(exc)), ensure_ascii=False)
+        self._run_started_monotonic = time.monotonic()
+        self._run_finished_duration_s = None
+        self._last_game_count = 0
+        self._last_run_summary = None
         # Worker 在自身线程发信号；QueuedConnection 保证 Facade 侧在主线程收。
         worker.signals.log_emitted.connect(self.log_appended, Qt.QueuedConnection)
         worker.signals.status_updated.connect(self._on_status_updated,
@@ -1270,6 +1327,9 @@ class DashboardFacade(QObject):
         # the terminal outcome in that small ordering window.
         if not running and runner_state in {RUNNER_RUNNING, RUNNER_STARTING, RUNNER_STOPPING, RUNNER_IDLE}:
             runner_state = state
+        if not running and self._run_started_monotonic is not None and self._run_finished_duration_s is None:
+            self._run_finished_duration_s = max(0, int(time.monotonic() - self._run_started_monotonic))
+        self._last_game_count = max(self._last_game_count, max(0, int(game_count or 0)))
         started_settings = None
         getter = getattr(self._runner, "started_settings", None)
         if callable(getter):
@@ -1284,11 +1344,12 @@ class DashboardFacade(QObject):
             "state": runner_state,
             "mode_id": getattr(self._runner, "mode_id", None),
             "phase": str(phase or ""),
-            "game_count": max(0, int(game_count or 0)),
+            "game_count": self._last_game_count,
             "cycle_num": max(0, int(getattr(run_settings, "cycle_num", 0) or 0)),
             "terminal_reason": str(terminal_reason or ""),
             "ocr_status": str(ocr_status or ""),
             "last_action": str(last_action or ""),
+            "summary": self._run_summary_dto(getattr(getattr(self._runner, "worker", None), "mediator", None), self._last_game_count),
         }
         payload = json.dumps(dto, ensure_ascii=False)
         if payload != self._last_run_json:
@@ -1305,6 +1366,8 @@ class DashboardFacade(QObject):
             self._poll.stop()
 
     def _on_worker_finished(self) -> None:
+        if self._run_started_monotonic is not None and self._run_finished_duration_s is None:
+            self._run_finished_duration_s = max(0, int(time.monotonic() - self._run_started_monotonic))
         runner = getattr(self._runner, "release_after_finish", None)
         if callable(runner):
             try:
