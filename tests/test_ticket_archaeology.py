@@ -28,15 +28,14 @@ class ChallengeTicketTests(unittest.TestCase):
 
     def test_zero_challenge_ticket_detected_in_remainder_roi(self) -> None:
         frame = self._stage_frame().copy()
-        # Current evidence shows 120/120 below 开始游戏. Model 0/120 by
-        # clearing the two leading remainder digits and placing the live zero
-        # glyph in the right-aligned remainder position.
+        # Model 0/120 by clearing the current-value digits and placing zero
+        # left of the slash; the denominator stays untouched.
         zero_path = ROOT / "assets" / "Images" / "lobby" / "ticket_zero.png"
         zero = cv2.imdecode(np.frombuffer(zero_path.read_bytes(), np.uint8), cv2.IMREAD_COLOR)
         self.assertIsNotNone(zero)
         h, w = zero.shape[:2]
-        frame[868:883, 1032 + 40 : 1032 + 59] = 0
-        frame[850 + 18 : 850 + 18 + h, 1032 + 61 : 1032 + 61 + w] = zero
+        frame[864:884, 1055:1081] = 0
+        frame[870 : 870 + h, 1082 : 1082 + w] = zero
         med = Mediator(Settings(auto_archaeology=True), ROOT)
         wrapped = Frame(frame, left=0, top=0, window_title="英雄三国KK", hwnd=1)
         self.assertTrue(med._ticket_exhausted(wrapped))
