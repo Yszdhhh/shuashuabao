@@ -99,7 +99,12 @@ def stage_pytest() -> StageResult:
     # -p no:faulthandler: Windows 上 PyQt6 事件循环（dashboard facade 测试的
     # processEvents）与 faulthandler 致命转储相互冲突，随机 access-violation
     # 中断整个 pytest 进程；禁用后全量 1474 通过，观测计数不受影响。
-    code, out = _run([PYTHON, "-m", "pytest", "tests", "-q", "--tb=short", "-p", "no:faulthandler"])
+    # The 2,600+ case image/OCR suite exceeded the old 30-minute subprocess
+    # cap on the release workstation while still advancing through tests.
+    code, out = _run(
+        [PYTHON, "-m", "pytest", "tests", "-q", "--tb=short", "-p", "no:faulthandler"],
+        timeout=3600,
+    )
     counts: dict[str, int] = {}
     for label in ("passed", "failed", "error", "xfailed", "xpassed", "skipped"):
         match = re.search(rf"(\d+) {label}", out)
