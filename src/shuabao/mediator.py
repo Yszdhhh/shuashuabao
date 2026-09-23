@@ -13037,8 +13037,8 @@ class Mediator:
         """记录一次已验证的蹭车离局，然后回到大厅继续找房。"""
         if not already_counted:
             self.game_count += 1
+            self._ticket_budget_spent_one_round()
         self._hitch_game_exit_at = now
-        self._ticket_budget_spent_one_round()
         projected = self._ticket_projected_remaining()
         if self._passenger_mode() and not self._hitch_stats_stage_recorded_this_round:
             if self._hitch_pending_selected_stage is not None:
@@ -14870,7 +14870,16 @@ class Mediator:
             if room_return_proven:
                 if self._hitch_unstarted_exit_pending:
                     return self._finish_hitch_unstarted_exit(time.time())
-                return self._finish_hitch_round(time.time(), "same room verified; hitch re-search")
+                # The disappear-first path may reacquire the room after the
+                # final round was already recorded. Do not count it twice.
+                already_counted = (
+                    self.settings.cycle_num > 0
+                    and self.game_count >= self.settings.cycle_num
+                )
+                return self._finish_hitch_round(
+                    time.time(), "same room verified; hitch re-search",
+                    already_counted=already_counted,
+                )
 
         if self._awaiting_room_return:
             if room_start:
