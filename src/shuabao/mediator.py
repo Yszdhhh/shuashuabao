@@ -17272,7 +17272,7 @@ class Mediator:
                             actual_plan_reason="phase_exit",
                             cycle_step=pending["cycle_step"],
                             actual_act="",
-                            boundary="phase_exit",
+                            boundary="phase_exit_unpaired",
                         )
                     return
             if getattr(self, "_passenger_mode", lambda: False)():
@@ -17280,12 +17280,9 @@ class Mediator:
             from shuabao import solo_shadow as _ss
 
             now = time.time()
-            # Shadow must compare against the same current-frame facts that
-            # _solo_plan_panel will consume later in this tick.  The normal
-            # 3-second throttle makes the later refresh a no-op, so enabling
-            # shadow adds no second OCR/read pass.
-            if frame is not None:
-                self._refresh_solo_signals(frame, now)
+            # Shadow consumes the shared production signal cache only.  Perception
+            # is refreshed once per MAIN_LINE tick by the caller (_tick_main_line)
+            # so enabling the observer cannot add OCR/UI reads or shift throttle.
             panel_name = getattr(getattr(self, "_panel_state", None), "name", "") or ""
             merchant_name = getattr(getattr(getattr(self, "_merchant_fsm", None), "phase", None), "name", "") or ""
             busy = bool(
@@ -17306,17 +17303,19 @@ class Mediator:
                 self._solo_shadow_pending = None
                 if plan_now is not pending["plan_before"]:
                     target, reason = plan_now
-                    matched = "plan_in_window"
+                    matched = "plan_observed_unpaired"
                 else:
                     target, reason = None, "no_plan_in_window"
-                    matched = "window_closed_without_plan"
+                    matched = "window_closed_unpaired"
+                # actual_act stays empty: no ActionReceipt exists in this schema.
+                # Never copy the plan target into act — that forges action agreement.
                 log.note_boundary(
                     snapshot=pending["snapshot"],
                     decision=pending["decision"],
                     actual_plan_target=target,
                     actual_plan_reason=reason,
                     cycle_step=pending["cycle_step"],
-                    actual_act=str(target or ""),
+                    actual_act="",
                     boundary=matched,
                 )
             if busy:
@@ -17340,6 +17339,9 @@ class Mediator:
         if self._reject_hitch_archaeology_room(frame, now):
             return LoopAction.Continue
         self._observe_tick()
+        # Shared production perception for this MAIN_LINE tick.  Shadow and the
+        # later planner both read these signals; shadow never triggers its own OCR.
+        self._refresh_solo_signals(frame, now)
         self._solo_shadow_tick(frame)
         if self._passenger_mode() and not getattr(self, "_hitch_round_started_counted", False):
             self._hitch_round_started_counted = True
