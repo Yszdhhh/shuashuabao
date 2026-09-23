@@ -1143,6 +1143,9 @@ function showFatal(err: unknown): void {
 async function boot(): Promise<void> {
   if (import.meta.env.MODE !== "production") {
     // dev/浏览器测试：诚实 mock，形状与 types.ts 一致；生产构建不打包此分支。
+    // 预览场景条（桌面 Qt 预览窗口 / 在线预览沙盒共用）；同样只存在于非 production 构建。
+    const { installPreviewScenes } = await import("./dev/previewScenes");
+    installPreviewScenes();
     const { createMockBridgeConnection } = await import("./bridge/mockBridge");
     const conn = createMockBridgeConnection();
     bridge = conn.bridge;

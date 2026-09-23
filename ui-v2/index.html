@@ -82,13 +82,17 @@
       overflow: hidden;
     }
     button, select, input { font-family: inherit; color: inherit; }
+    :root {
+      --p-font: "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", sans-serif;
+      --p-mono: "Cascadia Mono", "Sarasa Mono SC", ui-monospace, Consolas, monospace;
+    }
     button { cursor: pointer; }
     img { display: block; }
     .hidden { display: none !important; }
     .pill {
       display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
       border: 1px solid var(--border); border-radius: 6px;
-      color: var(--muted); font-size: 11px; font-weight: 510;
+      color: var(--muted); font-size: 11px; font-weight: 600;
     }
     .pill.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 35%, var(--border)); }
     button:focus-visible, select:focus-visible, input:focus-visible {
@@ -110,7 +114,7 @@
       --p-card: rgba(255, 255, 255, 0.32);
       --p-ink: #1d1d1f;
       --p-muted: #626975;
-      --p-faint: #8a929c;
+      --p-faint: #6d7583; /* 提高浅色底对比度（原 #8a929c 约 3:1） */
       --p-line: rgba(0, 0, 0, 0.08);
       --p-fill: rgba(255, 255, 255, 0.62);
       /* 浅色：冷灰底上的香槟金，只做 CTA / 开关开态，不当底板 */
@@ -736,7 +740,7 @@
     .dragon-icon-wrap {
       display: inline-flex; align-items: center; justify-content: center;
       vertical-align: middle; flex-shrink: 0; margin-right: 5px;
-      filter: drop-shadow(0 1px 2px rgba(230, 81, 0, 0.35));
+      color: var(--p-gold);
     }
     .dragon-icon-wrap.mini { margin-right: 4px; }
     .dragon-icon-wrap svg { display: block; }
@@ -1610,7 +1614,14 @@
       transform: translateX(0); visibility: visible;
       transition: transform 240ms var(--ease-amicro), visibility 0s;
     }
-    .drawer h3 { margin: 0 0 12px; font-size: 15px; }
+    .drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 12px; }
+    .drawer-head h3 { margin: 0; font-size: 15px; }
+    .drawer-close {
+      width: 28px; height: 28px; border: 1px solid var(--p-line); border-radius: 8px;
+      background: var(--p-fill); color: var(--p-muted); font-size: 14px; line-height: 1;
+      display: grid; place-items: center; padding: 0;
+    }
+    .drawer-close:hover { color: var(--p-ink); background: var(--p-paper); }
     .drawer h4 { margin: 16px 0 6px; font-size: 12px; color: var(--p-ink); font-weight: 650; display: flex; align-items: baseline; gap: 8px; }
     .drawer h4 small { font-size: 11px; font-weight: 500; color: var(--p-faint); }
     .drawer .switch-row {
@@ -2919,7 +2930,7 @@
     .sb-boot {
       position: fixed; inset: 0; z-index: 400; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
       background: radial-gradient(60% 55% at 50% 42%, rgb(205 185 148 / .10), transparent 70%), #17191d;
-      color: #edf0f4; font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", sans-serif; cursor: pointer;
+      color: #edf0f4; font-family: var(--p-font); cursor: pointer;
       transition: opacity 420ms cubic-bezier(.4,0,.2,1), transform 420ms cubic-bezier(.4,0,.2,1);
     }
     body[data-theme="light"] .sb-boot { background: radial-gradient(60% 55% at 50% 42%, rgb(196 172 124 / .16), transparent 70%), #eef0f3; color: #1d1d1f; }
@@ -2932,7 +2943,7 @@
     .sb-ring .p { stroke: var(--sb-gold, #cdb994); stroke-dasharray: 339; stroke-dashoffset: 339; animation: sb-draw 1300ms cubic-bezier(.65,0,.35,1) 250ms both; }
     body[data-theme="light"] .sb-ring .p { stroke: #b9a071; }
     .sb-name { font-size: 26px; font-weight: 700; letter-spacing: .06em; animation: sb-up 520ms cubic-bezier(.22,1,.36,1) 260ms both; }
-    .sb-ver { font-size: 12px; opacity: .55; font-family: "Cascadia Mono", Consolas, monospace; margin-top: -14px; animation: sb-up 520ms cubic-bezier(.22,1,.36,1) 340ms both; }
+    .sb-ver { font-size: 12px; opacity: .55; font-family: var(--p-mono); margin-top: -14px; animation: sb-up 520ms cubic-bezier(.22,1,.36,1) 340ms both; }
     .sb-steps { display: flex; flex-direction: column; gap: 6px; font-size: 13px; opacity: .8; }
     .sb-steps span { display: flex; align-items: center; gap: 8px; animation: sb-up 420ms cubic-bezier(.22,1,.36,1) both; }
     .sb-steps i { width: 14px; height: 14px; border-radius: 7px; background: #75c69c; display: grid; place-items: center; animation: sb-pop 380ms cubic-bezier(.34,1.36,.64,1) both; animation-delay: inherit; }
@@ -2975,9 +2986,26 @@
     .sb-done-stats span { font-size: 11px; color: var(--p-muted); }
     .sb-done-actions { display: flex; gap: 8px; width: 100%; margin-top: 4px; }
     .sb-done-actions button { flex: 1; min-width: 0; }
+    .sb-done { position: relative; width: min(470px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
+    .sb-done.failed .sb-done-mark { color: var(--p-danger); }
+    .sb-done-breakdown { display: grid; gap: 8px; width: 100%; text-align: left; }
+    .sb-done-mode { padding: 11px 12px; border: 1px solid var(--p-line); border-radius: 12px; background: var(--p-fill); }
+    .sb-done-mode-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12px; }
+    .sb-done-mode-head b { font-size: 13px; }
+    .sb-done-mode-counts { display: flex; flex-wrap: wrap; gap: 6px 13px; margin-top: 7px; font-size: 12px; color: var(--p-muted); font-variant-numeric: tabular-nums; }
+    .sb-done-mode-counts strong { color: var(--p-ink); }
+    .sb-done-stages { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 9px; }
+    .sb-done-stages small { color: var(--p-muted); margin-right: 3px; }
+    .sb-done-stages span { padding: 3px 7px; border: 1px solid var(--p-line); border-radius: 7px; background: var(--p-paper); font-size: 11px; font-variant-numeric: tabular-nums; }
+    .sb-done-note { width: 100%; margin: 0 !important; padding: 8px 10px; border-radius: 9px; background: var(--p-fill); text-align: left; }
+    .sb-done-sparks { position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: inherit; }
+    .sb-done-sparks i { position: absolute; top: 78px; left: 50%; width: 4px; height: 4px; border-radius: 50%; background: var(--p-gold); opacity: 0; }
+    .sb-done-veil.show .sb-done-sparks i { animation: sb-done-spark 900ms cubic-bezier(.22,1,.36,1) calc(450ms + var(--delay)) both; }
+    @keyframes sb-done-spark { 18% { opacity: .85; } 100% { opacity: 0; transform: rotate(var(--angle)) translateY(-58px) scale(.4); } }
     @media (prefers-reduced-motion: reduce) {
       .sb-boot, .sb-boot *, .sb-done, .sb-done * { animation: none !important; transition: none !important; }
       .sb-ring .p, .sb-done-mark .ring .p, .sb-done-mark .tick { stroke-dashoffset: 0; }
+      .sb-done-sparks { display: none; }
     }
 
     /* ===== 补丁 F · 主色方案：墨白（默认）/ 钛银 / 深海蓝 / 香槟金，统一走 --p-gold 令牌 ===== */
@@ -3030,7 +3058,7 @@
     .sb-act.in { opacity: 1; }
     .sb-act.out { opacity: 0; transition-duration: 600ms; }
     .sb-act-stage { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0; color: #f4f5f7; text-align: center;
-      font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", sans-serif; }
+      font-family: var(--p-font); }
     .sb-act-bloom { position: absolute; left: 50%; top: 70px; width: 520px; height: 520px; margin: -260px 0 0 -260px; border-radius: 50%; pointer-events: none;
       background: radial-gradient(closest-side, rgb(255 244 222 / .30), rgb(140 170 255 / .12) 45%, transparent 72%); opacity: 0; transform: scale(.5); }
     .sb-act.in .sb-act-bloom { animation: act-bloom 1400ms cubic-bezier(.22,1,.36,1) 180ms both; }
@@ -3376,8 +3404,9 @@
     /* 技能卡：右侧多了一栏，主列变窄，统一单列 */
     #farmBody .rank-list { grid-template-columns: max-content !important; }
     @media (min-width: 1360px) { #farmBody .rank-list { grid-template-columns: repeat(2, max-content) !important; } }
-    #farmBody .rank-card { min-height: 56px; }
-    #farmBody .rank-card { min-height: 52px; padding-top: 5px; padding-bottom: 5px; }
+    #farmBody .rank-card { height: 56px; min-height: 56px; box-sizing: border-box; padding-top: 5px; padding-bottom: 5px; }
+    #farmBody .rank-card .name b,
+    #farmBody .rank-card .name span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #farmBody .rank-list { gap: 6px; }
     #farmBody .sb-bond-row { min-height: 28px; }
     #farmBody #bonds .bond-locked.sb-grouped { gap: 6px; padding: 8px 12px; }
@@ -3419,7 +3448,8 @@
     #farmBody .sb-log { display: none !important; }
 
     /* 底栏日志条：默认收起 */
-    .sb-logstrip { position: absolute; left: 0; right: 0; bottom: 56px; z-index: 12; border-top: 1px solid var(--p-line); background: var(--p-chrome, var(--p-bg)); overflow: hidden; height: 0; box-shadow: 0 -12px 28px rgb(0 0 0 / .22); transition: height 220ms cubic-bezier(.32,.72,0,1); }
+    /* UI-24 抖动修复：高度只做瞬时切换，动效只走 opacity/transform，避免 220ms 逐帧重排 */
+    .sb-logstrip { position: absolute; left: 0; right: 0; bottom: 56px; z-index: 12; border-top: 1px solid var(--p-line); background: var(--p-chrome, var(--p-bg)); overflow: hidden; height: 0; box-shadow: 0 -12px 28px rgb(0 0 0 / .22); transition: opacity 160ms ease, transform 220ms var(--ease-standard); }
     .sb-logstrip.open { height: 172px; }
     .sb-logstrip .sb-logstrip-in { height: 172px; box-sizing: border-box; padding: 10px 16px 12px; display: flex; flex-direction: column; gap: 8px; }
     .sb-logstrip .sb-logstrip-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; font-weight: 650; color: var(--p-ink); }
@@ -3599,10 +3629,14 @@
 
     /* ===== 补丁 V16 · 运行日志改成真正的底部抽屉，不再漏底 ===== */
     .sb-logstrip { left: 8px; right: 8px; bottom: 58px; border: 1px solid var(--p-line); border-top: 1px solid var(--p-line);
-      border-radius: 12px; background: var(--p-paper); box-shadow: 0 16px 40px rgb(0 0 0 / .32); }
-    .sb-logstrip.open { height: 170px; }
+      border-radius: 12px; background: #f8f9fb; box-shadow: 0 16px 40px rgb(0 0 0 / .24);
+      backdrop-filter: none; -webkit-backdrop-filter: none; opacity: 0; transform: translateY(8px); pointer-events: none;
+      transition: opacity 160ms ease, transform 220ms var(--ease-standard); }
+    .sb-logstrip.open { height: 170px; opacity: 1; transform: translateY(0); pointer-events: auto; }
     .sb-logstrip .sb-logstrip-in { height: 170px; padding: 12px 14px 14px; gap: 10px; }
-    .sb-logstrip .run-log { background: var(--p-bg); border: 1px solid var(--p-line); font-size: 12px; line-height: 1.6; }
+    .sb-logstrip .run-log { background: #fff; border: 1px solid var(--p-line); font-size: 12px; line-height: 1.6; }
+    body[data-theme="dark"] .sb-logstrip { background: #252a32; }
+    body[data-theme="dark"] .sb-logstrip .run-log { background: #1d2229; }
     .sb-logstrip .run-log:empty { display: flex; align-items: center; justify-content: center; }
     .sb-logstrip .run-log:empty::before { content: "暂无运行日志"; color: var(--p-faint); font-size: 13px; }
 
@@ -3615,7 +3649,7 @@
     #farmBody.sb-railspread .rail > .panel[data-od-id="run-target"] { flex: 1 0 auto; justify-content: space-between; }
     /* 日志抽屉打开时压暗看板，避免被截断的面板看起来像坏掉 */
     .win:has(.sb-logstrip.open)::after { content: ""; position: absolute; left: 0; right: 0; top: 0; bottom: 56px;
-      background: rgb(0 0 0 / .34); z-index: 11; pointer-events: none; }
+      background: rgb(0 0 0 / .20); z-index: 11; pointer-events: none; }
 
     /* ===== 补丁 V17 · 小窗提示与报错不再压字 ===== */
     /* toast 统一用不透明底 + 投影，任何主题下都不会透出底下文字 */
@@ -3637,39 +3671,56 @@
 
     /* ===== 补丁 UI-23 · 宝物与羁绊防重叠、折叠分组、卡组排布与动效优化 ===== */
     .brand .brand-sep { color: var(--p-faint); font-size: 11px; user-select: none; }
+    /* 高级设置现在只承载难度，随内容收高，不留整屏空白。 */
+    .drawer { height: fit-content; max-height: calc(100% - 184px); bottom: auto !important; border-bottom-left-radius: 12px; }
+    body[data-win="compact"] .drawer { max-height: calc(100% - 104px); }
 
-    /* 宝物模块独立在第 2 列，防止与第 1 列的羁绊面板互相重叠争抢 */
+    /* 上排技能与宝物；下排羁绊横跨两列。 */
+    #farmBody .main-workspace { grid-template-rows: max-content max-content !important; align-content: start; }
+    #farmBody .main-workspace > [data-od-id="skill-panel"] {
+      grid-column: 1 !important;
+      grid-row: 1 !important;
+      align-self: start !important;
+    }
     #farmBody .main-workspace > .sb-treasure {
       grid-column: 2 !important;
-      grid-row: 1 / 3 !important;
+      grid-row: 1 !important;
       min-height: 0 !important;
       display: flex !important;
       flex-direction: column !important;
-      overflow: hidden !important;
+      align-self: start !important;
+      overflow: visible !important;
     }
     #farmBody .sb-treasure .sb-treasure-body {
-      flex: 1 1 auto !important;
-      min-height: 0 !important;
-      overflow-y: auto !important;
-      overflow-x: hidden !important;
-      padding-right: 2px !important;
+      flex: 0 0 auto !important;
+      overflow: visible !important;
     }
 
-    /* 羁绊面板在非编辑态下收在第 1 列第 2 行，不再横跨整行覆盖到宝物下方 */
-    #farmBody:not(.sb-bond-editing) .main-workspace > .bond-config {
-      grid-column: 1 !important;
+    #farmBody .main-workspace > .bond-config {
+      grid-column: 1 / -1 !important;
       grid-row: 2 !important;
+      align-self: start !important;
+    }
+    #farmBody.sb-bond-editing [data-od-id="skill-panel"] > :not(.skill-head) { display: none !important; }
+    #farmBody.sb-bond-editing [data-od-id="skill-panel"] .skill-head > button { display: none !important; }
+    #farmBody.sb-bond-editing [data-od-id="skill-panel"] .skill-head { margin: 0; min-height: 28px; }
+    #farmBody.sb-bond-editing .sb-treasure { grid-row: 1 !important; }
+    #farmBody.sb-bond-editing .main-workspace > .bond-config { grid-row: 2 !important; }
+    @media (max-height: 840px) {
+      #farmBody .sb-treasure .neg-group { padding: 4px 0 !important; }
+      #farmBody .sb-treasure, #farmBody .bond-config { padding-bottom: 8px !important; }
     }
 
-    /* 羁绊锁定态卡组排布：左已选、右高级紧密排列，消除右侧大块空白 */
+    /* 羁绊锁定态：基础在左，高级在右；窄窗再自然换行。 */
     #farmBody #bonds:not(:has(.chips)) {
-      display: flex !important;
-      flex-direction: row !important;
-      flex-wrap: wrap !important;
-      align-items: flex-start !important;
-      justify-content: flex-start !important;
-      gap: 16px !important;
+      display: grid !important;
+      grid-template-columns: minmax(0, 1fr) minmax(260px, 1fr) !important;
+      align-items: start !important;
+      gap: 12px 18px !important;
     }
+    #farmBody #bonds:not(:has(.chips)) > .bond-block { min-width: 0; }
+    #farmBody #bonds:not(:has(.chips)) .bond-locked.sb-grouped,
+    #farmBody #bonds:not(:has(.chips)) .adv-priority { width: 100% !important; }
     #farmBody #bonds:not(:has(.chips)) > .bond-actions {
       position: absolute !important;
       top: 8px !important;
@@ -3677,6 +3728,9 @@
       border: 0 !important;
       padding: 0 !important;
       margin: 0 !important;
+    }
+    @media (max-width: 860px) {
+      #farmBody #bonds:not(:has(.chips)) { grid-template-columns: minmax(0, 1fr) !important; }
     }
 
     /* 特殊宝物可折叠分组：默认收起，紧凑清晰 */
@@ -3700,7 +3754,9 @@
       user-select: none;
       background: var(--p-paper) !important;
       list-style: none;
+      transition: background-color 160ms var(--ease-standard);
     }
+    .neg-fold > summary.neg-group:hover { background: var(--p-fill) !important; }
     .neg-fold > summary::-webkit-details-marker { display: none; }
     .neg-fold > summary .fold-title { font-weight: 700; color: var(--p-ink); flex: 0 0 auto; }
     .neg-fold > summary .fold-sum { font-size: 11px; font-weight: 500; color: var(--p-muted); margin-left: auto; white-space: nowrap; }
@@ -3713,6 +3769,8 @@
       flex-direction: column;
       gap: 2px;
     }
+    .neg-fold[open] .neg-items { animation: sb-neg-reveal 180ms var(--ease-standard); }
+    @keyframes sb-neg-reveal { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 
     /* 动效尊重 prefers-reduced-motion */
     @media (prefers-reduced-motion: reduce) {
@@ -3723,6 +3781,229 @@
         scroll-behavior: auto !important;
       }
     }
+    /* ===== 补丁 UI-24 · 看板升级：同层面板底对齐、宝物手风琴、篇章分列、羁绊空态与排序 ===== */
+    /* 同层面板底对齐：上排「技能搭配 / 宝物设置」等高；下排羁绊铺到底，与左栏运行目标底边齐平。 */
+    #farmBody .main-workspace { grid-template-rows: auto minmax(0, 1fr) !important; align-content: stretch !important; }
+    #farmBody .main-workspace > [data-od-id="skill-panel"],
+    #farmBody .main-workspace > .sb-treasure { align-self: stretch !important; }
+    #farmBody .main-workspace > .bond-config { align-self: stretch !important; min-height: 0; display: flex; flex-direction: column; }
+    #farmBody .bond-config > .panel-fold { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+    #farmBody .bond-config > .panel-fold > #bonds { flex: 1 1 auto; min-height: 0; overflow: auto; }
+    /* 布局脚本测量时恢复自然高度（只在同一帧内生效，不会绘制出来） */
+    #farmBody.sb-measuring .main-workspace { grid-template-rows: auto auto !important; }
+    #farmBody.sb-measuring .main-workspace > .bond-config { align-self: start !important; }
+    body[data-scene="farm"] #farmBody.sb-measuring .rail > .panel[data-od-id="run-target"],
+    body[data-scene="lead"] #farmBody.sb-measuring .rail > .panel:last-child { flex: 0 0 auto !important; }
+    /* 左栏最后一块面板铺到底：单刷只有「运行目标」；带车时由下面的「带车房间」铺到底 */
+    #farmBody .rail > .panel[data-od-id="run-target"] { display: flex; flex-direction: column; }
+    body[data-scene="farm"] #farmBody .rail > .panel[data-od-id="run-target"] { flex: 1 0 auto !important; }
+    body[data-scene="farm"] #farmBody .rail > .panel[data-od-id="run-target"] > .switch-row:has(#swSecret) { margin-top: auto !important; }
+    body[data-scene="lead"] #farmBody .rail > .panel:last-child { flex: 1 0 auto !important; }
+    #farmBody .rail > .panel[data-od-id="run-target"] > * { flex-shrink: 0; }
+    #farmBody .main-workspace > .panel, #farmBody .rail > .panel[data-od-id="run-target"] { padding-top: 10px !important; }
+    /* 各面板标题行统一 28px 高、垂直居中，三栏标题在同一水平线上 */
+    #farmBody .main-workspace > .panel > h3, #farmBody .rail > .panel > h3 { min-height: 28px; display: flex; align-items: center; }
+
+    /* 宝物设置：标题后一句小字说明默认规则，分组行只显示「已选 N」，内容两列排布 */
+    #farmBody .sb-treasure > h3 { display: flex; align-items: center; gap: 8px; min-height: 28px; margin: 0 0 8px; }
+    #farmBody .sb-treasure > h3 .sb-h-note { margin-left: 2px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--p-muted); white-space: nowrap; }
+    #farmBody .sb-treasure h4.sb-lead { display: none !important; }
+    #farmBody .sb-treasure .sb-treasure-body #negatives { display: flex; flex-direction: column; gap: 6px; }
+    #farmBody .sb-treasure .neg-fold { margin: 0 !important; border-radius: 8px; border: 1px solid var(--p-line); background: var(--p-fill); }
+    #farmBody .sb-treasure .neg-fold > summary.neg-group {
+      min-height: 32px; height: 32px; box-sizing: border-box;
+      padding: 0 10px 0 12px !important; gap: 8px !important;
+      font-size: 13px !important; font-weight: 600 !important; line-height: 1;
+      background: transparent !important; border-radius: 8px;
+    }
+    #farmBody .sb-treasure .neg-fold > summary.neg-group:hover { background: color-mix(in oklab, var(--p-ink) 5%, transparent) !important; }
+    #farmBody .sb-treasure .neg-fold[open] > summary.neg-group { border-radius: 8px 8px 0 0; }
+    #farmBody .sb-treasure .neg-fold > summary .fold-title { font-weight: 600; }
+    #farmBody .sb-treasure .neg-fold > summary .fold-sum:empty { display: none; }
+    #farmBody .sb-treasure .neg-fold > summary .fold-sum {
+      margin-left: auto; padding: 2px 7px; border-radius: 999px;
+      font-size: 11px; font-weight: 650; line-height: 1.3;
+      color: var(--p-gold-ink); background: var(--p-gold);
+    }
+    #farmBody .sb-treasure .neg-fold > summary .fold-caret { margin-left: auto; }
+    #farmBody .sb-treasure .neg-fold > summary .fold-sum:not(:empty) + .fold-caret { margin-left: 2px; }
+    #farmBody .sb-treasure .neg-fold .neg-items {
+      display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 4px;
+      padding: 6px !important;
+    }
+    #farmBody .sb-treasure .neg-item {
+      min-height: 28px !important; box-sizing: border-box; margin: 0 !important;
+      padding: 0 8px !important; border-radius: 6px; display: flex; align-items: center; gap: 8px;
+      font-size: 13px; white-space: nowrap;
+    }
+    #farmBody .sb-treasure .neg-item:hover { background: var(--p-paper); }
+    #farmBody .sb-treasure .neg-item b { font-weight: 600; }
+    #farmBody .sb-treasure .neg-item .fx { display: none !important; }
+    #farmBody .sb-treasure > .switch-row { margin-top: auto !important; padding-top: 8px; border-top: 1px solid var(--p-line); min-height: 36px; flex: 0 0 auto; }
+    #farmBody .sb-treasure .sb-treasure-body { margin-bottom: 8px; }
+    #farmBody .sb-treasure .dragon-icon-wrap { color: var(--p-ink); margin-right: 6px; }
+    .dragon-icon-wrap { color: inherit; }
+
+    /* 篇章：名称左、阶段右，阶段做成小标签 */
+    #chapterBtn b, #chapterMenu button { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    #chapterBtn b { flex: 1 1 auto; }
+    #chapterBtn .dd-name, #chapterMenu .dd-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #chapterBtn .dd-stage, #chapterMenu .dd-stage {
+      margin-left: auto; flex: 0 0 auto; padding: 2px 6px; border-radius: 4px;
+      font-size: 11px; font-weight: 600; line-height: 1.3; color: var(--p-muted);
+      background: color-mix(in oklab, var(--p-ink) 7%, transparent);
+    }
+    #chapterBtn i { margin-left: 8px; }
+
+    /* 羁绊：两块等高，已选卡组与高级顺序各占一半 */
+    #farmBody #bonds:not(:has(.chips)) { align-items: stretch !important; grid-template-rows: minmax(0, 1fr); }
+    #farmBody #bonds:not(:has(.chips)) > .bond-block { display: flex; flex-direction: column; min-height: 0; }
+    #farmBody #bonds:not(:has(.chips)) > .bond-block > :not(h4) { flex: 1 1 auto; }
+    #farmBody #bonds:not(:has(.chips)) .adv-priority { padding: 8px !important; }
+    /* 高级卡组顺序：紧凑行，拖动或 ▲▼ 排序；超过 3 个自动分两列（按列从上到下编号） */
+    #farmBody .adv-ord-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; align-content: start; }
+    #farmBody .adv-ord-list.is-2col { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(var(--rows, 2), auto); grid-auto-flow: column; }
+    #farmBody .adv-ord {
+      display: flex; align-items: center; gap: 8px; height: 36px; box-sizing: border-box;
+      padding: 0 4px 0 6px; border-radius: 8px; border: 1px solid var(--p-line); background: var(--p-paper);
+      cursor: grab; transition: border-color 150ms var(--ease-standard), opacity 150ms var(--ease-standard);
+    }
+    #farmBody .adv-ord.is-first { box-shadow: inset 3px 0 0 var(--p-gold); }
+    #farmBody .adv-ord .rank-no {
+      flex: 0 0 20px; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 4px; font-family: var(--p-mono); font-size: 11px; font-weight: 800; color: var(--p-muted);
+      background: color-mix(in oklab, var(--p-ink) 7%, transparent);
+    }
+    #farmBody .adv-ord.is-first .rank-no { color: var(--p-gold-ink); background: var(--p-gold); }
+    #farmBody .adv-ord b { flex: 1 1 auto; min-width: 0; font-size: 13px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #farmBody .adv-grip { flex: 0 0 auto; color: var(--p-faint); font-size: 10px; letter-spacing: -2px; line-height: 1; }
+    #farmBody .adv-ord .adv-step { display: inline-flex !important; flex-direction: row !important; gap: 2px; flex: 0 0 auto; width: auto !important; height: auto !important; padding: 0 !important; border: 0 !important; background: none !important; box-shadow: none !important; }
+    #farmBody .adv-ord .adv-step button {
+      width: 22px !important; height: 22px !important; min-height: 0 !important; padding: 0 !important;
+      border: 0 !important; border-radius: 4px !important; background: transparent !important; box-shadow: none !important;
+      color: var(--p-muted); font-size: 9px; line-height: 22px; cursor: pointer;
+    }
+    #farmBody .adv-ord .adv-step button:hover:not(:disabled) { background: var(--p-fill) !important; color: var(--p-ink); }
+    #farmBody .adv-ord .adv-step button:disabled { opacity: .28; cursor: default; }
+    #farmBody .adv-ord.is-dragging { opacity: .45; }
+    #farmBody .adv-ord.is-over { border-color: var(--p-gold); }
+    /* 高级卡组空态：三个虚线槽位 + 直达入口 */
+    #farmBody .adv-empty {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: center; gap: 10px 12px;
+      padding: 12px; border-radius: 8px; border: 1px solid var(--p-line); background: var(--p-fill); box-sizing: border-box;
+    }
+    #farmBody .adv-slots { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+    #farmBody .adv-slot {
+      display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; border-radius: 6px;
+      border: 1px dashed color-mix(in oklab, var(--p-muted) 45%, transparent);
+    }
+    #farmBody .adv-slot .rank-no {
+      flex: 0 0 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px;
+      font-family: var(--p-mono); font-size: 10px; font-weight: 800; color: var(--p-muted);
+      background: color-mix(in oklab, var(--p-ink) 6%, transparent);
+    }
+    #farmBody .adv-slot-line { flex: 1 1 auto; height: 6px; border-radius: 3px; background: color-mix(in oklab, var(--p-ink) 7%, transparent); }
+    #farmBody .adv-empty-text { margin: 0; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    #farmBody .adv-empty-text b { font-size: 13px; font-weight: 650; color: var(--p-ink); }
+    #farmBody .adv-empty-text span { font-size: 12px; color: var(--p-muted); }
+    #farmBody .adv-empty .text-btn { align-self: center; white-space: nowrap; }
+    /* 编辑羁绊时：技能与宝物都收成一行标题，宝物摘要跟在标题后 */
+    #farmBody.sb-bond-editing .sb-treasure { flex-direction: row !important; align-items: center !important; gap: 12px; }
+    #farmBody.sb-bond-editing .sb-treasure > h3 { margin: 0 !important; }
+    #farmBody.sb-bond-editing .sb-treasure .sb-tmini { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    #farmBody.sb-bond-editing .sb-treasure > h3 .sb-h-note { display: none; }
+    #farmBody #bonds:has(.chips) { align-content: start !important; }
+    /* 声望挑战任务列表加宽，长条任务不再把「-25%」单独挤到第二行 */
+    .rep-layout { grid-template-columns: minmax(0, 1fr) 216px !important; }
+    .rep-layout .task { grid-template-columns: 16px minmax(0, 1fr) !important; }
+    /* 宝物效果说明：旧的 ::after 提示会被分组/面板裁掉，改成挂在页面最上层的浮层（UI-24 脚本定位） */
+    #farmBody .sb-treasure .neg-item[data-fx]:hover::after { content: none !important; display: none !important; }
+    #farmBody .sb-treasure .neg-item .fx { display: block !important; position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    .sb-tip {
+      position: fixed; z-index: 2000; width: 232px; box-sizing: border-box; padding: 8px 10px; border-radius: 8px;
+      font-size: 12px; font-weight: 400; line-height: 1.55; pointer-events: none; opacity: 0; transform: translateX(4px);
+      transition: opacity 120ms var(--ease-standard), transform 120ms var(--ease-standard);
+      color: var(--p-ink); background: #fff; border: 1px solid var(--p-line); box-shadow: var(--p-float-shadow, 0 12px 28px rgb(0 0 0 / .3));
+    }
+    body[data-theme="dark"] .sb-tip { background: rgb(40 44 51); }
+    .sb-tip b { display: block; margin-bottom: 2px; font-weight: 650; }
+    .sb-tip.show { opacity: 1; transform: none; }
+    @media (prefers-reduced-motion: reduce) { .sb-tip { transition: none; } }
+    /* 窄一些的看板（≤1000 宽）：技能卡跟随面板宽度，卡组标签收紧，不再被裁切或换行 */
+    @media (max-width: 1000px) {
+      #farmBody .rank-list { grid-template-columns: minmax(0, 1fr) !important; }
+      #farmBody .rank-card { grid-template-columns: 20px var(--sb-ico, 42px) minmax(0, 1fr) 124px 20px !important; column-gap: 8px !important; width: auto !important; justify-self: stretch !important; max-width: none !important; }
+      #farmBody .adv-grip { display: none; }
+      #farmBody .adv-ord { gap: 6px; padding-left: 8px; }
+      #farmBody .rank-card select { min-width: 0; width: 100% !important; }
+      #farmBody #bonds .bond-locked .deck-tag, #farmBody #bonds .deck-tag { padding-left: 8px; padding-right: 8px; }
+      #farmBody #bonds:not(:has(.chips)) { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) !important; gap: 12px 14px !important; }
+    }
+    /* 过场卡顿：窗口、面板、底栏、弹层原来都叠了 backdrop-filter 毛玻璃（共 30 多处）。它们下面只是平滑的窗口底色或 92%+ 不透明的面板，
+       模糊几乎看不出来，却让每一帧过场动画都要重新模糊整窗。统一关掉，视觉基本不变，动画不再掉帧。 */
+    #scene-app, #scene-app *, .hud-overlay, .hud-overlay * { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+    /* 策略列表：每一行同宽，删除按钮对齐在同一列；新建的空策略名称不再被挤成「自定义策…」 */
+    #farmBody [data-od-id="skill-panel"] .builds { align-items: stretch !important; }
+    #farmBody [data-od-id="skill-panel"] .build-item:not(.is-collapsed) { display: flex; width: 100% !important; gap: 8px; }
+    #farmBody [data-od-id="skill-panel"] .build-item:not(.is-collapsed) > .build { flex: 1 1 auto; width: auto !important; min-width: 0 !important; max-width: none !important; }
+    #farmBody [data-od-id="skill-panel"] .build-item > .build-del { flex: 0 0 auto; }
+    /* 过场卡顿（实测主因）：完成/激活/预检时的彩色边框流光。原实现是两张 1600×1600 锥形渐变层 + 全窗内阴影，
+       每次出现都要当场栅格化约 500 万像素，正好卡在过场动画开头。改成 400×400 小图放大 3.3 倍旋转（渐变放大看不出差别），
+       并让流光层与内阴影常驻合成层，出现/消失只改透明度。 */
+    .rb-ring b { width: 400px !important; height: 400px !important; margin: -200px 0 0 -200px !important; transform: scale(3.3); }
+    .siri-glow-border.active .rb-ring b { animation-name: rb-rot-s !important; }
+    @keyframes rb-rot-s { from { transform: scale(3.3) rotate(0deg); } to { transform: scale(3.3) rotate(360deg); } }
+    .siri-glow-border, .siri-glow-border::after, .rb-ring .full { will-change: opacity; }
+    /* 内晕：全窗大半径 inset 阴影栅格化很贵，改用四条边的线性渐变，观感相同 */
+    .siri-glow-border::after, .siri-glow-border.rb-surge::after {
+      box-shadow: none !important;
+      background:
+        linear-gradient(to right, rgb(110 170 255 / .30), transparent 30px) left / 30px 100% no-repeat,
+        linear-gradient(to left, rgb(110 170 255 / .30), transparent 30px) right / 30px 100% no-repeat,
+        linear-gradient(to bottom, rgb(255 214 150 / .24), transparent 30px) top / 100% 30px no-repeat,
+        linear-gradient(to top, rgb(110 170 255 / .30), transparent 30px) bottom / 100% 30px no-repeat;
+    }
+    @media (prefers-reduced-motion: reduce) { .siri-glow-border .rb-ring b { animation: none !important; } }
+    /* 订阅胶囊「有效」态：原来整颗染成浅绿（浅色主题文字对比度仅 1.9:1，也和钛银看板色系不搭）。
+       改为与标题栏其它控件一致的中性胶囊，只用状态点表示「有效」；待激活/异常仍保留醒目的警示色。 */
+    #scene-app .subscription-pill[data-state="ok"] {
+      color: var(--p-ink) !important;
+      background: color-mix(in oklab, var(--p-ink) 5%, transparent) !important;
+      border-color: var(--p-line) !important;
+    }
+    #scene-app .subscription-pill[data-state="ok"]:hover { background: color-mix(in oklab, var(--p-ink) 9%, transparent) !important; color: var(--p-ink) !important; }
+    #scene-app .subscription-pill[data-state="ok"] .dot { background: var(--p-ok); box-shadow: 0 0 0 3px color-mix(in oklab, var(--p-ok) 22%, transparent); }
+    body[data-theme="light"] #scene-app .subscription-pill[data-state="ok"] .dot, #scene-app.win[data-theme="light"] .subscription-pill[data-state="ok"] .dot { background: #1f8a3b; }
+    /* 小窗标题栏只留图标，隐藏多余的分隔点 */
+    body[data-win="compact"] .brand .brand-sep { display: none !important; }
+    /* 带车房间压成两行：标题行右侧放「每局新建」开关；名称与密码并排（标签改为占位文字，读屏仍可读到），左栏不再被挤出窗口 */
+    body[data-scene="lead"] #leadBox { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-content: start; }
+
+    /* ===== 补丁 UI-24 细节验收：抽屉避让、编辑出口、行高、对比度 ===== */
+    /* 高级设置抽屉打开时技能头让位，避免「选择其他策略」被盖住裁切 */
+    #scene-app:has(.drawer.open) [data-od-id="skill-panel"] .skill-head { padding-right: 52px; }
+    /* 羁绊编辑：取消 / 保存 两枚按钮靠右并排 */
+    #farmBody #bonds .bond-actions #btnCancelBonds { margin-left: auto; }
+    #farmBody #bonds .bond-actions #btnSaveBonds { margin-left: 0; }
+    #farmBody #bonds:not(:has(.chips)) > .bond-actions #btnEditBonds { margin-left: 0; }
+    /* 带车：左栏末块与羁绊底边对齐（去掉默认 margin 造成的 10px 落差） */
+    body[data-scene="lead"] #farmBody .rail > .panel:last-child { margin-bottom: 0 !important; }
+    body[data-scene="lead"] #farmBody .main-workspace > .bond-config { margin-bottom: 0 !important; }
+    /* 蹭车/跟车小窗：模式标签不折行 */
+    body[data-win="compact"] .mode-bar .tab,
+    body[data-win="compact"] .mode-tab { white-space: nowrap; }
+    /* 声望任务：长句整体折行，不让「-25%」单独成行 */
+    .task span { text-wrap: pretty; }
+    .task { font-size: 11.5px; }
+    #leadBox > h3 { grid-column: 1; margin: 0 !important; min-width: 0; white-space: nowrap; }
+    #leadBox > .switch-row { grid-column: 2; grid-row: 1; justify-self: end; gap: 8px; min-height: 28px !important; font-size: 12px !important; color: var(--p-muted); }
+    #leadBox > .hint { display: none !important; }
+    body[data-scene="lead"] #farmBody .rail { gap: 8px !important; }
+    #leadBox .field { margin: 0 !important; min-width: 0; }
+    #leadBox .field label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    #leadBox .field input { height: 34px; min-width: 0; width: 100%; box-sizing: border-box; }
+    /* 编辑态：高级卡组勾选后，排序列表跟在选项下面 */
+    #farmBody #bonds:has(.chips) .adv-priority { margin-top: 8px; max-width: 560px; }
 </style>
 </head>
 <body data-scene="farm" data-theme="dark" data-win="board" data-running="false">
@@ -3876,7 +4157,7 @@
           <div id="bonds">
             <div class="bond-block" data-od-id="bond-saved-summary"><h4><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="3.5" y="7" width="9" height="6.5" rx="1.2"></rect><path d="M5.6 7V5.3a2.4 2.4 0 0 1 4.8 0V7"></path></svg></span>基础卡组</h4><div class="bond-locked"><span class="deck-tag">智力</span><span class="deck-tag">祝福</span><span class="deck-tag">成长</span><span class="deck-tag">经济</span><span class="deck-tag">贪婪</span><span class="deck-tag">挑战</span><span class="deck-tag">法术</span><span class="deck-tag">急速</span><span class="deck-tag">魔能</span><span class="deck-tag">暴击</span></div></div>
             <div class="bond-block" data-od-id="advanced-pack-priority"><h4><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.8 9.6 6.1 14.2 6.5 10.8 9.6 11.8 14.2 8 11.9 4.2 14.2 5.2 9.6 1.8 6.5 6.4 6.1Z"></path></svg></span>高级卡组顺序</h4><div class="adv-priority" data-od-id="advanced-pack-priority"><div class="adv-priority-list"><div class="adv-priority-row"><div class="dd adv-combo-wrap"><button type="button" class="adv-combo dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="第1优先级 海盗"><span class="rank-no">1</span><b title="海盗">海盗</b><em>第1优先级</em><i>▾</i></button><div class="dd-menu" role="listbox"><button type="button" role="option" data-adv-pick="haidao" data-adv-slot="0" aria-selected="true">海盗</button><button type="button" role="option" data-adv-pick="fengshen" data-adv-slot="0" aria-selected="false">封神</button></div></div><span class="adv-step"><button type="button" data-adv-move="-1" data-adv-id="haidao" disabled aria-label="海盗 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="haidao" aria-label="海盗 下移">▼</button></span></div><div class="adv-priority-row"><div class="dd adv-combo-wrap"><button type="button" class="adv-combo dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="第2优先级 封神"><span class="rank-no">2</span><b title="封神">封神</b><em>第2优先级</em><i>▾</i></button><div class="dd-menu" role="listbox"><button type="button" role="option" data-adv-pick="haidao" data-adv-slot="1" aria-selected="false">海盗</button><button type="button" role="option" data-adv-pick="fengshen" data-adv-slot="1" aria-selected="true">封神</button></div></div><span class="adv-step"><button type="button" data-adv-move="-1" data-adv-id="fengshen" aria-label="封神 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="fengshen" disabled aria-label="封神 下移">▼</button></span></div></div></div></div>
-            <div class="bond-actions"><p class="hint">卡组已锁定。高级优先级用下拉或 ▲▼ 即时生效。</p><button type="button" class="secondary" id="btnEditBonds">调整配置</button></div>
+            <div class="bond-actions"><p class="hint">卡组已锁定。高级顺序可拖动或 ▲▼ 调整，即时生效。</p><button type="button" class="secondary" id="btnEditBonds">调整配置</button></div>
           </div>
           </details>
         </section>
@@ -4025,7 +4306,7 @@
     </footer>
     <div class="drawer-backdrop" id="drawerBackdrop"></div>
     <aside class="drawer" id="drawer" role="dialog" aria-labelledby="drawerTitle" aria-modal="false" aria-hidden="true">
-      <h3 id="drawerTitle">高级设置</h3>
+      <div class="drawer-head"><h3 id="drawerTitle">高级设置</h3><button type="button" class="drawer-close" id="btnDrawerClose" aria-label="关闭高级设置">✕</button></div>
       <h4>关卡难度<small>连败时自动降档</small></h4><div class="fail-down"><span>失败</span><input id="downgradeAfterFailures" type="number" inputmode="numeric" min="0" max="20" step="1" value="2" aria-label="连续失败几局" /><span>局，降低</span><input id="downgradeSteps" type="number" inputmode="numeric" min="1" max="10" step="1" value="1" aria-label="降低几级关卡难度" /><span>级关卡难度</span></div><p class="fail-hint">局数填 0 即关闭</p>
       <h4>特殊宝物<small>默认不拿，勾选即放行</small></h4>
       <div class="neg" id="negatives"></div>
@@ -5051,16 +5332,21 @@
         if (btn) btn.setAttribute("aria-expanded", "false");
       });
     }
-    function renderDD(kind, items, value, labelOf) {
+    function renderDD(kind, items, value, labelOf, htmlOf) {
       const btn = $(kind+"Btn"), menu = $(kind+"Menu");
       if (!btn || !menu) return;
       const cur = items.find((it)=>String(it.id)===String(value)) || items[0];
-      btn.querySelector("b").textContent = labelOf(cur);
-      menu.innerHTML = items.map((it)=>`<button type="button" role="option" data-dd-val="${it.id}" aria-selected="${String(it.id)===String(value)}">${labelOf(it)}</button>`).join("");
+      if (htmlOf) btn.querySelector("b").innerHTML = htmlOf(cur); else btn.querySelector("b").textContent = labelOf(cur);
+      menu.innerHTML = items.map((it)=>`<button type="button" role="option" data-dd-val="${it.id}" aria-selected="${String(it.id)===String(value)}">${htmlOf ? htmlOf(it) : labelOf(it)}</button>`).join("");
+    }
+    // 篇章名与阶段分两列：名称左对齐，阶段作右侧小标，字数不同也不会挤在一起
+    function chapterHtml(c) {
+      const [name, stage] = String(c.label).trim().split(/\s+/);
+      return `<span class="dd-name">${esc(name)}</span> <span class="dd-stage">${esc(stage || "")}</span>`;
     }
     function stageItems(ch) { return Array.from({length:STAGE_MAX[ch]},(_,i)=>({id:i+1,label:`${ch}-${i+1}`})); }
     function renderChapterStage() {
-      renderDD("chapter", CHAPTERS, state.chapter, (c)=>c.label);
+      renderDD("chapter", CHAPTERS, state.chapter, (c)=>c.label, chapterHtml);
       renderDD("stage", stageItems(state.chapter), state.stage, (s)=>s.label);
     }
     function renderPrestige() {
@@ -5162,13 +5448,26 @@
       renderBonds();
     }
     function advPriorityMarkup(advancedOrder) {
-      if (!advancedOrder.length) return `<p class="deck-note">暂未选择高级卡组。</p>`;
+      if (!advancedOrder.length) {
+        // 空态：三个虚线槽位说明「按顺序拿」，并给出直达入口，不留大片空白
+        const slots = [1, 2, 3].map((n) => `<span class="adv-slot"><span class="rank-no">${n}</span><span class="adv-slot-line"></span></span>`).join("");
+        return `<div class="adv-empty"><div class="adv-slots" aria-hidden="true">${slots}</div><p class="adv-empty-text"><b>未启用高级卡组</b><span>勾选后按这里的顺序优先拿。</span></p><button type="button" class="text-btn" id="btnPickAdv">选择高级卡组</button></div>`;
+      }
       const last = advancedOrder.length - 1;
-      const rows = advancedOrder.map((pack, index) => {
-        const options = advancedOrder.map((item) => `<button type="button" role="option" data-adv-pick="${item.id}" data-adv-slot="${index}" aria-selected="${item.id===pack.id}">${item.label}</button>`).join("");
-        return `<div class="adv-priority-row"><div class="dd adv-combo-wrap"><button type="button" class="adv-combo dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="第${index+1}优先级 ${pack.label}"><span class="rank-no">${index+1}</span><b title="${pack.label}">${pack.label}</b><em>第${index+1}优先级</em><i>▾</i></button><div class="dd-menu" role="listbox">${options}</div></div><span class="adv-step"><button type="button" data-adv-move="-1" data-adv-id="${pack.id}" ${index===0 ? "disabled" : ""} aria-label="${pack.label} 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="${pack.id}" ${index===last ? "disabled" : ""} aria-label="${pack.label} 下移">▼</button></span></div>`;
-      }).join("");
-      return `<div class="adv-priority" data-od-id="advanced-pack-priority"><div class="adv-priority-list">${rows}</div></div>`;
+      const rows = advancedOrder.map((pack, index) => `<li class="adv-ord${index===0 ? " is-first" : ""}" draggable="true" data-adv-id="${pack.id}" title="拖动或用 ▲▼ 调整顺序"><span class="adv-grip" aria-hidden="true">⋮⋮</span><span class="rank-no">${index+1}</span><b>${pack.label}</b><span class="adv-step"><button type="button" data-adv-move="-1" data-adv-id="${pack.id}" ${index===0 ? "disabled" : ""} aria-label="${pack.label} 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="${pack.id}" ${index===last ? "disabled" : ""} aria-label="${pack.label} 下移">▼</button></span></li>`).join("");
+      const cols = advancedOrder.length > 3 ? " is-2col" : "";
+      return `<div class="adv-priority" data-od-id="advanced-pack-priority"><ol class="adv-ord-list${cols}" style="--rows:${Math.ceil(advancedOrder.length / 2)}" aria-label="高级卡组优先级">${rows}</ol></div>`;
+    }
+    function moveAdvTo(packId, targetId) {
+      const from = state.adv.indexOf(packId), to = state.adv.indexOf(targetId);
+      if (from < 0 || to < 0 || from === to) return;
+      const next = state.adv.slice();
+      const [item] = next.splice(from, 1);
+      next.splice(to, 0, item);
+      state.adv = next;
+      state.advDraft = next.slice();
+      syncCurrentCustom();
+      renderBonds();
     }
     function syncBondFold(packById) {
       const fold = $("bondFold");
@@ -5185,9 +5484,9 @@
       syncBondFold(packById);
       if (state.bondSaved) { renderBondSummary(packById); renderLaunchSummary(); return; }
       const advancedOrder = state.adv.map((id)=>packById[id]).filter(Boolean);
-      const advanced = `<div class="bond-block" data-od-id="advanced-pack-selector"><h4>${blockIcon("star")}高级卡组</h4><div class="chips">${ADV.map((pack)=>`<button type="button" class="chip" data-pack="${pack.id}" aria-pressed="${state.adv.includes(pack.id)}">${pack.label}</button>`).join("")}</div>${advancedOrder.length ? advPriorityMarkup(advancedOrder) : `<p class="deck-note">勾选后在此调整优先级，不必先锁定卡组。</p>`}</div>`;
+      const advanced = `<div class="bond-block" data-od-id="advanced-pack-selector"><h4>${blockIcon("star")}高级卡组</h4><div class="chips">${ADV.map((pack)=>`<button type="button" class="chip" data-pack="${pack.id}" aria-pressed="${state.adv.includes(pack.id)}">${pack.label}</button>`).join("")}</div>${advancedOrder.length ? advPriorityMarkup(advancedOrder) : `<p class="deck-note">勾选后按勾选顺序排优先级，可拖动或 ▲▼ 调整。</p>`}</div>`;
       const coreCards = `<div class="bond-block"><h4>${blockIcon("attr")}属性</h4><div class="chips">${ATTR.map((a)=>`<button type="button" class="chip" data-attr="${a.id}" aria-pressed="${state.attr.has(a.id)}">${a.label}</button>`).join("")}</div></div><div class="bond-block"><h4>${blockIcon("growth")}发育卡组</h4><div class="chips">${GROWTH.map((n)=>`<button type="button" class="chip" data-bond-set="growth" data-bond="${n}" aria-pressed="${state.growth.has(n)}">${n}</button>`).join("")}</div></div><div class="bond-block"><h4>${blockIcon("cards")}基础卡组</h4><div class="chips">${BASIC.map((n)=>`<button type="button" class="chip" data-bond-set="basic" data-bond="${n}" aria-pressed="${state.basic.has(n)}">${n}</button>`).join("")}</div></div>`;
-      const save = `<div class="bond-actions"><p class="hint">保存后锁定卡组勾选；高级顺序仍可随时改。</p><button type="button" class="gold" id="btnSaveBonds">保存羁绊</button></div>`;
+      const save = `<div class="bond-actions"><p class="hint">保存后锁定卡组勾选；高级顺序仍可随时改。</p><button type="button" class="secondary" id="btnCancelBonds">取消</button><button type="button" class="gold" id="btnSaveBonds">保存羁绊</button></div>`;
       $("bonds").innerHTML = `${coreCards}${advanced}${save}`;
       renderLaunchSummary();
     }
@@ -5201,11 +5500,12 @@
         ? `<div class="bond-locked">${basics.map((n)=>`<span class="deck-tag">${n}</span>`).join("")}</div>`
         : `<p class="deck-note">暂未选择基础羁绊。</p>`;
       const advancedOrder = state.adv.map((id)=>packById[id]).filter(Boolean);
-      const actions = `<div class="bond-actions"><p class="hint">卡组已锁定。高级优先级用下拉或 ▲▼ 即时生效。</p><button type="button" class="secondary" id="btnEditBonds">调整配置</button></div>`;
+      const actions = `<div class="bond-actions"><p class="hint">卡组已锁定。高级顺序可拖动或 ▲▼ 调整，即时生效。</p><button type="button" class="secondary" id="btnEditBonds">调整配置</button></div>`;
       $("bonds").innerHTML = `<div class="bond-block" data-od-id="bond-saved-summary"><h4>${blockIcon("lock")}基础卡组</h4>${basicRow}</div><div class="bond-block" data-od-id="advanced-pack-priority"><h4>${blockIcon("star")}高级卡组顺序</h4>${advPriorityMarkup(advancedOrder)}</div>${actions}`;
     }
     function dragonIconSvg(size = 16) {
-      return `<svg viewBox="0 0 24 24" width="${size}" height="${size}"><defs><radialGradient id="dbGradD" cx="35%" cy="32%" r="65%"><stop offset="0%" stop-color="#ffe66d"/><stop offset="35%" stop-color="#ff9900"/><stop offset="75%" stop-color="#e65100"/><stop offset="100%" stop-color="#bf2600"/></radialGradient><linearGradient id="dbShineD" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#ffffff" stop-opacity="0.85"/><stop offset="100%" stop-color="#ffffff" stop-opacity="0"/></linearGradient></defs><circle cx="12" cy="12" r="10" fill="url(#dbGradD)"/><ellipse cx="9" cy="7.5" rx="4.5" ry="2.2" fill="url(#dbShineD)" transform="rotate(-25 9 7.5)"/><g fill="#c41c00"><polygon points="12,7 12.7,8.8 14.6,8.8 13.1,10 13.6,11.8 12,10.6 10.4,11.8 10.9,10 9.4,8.8 11.3,8.8" transform="scale(0.48) translate(13, 7)"/><polygon points="12,7 12.7,8.8 14.6,8.8 13.1,10 13.6,11.8 12,10.6 10.4,11.8 10.9,10 9.4,8.8 11.3,8.8" transform="scale(0.48) translate(7, 17)"/><polygon points="12,7 12.7,8.8 14.6,8.8 13.1,10 13.6,11.8 12,10.6 10.4,11.8 10.9,10 9.4,8.8 11.3,8.8" transform="scale(0.48) translate(19, 17)"/><polygon points="12,7 12.7,8.8 14.6,8.8 13.1,10 13.6,11.8 12,10.6 10.4,11.8 10.9,10 9.4,8.8 11.3,8.8" transform="scale(0.48) translate(13, 27)"/></g></svg>`;
+      // 龙珠：线性圆珠 + 高光弧 + 四角星，跟随文字色，与看板其他线性图标同一套笔画。
+      return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path d="M7.4 10.2a4.9 4.9 0 0 1 2.9-3" opacity=".7"/><path d="M13.6 9.4l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" fill="currentColor" stroke-width="1.2"/></svg>`;
     }
     function renderLaunchSummary() {
       const selectedBasics = [
@@ -5367,14 +5667,18 @@
     function renderNegatives() {
       const container = $("negatives");
       if (!container) return;
+      // 手风琴：同一时间只展开一组。优先还原用户上次展开的那组；从没操作过默认展开「属性」。
+      const negKeys = NEG_GROUPS.map((_, i) => `neg_${i}`);
+      const folds = state.folds || {};
+      const negOpenKey = negKeys.find((k) => folds[k]) || (negKeys.some((k) => Object.hasOwn(folds, k)) ? null : "neg_2");
       container.innerHTML = NEG_GROUPS.map((g, idx) => {
         const checkedCount = g.items.filter((card) => state.negative && state.negative.has(card.name)).length;
-        const sumText = checkedCount > 0 ? `已选 ${checkedCount}` : "默认不拿";
+        const sumText = checkedCount > 0 ? `已选 ${checkedCount}` : "";
         const foldKey = `neg_${idx}`;
-        const isOpen = Boolean(state.folds && state.folds[foldKey]);
+        const isOpen = foldKey === negOpenKey;
         const items = g.items.map((card) => {
           const isChecked = Boolean(state.negative && state.negative.has(card.name));
-          return `<label class="neg-item" data-fx="${esc(card.effect)}" title="${esc(card.name)}：${esc(card.effect)}"><input type="checkbox" data-neg="${card.name}" aria-label="放行${esc(card.name)}" ${isChecked ? "checked" : ""} /><span><b>${card.name}</b><span class="fx">${card.effect}</span></span></label>`;
+          return `<label class="neg-item" data-fx="${esc(card.effect)}"><input type="checkbox" data-neg="${card.name}" aria-label="放行${esc(card.name)}" ${isChecked ? "checked" : ""} /><span><b>${card.name}</b><span class="fx">${card.effect}</span></span></label>`;
         }).join("");
         return `<details class="neg-fold" data-fold="${foldKey}"${isOpen ? " open" : ""}><summary class="neg-group"><span class="fold-title">${esc(g.label)}</span><span class="fold-sum">${sumText}</span>${CARET}</summary><div class="neg-items">${items}</div></details>`;
       }).join("");
@@ -5415,9 +5719,15 @@
     function subscriptionPillLabel() {
       if (isSubscriptionOk()) {
         const exp = formatExpire(state.subscription.expires_at);
-        return `卡密有效${exp ? ` · ${exp} 到期` : ""} · ${state.subscription.live_status || "LIVE 授权待校验"}`;
+        // UI-24：标题栏胶囊只写有效期（月-日），LIVE 授权状态放进悬停提示，避免胶囊把标题栏挤满
+        return `卡密有效${exp ? ` · ${String(exp).slice(5)} 到期` : ""}`;
       }
       return state.subscription.status || "未激活";
+    }
+    function subscriptionPillTitle() {
+      if (!isSubscriptionOk()) return "点击激活卡密";
+      const exp = formatExpire(state.subscription.expires_at);
+      return `卡密有效${exp ? ` · ${exp} 到期` : ""} · ${state.subscription.live_status || "LIVE 授权待校验"}`;
     }
     function applySubscription(sub) {
       if (sub) {
@@ -5437,7 +5747,8 @@
         pill.dataset.state = tone;
         pill.innerHTML = `<span class="dot" aria-hidden="true"></span>${subscriptionPillLabel()}`;
         pill.title = isSubscriptionOk() ? "查看或激活卡密" : "激活卡密";
-        pill.setAttribute("aria-label", isSubscriptionOk() ? `订阅${subscriptionPillLabel()}` : `订阅${subscriptionPillLabel()}，打开卡密`);
+        pill.setAttribute("aria-label", isSubscriptionOk() ? `订阅${subscriptionPillTitle()}` : `订阅${subscriptionPillLabel()}，打开卡密`);
+        pill.title = subscriptionPillTitle();
       }
       const btn = $("btnActivateKey");
       if (btn) btn.textContent = "激活卡密";
@@ -5876,7 +6187,19 @@
     });
     on("bonds","click",(e)=>{
       if (e.target.closest("#btnSaveBonds")) { state.bondSaved=true; syncCurrentCustom(); renderBonds(); return; }
-      if (e.target.closest("#btnEditBonds")) { state.bondSaved=false; renderBonds(); return; }
+      if (e.target.closest("#btnEditBonds") || e.target.closest("#btnPickAdv")) {
+        state._bondUndo = { attr: new Set(state.attr), growth: new Set(state.growth), basic: new Set(state.basic), adv: state.adv.slice() };
+        state.bondSaved = false; renderBonds(); return;
+      }
+      if (e.target.closest("#btnCancelBonds")) {
+        const u = state._bondUndo;
+        if (u) {
+          state.attr = new Set(u.attr); state.growth = new Set(u.growth); state.basic = new Set(u.basic);
+          state.adv = u.adv.slice(); state.advDraft = u.adv.slice();
+          syncCurrentCustom();
+        }
+        state.bondSaved = true; renderBonds(); return;
+      }
       const advPick=e.target.closest("[data-adv-pick]");
       if (advPick) { assignAdvSlot(Number(advPick.dataset.advSlot), advPick.dataset.advPick); syncCurrentCustom(); return; }
       const advMove=e.target.closest("[data-adv-move]");
@@ -5908,7 +6231,7 @@
       if (fold) {
         const count = fold.querySelectorAll("input[type='checkbox']:checked").length;
         const sumEl = fold.querySelector(".fold-sum");
-        if (sumEl) sumEl.textContent = count > 0 ? `已选 ${count}` : "默认不拿";
+        if (sumEl) sumEl.textContent = count > 0 ? `已选 ${count}` : "";
       }
       renderLaunchSummary();
     });
@@ -6034,6 +6357,7 @@
     $("btnWizard").addEventListener("click",openWizard);
     on("btnMore", "click", () => setDrawer(!state.drawer));
     on("drawerBackdrop", "click", () => setDrawer(false));
+    on("btnDrawerClose", "click", () => setDrawer(false));
     on("hudStop", "click", () => { $("btnStart")?.click(); });
     on("btnActivateKey", "click", openSubscriptionModal);
     on("subscriptionPill", "click", openSubscriptionModal);
@@ -6177,28 +6501,57 @@
         if (!running && wasRunning) {
           // 只有真的打了局才弹；手动停止不冒充「目标已达成」
           const reached = state.cycle > 0 && state.played >= state.cycle;
-          if (state.played > 0 && (reached || state.hudPhase === "COMPLETE")) showRunComplete({ reached });
+          const evidenceCount = state.played + (state.runSummary?.hitch?.started || 0)
+            + (state.runSummary?.solo?.success || 0) + (state.runSummary?.solo?.failure || 0);
+          if (evidenceCount > 0 && ["COMPLETE", "FAILED"].includes(state.runState)) showRunComplete({ reached, interrupted: state.runState === "FAILED" });
         }
         wasRunning = running;
       };
 
       function fmtDur(ms) {
-        const m = Math.max(0, Math.round(ms / 60000));
+        const seconds = Math.max(0, Math.floor(ms / 1000));
+        if (seconds < 60) return `${seconds}s`;
+        const m = Math.floor(seconds / 60);
         return m >= 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}` : `${m}m`;
+      }
+      function runBreakdown(summary, modeId) {
+        if (!summary?.available) return '<p class="sb-done-note">本次未取得可核对的战绩明细，仅显示完成局数。</p>';
+        const n = (value) => Math.max(0, Number(value) || 0);
+        const parts = [];
+        const hitch = summary.hitch || {};
+        const solo = summary.solo || {};
+        if (n(hitch.started) || modeId === "lobby_hitch" || modeId === "follow_team") {
+          const unknown = Math.max(0, n(hitch.started) - n(hitch.success) - n(hitch.failure));
+          const stages = Object.entries(hitch.stages || {}).filter(([, count]) => n(count) > 0)
+            .sort(([a], [b]) => a.localeCompare(b, "zh-CN", { numeric: true }))
+            .map(([stage, count]) => `<span>${esc(stage)} · ${n(count)} 把</span>`).join("");
+          parts.push(`<section class="sb-done-mode"><div class="sb-done-mode-head"><b>${modeId === "follow_team" ? "跟车" : "蹭车"}统计</b><span>开局 ${n(hitch.started)} 把</span></div>
+            <div class="sb-done-mode-counts"><span>完成 <strong>${n(hitch.completed)}</strong></span><span>成功 <strong>${n(hitch.success)}</strong></span><span>失败 <strong>${n(hitch.failure)}</strong></span>${unknown ? `<span>未判定 <strong>${unknown}</strong></span>` : ""}</div>
+            <div class="sb-done-stages"><small>入局关卡</small>${stages || '<small>暂无确认记录</small>'}</div></section>`);
+        }
+        if (n(solo.completed) || modeId === "normal_farm") {
+          parts.push(`<section class="sb-done-mode"><div class="sb-done-mode-head"><b>单人模式统计</b><span>完成 ${n(solo.completed)} 把</span></div>
+            <div class="sb-done-mode-counts"><span>成功 <strong>${n(solo.success)}</strong></span><span>失败 <strong>${n(solo.failure)}</strong></span></div></section>`);
+        }
+        return parts.length ? `<div class="sb-done-breakdown">${parts.join("")}</div>` : '<p class="sb-done-note">尚无可确认的分模式战绩。</p>';
       }
       window.showRunComplete = function showRunComplete(opts = {}) {
         const host = document.getElementById("scene-app"); if (!host) return;
         document.querySelectorAll(".sb-done-veil").forEach((n) => n.remove());
         const games = opts.games ?? state.played;
-        const mode = opts.mode ?? (MODE_LABEL[state.mode] || "单刷");
-        const dur = opts.duration ?? (runStartedAt ? Date.now() - runStartedAt : 0);
+        const modeId = opts.modeId ?? state.runModeId;
+        const mode = opts.mode ?? ({ lobby_hitch: "蹭车", follow_team: "跟车", normal_farm: "单人模式" }[modeId] || MODE_LABEL[state.mode] || "单人模式");
+        const summary = opts.summary ?? state.runSummary;
+        const dur = opts.duration ?? (summary?.duration_seconds ? summary.duration_seconds * 1000 : (runStartedAt ? Date.now() - runStartedAt : 0));
         const veil = document.createElement("div");
         veil.className = "sb-done-veil";
-        veil.innerHTML = `<div class="sb-done" role="dialog" aria-label="本轮完成">
+        const sparks = Array.from({ length: 8 }, (_, i) => `<i style="--angle:${i * 45}deg;--delay:${i * 35}ms"></i>`).join("");
+        veil.innerHTML = `<div class="sb-done${opts.interrupted ? " failed" : ""}" role="dialog" aria-label="本轮统计"><div class="sb-done-sparks" aria-hidden="true">${sparks}</div>
           <div class="sb-done-mark"><svg class="ring" viewBox="0 0 84 84"><circle class="t" cx="42" cy="42" r="38"/><circle class="p" cx="42" cy="42" r="38"/></svg>
-          <svg viewBox="0 0 84 84"><path class="tick" d="M28 43l9 9 19-20" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-          <h3>本轮完成</h3><p>${mode} · ${opts.reached === false ? "已安全停止" : "目标局数已达成"}</p>
+          <svg viewBox="0 0 84 84"><path class="tick" d="${opts.interrupted ? "M42 25v21m0 11v2" : "M28 43l9 9 19-20"}" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <h3>${opts.interrupted ? "本轮中断" : "本轮完成"}</h3><p>${esc(mode)} · ${opts.interrupted ? "已停止运行" : opts.reached === false ? "已安全停止" : "目标局数已达成"}</p>
           <div class="sb-done-stats"><div><b>${games}</b><span>完成局数</span></div><div><b>${dur ? fmtDur(dur) : "—"}</b><span>用时</span></div><div><b>${state.cycle || "—"}</b><span>目标</span></div></div>
+          ${runBreakdown(summary, modeId)}
           <div class="sb-done-actions"><button type="button" class="secondary" data-done-close>好的</button><button type="button" class="primary" data-done-again>再来一轮</button></div></div>`;
         host.appendChild(veil);
         requestAnimationFrame(() => requestAnimationFrame(() => veil.classList.add("show")));
@@ -6236,6 +6589,8 @@
 
     /* ===== 补丁 F–I 脚本 ===== */
     (function () {
+      // UI-24 修复：激活成功动画用到的 reduce() 原本定义在上一个补丁的作用域里，这里取不到，激活后会直接报错、不播放。
+      const reduce = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       // F. 主色方案（默认墨白；可通过 localStorage sb-accent 切换）
       let accent = "graphite";
       try { accent = localStorage.getItem("sb-accent") || accent; } catch (e) {}
@@ -6259,7 +6614,7 @@
         const s = sub || state.subscription || {};
         const exp = typeof formatExpire === "function" ? formatExpire(s.expires_at) : "";
         const subline = [exp ? `有效期至 ${exp}` : "卡密有效", s.live_status || ""].filter(Boolean).join("  ·  ");
-        const dust = Array.from({ length: 22 }, (_, i) => {
+        const dust = reduce() ? "" : Array.from({ length: 22 }, (_, i) => {
           const left = 30 + Math.random() * 40, x = (Math.random() - .5) * 120, d = 1800 + Math.random() * 1600, t = 850 + Math.random() * 900, o = .35 + Math.random() * .6, sz = Math.random() < .3 ? 2 : 3;
           return `<i style="left:${left}%;--x:${x.toFixed(0)}px;--d:${d.toFixed(0)}ms;--t:${t.toFixed(0)}ms;--o:${o.toFixed(2)};width:${sz}px;height:${sz}px"></i>`;
         }).join("");
@@ -6272,7 +6627,7 @@
           <div class="sb-act-skip">点击继续</div>`;
         host.appendChild(el);
         requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add("in")));
-        setTimeout(() => surgeLiquidRainbow(3600), 250);
+        if (!reduce()) setTimeout(() => surgeLiquidRainbow(3600), 250);
         const close = () => { if (el.classList.contains("out")) return; el.classList.add("out"); setTimeout(() => el.remove(), 620);
           const pill = $("subscriptionPill"); if (pill) { pill.classList.remove("is-pop"); void pill.offsetWidth; pill.classList.add("is-pop"); } };
         el.addEventListener("click", close);
@@ -6360,7 +6715,7 @@
         requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add("show")));
         el.querySelector("[data-pre-close]").addEventListener("click", () => closePre());
         setStep(0, "run"); setTimeout(() => { if (pre === el) { setStep(0, "ok"); setStep(1, "run"); } }, opts.fast ? 250 : 380);
-        preTimer = setTimeout(() => preFail("等待后端响应超时，请查看日志"), 75000);
+        preTimer = setTimeout(() => preFail("等待进入游戏超时，请查看日志"), state.mode === "hitch" ? 300000 : 180000);
       };
       function preFail(msg) {
         if (!pre) return;
@@ -6378,7 +6733,7 @@
       }
       window.preflightStage = function (stage, msg) {   // "accepted" | "running" | "fail"
         if (!pre) return;
-        if (stage === "accepted") { setStep(0, "ok"); setStep(1, "ok"); setStep(2, "run", "等待游戏窗口"); }
+        if (stage === "accepted") { setStep(0, "ok"); setStep(1, "ok"); setStep(2, "run", state.mode === "hitch" ? "搜房并等待入局" : "等待游戏窗口"); }
         else if (stage === "running") {
           setStep(0, "ok"); setStep(1, "ok"); setStep(2, "ok");
           pre.classList.add("ok"); pre.querySelector(".sb-pre-title").innerHTML = "已开始运行<small>切到局内状态条</small>";
@@ -6397,7 +6752,7 @@
       const errEl = document.getElementById("startErr");
       if (errEl) new MutationObserver(() => { const t = errEl.textContent.trim(); if (t && pre) preflightStage("fail", t); }).observe(errEl, { childList: true, characterData: true, subtree: true });
       const hud2 = window.renderHud;
-      window.renderHud = function () { hud2(); if (state.running && pre) preflightStage("running"); };
+      window.renderHud = function () { hud2(); if (state.runState === "RUNNING" && ["MAIN_LINE", "EARLY_CHALLENGE", "ANCHOR_BOSS", "LONGZHU", "RECOVER_FAILURE", "QUIT", "NEXT"].includes(state.hudPhase) && pre) preflightStage("running"); };
     })();
 
     /* ===== 补丁 L 脚本：技能优先级、羁绊常开 ===== */
@@ -6450,7 +6805,11 @@
       }
       // 空间不够时藏起日志（窄窗、技能列表变单列）
       const drawerEl = document.getElementById("drawer");
+      let fitting = false;
       const fit = () => {
+        if (fitting) return;
+        fitting = true;
+        try {
         const panel = document.querySelector("#farmBody .sb-log"), wsEl = document.querySelector("#farmBody .main-workspace");
         if (!panel || !wsEl) return;
         if (window.__SB_LOG_IN_FOOTER__) { panel.classList.add("sb-hide"); return; }
@@ -6472,6 +6831,7 @@
           if (logEl.parentElement !== panel) panel.appendChild(logEl);
           if (box) box.remove();
         }
+        } finally { fitting = false; }
       };
       window.addEventListener("resize", () => setTimeout(fit, 60));
       if (ws) new MutationObserver(() => setTimeout(fit, 0)).observe(ws, { childList: true, subtree: true });
@@ -6534,7 +6894,14 @@
       const body = panel.querySelector(".sb-treasure-body");
       if (h4) body.appendChild(h4);
       body.appendChild(neg);
-      if (dragonRow) panel.appendChild(dragonRow);
+      if (dragonRow) {
+        const heading = dragonRow.previousElementSibling;
+        if (heading?.tagName === "H4" && /龙珠/.test(heading.textContent)) heading.remove();
+        panel.appendChild(dragonRow);
+      }
+      document.querySelectorAll(".dragon-icon-wrap").forEach((wrap) => {
+        wrap.innerHTML = dragonIconSvg(wrap.classList.contains("mini") ? 15 : 18);
+      });
       const skill = ws.querySelector('[data-od-id="skill-panel"]');
       if (skill) skill.after(panel); else ws.appendChild(panel);
     })();
@@ -6554,7 +6921,7 @@
       const sync = () => panel.querySelectorAll(".neg-item").forEach((el) => {
         const fx = el.querySelector(".fx");
         if (fx && !el.dataset.fx) el.dataset.fx = fx.textContent.trim();
-        if (!el.title && el.dataset.fx) el.title = (el.querySelector("b") ? el.querySelector("b").textContent.trim() + "：" : "") + el.dataset.fx;
+        /* UI-24：效果说明改由浮层提示显示，不再叠加系统 title 提示 */
       });
       const neg = document.getElementById("negatives");
       if (neg) new MutationObserver(sync).observe(neg, { childList: true, subtree: true });
@@ -6907,6 +7274,10 @@
         .observe(modal, { attributes: true, attributeFilter: ["class"] });
       if (strip) new MutationObserver(() => { if (strip.classList.contains("open")) only("log"); })
         .observe(strip, { attributes: true, attributeFilter: ["class"] });
+      document.addEventListener("pointerdown", (e) => {
+        if (strip?.classList.contains("open") && !strip.contains(e.target) && !logBtn?.contains(e.target)) closeLog();
+      }, true);
+      window.addEventListener("blur", closeLog);
       // Esc 逐层关闭：先日志，再抽屉/弹窗交给应用自己处理
       document.addEventListener("keydown", (e) => {
         if (e.key !== "Escape") return;
@@ -6922,7 +7293,12 @@
       const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
       let raf = 0;
 
+      // UI-24：面板改为拉伸到底后，测量时临时恢复自然高度，避免把「铺满」误判成「放不下」而触发收紧档位
       function layout() {
+        fb.classList.add("sb-measuring");
+        try { return layoutInner(); } finally { fb.classList.remove("sb-measuring"); }
+      }
+      function layoutInner() {
         const ws = q("#farmBody .main-workspace");
         const skill = q('#farmBody [data-od-id="skill-panel"]');
         const bond = q("#farmBody .bond-config");
@@ -6932,7 +7308,7 @@
 
         // 横向：先给左右栏基准宽度，再把中栏用不掉的宽度平分给它们
         let railW = clamp(Math.round(W * 0.245), 248, 320);
-        let treW = clamp(Math.round(W * 0.215), 220, 280);
+        let treW = clamp(Math.round(W * 0.24), 248, 320);
         root.setProperty("--sb-rail-w", railW + "px");
         root.setProperty("--sb-treasure-w", treW + "px");
         fb.classList.toggle("sb-2col", skill.clientWidth >= 760);
@@ -6983,18 +7359,14 @@
           shrink("adv", 2, varOf.adv);
           shrink("wsgap", 2, varOf.wsgap);
           fb.classList.remove("sb-fill");
-          // 还差一点就逐级收紧内边距：先 compact，再 tiny
-          const left = () => ws.clientHeight - ([...ws.children].filter((el) => getComputedStyle(el).display !== "none" && getComputedStyle(el).gridColumnStart !== "2")
-            .reduce((n, el) => n + el.getBoundingClientRect().height, 0) + (ws.children.length - 1) * parseFloat(getComputedStyle(ws).rowGap || 8));
-          requestAnimationFrame(() => {
-            const a = left() < 0;
-            if (fb.classList.contains("sb-compact") !== a) fb.classList.toggle("sb-compact", a);
-            requestAnimationFrame(() => {
-              const b = a && left() < 0;
-              if (fb.classList.contains("sb-tiny") !== b) fb.classList.toggle("sb-tiny", b);
-              railFit();
-            });
-          });
+          // 还差一点就逐级收紧内边距：先 compact，再 tiny（同步量完，避免嵌套 rAF 两帧抖动）
+          const left = () => { fb.classList.add("sb-measuring"); const v = ws.clientHeight - ([...ws.children].filter((el) => getComputedStyle(el).display !== "none" && getComputedStyle(el).gridColumnStart !== "2")
+            .reduce((n, el) => n + el.getBoundingClientRect().height, 0) + (ws.children.length - 1) * parseFloat(getComputedStyle(ws).rowGap || 8)); fb.classList.remove("sb-measuring"); return v; };
+          const a2 = left() < 0;
+          if (fb.classList.contains("sb-compact") !== a2) fb.classList.toggle("sb-compact", a2);
+          const b2 = a2 && left() < 0;
+          if (fb.classList.contains("sb-tiny") !== b2) fb.classList.toggle("sb-tiny", b2);
+          railFit();
           return;
         }
         if (fb.classList.contains("sb-compact")) fb.classList.remove("sb-compact");
@@ -7065,7 +7437,8 @@
         if (railFree() > 30) fb.classList.add("sb-railspread");
       }
 
-      const schedule = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { layout(); requestAnimationFrame(layout); }); };
+      // 同一帧内连量两次再绘制：第一遍定档位/变量，第二遍收敛；绝不跨帧绘制中间态
+      const schedule = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { layout(); layout(); }); };
       window.addEventListener("resize", schedule);
       const ws = q("#farmBody .main-workspace");
       if (ws) new MutationObserver(schedule).observe(ws, { childList: true, subtree: true });
@@ -7075,7 +7448,7 @@
     })();
     /* ===== 补丁 V15 脚本：在版本号后面标出 UI 构建号 ===== */
     (function () {
-      const UI_BUILD = "UI-23";
+      const UI_BUILD = "UI-24";
       const el = document.getElementById("versionLabel");
       if (!el) return;
       let busy = false;
@@ -7093,6 +7466,114 @@
       new MutationObserver(tag).observe(el, { childList: true, characterData: true, subtree: true });
       tag(); setTimeout(tag, 400); setTimeout(tag, 1500); setTimeout(tag, 4000);
       window.__SB_UI_BUILD__ = UI_BUILD;
+    })();
+      /* ===== 补丁 UI-24 脚本：宝物手风琴、龙珠线性图标、高级卡组拖动排序 ===== */
+    (function () {
+      const panel = document.querySelector("#farmBody .sb-treasure");
+      const h3 = panel && panel.querySelector("h3");
+      if (h3 && !h3.querySelector(".sb-h-note")) {
+        const note = document.createElement("small");
+        note.className = "sb-h-note";
+        note.textContent = "默认不拿 · 勾选放行";
+        h3.appendChild(note);
+      }
+      const paintDragon = () => document.querySelectorAll(".dragon-icon-wrap").forEach((wrap) => {
+        if (wrap.dataset.icon === "line") return;
+        wrap.dataset.icon = "line";
+        wrap.innerHTML = dragonIconSvg(wrap.classList.contains("mini") ? 15 : 16);
+      });
+      paintDragon();
+      new MutationObserver(paintDragon).observe(document.body, { childList: true, subtree: true });
+
+      const leadBox = document.getElementById("leadBox");
+      if (leadBox) {
+        const hint = leadBox.querySelector(":scope > .hint");
+        const h3 = leadBox.querySelector("h3");
+        if (hint && h3) h3.title = hint.textContent.trim();
+        const nm = document.getElementById("roomName"), pw = document.getElementById("roomPass");
+        if (nm && !nm.placeholder) nm.placeholder = "房间名称";
+        if (pw) pw.placeholder = "密码（可空）";
+        const sw = document.getElementById("lblNewRoom");
+        if (sw) sw.textContent = "每局新建";
+      }
+
+      // 仅开发/在线预览（http 页面）暴露状态读取口，给预览框的场景条用；正式包走 file/qrc，不暴露。
+      if (/^https?:$/.test(location.protocol)) window.__sbPreviewState = () => state;
+
+      // 流光层提前插入并常驻，首次过场时不用再临时创建、栅格化
+      const glowEl = document.getElementById("siriGlowBorder");
+      if (glowEl && !glowEl.querySelector(".rb-ring")) glowEl.insertAdjacentHTML("beforeend", '<i class="rb-ring line"><b></b><b class="full"></b></i>');
+
+      // 宝物效果浮层：挂在 body 上，出现在宝物面板左侧，不会被分组或面板的 overflow 裁掉
+      const tip = document.createElement("div");
+      tip.className = "sb-tip"; tip.setAttribute("role", "tooltip"); tip.id = "sbNegTip";
+      (document.getElementById("scene-app") || document.body).appendChild(tip);  // 放在 .win 里才能拿到主题色令牌
+      let tipFor = null;
+      const hideTip = () => { tipFor = null; tip.classList.remove("show"); };
+      const showTip = (item) => {
+        if (!item || !item.dataset.fx) return hideTip();
+        tipFor = item;
+        const name = item.querySelector("b");
+        tip.innerHTML = `${name ? `<b>${esc(name.textContent.trim())}</b>` : ""}${esc(item.dataset.fx)}`;
+        const host = item.closest(".sb-treasure") || item;
+        const hr = host.getBoundingClientRect(), ir = item.getBoundingClientRect();
+        const w = tip.offsetWidth, h = tip.offsetHeight;
+        let left = hr.left - w - 8;
+        if (left < 8) left = Math.min(window.innerWidth - w - 8, ir.right + 8);
+        const top = Math.max(8, Math.min(window.innerHeight - h - 8, ir.top + ir.height / 2 - h / 2));
+        tip.style.left = Math.round(left) + "px";
+        tip.style.top = Math.round(top) + "px";
+        tip.classList.add("show");
+      };
+      document.addEventListener("pointerover", (e) => {
+        const item = e.target.closest && e.target.closest("#farmBody .sb-treasure .neg-item[data-fx]");
+        if (item !== tipFor) { if (item) showTip(item); else hideTip(); }
+      });
+      document.addEventListener("focusin", (e) => {
+        const item = e.target.closest && e.target.closest("#farmBody .sb-treasure .neg-item[data-fx]");
+        if (item) showTip(item); else if (tipFor) hideTip();
+      });
+      document.addEventListener("scroll", hideTip, true);
+      window.addEventListener("blur", hideTip);
+
+      // 宝物分组同一时间只展开一组，避免多组同开把下排羁绊挤出窗口
+      const neg = document.getElementById("negatives");
+      if (neg) neg.addEventListener("toggle", (e) => {
+        const d = e.target;
+        if (!(d instanceof HTMLDetailsElement) || !d.open || !d.classList.contains("neg-fold")) return;
+        neg.querySelectorAll("details.neg-fold[open]").forEach((other) => { if (other !== d) other.open = false; });
+      }, true);
+
+      // 高级卡组顺序：整行可拖动；▲▼ 仍是键盘与精确调整的入口
+      const bonds = document.getElementById("bonds");
+      if (bonds) {
+        let dragId = null;
+        const clear = () => bonds.querySelectorAll(".adv-ord.is-dragging, .adv-ord.is-over").forEach((el) => el.classList.remove("is-dragging", "is-over"));
+        bonds.addEventListener("dragstart", (e) => {
+          const row = e.target.closest && e.target.closest(".adv-ord");
+          if (!row) return;
+          dragId = row.dataset.advId;
+          row.classList.add("is-dragging");
+          try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", dragId); } catch (err) {}
+        });
+        bonds.addEventListener("dragover", (e) => {
+          const row = e.target.closest && e.target.closest(".adv-ord");
+          if (!row || !dragId) return;
+          e.preventDefault();
+          bonds.querySelectorAll(".adv-ord.is-over").forEach((el) => { if (el !== row) el.classList.remove("is-over"); });
+          if (row.dataset.advId !== dragId) row.classList.add("is-over");
+        });
+        bonds.addEventListener("drop", (e) => {
+          const row = e.target.closest && e.target.closest(".adv-ord");
+          if (!row || !dragId) return;
+          e.preventDefault();
+          const id = dragId;
+          dragId = null;
+          clear();
+          moveAdvTo(id, row.dataset.advId);
+        });
+        bonds.addEventListener("dragend", () => { dragId = null; clear(); });
+      }
     })();
   </script>
   <script type="module" src="./src/main.ts"></script>

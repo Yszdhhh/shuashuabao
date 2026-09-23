@@ -176,7 +176,10 @@ describe("UI-23 Regression Tests", () => {
       expect(renderedHtml).toContain('<details class="neg-fold" data-fold="neg_2"');
       expect(renderedHtml).toContain('<details class="neg-fold" data-fold="neg_2" open>');
       expect(renderedHtml).toContain('<summary class="neg-group">');
-      expect(renderedHtml).toContain('<span class="fold-sum">默认不拿</span>');
+      // UI-24：「默认不拿」移到宝物设置标题后的小字，分组行只在有勾选时显示「已选 N」；同一时间只展开一组。
+      expect(renderedHtml).toContain('<span class="fold-sum"></span>');
+      expect(renderedHtml).not.toContain('默认不拿');
+      expect(renderedHtml.match(/<details class="neg-fold"[^>]* open>/g)).toHaveLength(1);
       expect(renderedHtml).toContain('data-neg="命运骰子"');
       expect(renderedHtml).toContain('data-neg="力之极"');
       expect(renderedHtml).toContain('data-neg="敏之极"');
@@ -274,8 +277,8 @@ describe("UI-23 Regression Tests", () => {
     });
 
     it("UI_BUILD constant in script is set to UI-23", () => {
-      expect(htmlContent).toContain('const UI_BUILD = "UI-23";');
-      expect(htmlContent).not.toContain('const UI_BUILD = "UI-22";');
+      expect(htmlContent).toContain('const UI_BUILD = "UI-24";');
+      expect(htmlContent).not.toContain('const UI_BUILD = "UI-23";');
     });
   });
 
