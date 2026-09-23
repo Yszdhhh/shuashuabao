@@ -138,7 +138,10 @@ function afterGlobalCall(name: string, hook: () => void): void {
 
 // ---------------------------------------------------------------- intent 出口
 
-function pushConfig(patch: Partial<SettingsDTO> & { strategy?: Partial<StrategyDTO> }): void {
+function pushConfig(
+  patch: Partial<SettingsDTO> & { strategy?: Partial<StrategyDTO> },
+  onAck?: (ok: boolean) => void,
+): void {
   if (!bridge || applying) return;
   // Any settings mutation invalidates the previous backend preflight.  The
   // launch indicator must not keep advertising a result for stale settings.
@@ -148,9 +151,15 @@ function pushConfig(patch: Partial<SettingsDTO> & { strategy?: Partial<StrategyD
     .then((res) => {
       if (!res.ok) {
         toast("保存被拒绝: " + (res.errors[0] || "未知原因"));
+        onAck?.(false);
+        return;
       }
+      onAck?.(true);
     })
-    .catch((err) => toast(bridgeErrorText(err)));
+    .catch((err) => {
+      toast(bridgeErrorText(err));
+      onAck?.(false);
+    });
 }
 
 function pushShell(patch: { theme?: "light" | "dark"; selected_mode_id?: string }): void {
@@ -213,21 +222,30 @@ function showStartErr(msg: string): void {
   el.classList.toggle("show", Boolean(msg));
 }
 
-let lastSkillsKey = "";
+// pending = request in flight / not yet backend-ACKed; confirmed = last ACKed key.
+// Failure clears only pending so the same value can be retried.
+let confirmedSkillsKey = "";
+let pendingSkillsKey: string | null = null;
 function pushSkills(): void {
   const skills = currentSkills().filter(Boolean);
   const priority = state.priority ? state.priority.slice() : [];
   const routes = state.routes ? { ...state.routes } : {};
   const key = JSON.stringify({ skills, priority, routes });
-  if (key === lastSkillsKey) return;
-  lastSkillsKey = key;
-  pushConfig({
-    strategy: {
-      skills,
+  if (key === confirmedSkillsKey || key === pendingSkillsKey) return;
+  pendingSkillsKey = key;
+  pushConfig(
+    {
+      strategy: {
+        skills,
+      },
+      skill_priority: priority,
+      skill_custom_routes: routes,
     },
-    skill_priority: priority,
-    skill_custom_routes: routes,
-  });
+    (ok) => {
+      if (pendingSkillsKey === key) pendingSkillsKey = null;
+      if (ok) confirmedSkillsKey = key;
+    },
+  );
 }
 
 function pushReputation(): void {
@@ -768,6 +786,9 @@ function applyRunStatus(run: RunStatusDTO): void {
   if (ctrlRunning) ctrlRunning.checked = runActive;
   document.body.dataset.running = runActive ? "true" : "false";
   state.running = runActive;
+  state.runState = run.state;
+  state.runModeId = run.mode_id;
+  state.runSummary = run.summary ?? null;
   state.hudPhase = run.phase;
   state.played = Math.max(0, Number(run.game_count) || 0);
   if (run.cycle_num !== undefined) state.cycle = run.cycle_num;

@@ -1,5 +1,7 @@
 # Competitor Knowledge Synthesis (2026-09-10)
 
+> **2026-09-22 增补指引**：1.6.2 专项见 [`docs/research/COMPETITOR_STATIC_OBSERVATIONS_1_6_2_20260922.md`](../research/COMPETITOR_STATIC_OBSERVATIONS_1_6_2_20260922.md)；1.6.3 专项（海贼王卡组等）见 [`docs/research/COMPETITOR_STATIC_OBSERVATIONS_1_6_3_20260922.md`](../research/COMPETITOR_STATIC_OBSERVATIONS_1_6_3_20260922.md)；三家全量矩阵与行动路线见 [`docs/research/COMPETITOR_FULL_ANALYSIS_20260922.md`](../research/COMPETITOR_FULL_ANALYSIS_20260922.md)。本文件保留 09-10 基线结论。
+
 ## 1. Executive Summary
 
 A comprehensive, multi-subject investigation of all reverse-engineering and static-analysis assets was conducted across:
