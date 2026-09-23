@@ -115,8 +115,8 @@ def test_02_wood_5000_skill_4_still_prioritizes_bond() -> None:
     assert "优先转化战力" in why or "羁绊优先" in why
 
 
-def test_03_wood_5000_skill_12_allows_g_anti_starvation_burst() -> None:
-    """3. wood=5000, skill=12 -> allows G anti-starvation burst."""
+def test_03_wood_5000_skill_12_keeps_bond_priority() -> None:
+    """3. wood=5000, skill=12 -> F stays ahead until its bounded visit ends."""
     med = _med()
     frame = _frame("hud_wood_1111_f0200.png")
     now = 100.0
@@ -124,8 +124,8 @@ def test_03_wood_5000_skill_12_allows_g_anti_starvation_burst() -> None:
          patch.object(med, "_hud_skill_points", return_value=12), \
          patch.object(med, "_bond_base_progress_pending", return_value=True):
         target, why = med._solo_plan_panel(frame, now, "bond")
-    assert target == "skill"
-    assert "紧急强抢占" in why
+    assert target == "bond"
+    assert "羁绊优先" in why
 
 
 def test_04_g_burst_completed_wood_5000_returns_to_bond() -> None:
@@ -880,4 +880,3 @@ def test_28_equipment_fsm_quarantined_semantics_pure_contract() -> None:
     assert fsm.quarantine_until == 104.5
     assert fsm.can_use(1, 104.2) is False
     assert fsm.can_use(1, 105.0) is True
-

@@ -87,8 +87,8 @@ def test_low_wood_treasure_scheduled_enters_treasure_service() -> None:
         assert planned == "treasure", f"Expected treasure service, got {planned} ({why})"
 
 
-def test_high_wood_urgent_skill_backlog_preempts() -> None:
-    """wood >= 1000 and skill backlog >= 8 triggers urgent preemption to clear skills."""
+def test_high_wood_prioritizes_bond_until_visit_cap() -> None:
+    """Skill points do not expire; high wood funds time-sensitive bonds first."""
     med = RuntimeMediator(Settings(), Path("."))
     med.phase = Phase.MAIN_LINE
     med.wood = 5000
@@ -101,8 +101,21 @@ def test_high_wood_urgent_skill_backlog_preempts() -> None:
     with patch.object(med, "_refresh_solo_signals"), \
          patch.object(med, "_panel_kind_available", return_value=True):
         planned, why = med._solo_plan_panel(frame, now, "bond")
-        assert planned == "skill"
-        assert "≥ 8" in why
+        assert planned == "bond", why
+        med._visit_kind = "bond"
+        med._visit_picks = 15
+        planned, why = med._solo_plan_panel(frame, now, "bond")
+        assert planned == "skill", why
+
+
+def test_confirmed_evolution_keeps_hero_card_authority_across_cycle() -> None:
+    med = RuntimeMediator(Settings(), Path("."))
+    med._evolve_ok_this_cycle = True
+    med._l1_cycle_index = med._l1_cycle_order().index("treasure")
+    med._l1_cycle_step = "treasure"
+    med._advance_l1_cycle("treasure")
+    assert med._l1_cycle_step == "evolve"
+    assert med._evolve_ok_this_cycle is True
 
 
 def test_normal_farm_zero_periodic_f4() -> None:

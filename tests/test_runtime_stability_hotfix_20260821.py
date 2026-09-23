@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -85,6 +86,16 @@ def test_evolution_refresh_is_never_reported_as_completed_pick():
         m._evolve_awaiting_hero_pick = True
         with patch.object(m, "_rarity_choice", return_value=card):
             assert m._find_evolution_choice(frame()) is card
+
+
+def test_recent_inventory_hero_modal_can_override_treasure_lock_artwork():
+    m = med()
+    card = hit("evolution_card_0_rank_4", 666, 300)
+    m._inventory_modal_until = time.time() + 3.0
+    with patch.object(CoreMediator, "_find_evolution_choice", return_value=card), patch.object(
+        m, "_classify_choice_panel", return_value="treasure"
+    ):
+        assert m._find_evolution_choice(frame()) is card
 
 
 def test_stage_start_requires_positive_highlight_and_rearms_selection():

@@ -233,8 +233,8 @@ class S3NegativeTreasureOptIn(unittest.TestCase):
             settings=PolicySettings(),
         ))
         self.assertEqual((decision.action, decision.index),
-                         (PolicyAction.SELECT_SLOT, 1),
-                         "红色负面卡不得胜过绿色正面卡")
+                         (PolicyAction.CLOSE, None),
+                         "单人神符与红色负面卡都不可选")
 
     def test_all_negative_panel_takes_no_card(self):
         decision = choose_action(

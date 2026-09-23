@@ -100,11 +100,11 @@
         "装备栏左键",
         "黄金猿"
       ],
-      "text": "黄金猿是装备。在装备栏点左键才开宝藏卡组。锚点未钉。禁止自动点装备栏（可能误点脱装/别的装备）。",
+      "text": "黄金猿在单人物品栏 2-6 号格时左键使用，开启宝藏卡组；1 号装备格仍只走右键升级。",
       "source": "user_confirmed",
       "status": "user_confirmed",
-      "script_rule": "fail_closed_never_click",
-      "wired": false,
+      "script_rule": "solo_item_bar_2_6_left_click",
+      "wired": true,
       "note": "攻略语音识别曾写成黄金元。不是 F 三选卡。"
     }
   ],
@@ -2292,11 +2292,12 @@
           "元神出窍"
         ]
       },
-      "ex": "大乘期"
+      "ex": "大乘期",
+      "ex_conflict_note": "canonical_ex=大乘期@user_card; guide_ex=元神出窍 guide_only"
     },
     "haidao_chain": {
       "name": "海盗：藏宝图→毁灭战舰；黄金猿开宝藏",
-      "text": "海盗无 EX，终点 UR 毁灭战舰。实机：藏宝图(三)/贪婪/白赚海盗/海盗劫掠者 need 都是 3。战舰卡面：攻幅+10%，每击杀300置入随机海盗，每吞1张海盗杀敌金/木+1%，开池 N利刃海盗/战斗海盗/冲浪海盗+SSR重拳先生，无法吞噬。黄金猿是装备，装备栏左键开宝藏（user_confirmed）；禁止自动点装备栏。",
+      "text": "海盗无 EX，终点 UR 毁灭战舰。实机：藏宝图(三)/贪婪/白赚海盗/海盗劫掠者 need 都是 3。战舰卡面：攻幅+10%，每击杀300置入随机海盗，每吞1张海盗杀敌金/木+1%，开池 N利刃海盗/战斗海盗/冲浪海盗+SSR重拳先生，无法吞噬。黄金猿在单人物品栏 2-6 号格左键开宝藏（user_confirmed）；1 号格不走该路径。",
       "live_verified": {
         "map_need": {
           "name": "藏宝图(三)",

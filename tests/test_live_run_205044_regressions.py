@@ -572,13 +572,6 @@ class LiveRun205044Tests(unittest.TestCase):
         """把 _tick_main_line 裁到仅剩进化分支的补丁栈。"""
         from contextlib import ExitStack
 
-        def fake_find(_frame, names, **_kwargs):
-            # 只对 click_evolve 查找返回命中；其余（failGiftClose 等）一律 None，
-            # 防止进化按钮命中被其它模板查找误用。
-            if isinstance(names, list) and "click_evolve" in names:
-                return evolve_hit
-            return None
-
         stack = ExitStack()
         for attr, value in {
             "_post_game_state": None,
@@ -594,7 +587,8 @@ class LiveRun205044Tests(unittest.TestCase):
             "act_click": True,
         }.items():
             stack.enter_context(patch.object(med, attr, return_value=value, create=True))
-        stack.enter_context(patch.object(med, "find", side_effect=fake_find))
+        stack.enter_context(patch.object(med, "find", return_value=None))
+        stack.enter_context(patch.object(med, "_evolve_button_hit", return_value=evolve_hit))
         return stack
 
     @staticmethod
@@ -658,6 +652,16 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertTrue(med._evolve_awaiting_hero_pick)
         self.assertFalse(med._evolve_ok_this_cycle)
 
+    def test_missing_hero_modal_releases_evolve_and_continues_cycle(self) -> None:
+        med = self._evolve_ready_med()
+        med._evolve_awaiting_hero_pick = True
+        med._evolve_awaiting_hero_pick_at = time.time() - 16.0
+        with self._evolve_main_line_ctx(med, evolve_hit=None):
+            self.assertIs(med._tick_main_line(frame()), LoopAction.Continue)
+        self.assertFalse(med._evolve_awaiting_hero_pick)
+        self.assertEqual(med._l1_cycle_step, "equipment")
+        self.assertGreater(med._evolve_click_cooldown_until, time.time() + 30.0)
+
     def test_evolution_modal_handling_advances_evolve_step(self) -> None:
         # P0-2：进化面板真实出现并被处理 = 点击成功反馈 → L1 循环从 evolve 推进
         # （与反馈分支一致；避免有点数时进化饿死 equipment/pickup 等后续步骤）。
@@ -683,19 +687,76 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertEqual(med._l1_cycle_step, "equipment")
         self.assertFalse(med._evolve_feedback_pending)
 
-    def test_evolve_feedback_seen_anchor_or_pixels(self) -> None:
-        # P0-2：反馈 = 选择面板锚点出现，或面板中央区域像素变化。
+    def test_evolve_feedback_requires_hero_choice(self) -> None:
+        # 战斗中的中央画面变化不能把一次空点升级成进化成功。
         med = Mediator(Settings(), ROOT)
         fr = frame()
         anchor = MatchResult("skill_refresh_btn", 0.9, 860, 552, 10, 10, 860, 552)
-        with patch.object(med, "_selection_anchor", return_value=anchor):
+        with patch.object(med, "_selection_anchor", return_value=anchor), \
+             patch.object(med, "_find_evolution_choice", return_value=anchor):
             self.assertTrue(med._evolve_feedback_seen(fr))
 
         med2 = Mediator(Settings(), ROOT)
         med2._evolve_baseline = np.zeros((450, 832, 3), dtype=np.uint8)
         image = np.full((900, 1600, 3), 255, dtype=np.uint8)
-        with patch.object(med2, "_selection_anchor", return_value=None):
-            self.assertTrue(med2._evolve_feedback_seen(Frame(image)))
+        with patch.object(med2, "_selection_anchor", return_value=None), \
+             patch.object(med2, "_find_evolution_choice", return_value=None):
+            self.assertFalse(med2._evolve_feedback_seen(Frame(image)))
+
+    def test_live_20260923_hud_is_not_evolve_button(self) -> None:
+        image = cv2.imdecode(np.fromfile(ROOT / "tests/fixtures/evolve_false_positive_20260923.jpg", dtype=np.uint8), cv2.IMREAD_COLOR)
+        self.assertIsNotNone(image)
+        med = RuntimeMediator(Settings(), ROOT)
+        fr = Frame(image, hwnd=1, window_title="英雄三国KK")
+        self.assertFalse(med._has_evolve_button(fr))
+        self.assertIsNone(med._evolve_button_hit(fr))
+        self.assertFalse(med._evolve_feedback_seen(fr))
+
+    def test_live_20260923_inventory_hero_card_is_usable_after_evolution(self) -> None:
+        image = cv2.imdecode(np.fromfile(ROOT / "tests/fixtures/evolve_false_positive_20260923.jpg", dtype=np.uint8), cv2.IMREAD_COLOR)
+        med = RuntimeMediator(Settings(), ROOT)
+        med._evolve_ok_this_cycle = True
+        fr = Frame(image, hwnd=1, window_title="英雄三国KK")
+        with patch.object(med, "act_click", return_value=True) as click:
+            med._maybe_use_inventory_item(fr)
+        self.assertEqual(click.call_args.args[1], "UseInventory-hero-card")
+
+    def test_live_20260923_full_item_bar_is_used_without_evolution(self) -> None:
+        image = cv2.imdecode(np.fromfile(ROOT / "tests/fixtures/evolve_false_positive_20260923.jpg", dtype=np.uint8), cv2.IMREAD_COLOR)
+        med = RuntimeMediator(Settings(), ROOT)
+        fr = Frame(image, hwnd=1, window_title="英雄三国KK")
+        self.assertEqual(med._hud_item_bar_occupied_count(fr), 5)
+        with patch.object(med, "act_click", return_value=True) as click:
+            self.assertIs(med._maybe_use_inventory_item(fr), LoopAction.Continue)
+        self.assertEqual(click.call_args.args[1], "UseInventorySlot2")
+        self.assertLess(click.call_args.args[0].x, fr.width)
+        self.assertGreater(med._inventory_settle_until, 0)
+
+    def test_inventory_slot_probe_advances_and_does_not_spam_same_icon(self) -> None:
+        image = cv2.imdecode(np.fromfile(ROOT / "tests/fixtures/evolve_false_positive_20260923.jpg", dtype=np.uint8), cv2.IMREAD_COLOR)
+        med = RuntimeMediator(Settings(), ROOT)
+        fr = Frame(image, hwnd=1, window_title="英雄三国KK")
+        with patch.object(med, "act_click", return_value=True) as click:
+            self.assertIs(med._maybe_use_inventory_slot(fr, 100.0), LoopAction.Continue)
+            self.assertIsNone(med._maybe_use_inventory_slot(fr, 101.0))
+            self.assertIs(med._maybe_use_inventory_slot(fr, 102.0), LoopAction.Continue)
+        self.assertEqual([call.args[1] for call in click.call_args_list], ["UseInventorySlot2", "UseInventorySlot3"])
+
+    def test_full_item_bar_stays_untouched_in_passenger_mode(self) -> None:
+        image = cv2.imdecode(np.fromfile(ROOT / "tests/fixtures/evolve_false_positive_20260923.jpg", dtype=np.uint8), cv2.IMREAD_COLOR)
+        med = RuntimeMediator(Settings(mode_id="lobby_hitch"), ROOT)
+        fr = Frame(image, hwnd=1, window_title="英雄三国KK")
+        with patch.object(med, "act_click", return_value=True) as click:
+            self.assertIsNone(med._maybe_use_inventory_slot(fr, 100.0))
+        click.assert_not_called()
+
+    def test_solo_overflow_allows_z_with_bag_page_closed(self) -> None:
+        image = cv2.imdecode(np.fromfile(ROOT / "tests/fixtures/evolve_false_positive_20260923.jpg", dtype=np.uint8), cv2.IMREAD_COLOR)
+        med = RuntimeMediator(Settings(), ROOT)
+        fr = Frame(image, hwnd=1, window_title="英雄三国KK")
+        self.assertTrue(med._hud_item_bar_overflowed(fr))
+        with patch.object(med, "_bag_layout", return_value=None):
+            self.assertTrue(med._pickup_bag_has_space(fr))
 
     def test_evolve_clicks_gold_bar_not_dirt(self) -> None:
         med = Mediator(Settings(), ROOT)

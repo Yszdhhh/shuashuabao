@@ -446,6 +446,10 @@ class Mediator(CoreMediator):
             getattr(self, "_evolve_awaiting_hero_pick", False)
             or getattr(self, "_evolve_feedback_pending", False)
         )
+        inventory_modal_recent = bool(
+            time.time() < getattr(self, "_inventory_modal_until", 0.0)
+            and getattr(self, "_panel_opened_by_us", None) is None
+        )
         active_reward = (
             getattr(self, "_panel_opened_by_us", None) in ("skill", "bond", "treasure")
             or (
@@ -453,7 +457,9 @@ class Mediator(CoreMediator):
                 and getattr(self, "_panel_kind", None) in ("skill", "bond", "treasure")
             )
         )
-        if not awaiting_hero and (active_reward or self._classify_choice_panel(frame) is not None):
+        if not (awaiting_hero or inventory_modal_recent) and (
+            active_reward or self._classify_choice_panel(frame) is not None
+        ):
             return None
         hit = super()._find_evolution_choice(frame, anchor)
         if hit is not None and "refresh" not in str(getattr(hit, "name", "")).lower():
@@ -516,9 +522,9 @@ class Mediator(CoreMediator):
                 self._devour_dan_consecutive_clicks = 0
 
         if not getattr(self, "_evolve_ok_this_cycle", False):
-            return None
+            return self._maybe_use_inventory_slot(frame, now)
         if now < self._inventory_next_at or self._inventory_clicks_this_visit >= 2:
-            return None
+            return self._maybe_use_inventory_slot(frame, now)
         hero_card = self.find(
             frame,
             ["hero_card_item"],
@@ -527,12 +533,13 @@ class Mediator(CoreMediator):
             scales=(0.8, 0.9, 1.0, 1.1, 1.2),
         )
         if hero_card is None:
-            return None
+            return self._maybe_use_inventory_slot(frame, now)
         if not self.act_click(hero_card, "UseInventory-hero-card"):
             return None
         self._inventory_clicks_this_visit += 1
         self._inventory_next_at = now + 1.0
         self._evolve_awaiting_hero_pick = True
+        self._evolve_awaiting_hero_pick_at = now
         self._pending_action = PendingAction(
             kind="WAIT_HERO_CHOICE",
             target_id="hero_card_item",

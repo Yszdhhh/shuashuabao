@@ -143,6 +143,12 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_inventory_clicks_this_visit": 2,
         "_inventory_same_pt_hits": 5,
         "_inventory_next_at": 1.0e9,
+        "_inventory_probe_next_slot": 5,
+        "_inventory_slot_attempts": {1: ("polluted", 1.0e9)},
+        "_inventory_settle_until": 1.0e9,
+        "_inventory_modal_until": 1.0e9,
+        "_opportunistic_yinyue_next_at": 1.0e9,
+        "_yinyue_dialog_next_at": 1.0e9,
         "_skill_refresh_attempts": 3,
         "_choice_session": __import__(
             "shuabao.choice_policy", fromlist=["SessionState"]

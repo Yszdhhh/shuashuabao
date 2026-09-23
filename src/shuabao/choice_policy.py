@@ -506,8 +506,10 @@ def assemble_policy_settings(
                         bond_presets.append(name)
                 break
 
+    selected_group_names = tuple(name for group in selected_groups for name in group)
     advanced_presets = tuple(
-        item for item in bond_presets if matches_bond_preset(item, advanced_names)
+        item for item in bond_presets
+        if matches_bond_preset(item, advanced_names) or item in selected_group_names
     )
     base_presets = tuple(
         item for item in bond_presets
@@ -1317,6 +1319,11 @@ def _decide_collectible(
         return _no_safe_candidate(cands, state, kind, "卡名未读出/无安全候选")
     if kind == PANEL_TREASURE:
         eligible = _drop_negative_treasures(cands.slots, settings)
+        if getattr(settings, "mode_id", "normal_farm") != "lobby_hitch":
+            eligible = tuple(
+                slot for slot in eligible
+                if "神符" not in f"{slot.name or ''} {slot.description or ''}"
+            )
         eligible = tuple(
             slot for slot in eligible
             if bool(slot.name and str(slot.name).strip()) or bool(slot.description and str(slot.description).strip())
@@ -1386,12 +1393,14 @@ def _decide_collectible(
         if kind == PANEL_BOND:
             eligible = _bond_capacity_candidates(cands, eligible, settings)
             owned_bonds = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
+            simple_ex = _selected_simple_ex_presets(settings)
             if not _bond_base_ready(cands, settings):
                 eligible = tuple(
                     slot for slot in eligible
                     if (
                         matches_bond_preset(slot.name, settings.bond_base_presets)
                         or matches_bond_preset(slot.name, settings.bond_chain_presets)
+                        or matches_bond_preset(slot.name, simple_ex)
                         # A past run may already contain an advanced card. Let
                         # its duplicate finish/merge, but never start another.
                         or _is_uncompleted_merge_upgrade(slot, owned_bonds)
@@ -1414,6 +1423,7 @@ def _decide_collectible(
                             matches_bond_preset(slot.name, settings.bond_base_presets)
                             or matches_bond_preset(slot.name, settings.bond_chain_presets)
                             or matches_bond_preset(slot.name, active_adv)
+                            or matches_bond_preset(slot.name, simple_ex)
                             or _is_uncompleted_merge_upgrade(slot, owned_bonds)
                         )
                     )
@@ -1464,6 +1474,15 @@ def _decide_collectible(
                     return PolicyDecision.select(
                         slot.index, f"羁绊已持有合成优先：{slot.name} @ slot {slot.index}"
                     )
+            # Owner-selected direct EX families should keep their own chain
+            # moving when a member appears, without waiting for unrelated
+            # economy/base checkboxes to reach 80%.
+            simple_hit = _match_bond_preset(
+                eligible, simple_ex, settings.min_confidence, settings.quality_order
+            )
+            if simple_hit is not None:
+                name = _slot_name(cands.slots, simple_hit)
+                return PolicyDecision.select(simple_hit, f"已选 EX 卡组持续推进：{name} @ slot {simple_hit}")
     preset_hit = (
         _match_bond_preset(eligible, presets, settings.min_confidence, settings.quality_order)
         if kind == PANEL_BOND
@@ -1528,6 +1547,17 @@ def _bond_base_ready(cands: PanelCandidates, settings: PolicySettings) -> bool:
         for base in bases
     )
     return completed >= required
+
+
+def _selected_simple_ex_presets(settings: PolicySettings) -> tuple[str, ...]:
+    """Configured direct EX families; catalog entries alone never enable one."""
+    markers = ("齐天大圣", "大圣", "异火", "封神")
+    return tuple(
+        name
+        for group in settings.bond_advanced_groups
+        if any(marker in group for marker in markers)
+        for name in group
+    )
 
 
 def _active_advanced_presets(cands: PanelCandidates, settings: PolicySettings) -> tuple[str, ...]:

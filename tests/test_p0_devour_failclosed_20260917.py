@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
-"""P0-2（2026-09-17）：普通吞噬丹在共享运行时闸门处失能。
+"""P0-2：低占用不吞丹；用户 2026-09-23 授权近满时使用。
 
-羁绊栏只能读出「占了几格」，读不出逐格身份，所以「格数 > 3」不是
-「可以随便吞掉一张」的授权。存档里既有的 auto_devour_dan=true 只是
-用户偏好，不是授权：闸门 `_can_consume_inventory_swallow_pill` 无条件
-False，core 与 runtime 两个消费者、以及 MAIN_LINE 的 opportunistic
-调度全部经过它，谁都绕不过去。
+普通丹仍尊重 auto_devour_dan，羁绊栏 8/10 起允许使用；弹窗与未知
+道具由单人物品栏调度另行处理。本文件只运行 mock 输入。
 
 本文件零真实输入：executor 一律换成 MagicMock 记录器，任何一次真的
 SendInput 都会体现为 mock_calls 非空。
@@ -125,13 +122,14 @@ def test_saved_true_is_preserved_and_missing_key_falls_back_to_disabled(tmp_path
 # ---------------------------------------------------------------- the gate
 
 
-def test_real_gate_refuses_every_recognized_occupancy() -> None:
-    """4/5/6 格全部被真实识别读出，闸门依旧拒绝（无逐格身份=无授权）。"""
+def test_real_gate_waits_until_bond_bar_nearly_full() -> None:
     med = _med(CoreMediator)
     for occupied in (4, 5, 6):
         frame = _bond_frame(occupied)
         assert med._bond_bar_occupancy(frame) == occupied
         assert med._can_consume_inventory_swallow_pill(frame) is False
+    for occupied in (8, 9, 10):
+        assert med._can_consume_inventory_swallow_pill(_bond_frame(occupied)) is True
 
 
 # ------------------------------------------------------- the two consumers
@@ -139,7 +137,7 @@ def test_real_gate_refuses_every_recognized_occupancy() -> None:
 
 @pytest.mark.parametrize("cls", [CoreMediator, RuntimeMediator])
 @pytest.mark.parametrize("occupied", [4, 5, 6])
-def test_consumer_never_clicks_pill_even_with_saved_true(cls, occupied: int) -> None:
+def test_consumer_waits_for_nearly_full_bar_even_with_saved_true(cls, occupied: int) -> None:
     med = _med(cls, auto_devour_dan=True)
     frame = _bond_frame(occupied)
     assert med._bond_bar_occupancy(frame) == occupied
@@ -154,13 +152,24 @@ def test_consumer_never_clicks_pill_even_with_saved_true(cls, occupied: int) -> 
     assert getattr(med._pending_action, "kind", None) not in ("WAIT_DEVOUR_DAN", "WAIT_SWALLOW_PILL_CONFIRM")
 
 
+@pytest.mark.parametrize("cls", [CoreMediator, RuntimeMediator])
+def test_near_full_bond_bar_uses_visible_pill_before_item_bar_is_full(cls) -> None:
+    med = _med(cls, auto_devour_dan=True)
+    frame = _bond_frame(8)
+    pill = MatchResult("danGif", 0.95, 1100, 780, 20, 20, 1100, 780)
+    with _pill_only_find(med, pill), patch.object(med, "act_click", return_value=True) as click:
+        assert med._maybe_use_inventory_item(frame) is LoopAction.Continue
+    click.assert_called_once_with(pill, "UseInventory-swallow_pill")
+    assert med._pending_action is not None
+
+
 
 # --------------------------------------------------- MAIN_LINE opportunistic
 
 
 @pytest.mark.parametrize("cls", [CoreMediator, RuntimeMediator])
-def test_main_line_opportunistic_dispatch_cannot_bypass_the_gate(cls) -> None:
-    """auto_devour_dan=true + 冷却已到 + 丹可见，真实 _tick_main_line 仍不吞。"""
+def test_main_line_low_bond_occupancy_does_not_swallow_pill(cls) -> None:
+    """Low occupancy does not trigger the new near-full item schedule."""
     med = _med(cls, auto_devour_dan=True, auto_artifact=False)
     med._l1_cycle_step = "bond"
     med._main_line_started_at = 100.0
@@ -184,6 +193,7 @@ def test_main_line_opportunistic_dispatch_cannot_bypass_the_gate(cls) -> None:
         stack.enter_context(patch.object(med, "_maybe_clear_pressure_monsters", return_value=None))
         stack.enter_context(patch.object(med, "_handle_self_opened_compact_panel", return_value=None))
         stack.enter_context(patch.object(med, "_maybe_open_choice_panel", return_value=None))
+        stack.enter_context(patch.object(med, "_maybe_opportunistic_evolve", return_value=None))
         stack.enter_context(patch.object(med, "_is_in_game_hud", return_value=True))
         stack.enter_context(patch.object(med, "_black_merchant_present", return_value=False))
         stack.enter_context(patch.object(med, "_maybe_fire_artifacts", return_value=None))
@@ -197,8 +207,7 @@ def test_main_line_opportunistic_dispatch_cannot_bypass_the_gate(cls) -> None:
         )
         med._tick_main_line(frame)
 
-    assert gate_results, "opportunistic 分支必须真的问过共享闸门"
-    assert set(gate_results) == {False}
+    assert not gate_results or set(gate_results) == {False}
     assert "UseInventory-swallow_pill" not in clicks
     assert med.executor.mock_calls == []
     assert getattr(med._pending_action, "kind", None) not in ("WAIT_DEVOUR_DAN", "WAIT_SWALLOW_PILL_CONFIRM")

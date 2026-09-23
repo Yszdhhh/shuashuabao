@@ -239,7 +239,7 @@ def build_snapshot(mediator: Any, now: float | None = None) -> Snapshot:
             Fact.observed(str(panel_state), "mediator._panel_state")
             if panel_state is not None else Fact.unknown("mediator._panel_state")
         ),
-        swallow_guard_allows=Fact.observed(swallow_ok, "mediator._can_consume_inventory_swallow_pill:const_false"),
+        swallow_guard_allows=Fact.observed(swallow_ok, "mediator._can_consume_inventory_swallow_pill:near_full"),
         main_line_stage=main_stage,
         failure_event=failure,
         tab_window=tab_window,
