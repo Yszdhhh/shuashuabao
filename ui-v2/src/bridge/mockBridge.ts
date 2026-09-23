@@ -408,6 +408,10 @@ export function createMockBridgeConnection(options: MockBridgeOptions = {}): Moc
     },
     async set_window_layout(layout, height) {
       emitLog(`[mock] 切换布局: ${layout}${height === undefined ? "" : ` h=${height}`}`, "info");
+      // 开发预览没有 Qt 宿主：广播一个事件，让外层预览框按正式窗口尺寸（看板 960×820 / 小窗 360×实测高）调整。
+      if (typeof window !== "undefined" && typeof CustomEvent === "function") {
+        window.dispatchEvent(new CustomEvent("sb:window-layout", { detail: { layout, height } }));
+      }
       return { ok: true, request_id: null, settings_revision: current.settings_revision, snapshot_seq: current.snapshot_seq };
     },
     async activate_subscription(key) {
