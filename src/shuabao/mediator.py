@@ -3877,8 +3877,10 @@ class Mediator:
         )
         reason = str(decision.reason or "")
         skip_confirm = (
-            "差一张合成" in reason
+            "秒选" in reason
+            or "差一张合成" in reason
             or "已持有合成" in reason
+            or "必拿" in reason
             or (
                 decision.action == PolicyAction.SELECT_SLOT
                 and self._is_unambiguous_high_confidence_pick(decision, slots, reason)
@@ -3902,11 +3904,13 @@ class Mediator:
             ):
                 skip_confirm = True
         if owned and not skip_confirm and decision.action in {PolicyAction.SELECT_SLOT, PolicyAction.REFRESH}:
+            chosen_slot = next((s for s in slots if s.index == decision.index), None)
+            chosen_name = str(chosen_slot.name).strip() if chosen_slot else ""
             key = (
                 kind,
                 decision.action.value,
                 decision.index,
-                tuple((s.index, s.name) for s in slots),
+                chosen_name,
             )
             if key != getattr(self, "_ocr_confirm_key", None):
                 self._ocr_confirm_key = key
@@ -3958,7 +3962,7 @@ class Mediator:
         其余情形（刷新、模糊/低置信/重名槽位、非预设兜底如品质降级/套装进度）
         仍保留 _ocr_reward_choice 现有的两帧确认。
         """
-        if "预设命中" not in reason and "严格命中" not in reason:
+        if "预设命中" not in reason and "严格命中" not in reason and "必拿" not in reason:
             return False
         chosen = next((s for s in slots if s.index == decision.index), None)
         if chosen is None or not chosen.name or float(chosen.confidence or 0.0) < 0.95:
@@ -5040,13 +5044,17 @@ class Mediator:
 
     def _maybe_opportunistic_evolve(self, frame: Frame, now: float) -> LoopAction | None:
         """HUD_ONLY 机会动作：当金色点击进化高亮且不在冷却中时执行快速事务。"""
+        if getattr(self, "_evolve_ok_this_cycle", False):
+            return None
+        if not self._has_evolve_button(frame):
+            return None
         if now < getattr(self, "_evolve_click_cooldown_until", 0.0):
             return None
         evolve_hit = self._evolve_button_hit(frame)
         if evolve_hit:
             print(f"[L1] 机会点击进化 @ {evolve_hit.center}")
             if self.act_click(evolve_hit, "ClickEvolve"):
-                self._evolve_click_cooldown_until = now + 5.0
+                self._evolve_click_cooldown_until = now + 10.0
                 self._evolve_feedback_pending = True
                 self._evolve_click_at = now
                 self._evolve_baseline = self._panel_roi_region(frame)
@@ -5216,7 +5224,10 @@ class Mediator:
             previous = self._inventory_slot_attempts.get(index)
             if previous is not None:
                 old_fingerprint, attempted_at = previous
-                if now - attempted_at < 10.0 or (fingerprint == old_fingerprint and now - attempted_at < 45.0):
+                # 若点击后物品依然存在且指纹未变，说明属于不可使用装备，不要反复点击
+                if fingerprint == old_fingerprint:
+                    continue
+                if now - attempted_at < 10.0:
                     continue
             x, y = (x0 + x1) // 2, (y0 + y1) // 2
             hit = MatchResult(
@@ -16605,10 +16616,23 @@ class Mediator:
             # 同 fingerprint 同动作 ≤ panel_action_limit_per_fingerprint 次
             choice = self._find_reward_choice(frame, anchor=anchor)
             if choice is None and self._choice_policy_idle:
-                # 策略明确 WAIT：本 tick 零输入，不走关闭/未知超时收口。
+                # 策略明确 WAIT：本 tick 零输入，但不允许无限期死锁，超过 5 ticks 转物理关闭
                 self._choice_policy_idle = False
-                print(f"[L1] 选卡策略本 tick 零输入（{self._choice_policy_last_reason or 'WAIT'}）")
-                return LoopAction.Continue
+                self._selection_idle_ticks = getattr(self, "_selection_idle_ticks", 0) + 1
+                if self._selection_idle_ticks >= 5:
+                    print(f"[L1] 选卡策略连续 {self._selection_idle_ticks} ticks 无候选卡，转物理关闭")
+                    self._selection_idle_ticks = 0
+                    self._ocr_confirm_key = None
+                    close_hit = self._close_current_panel(frame, self._panel_kind)
+                    if close_hit and self.act_click(close_hit, "PanelClose"):
+                        self._stage_panel_choice_action("close", (self._panel_kind, close_hit.name))
+                        self._panel_state = PanelState.WAIT_MUTATION
+                        return LoopAction.Continue
+                else:
+                    print(f"[L1] 选卡策略本 tick 零输入（{self._choice_policy_last_reason or 'WAIT'}，{self._selection_idle_ticks}/5）")
+                    return LoopAction.Continue
+            else:
+                self._selection_idle_ticks = 0
             if choice:
                 kind, hit = choice
                 fingerprint = (kind, hit.name, hit.screen_x // 8, hit.screen_y // 8)
@@ -18429,6 +18453,17 @@ class Mediator:
                 self._main_line_since = now
                 return artifact_res
 
+            # 机会点击进化：进化的频次不高，在周期内未完成进化且有金条时穿插触发
+            if (
+                self._l1_cycle_step != "evolve"
+                and not getattr(self, "_evolve_ok_this_cycle", False)
+                and now >= getattr(self, "_evolve_click_cooldown_until", 0.0)
+            ):
+                evolve_res = self._maybe_opportunistic_evolve(frame, now)
+                if evolve_res is not None:
+                    self._main_line_since = now
+                    return evolve_res
+
             # The known item timelines run before overflow: devour near a full
             # bond bar, hero cards after evolve. Four filled item slots also
             # trigger a bounded unknown-item probe to make room for equipment.
@@ -18482,12 +18517,6 @@ class Mediator:
                     self._main_line_since = now
                     return slot1_res
 
-            # 机会点击进化：在 HUD 空闲时触发
-            if self._l1_cycle_step != "evolve":
-                evolve_res = self._maybe_opportunistic_evolve(frame, now)
-                if evolve_res is not None:
-                    self._main_line_since = now
-                    return evolve_res
 
             # 机会使用英雄卡：在 HUD 空闲、无点击进化按钮时使用背包英雄卡（4s CD）
             hero_card_res = self._maybe_opportunistic_hero_card(frame, now)

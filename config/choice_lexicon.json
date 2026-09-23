@@ -2957,7 +2957,9 @@
       "_note": "攻略大圣套装护甲。无独立帧。"
     },
     "点翠飞龙臂": {
-      "aliases": [],
+      "aliases": [
+        "点翠臂"
+      ],
       "kind": "bond",
       "version_seen": "guide-20260815",
       "confusions": [],
@@ -3004,14 +3006,6 @@
       "set_membership": "大圣",
       "_note": "攻略术法大成小卡，回血。应先于近字法。无独立帧。"
     },
-    "近字法": {
-      "aliases": [],
-      "kind": "bond",
-      "version_seen": "guide-20260815",
-      "confusions": [],
-      "set_membership": "大圣",
-      "_note": "攻略术法大成小卡，献祭50%生命转攻击。推图先拿会暴毙。无独立帧。"
-    },
     "身法大成": {
       "aliases": [],
       "kind": "bond",
@@ -3021,7 +3015,9 @@
       "_note": "攻略五大成，闪避+攻速。无独立帧。"
     },
     "奇迹大成": {
-      "aliases": [],
+      "aliases": [
+        "骑技大成"
+      ],
       "kind": "bond",
       "version_seen": "guide-20260815",
       "confusions": [],
@@ -3977,6 +3973,200 @@
       "version_seen": "1.3.x",
       "confusions": [],
       "set_membership": "寒冰箭"
+    },
+    "身法": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
+    },
+    "纵跃身法": {
+      "aliases": [
+        "纵跃"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
+    },
+    "金身护体": {
+      "aliases": [
+        "金身"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
+    },
+    "棍法": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
+    },
+    "武艺天赋": {
+      "aliases": [
+        "武艺"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
+    },
+    "体锻修行": {
+      "aliases": [
+        "体锻"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
+    },
+    "气力天赋": {
+      "aliases": [
+        "气力"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
+    },
+    "术法": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
+    },
+    "禁字法": {
+      "aliases": [
+        "近字法",
+        "禁字",
+        "禁自决"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣",
+      "_note": "献祭50%生命转攻击，必须在安身法后选"
+    },
+    "进字法": {
+      "aliases": [
+        "进字"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
+    },
+    "凝神法": {
+      "aliases": [
+        "凝神"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
+    },
+    "根系": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
+    },
+    "根基": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
+    },
+    "根系大成": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
+    },
+    "奇迹": {
+      "aliases": [
+        "骑技"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
+    },
+    "眼看喜": {
+      "aliases": [
+        "眼看"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
+    },
+    "耳听怒": {
+      "aliases": [
+        "耳听"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
+    },
+    "鼻嗅爱": {
+      "aliases": [
+        "鼻嗅"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
+    },
+    "舌尝思": {
+      "aliases": [
+        "舌尝"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
+    },
+    "意见欲": {
+      "aliases": [
+        "意见"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
+    },
+    "身本忧": {
+      "aliases": [
+        "身本"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
+    },
+    "点翠": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
+    },
+    "飞龙臂": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260923",
+      "confusions": [],
+      "set_membership": "大圣"
     }
   },
   "aliases": {

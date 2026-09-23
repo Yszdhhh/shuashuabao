@@ -87,7 +87,7 @@ DEFAULT_QUALITY_ORDER = ("red", "orange", "purple", "blue", "white", "green")
 WHITELIST_HARD = "hard"
 WHITELIST_SOFT = "soft"
 VALID_WHITELIST_MODES = frozenset({WHITELIST_HARD, WHITELIST_SOFT})
-DEFAULT_BOND_MUST_TAKE: tuple[str, ...] = ()
+DEFAULT_BOND_MUST_TAKE: tuple[str, ...] = ("祝福", "智力祝福", "敏捷祝福", "力量祝福")
 DEFAULT_SKILL_SLOT_CAP = 4
 DEFAULT_TREASURE_MUST_TAKE = ("全都要", "卡牌大师")
 _CATALOG_RARITY_TO_BAND = {
@@ -370,7 +370,10 @@ class PolicySettings:
             quality_order=(tuple(str(s) for s in qo) if qo is not None else DEFAULT_QUALITY_ORDER),
             min_confidence=0.0 if min_conf is None else float(min_conf),
             bond_whitelist_mode=WHITELIST_HARD if bond_mode is None else str(bond_mode),
-            bond_must_take=tuple(dict.fromkeys(str(s) for s in (bond_must_take or ()))),
+            bond_must_take=tuple(dict.fromkeys(
+                DEFAULT_BOND_MUST_TAKE
+                + tuple(str(s) for s in (bond_must_take or ()))
+            )),
             treasure_negative_patterns=(
                 tuple(str(s) for s in neg) if neg is not None else DEFAULT_NEGATIVE_PATTERNS
             ),
@@ -594,7 +597,8 @@ def assemble_policy_settings(
                 or bond_cfg.get("whitelist_mode", WHITELIST_HARD)
             ),
             "bond_must_take": tuple(dict.fromkeys(
-                tuple(str(s) for s in (getattr(settings, "bond_must_take", None) or ()))
+                DEFAULT_BOND_MUST_TAKE
+                + tuple(str(s) for s in (getattr(settings, "bond_must_take", None) or ()))
                 + tuple(str(s) for s in (bond_cfg.get("must_take_names") or ()))
             )),
             "treasure_negative_patterns": treasure_cfg.get("negative_patterns"),
@@ -1398,7 +1402,8 @@ def _decide_collectible(
                 eligible = tuple(
                     slot for slot in eligible
                     if (
-                        matches_bond_preset(slot.name, settings.bond_base_presets)
+                        _is_bond_must_take(slot.name, settings.bond_must_take)
+                        or matches_bond_preset(slot.name, settings.bond_base_presets)
                         or matches_bond_preset(slot.name, settings.bond_chain_presets)
                         or matches_bond_preset(slot.name, simple_ex)
                         # A past run may already contain an advanced card. Let
@@ -1420,7 +1425,8 @@ def _decide_collectible(
                     eligible = tuple(
                         slot for slot in eligible
                         if (
-                            matches_bond_preset(slot.name, settings.bond_base_presets)
+                            _is_bond_must_take(slot.name, settings.bond_must_take)
+                            or matches_bond_preset(slot.name, settings.bond_base_presets)
                             or matches_bond_preset(slot.name, settings.bond_chain_presets)
                             or matches_bond_preset(slot.name, active_adv)
                             or matches_bond_preset(slot.name, simple_ex)
@@ -1442,6 +1448,14 @@ def _decide_collectible(
                     or matches_bond_preset(slot.name, settings.bond_presets)
                     or _is_uncompleted_merge_upgrade(slot, owned_bonds)
                 )
+
+            # 禁字法避坑：献祭50%生命转高额攻击，必须在持有「安身法」百分比回血后才可选择，前期无安身法拿易暴毙
+            if any(slot.name == "禁字法" for slot in eligible):
+                has_anshen = any(
+                    "安身法" in str(b) for b in (cands.owned_bond_cards or ())
+                ) or any("安身法" in str(b) for b in (owned_bonds or ()))
+                if not has_anshen:
+                    eligible = tuple(slot for slot in eligible if slot.name != "禁字法")
 
             # 1. 必拿名单优先级最高（不受 near_complete 抢占）
             for slot in eligible:
