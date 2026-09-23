@@ -1,7 +1,7 @@
 """挑战券动态预算：死算为主、机会性读数校正，票不够就转考古收尾。
 
 Owner 定的模型（2026-09-21）：
-* 正常每局消耗 2 张。
+* 正常每局消耗 2 张（2026-09-23 原始帧读数: 130 -> 128 -> 126 -> 124）。
 * **每局都尝试读一次**真实剩余来校正；读不出是常态（蹭车大部分时间待在 KK
   房间列表，看不见那个计数），靠死算兜着 —— 读不出就是容错空间。
 * 跨零点补票之类的特殊情况，靠"真实读数一律覆盖死算"自然收敛。
@@ -101,7 +101,7 @@ class TicketReadIsSideInfoOnly(unittest.TestCase):
 class TicketBudgetGatesNextRound(unittest.TestCase):
     def test_enough_tickets_keeps_searching(self) -> None:
         med = _med()
-        med._ticket_balance, med._ticket_rounds_since_read = 10, 0
+        med._ticket_balance, med._ticket_rounds_since_read = 40, 0
         self.assertTrue(med._ticket_budget_allows_another_round())
 
         med.set_phase(Phase.MAIN_LINE, "test")
