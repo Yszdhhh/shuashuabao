@@ -19,6 +19,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from shuabao.loop_action import LoopAction
 from shuabao.mediator import Mediator, Phase
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
@@ -376,6 +377,68 @@ class GuestStageSelectRecoveryTests(unittest.TestCase):
         self.assertFalse(med._hitch_unstarted_exit_pending)
         self.assertFalse(med._hitch_archaeology_room_pending)
         self.assertFalse(med._archaeology_handoff_pending)
+
+    def test_hitch_unstarted_exit_budget_exhausted_gives_up_without_stop(self) -> None:
+        """Early-archaeology exit budget spent: abandon room, keep hitch mission."""
+        import time as _time
+
+        med = Mediator(
+            Settings(mode_id="lobby_hitch", hitch_after_goal="arch", cycle_num=20, dry_run=True), ROOT
+        )
+        med.phase = Phase.QUIT
+        med._hitch_archaeology_room_pending = True
+        med._hitch_unstarted_exit_pending = True
+        med._hitch_pending_room_key = "team-archaeology-room"
+        med._hitch_unstarted_exit_esc_attempts = 1
+        med._exit_rearm_attempts = med._EXIT_REARM_LIMIT
+        med._exit_button_attempts = 3
+        med._exit_since = _time.time() - 60.0
+        med.game_count = 3
+        med._hitch_stats_started = 4
+        frame = _game_frame()
+
+        with patch.object(med, "_find_exit_confirm", return_value=None), \
+                patch.object(med, "_find_game_exit", return_value=None), \
+                patch.object(med, "_find_stage_page", return_value=False), \
+                patch.object(med, "_host_choosing_difficulty", return_value=False), \
+                patch.object(med, "_is_game_client_frame", return_value=True), \
+                patch.object(med, "_classify_exit_surface", return_value="unknown"), \
+                patch.object(med, "stop") as stop:
+            result = med._tick_l1_tail(frame)
+
+        self.assertIsNot(result, LoopAction.Break)
+        self.assertEqual(med.phase, Phase.LOBBY_ROOM)
+        stop.assert_not_called()
+        self.assertEqual(med.game_count, 3)
+        self.assertEqual(med._ticket_rounds_since_read, 0)
+        self.assertEqual(med.settings.mode_id, "lobby_hitch")
+        self.assertFalse(med._archaeology_handoff_pending)
+        self.assertFalse(med._hitch_archaeology_room_pending)
+        self.assertIn("team-archaeology-room", med._hitch_blacklisted_room_keys)
+
+    def test_goal_reached_arch_handoff_only_at_cycle_num(self) -> None:
+        """after-goal=arch fires only when cycle_num is reached."""
+        med = Mediator(
+            Settings(mode_id="lobby_hitch", hitch_after_goal="arch", cycle_num=2, dry_run=True), ROOT
+        )
+        med.set_phase(Phase.MAIN_LINE, "test")
+        med._hitch_stats_started = 1
+        med.game_count = 1
+        with patch.object(med, "_observe_ticket_balance"), \
+                patch.object(med, "_ticket_budget_allows_another_round", return_value=True):
+            med._finish_hitch_round(1000.0, "one of two", already_counted=True)
+        self.assertEqual(med.game_count, 1)
+        self.assertEqual(med.phase, Phase.LOBBY_ROOM)
+        self.assertFalse(med._archaeology_handoff_pending)
+
+        med.game_count = 2
+        med.set_phase(Phase.MAIN_LINE, "test")
+        with patch.object(med, "_observe_ticket_balance"), \
+                patch.object(med, "_ticket_budget_allows_another_round", return_value=True):
+            med._finish_hitch_round(2000.0, "goal", already_counted=True)
+        self.assertTrue(med._archaeology_handoff_pending)
+        self.assertEqual(med.settings.mode_id, "normal_farm")
+
 
 if __name__ == "__main__":
     unittest.main()

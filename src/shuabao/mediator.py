@@ -8247,7 +8247,13 @@ class Mediator:
         ticket_remaining = self._ticket_projected_remaining()
         ticket_text = f"门票约消耗 {ticket_spent} 张"
         if ticket_remaining is not None:
-            ticket_text += f" / 估算余额 {ticket_remaining} 张"
+            if self._ticket_balance is not None:
+                ticket_text += (
+                    f" / 余额 {ticket_remaining} 张"
+                    f"（实读 {self._ticket_balance} 后估算 {self._ticket_rounds_since_read} 局）"
+                )
+            else:
+                ticket_text += f" / 估算余额 {ticket_remaining} 张"
         round_text = ""
         if self._hitch_round_started_counted or self._hitch_stats_current_stage or self._hitch_stats_current_challenges:
             stage_text = self._hitch_stats_current_stage or "未识别"
@@ -13177,23 +13183,28 @@ class Mediator:
             + (f" 战绩: {self.format_hitch_stats_summary()}" if self.format_hitch_stats_summary() else "")
         )
         goal_reached = self.settings.cycle_num > 0 and self.game_count >= self.settings.cycle_num
-        # 票不够再来一局 -> 下一局不再搜房，直接走同一条考古出口。
         # 估算读不出时 _ticket_budget_allows_another_round() 返回 True（未知不是耗尽）。
         budget_out = not goal_reached and not self._ticket_budget_allows_another_round()
-        if budget_out:
-            print(
-                f"[med] 挑战券估算剩余≈{projected} < 每局 {self._TICKET_COST_PER_ROUND}，"
-                f"不再搜房（已完成 {self.game_count} 局）"
-            )
-        if goal_reached or budget_out:
-            why = "cycle_num 达标" if goal_reached else "挑战券预算不足"
+        if goal_reached:
+            why = "cycle_num 达标"
             after_goal = str(getattr(self.settings, "hitch_after_goal", "solo") or "solo")
             if after_goal == "arch":
                 return self._begin_hitch_archaeology_handoff(now, why)
             if after_goal == "solo":
                 return self._begin_hitch_solo_handoff(now, why)
             print(f"[med] 蹭车收尾（{why}），转 COMPLETE 停止")
-            self.set_phase(Phase.COMPLETE, "cycle_num reached" if goal_reached else "ticket budget exhausted")
+            self.set_phase(Phase.COMPLETE, "cycle_num reached")
+            self.stop()
+            return LoopAction.Break
+        if budget_out:
+            # Ticket estimate exhausted before the configured goal: do NOT run
+            # after-goal (no archaeology handoff / mode switch). Controlled end.
+            print(
+                f"[med] 挑战券估算剩余≈{projected} < 每局 {self._TICKET_COST_PER_ROUND}，"
+                f"未达 cycle_num={self.settings.cycle_num}（已完成 {self.game_count} 局），"
+                "不触发 after-goal，受控结束"
+            )
+            self.set_phase(Phase.COMPLETE, "ticket budget exhausted before cycle_num")
             self.stop()
             return LoopAction.Break
         self._hitch_after_exit(now)
@@ -13236,6 +13247,19 @@ class Mediator:
         if archaeology_room:
             print("[L0] 已离开未达标的组队考古房，保持蹭车模式并继续搜房")
         return LoopAction.Continue
+
+    def _hitch_unstarted_exit_give_up(self, reason: str) -> LoopAction:
+        """Exit budget spent on a wrong/unstarted room: abandon it without stopping.
+
+        Early team-archaeology and pre-game hangs must not terminate the long
+        hitch mission.  Blacklist the room, clear the exit transaction via
+        _hitch_after_exit, and re-search.  No hitch round / ticket / after-goal.
+        """
+        print(
+            f"[L0] hitch 未开局退房失败（{reason}），放弃该房并继续搜房"
+            "（不计局、不扣票、不触发 after-goal）"
+        )
+        return self._hitch_reset_lobby(f"unstarted exit give-up: {reason}", time.time())
 
     def _hitch_reset_lobby(self, evidence: str, now: float) -> LoopAction:
         print(f"[L0] hitch {evidence} 触发，重置状态回大厅")
@@ -18944,6 +18968,10 @@ class Mediator:
                     and self._rearm_exit_chain("hitch pre-game exit surface not confirmed")
                 ):
                     return LoopAction.Continue
+                if self._hitch_unstarted_exit_pending or self._hitch_archaeology_room_pending:
+                    if self._rearm_exit_chain("hitch unstarted/archaeology exit unproven"):
+                        return LoopAction.Continue
+                    return self._hitch_unstarted_exit_give_up("exit button timeout")
                 print("[med] 未能打开专用退出确认框，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "exit button timeout")
                 self.stop()
@@ -19038,6 +19066,7 @@ class Mediator:
             if surface == "hud" and self._hitch_archaeology_room_pending:
                 if self._rearm_exit_chain("hitch archaeology Esc not confirmed"):
                     return LoopAction.Continue
+                return self._hitch_unstarted_exit_give_up("archaeology Esc not confirmed")
             if surface == "transition":
                 if elapsed < timeout * 2:
                     print("[med] 退出确认消失，处于转场/加载，继续有界等待（零动作）")
@@ -19047,6 +19076,8 @@ class Mediator:
                     and self._rearm_exit_chain("hitch pre-game Esc not confirmed")
                 ):
                     return LoopAction.Continue
+                if self._hitch_unstarted_exit_pending or self._hitch_archaeology_room_pending:
+                    return self._hitch_unstarted_exit_give_up("exit confirmation transition timeout")
                 print("[med] 退出确认转场等待超时，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "exit confirmation transition timeout")
                 self.stop()
@@ -19066,6 +19097,8 @@ class Mediator:
                     self._longzhu_deadline = None
                     self._f1_fallback_done = False
                     return LoopAction.Continue
+                if self._hitch_unstarted_exit_pending or self._hitch_archaeology_room_pending:
+                    return self._hitch_unstarted_exit_give_up("exit confirmation timeout")
                 print("[med] 退出确认框未能安全确认，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "exit confirmation timeout")
                 self.stop()
