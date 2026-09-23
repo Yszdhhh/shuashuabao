@@ -108,20 +108,20 @@ class TicketBudgetGatesNextRound(unittest.TestCase):
         med._finish_hitch_round(1000.0, "next round")
         self.assertEqual(med.phase, Phase.LOBBY_ROOM, "票够就回大厅继续搜房")
 
-    def test_budget_out_routes_to_archaeology_without_searching(self) -> None:
-        """票不够再来一局 -> 不搜房，直接进考古收尾（与局数达标同一条出口）。"""
+    def test_budget_out_before_goal_is_controlled_end_not_after_goal(self) -> None:
+        """未达 cycle_num 时票尽：受控结束，不触发 after-goal/考古 handoff。"""
         med = _med()
         med._ticket_balance, med._ticket_rounds_since_read = 2, 0  # 本局扣完只剩 0
         med.set_phase(Phase.MAIN_LINE, "test")
 
         med._finish_hitch_round(1000.0, "budget out")
 
-        self.assertEqual(med.phase, Phase.ROOM_WAITING)
-        self.assertTrue(med._archaeology_handoff_pending)
-        self.assertTrue(med._room_leave_pending)
-        self.assertEqual(med.settings.mode_id, "normal_farm", "交接后必须离开蹭车模式")
-        self.assertTrue(med.settings.auto_create_room, "考古要自建房，建房开关必须解禁")
+        self.assertEqual(med.phase, Phase.COMPLETE)
+        self.assertFalse(med._archaeology_handoff_pending)
+        self.assertFalse(med._room_leave_pending)
+        self.assertEqual(med.settings.mode_id, "lobby_hitch", "未达标不得切换模式")
         self.assertLess(med.game_count, med.settings.cycle_num, "这条出口不是局数达标")
+        self.assertEqual(med._ticket_rounds_since_read, 1, "本局票已结算，但不进入 after-goal")
 
     def test_unknown_balance_does_not_end_the_run(self) -> None:
         """从没读到过读数 -> 不得误判耗尽而提前收工。"""
