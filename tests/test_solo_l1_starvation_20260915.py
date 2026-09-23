@@ -91,9 +91,9 @@ def test_low_wood_releases_the_80_percent_bond_lock_to_skills() -> None:
 def test_enough_wood_preserves_f_g_priority_without_starving_side_steps() -> None:
     med = _med()
     med._l1_cycle_step = "treasure"
-    # F/G remain the high-priority pair, but a high wood balance must not
-    # hard-lock the scheduler in F ↔ G and starve treasure/evolve/etc.
-    assert _open(med, _frame("hud_wood_1111_f0200.png"), wood=1111) == ["OpenTreasurePanel"]
+    # Spare wood should feed the selected bond pack before other panels.
+    # The bounded visit cap still releases the next cycle step afterward.
+    assert _open(med, _frame("hud_wood_1111_f0200.png"), wood=1111) == ["OpenBondPanel"]
 
 
 def test_unreadable_wood_falls_back_to_the_idle_backoff() -> None:
@@ -380,15 +380,15 @@ def test_skill_backlog_urgent_preempt() -> None:
     frame = _frame("hud_wood_1111_f0200.png")
     now = 100.0
 
-    # skill >= 8: urgent preempt over F even with 5000 wood
+    # Even a skill backlog does not leave 5000 wood idle while bonds advance.
     med1 = _med()
     with patch.object(med1, "_hud_wood_balance", return_value=5000), \
          patch.object(med1, "_hud_skill_points", return_value=8), \
          patch.object(med1, "_hud_treasure_pending", return_value=0), \
          patch.object(med1, "_bond_base_progress_pending", return_value=True):
         target, why = med1._solo_plan_panel(frame, now, "bond")
-        assert target == "skill"
-        assert "紧急强抢占" in why
+        assert target == "bond"
+        assert "羁绊优先" in why
 
     # skill == 4 and wood == 500 (< 1000): skill priority
     med2 = _med()

@@ -52,10 +52,10 @@ def _open(med: Mediator, *, wood, skill, treasure, ticks: int = 3) -> list[str]:
     return clicks
 
 
-def test_skill_backlog_preempts_the_early_bond_priority() -> None:
+def test_high_wood_bonds_preempt_the_skill_backlog() -> None:
     med = _med()
     assert med._bond_base_progress_pending()
-    assert _open(med, wood=1800, skill=8, treasure=2) == ["OpenSkillPanel"]
+    assert _open(med, wood=1800, skill=8, treasure=2) == ["OpenBondPanel"]
 
 
 def test_small_skill_backlog_keeps_bonds_first_while_wood_lasts() -> None:

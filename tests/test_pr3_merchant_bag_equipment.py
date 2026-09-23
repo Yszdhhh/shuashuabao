@@ -107,6 +107,8 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
 
     def test_devour_pill_waits_at_three_bonds(self):
         with patch.object(self.med, "_bond_bar_occupancy", return_value=3), \
+             patch.object(self.med, "_maybe_opportunistic_yinyue_crystal", return_value=None), \
+             patch.object(self.med, "_maybe_use_inventory_slot", return_value=None), \
              patch.object(self.med, "find") as mock_find, \
              patch.object(self.med, "act_click") as mock_click:
             self.assertIsNone(self.med._maybe_use_inventory_item(self.frame))
