@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-21 17:15:39",
-  "reason": "Add formally referenced title templates assets/Images/env/great_rift_title.png and assets/Images/env/tqtz_confirm_title.png (447c2f4, Mediator._grey_yes_dialog_kind) -> asset_files/asset_allowlisted 399->401. Pytest/contract passed counts follow hitch candidate; failed=0.",
+  "updated_at": "2026-09-23 22:26:13",
+  "reason": "Three verified silver crystal runtime assets; updated solo scheduling and real-frame replay; source identity anchor refreshed after hitch fix; full gate verification",
   "note": "发版门禁快照。任何偏离都会让 tools/release_gate.py 失败。known_failures 里的每一项必须写明原因；修好后请重新 --update-baseline。",
   "stages": {
     "pytest": {
       "title": "单元/回归测试（tests/）",
       "observed": {
-        "passed": 2445,
+        "passed": 2606,
         "xfailed": 2,
-        "skipped": 2
+        "skipped": 14
       }
     },
     "frozen_replay": {
@@ -35,8 +35,8 @@
         "asset_spec_assets_root": 1,
         "asset_manifest_schema": 1,
         "asset_package_root_whole_tree": 1,
-        "asset_files": 401,
-        "asset_allowlisted": 401,
+        "asset_files": 404,
+        "asset_allowlisted": 404,
         "asset_missing_allowlist": 0,
         "asset_stale_manifest": 0,
         "asset_forbidden_paths": 0,
@@ -47,7 +47,7 @@
     "contract": {
       "title": "L0 大厅全链契约回放（tests/contract/）",
       "observed": {
-        "passed": 58,
+        "passed": 66,
         "present": 1
       }
     }
