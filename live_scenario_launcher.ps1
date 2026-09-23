@@ -175,6 +175,13 @@ function Resolve-OcrModelDir {
 }
 
 function Read-HarnessSettingsSource {
+    param([switch]$RequireDashboard)
+    # Resolve on each launch: a dashboard settings file may have been saved
+    # after this launcher window opened.
+    $script:OperatorSettingsPath = Resolve-OperatorSettingsPath
+    if ($RequireDashboard -and -not $script:OperatorSettingsPath) {
+        throw "12 号需要正式看板 user_settings.json；请先在刷刷宝看板保存单人配置。"
+    }
     $source = if ($script:OperatorSettingsPath) { $script:OperatorSettingsPath } else { Join-Path $RepoRoot "config\default_settings.json" }
     try {
         $raw = [System.IO.File]::ReadAllText($source, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
@@ -197,7 +204,8 @@ function Save-HarnessSettingsCopy {
 }
 
 function New-DashboardSettingsSnapshot {
-    $loaded = Read-HarnessSettingsSource
+    param([switch]$RequireDashboard)
+    $loaded = Read-HarnessSettingsSource -RequireDashboard:$RequireDashboard
     $path = Save-HarnessSettingsCopy $loaded.Value
     Write-Host "[launcher] 已只读复制正式看板设置：$($loaded.Path)" -ForegroundColor DarkGray
     Write-Host "[launcher] 本次隔离设置副本：$path" -ForegroundColor DarkGray
@@ -636,7 +644,7 @@ function Invoke-SoloIngameChainCapture {
     $settingsPath = $script:HarnessSettingsPath
     $script:HarnessSettingsPath = $null
     if (-not $settingsPath -or -not (Test-Path -LiteralPath $settingsPath -PathType Leaf)) {
-        $settingsPath = New-DashboardSettingsSnapshot
+        $settingsPath = New-DashboardSettingsSnapshot -RequireDashboard
     } else {
         Write-Host "[launcher] 本次使用已保存的临时覆盖：$settingsPath" -ForegroundColor DarkGray
     }

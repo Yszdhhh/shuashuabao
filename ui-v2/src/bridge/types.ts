@@ -92,6 +92,12 @@ export interface RunStatusDTO {
   terminal_reason: string;
   ocr_status: string;
   last_action: string;
+  summary?: {
+    available: boolean;
+    duration_seconds: number;
+    hitch?: { started: number; completed: number; success: number; failure: number; stages: Record<string, number> };
+    solo?: { completed: number; success: number; failure: number };
+  };
 }
 
 export interface PreflightCheck {

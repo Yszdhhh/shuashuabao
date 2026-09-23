@@ -736,7 +736,7 @@
     .dragon-icon-wrap {
       display: inline-flex; align-items: center; justify-content: center;
       vertical-align: middle; flex-shrink: 0; margin-right: 5px;
-      filter: drop-shadow(0 1px 2px rgba(230, 81, 0, 0.35));
+      color: var(--p-gold);
     }
     .dragon-icon-wrap.mini { margin-right: 4px; }
     .dragon-icon-wrap svg { display: block; }
@@ -2975,9 +2975,26 @@
     .sb-done-stats span { font-size: 11px; color: var(--p-muted); }
     .sb-done-actions { display: flex; gap: 8px; width: 100%; margin-top: 4px; }
     .sb-done-actions button { flex: 1; min-width: 0; }
+    .sb-done { position: relative; width: min(470px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
+    .sb-done.failed .sb-done-mark { color: var(--p-danger); }
+    .sb-done-breakdown { display: grid; gap: 8px; width: 100%; text-align: left; }
+    .sb-done-mode { padding: 11px 12px; border: 1px solid var(--p-line); border-radius: 12px; background: var(--p-fill); }
+    .sb-done-mode-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12px; }
+    .sb-done-mode-head b { font-size: 13px; }
+    .sb-done-mode-counts { display: flex; flex-wrap: wrap; gap: 6px 13px; margin-top: 7px; font-size: 12px; color: var(--p-muted); font-variant-numeric: tabular-nums; }
+    .sb-done-mode-counts strong { color: var(--p-ink); }
+    .sb-done-stages { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 9px; }
+    .sb-done-stages small { color: var(--p-muted); margin-right: 3px; }
+    .sb-done-stages span { padding: 3px 7px; border: 1px solid var(--p-line); border-radius: 7px; background: var(--p-paper); font-size: 11px; font-variant-numeric: tabular-nums; }
+    .sb-done-note { width: 100%; margin: 0 !important; padding: 8px 10px; border-radius: 9px; background: var(--p-fill); text-align: left; }
+    .sb-done-sparks { position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: inherit; }
+    .sb-done-sparks i { position: absolute; top: 78px; left: 50%; width: 4px; height: 4px; border-radius: 50%; background: var(--p-gold); opacity: 0; }
+    .sb-done-veil.show .sb-done-sparks i { animation: sb-done-spark 900ms cubic-bezier(.22,1,.36,1) calc(450ms + var(--delay)) both; }
+    @keyframes sb-done-spark { 18% { opacity: .85; } 100% { opacity: 0; transform: rotate(var(--angle)) translateY(-58px) scale(.4); } }
     @media (prefers-reduced-motion: reduce) {
       .sb-boot, .sb-boot *, .sb-done, .sb-done * { animation: none !important; transition: none !important; }
       .sb-ring .p, .sb-done-mark .ring .p, .sb-done-mark .tick { stroke-dashoffset: 0; }
+      .sb-done-sparks { display: none; }
     }
 
     /* ===== 补丁 F · 主色方案：墨白（默认）/ 钛银 / 深海蓝 / 香槟金，统一走 --p-gold 令牌 ===== */
@@ -3599,10 +3616,14 @@
 
     /* ===== 补丁 V16 · 运行日志改成真正的底部抽屉，不再漏底 ===== */
     .sb-logstrip { left: 8px; right: 8px; bottom: 58px; border: 1px solid var(--p-line); border-top: 1px solid var(--p-line);
-      border-radius: 12px; background: var(--p-paper); box-shadow: 0 16px 40px rgb(0 0 0 / .32); }
-    .sb-logstrip.open { height: 170px; }
+      border-radius: 12px; background: #f8f9fb; box-shadow: 0 16px 40px rgb(0 0 0 / .24);
+      backdrop-filter: none; -webkit-backdrop-filter: none; opacity: 0; transform: translateY(8px); pointer-events: none;
+      transition: height 220ms var(--ease-standard), opacity 160ms ease, transform 220ms var(--ease-standard); }
+    .sb-logstrip.open { height: 170px; opacity: 1; transform: translateY(0); pointer-events: auto; }
     .sb-logstrip .sb-logstrip-in { height: 170px; padding: 12px 14px 14px; gap: 10px; }
-    .sb-logstrip .run-log { background: var(--p-bg); border: 1px solid var(--p-line); font-size: 12px; line-height: 1.6; }
+    .sb-logstrip .run-log { background: #fff; border: 1px solid var(--p-line); font-size: 12px; line-height: 1.6; }
+    body[data-theme="dark"] .sb-logstrip { background: #252a32; }
+    body[data-theme="dark"] .sb-logstrip .run-log { background: #1d2229; }
     .sb-logstrip .run-log:empty { display: flex; align-items: center; justify-content: center; }
     .sb-logstrip .run-log:empty::before { content: "暂无运行日志"; color: var(--p-faint); font-size: 13px; }
 
@@ -3615,7 +3636,7 @@
     #farmBody.sb-railspread .rail > .panel[data-od-id="run-target"] { flex: 1 0 auto; justify-content: space-between; }
     /* 日志抽屉打开时压暗看板，避免被截断的面板看起来像坏掉 */
     .win:has(.sb-logstrip.open)::after { content: ""; position: absolute; left: 0; right: 0; top: 0; bottom: 56px;
-      background: rgb(0 0 0 / .34); z-index: 11; pointer-events: none; }
+      background: rgb(0 0 0 / .20); z-index: 11; pointer-events: none; }
 
     /* ===== 补丁 V17 · 小窗提示与报错不再压字 ===== */
     /* toast 统一用不透明底 + 投影，任何主题下都不会透出底下文字 */
@@ -3637,39 +3658,56 @@
 
     /* ===== 补丁 UI-23 · 宝物与羁绊防重叠、折叠分组、卡组排布与动效优化 ===== */
     .brand .brand-sep { color: var(--p-faint); font-size: 11px; user-select: none; }
+    /* 高级设置现在只承载难度，随内容收高，不留整屏空白。 */
+    .drawer { height: fit-content; max-height: calc(100% - 184px); bottom: auto !important; border-bottom-left-radius: 12px; }
+    body[data-win="compact"] .drawer { max-height: calc(100% - 104px); }
 
-    /* 宝物模块独立在第 2 列，防止与第 1 列的羁绊面板互相重叠争抢 */
+    /* 上排技能与宝物；下排羁绊横跨两列。 */
+    #farmBody .main-workspace { grid-template-rows: max-content max-content !important; align-content: start; }
+    #farmBody .main-workspace > [data-od-id="skill-panel"] {
+      grid-column: 1 !important;
+      grid-row: 1 !important;
+      align-self: start !important;
+    }
     #farmBody .main-workspace > .sb-treasure {
       grid-column: 2 !important;
-      grid-row: 1 / 3 !important;
+      grid-row: 1 !important;
       min-height: 0 !important;
       display: flex !important;
       flex-direction: column !important;
-      overflow: hidden !important;
+      align-self: start !important;
+      overflow: visible !important;
     }
     #farmBody .sb-treasure .sb-treasure-body {
-      flex: 1 1 auto !important;
-      min-height: 0 !important;
-      overflow-y: auto !important;
-      overflow-x: hidden !important;
-      padding-right: 2px !important;
+      flex: 0 0 auto !important;
+      overflow: visible !important;
     }
 
-    /* 羁绊面板在非编辑态下收在第 1 列第 2 行，不再横跨整行覆盖到宝物下方 */
-    #farmBody:not(.sb-bond-editing) .main-workspace > .bond-config {
-      grid-column: 1 !important;
+    #farmBody .main-workspace > .bond-config {
+      grid-column: 1 / -1 !important;
       grid-row: 2 !important;
+      align-self: start !important;
+    }
+    #farmBody.sb-bond-editing [data-od-id="skill-panel"] > :not(.skill-head) { display: none !important; }
+    #farmBody.sb-bond-editing [data-od-id="skill-panel"] .skill-head > button { display: none !important; }
+    #farmBody.sb-bond-editing [data-od-id="skill-panel"] .skill-head { margin: 0; min-height: 28px; }
+    #farmBody.sb-bond-editing .sb-treasure { grid-row: 1 !important; }
+    #farmBody.sb-bond-editing .main-workspace > .bond-config { grid-row: 2 !important; }
+    @media (max-height: 840px) {
+      #farmBody .sb-treasure .neg-group { padding: 4px 0 !important; }
+      #farmBody .sb-treasure, #farmBody .bond-config { padding-bottom: 8px !important; }
     }
 
-    /* 羁绊锁定态卡组排布：左已选、右高级紧密排列，消除右侧大块空白 */
+    /* 羁绊锁定态：基础在左，高级在右；窄窗再自然换行。 */
     #farmBody #bonds:not(:has(.chips)) {
-      display: flex !important;
-      flex-direction: row !important;
-      flex-wrap: wrap !important;
-      align-items: flex-start !important;
-      justify-content: flex-start !important;
-      gap: 16px !important;
+      display: grid !important;
+      grid-template-columns: minmax(0, 1fr) minmax(260px, 1fr) !important;
+      align-items: start !important;
+      gap: 12px 18px !important;
     }
+    #farmBody #bonds:not(:has(.chips)) > .bond-block { min-width: 0; }
+    #farmBody #bonds:not(:has(.chips)) .bond-locked.sb-grouped,
+    #farmBody #bonds:not(:has(.chips)) .adv-priority { width: 100% !important; }
     #farmBody #bonds:not(:has(.chips)) > .bond-actions {
       position: absolute !important;
       top: 8px !important;
@@ -3677,6 +3715,9 @@
       border: 0 !important;
       padding: 0 !important;
       margin: 0 !important;
+    }
+    @media (max-width: 860px) {
+      #farmBody #bonds:not(:has(.chips)) { grid-template-columns: minmax(0, 1fr) !important; }
     }
 
     /* 特殊宝物可折叠分组：默认收起，紧凑清晰 */
@@ -3700,7 +3741,9 @@
       user-select: none;
       background: var(--p-paper) !important;
       list-style: none;
+      transition: background-color 160ms var(--ease-standard);
     }
+    .neg-fold > summary.neg-group:hover { background: var(--p-fill) !important; }
     .neg-fold > summary::-webkit-details-marker { display: none; }
     .neg-fold > summary .fold-title { font-weight: 700; color: var(--p-ink); flex: 0 0 auto; }
     .neg-fold > summary .fold-sum { font-size: 11px; font-weight: 500; color: var(--p-muted); margin-left: auto; white-space: nowrap; }
@@ -3713,6 +3756,8 @@
       flex-direction: column;
       gap: 2px;
     }
+    .neg-fold[open] .neg-items { animation: sb-neg-reveal 180ms var(--ease-standard); }
+    @keyframes sb-neg-reveal { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 
     /* 动效尊重 prefers-reduced-motion */
     @media (prefers-reduced-motion: reduce) {
@@ -5205,7 +5250,7 @@
       $("bonds").innerHTML = `<div class="bond-block" data-od-id="bond-saved-summary"><h4>${blockIcon("lock")}基础卡组</h4>${basicRow}</div><div class="bond-block" data-od-id="advanced-pack-priority"><h4>${blockIcon("star")}高级卡组顺序</h4>${advPriorityMarkup(advancedOrder)}</div>${actions}`;
     }
     function dragonIconSvg(size = 16) {
-      return `<svg viewBox="0 0 24 24" width="${size}" height="${size}"><defs><radialGradient id="dbGradD" cx="35%" cy="32%" r="65%"><stop offset="0%" stop-color="#ffe66d"/><stop offset="35%" stop-color="#ff9900"/><stop offset="75%" stop-color="#e65100"/><stop offset="100%" stop-color="#bf2600"/></radialGradient><linearGradient id="dbShineD" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#ffffff" stop-opacity="0.85"/><stop offset="100%" stop-color="#ffffff" stop-opacity="0"/></linearGradient></defs><circle cx="12" cy="12" r="10" fill="url(#dbGradD)"/><ellipse cx="9" cy="7.5" rx="4.5" ry="2.2" fill="url(#dbShineD)" transform="rotate(-25 9 7.5)"/><g fill="#c41c00"><polygon points="12,7 12.7,8.8 14.6,8.8 13.1,10 13.6,11.8 12,10.6 10.4,11.8 10.9,10 9.4,8.8 11.3,8.8" transform="scale(0.48) translate(13, 7)"/><polygon points="12,7 12.7,8.8 14.6,8.8 13.1,10 13.6,11.8 12,10.6 10.4,11.8 10.9,10 9.4,8.8 11.3,8.8" transform="scale(0.48) translate(7, 17)"/><polygon points="12,7 12.7,8.8 14.6,8.8 13.1,10 13.6,11.8 12,10.6 10.4,11.8 10.9,10 9.4,8.8 11.3,8.8" transform="scale(0.48) translate(19, 17)"/><polygon points="12,7 12.7,8.8 14.6,8.8 13.1,10 13.6,11.8 12,10.6 10.4,11.8 10.9,10 9.4,8.8 11.3,8.8" transform="scale(0.48) translate(13, 27)"/></g></svg>`;
+      return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M8 15.5 10.2 8.4 12 12l1.8-3.6 2.2 7.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8.1" cy="7.5" r="1" fill="currentColor"/></svg>`;
     }
     function renderLaunchSummary() {
       const selectedBasics = [
@@ -5371,7 +5416,7 @@
         const checkedCount = g.items.filter((card) => state.negative && state.negative.has(card.name)).length;
         const sumText = checkedCount > 0 ? `已选 ${checkedCount}` : "默认不拿";
         const foldKey = `neg_${idx}`;
-        const isOpen = Boolean(state.folds && state.folds[foldKey]);
+        const isOpen = state.folds && Object.hasOwn(state.folds, foldKey) ? Boolean(state.folds[foldKey]) : idx === 2;
         const items = g.items.map((card) => {
           const isChecked = Boolean(state.negative && state.negative.has(card.name));
           return `<label class="neg-item" data-fx="${esc(card.effect)}" title="${esc(card.name)}：${esc(card.effect)}"><input type="checkbox" data-neg="${card.name}" aria-label="放行${esc(card.name)}" ${isChecked ? "checked" : ""} /><span><b>${card.name}</b><span class="fx">${card.effect}</span></span></label>`;
@@ -6177,28 +6222,57 @@
         if (!running && wasRunning) {
           // 只有真的打了局才弹；手动停止不冒充「目标已达成」
           const reached = state.cycle > 0 && state.played >= state.cycle;
-          if (state.played > 0 && (reached || state.hudPhase === "COMPLETE")) showRunComplete({ reached });
+          const evidenceCount = state.played + (state.runSummary?.hitch?.started || 0)
+            + (state.runSummary?.solo?.success || 0) + (state.runSummary?.solo?.failure || 0);
+          if (evidenceCount > 0 && ["COMPLETE", "FAILED"].includes(state.runState)) showRunComplete({ reached, interrupted: state.runState === "FAILED" });
         }
         wasRunning = running;
       };
 
       function fmtDur(ms) {
-        const m = Math.max(0, Math.round(ms / 60000));
+        const seconds = Math.max(0, Math.floor(ms / 1000));
+        if (seconds < 60) return `${seconds}s`;
+        const m = Math.floor(seconds / 60);
         return m >= 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}` : `${m}m`;
+      }
+      function runBreakdown(summary, modeId) {
+        if (!summary?.available) return '<p class="sb-done-note">本次未取得可核对的战绩明细，仅显示完成局数。</p>';
+        const n = (value) => Math.max(0, Number(value) || 0);
+        const parts = [];
+        const hitch = summary.hitch || {};
+        const solo = summary.solo || {};
+        if (n(hitch.started) || modeId === "lobby_hitch" || modeId === "follow_team") {
+          const unknown = Math.max(0, n(hitch.started) - n(hitch.success) - n(hitch.failure));
+          const stages = Object.entries(hitch.stages || {}).filter(([, count]) => n(count) > 0)
+            .sort(([a], [b]) => a.localeCompare(b, "zh-CN", { numeric: true }))
+            .map(([stage, count]) => `<span>${esc(stage)} · ${n(count)} 把</span>`).join("");
+          parts.push(`<section class="sb-done-mode"><div class="sb-done-mode-head"><b>${modeId === "follow_team" ? "跟车" : "蹭车"}统计</b><span>开局 ${n(hitch.started)} 把</span></div>
+            <div class="sb-done-mode-counts"><span>完成 <strong>${n(hitch.completed)}</strong></span><span>成功 <strong>${n(hitch.success)}</strong></span><span>失败 <strong>${n(hitch.failure)}</strong></span>${unknown ? `<span>未判定 <strong>${unknown}</strong></span>` : ""}</div>
+            <div class="sb-done-stages"><small>入局关卡</small>${stages || '<small>暂无确认记录</small>'}</div></section>`);
+        }
+        if (n(solo.completed) || modeId === "normal_farm") {
+          parts.push(`<section class="sb-done-mode"><div class="sb-done-mode-head"><b>单人模式统计</b><span>完成 ${n(solo.completed)} 把</span></div>
+            <div class="sb-done-mode-counts"><span>成功 <strong>${n(solo.success)}</strong></span><span>失败 <strong>${n(solo.failure)}</strong></span></div></section>`);
+        }
+        return parts.length ? `<div class="sb-done-breakdown">${parts.join("")}</div>` : '<p class="sb-done-note">尚无可确认的分模式战绩。</p>';
       }
       window.showRunComplete = function showRunComplete(opts = {}) {
         const host = document.getElementById("scene-app"); if (!host) return;
         document.querySelectorAll(".sb-done-veil").forEach((n) => n.remove());
         const games = opts.games ?? state.played;
-        const mode = opts.mode ?? (MODE_LABEL[state.mode] || "单刷");
-        const dur = opts.duration ?? (runStartedAt ? Date.now() - runStartedAt : 0);
+        const modeId = opts.modeId ?? state.runModeId;
+        const mode = opts.mode ?? ({ lobby_hitch: "蹭车", follow_team: "跟车", normal_farm: "单人模式" }[modeId] || MODE_LABEL[state.mode] || "单人模式");
+        const summary = opts.summary ?? state.runSummary;
+        const dur = opts.duration ?? (summary?.duration_seconds ? summary.duration_seconds * 1000 : (runStartedAt ? Date.now() - runStartedAt : 0));
         const veil = document.createElement("div");
         veil.className = "sb-done-veil";
-        veil.innerHTML = `<div class="sb-done" role="dialog" aria-label="本轮完成">
+        const sparks = Array.from({ length: 8 }, (_, i) => `<i style="--angle:${i * 45}deg;--delay:${i * 35}ms"></i>`).join("");
+        veil.innerHTML = `<div class="sb-done${opts.interrupted ? " failed" : ""}" role="dialog" aria-label="本轮统计"><div class="sb-done-sparks" aria-hidden="true">${sparks}</div>
           <div class="sb-done-mark"><svg class="ring" viewBox="0 0 84 84"><circle class="t" cx="42" cy="42" r="38"/><circle class="p" cx="42" cy="42" r="38"/></svg>
-          <svg viewBox="0 0 84 84"><path class="tick" d="M28 43l9 9 19-20" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-          <h3>本轮完成</h3><p>${mode} · ${opts.reached === false ? "已安全停止" : "目标局数已达成"}</p>
+          <svg viewBox="0 0 84 84"><path class="tick" d="${opts.interrupted ? "M42 25v21m0 11v2" : "M28 43l9 9 19-20"}" fill="none" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <h3>${opts.interrupted ? "本轮中断" : "本轮完成"}</h3><p>${esc(mode)} · ${opts.interrupted ? "已停止运行" : opts.reached === false ? "已安全停止" : "目标局数已达成"}</p>
           <div class="sb-done-stats"><div><b>${games}</b><span>完成局数</span></div><div><b>${dur ? fmtDur(dur) : "—"}</b><span>用时</span></div><div><b>${state.cycle || "—"}</b><span>目标</span></div></div>
+          ${runBreakdown(summary, modeId)}
           <div class="sb-done-actions"><button type="button" class="secondary" data-done-close>好的</button><button type="button" class="primary" data-done-again>再来一轮</button></div></div>`;
         host.appendChild(veil);
         requestAnimationFrame(() => requestAnimationFrame(() => veil.classList.add("show")));
@@ -6259,7 +6333,7 @@
         const s = sub || state.subscription || {};
         const exp = typeof formatExpire === "function" ? formatExpire(s.expires_at) : "";
         const subline = [exp ? `有效期至 ${exp}` : "卡密有效", s.live_status || ""].filter(Boolean).join("  ·  ");
-        const dust = Array.from({ length: 22 }, (_, i) => {
+        const dust = reduce() ? "" : Array.from({ length: 22 }, (_, i) => {
           const left = 30 + Math.random() * 40, x = (Math.random() - .5) * 120, d = 1800 + Math.random() * 1600, t = 850 + Math.random() * 900, o = .35 + Math.random() * .6, sz = Math.random() < .3 ? 2 : 3;
           return `<i style="left:${left}%;--x:${x.toFixed(0)}px;--d:${d.toFixed(0)}ms;--t:${t.toFixed(0)}ms;--o:${o.toFixed(2)};width:${sz}px;height:${sz}px"></i>`;
         }).join("");
@@ -6272,7 +6346,7 @@
           <div class="sb-act-skip">点击继续</div>`;
         host.appendChild(el);
         requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add("in")));
-        setTimeout(() => surgeLiquidRainbow(3600), 250);
+        if (!reduce()) setTimeout(() => surgeLiquidRainbow(3600), 250);
         const close = () => { if (el.classList.contains("out")) return; el.classList.add("out"); setTimeout(() => el.remove(), 620);
           const pill = $("subscriptionPill"); if (pill) { pill.classList.remove("is-pop"); void pill.offsetWidth; pill.classList.add("is-pop"); } };
         el.addEventListener("click", close);
@@ -6360,7 +6434,7 @@
         requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add("show")));
         el.querySelector("[data-pre-close]").addEventListener("click", () => closePre());
         setStep(0, "run"); setTimeout(() => { if (pre === el) { setStep(0, "ok"); setStep(1, "run"); } }, opts.fast ? 250 : 380);
-        preTimer = setTimeout(() => preFail("等待后端响应超时，请查看日志"), 75000);
+        preTimer = setTimeout(() => preFail("等待进入游戏超时，请查看日志"), state.mode === "hitch" ? 300000 : 180000);
       };
       function preFail(msg) {
         if (!pre) return;
@@ -6378,7 +6452,7 @@
       }
       window.preflightStage = function (stage, msg) {   // "accepted" | "running" | "fail"
         if (!pre) return;
-        if (stage === "accepted") { setStep(0, "ok"); setStep(1, "ok"); setStep(2, "run", "等待游戏窗口"); }
+        if (stage === "accepted") { setStep(0, "ok"); setStep(1, "ok"); setStep(2, "run", state.mode === "hitch" ? "搜房并等待入局" : "等待游戏窗口"); }
         else if (stage === "running") {
           setStep(0, "ok"); setStep(1, "ok"); setStep(2, "ok");
           pre.classList.add("ok"); pre.querySelector(".sb-pre-title").innerHTML = "已开始运行<small>切到局内状态条</small>";
@@ -6397,7 +6471,7 @@
       const errEl = document.getElementById("startErr");
       if (errEl) new MutationObserver(() => { const t = errEl.textContent.trim(); if (t && pre) preflightStage("fail", t); }).observe(errEl, { childList: true, characterData: true, subtree: true });
       const hud2 = window.renderHud;
-      window.renderHud = function () { hud2(); if (state.running && pre) preflightStage("running"); };
+      window.renderHud = function () { hud2(); if (state.runState === "RUNNING" && ["MAIN_LINE", "EARLY_CHALLENGE", "ANCHOR_BOSS", "LONGZHU", "RECOVER_FAILURE", "QUIT", "NEXT"].includes(state.hudPhase) && pre) preflightStage("running"); };
     })();
 
     /* ===== 补丁 L 脚本：技能优先级、羁绊常开 ===== */
@@ -6534,7 +6608,14 @@
       const body = panel.querySelector(".sb-treasure-body");
       if (h4) body.appendChild(h4);
       body.appendChild(neg);
-      if (dragonRow) panel.appendChild(dragonRow);
+      if (dragonRow) {
+        const heading = dragonRow.previousElementSibling;
+        if (heading?.tagName === "H4" && /龙珠/.test(heading.textContent)) heading.remove();
+        panel.appendChild(dragonRow);
+      }
+      document.querySelectorAll(".dragon-icon-wrap").forEach((wrap) => {
+        wrap.innerHTML = dragonIconSvg(wrap.classList.contains("mini") ? 15 : 18);
+      });
       const skill = ws.querySelector('[data-od-id="skill-panel"]');
       if (skill) skill.after(panel); else ws.appendChild(panel);
     })();
@@ -6907,6 +6988,10 @@
         .observe(modal, { attributes: true, attributeFilter: ["class"] });
       if (strip) new MutationObserver(() => { if (strip.classList.contains("open")) only("log"); })
         .observe(strip, { attributes: true, attributeFilter: ["class"] });
+      document.addEventListener("pointerdown", (e) => {
+        if (strip?.classList.contains("open") && !strip.contains(e.target) && !logBtn?.contains(e.target)) closeLog();
+      }, true);
+      window.addEventListener("blur", closeLog);
       // Esc 逐层关闭：先日志，再抽屉/弹窗交给应用自己处理
       document.addEventListener("keydown", (e) => {
         if (e.key !== "Escape") return;
@@ -6932,7 +7017,7 @@
 
         // 横向：先给左右栏基准宽度，再把中栏用不掉的宽度平分给它们
         let railW = clamp(Math.round(W * 0.245), 248, 320);
-        let treW = clamp(Math.round(W * 0.215), 220, 280);
+        let treW = clamp(Math.round(W * 0.24), 248, 320);
         root.setProperty("--sb-rail-w", railW + "px");
         root.setProperty("--sb-treasure-w", treW + "px");
         fb.classList.toggle("sb-2col", skill.clientWidth >= 760);

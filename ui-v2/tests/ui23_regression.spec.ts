@@ -174,6 +174,7 @@ describe("UI-23 Regression Tests", () => {
 
       expect(renderedHtml).toContain('<details class="neg-fold" data-fold="neg_0"');
       expect(renderedHtml).toContain('<details class="neg-fold" data-fold="neg_2"');
+      expect(renderedHtml).toContain('<details class="neg-fold" data-fold="neg_2" open>');
       expect(renderedHtml).toContain('<summary class="neg-group">');
       expect(renderedHtml).toContain('<span class="fold-sum">默认不拿</span>');
       expect(renderedHtml).toContain('data-neg="命运骰子"');
@@ -197,18 +198,66 @@ describe("UI-23 Regression Tests", () => {
   });
 
   describe("4. Layout & anti-overlap CSS rules", () => {
-    it("assigns sb-treasure to column 2 and bond-config to column 1 in normal state", () => {
+    it("keeps skill and treasure above a full-width bond panel", () => {
       expect(htmlContent).toContain("#farmBody .main-workspace > .sb-treasure");
-      expect(htmlContent).toContain("grid-column: 2 !important;");
-      expect(htmlContent).toContain("grid-row: 1 / 3 !important;");
-      expect(htmlContent).toContain("#farmBody:not(.sb-bond-editing) .main-workspace > .bond-config");
-      expect(htmlContent).toContain("grid-column: 1 !important;");
+      expect(htmlContent).toMatch(/\.main-workspace > \[data-od-id="skill-panel"\] \{[^}]*grid-column: 1 !important;[^}]*grid-row: 1 !important;/);
+      expect(htmlContent).toMatch(/\.main-workspace > \.sb-treasure \{[^}]*grid-column: 2 !important;[^}]*grid-row: 1 !important;/);
+      expect(htmlContent).toMatch(/\.main-workspace > \.bond-config \{[^}]*grid-column: 1 \/ -1 !important;[^}]*grid-row: 2 !important;/);
+      expect(htmlContent).toMatch(/\.sb-treasure \.sb-treasure-body \{[^}]*flex: 0 0 auto !important;[^}]*overflow: visible !important;/);
+      expect(htmlContent).toContain('#farmBody.sb-bond-editing [data-od-id="skill-panel"] > :not(.skill-head)');
     });
 
-    it("eliminates huge gap in #bonds layout by removing justify-content: space-between", () => {
-      expect(htmlContent).toContain("#farmBody #bonds:not(:has(.chips))");
-      expect(htmlContent).toContain("justify-content: flex-start !important;");
-      expect(htmlContent).toContain("gap: 16px !important;");
+    it("places base and advanced bond decks in two equal columns", () => {
+      expect(htmlContent).toMatch(/#farmBody #bonds:not\(:has\(\.chips\)\) \{[^}]*display: grid !important;[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(260px, 1fr\) !important;/);
+      expect(htmlContent).toContain("gap: 12px 18px !important;");
+    });
+
+    it("keeps the dragonball control in treasure settings and gives the log an opaque surface", () => {
+      expect(htmlContent).toContain('if (heading?.tagName === "H4" && /龙珠/.test(heading.textContent)) heading.remove();');
+      expect(htmlContent).toContain('panel.appendChild(dragonRow);');
+      expect(htmlContent).toContain("background: #f8f9fb;");
+      expect(htmlContent).toContain("body[data-theme=\"dark\"] .sb-logstrip { background: #252a32; }");
+      expect(htmlContent).toContain('window.addEventListener("blur", closeLog);');
+      expect(htmlContent).toContain(".drawer { height: fit-content;");
+    });
+
+    it("closes the log when clicking the board or leaving the app, but not inside the log", () => {
+      const start = htmlContent.indexOf("/* ===== 补丁 U · 二级窗口互斥");
+      const end = htmlContent.indexOf("/* ===== 补丁 V 脚本", start);
+      expect(start).toBeGreaterThan(0);
+      expect(end).toBeGreaterThan(start);
+
+      let open = true;
+      let expanded = "true";
+      const handlers: Record<string, (event?: any) => void> = {};
+      const strip = {
+        classList: { contains: (name: string) => name === "open" && open, remove: () => { open = false; } },
+        contains: (target: string) => target === "inside",
+      };
+      const button = {
+        contains: (target: string) => target === "toggle",
+        setAttribute: (_name: string, value: string) => { expanded = value; },
+      };
+      vm.runInNewContext(htmlContent.slice(start, end), {
+        document: {
+          getElementById: (id: string) => ({ sbLogStrip: strip, sbLogToggle: button } as any)[id] || null,
+          addEventListener: (name: string, handler: (event?: any) => void) => { handlers[name] = handler; },
+        },
+        window: { addEventListener: (name: string, handler: () => void) => { handlers[name] = handler; } },
+        MutationObserver: class { observe() {} },
+        setTimeout: () => {},
+      });
+
+      handlers.pointerdown({ target: "inside" });
+      expect(open).toBe(true);
+      handlers.pointerdown({ target: "toggle" });
+      expect(open).toBe(true);
+      handlers.pointerdown({ target: "board" });
+      expect(open).toBe(false);
+      expect(expanded).toBe("false");
+      open = true;
+      handlers.blur();
+      expect(open).toBe(false);
     });
 
     it("respects prefers-reduced-motion with global override", () => {
@@ -230,7 +279,49 @@ describe("UI-23 Regression Tests", () => {
     });
   });
 
+  describe("5a. End-of-run and activation motion", () => {
+    it("renders hitch and solo evidence in one completion card without inventing stages", () => {
+      const source = htmlContent.match(/function runBreakdown\(summary, modeId\) \{[\s\S]*?\n      \}/);
+      expect(source).not.toBeNull();
+      const format = vm.runInNewContext(`${source![0]}; runBreakdown`, {
+        esc: (value: string) => value.replace(/[&<>]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[char]!)),
+      }) as (summary: unknown, modeId: string) => string;
+      const card = format({ available: true, duration_seconds: 125, hitch: { started: 3, completed: 3, success: 2, failure: 1, stages: { "2-1": 2, "2-3": 1 } }, solo: { completed: 2, success: 1, failure: 1 } }, "lobby_hitch");
+      expect(card).toContain("蹭车统计");
+      expect(card).toContain("单人模式统计");
+      expect(card).toContain("2-1 · 2 把");
+      expect(card).toContain("2-3 · 1 把");
+      expect(format({ available: false }, "lobby_hitch")).toContain("未取得可核对的战绩明细");
+    });
+
+    it("keeps activation particles bounded and disables motion when requested", () => {
+      expect(htmlContent).toContain("const dust = reduce() ? \"\" : Array.from({ length: 22 }");
+      expect(htmlContent).toContain("if (!reduce()) setTimeout(() => surgeLiquidRainbow(3600), 250);");
+      expect(htmlContent).toContain(".sb-act.in .sb-act-dust i");
+      expect(htmlContent).toContain(".sb-act-dust, .sb-act-wave { display: none; }");
+      expect(htmlContent).toContain(".sb-done-sparks { display: none; }");
+    });
+  });
+
   describe("6. Bridge patch wiring contract", () => {
+    it("keeps the launch preview visible through STARTING and closes it on RUNNING", () => {
+      const bridgeSource = fs.readFileSync(path.resolve(__dirname, "../src/main.ts"), "utf-8");
+      expect(bridgeSource).toContain("state.runState = run.state;");
+      const wrapper = htmlContent.match(/window\.renderHud = function \(\) \{ hud2\(\); if \(state\.runState === "RUNNING" && \["MAIN_LINE"[^\n]+\.includes\(state\.hudPhase\) && pre\) preflightStage\("running"\); \};/);
+      expect(wrapper).not.toBeNull();
+      const stages: string[] = [];
+      const sandbox = { window: {} as { renderHud?: () => void }, state: { runState: "RUNNING", hudPhase: "STARTING" }, pre: {}, hud2: () => {}, preflightStage: (stage: string) => stages.push(stage) };
+      vm.runInNewContext(wrapper![0], sandbox);
+      sandbox.window.renderHud?.();
+      expect(stages).toEqual([]);
+      sandbox.state.hudPhase = "LOBBY_ROOM";
+      sandbox.window.renderHud?.();
+      expect(stages).toEqual([]);
+      sandbox.state.hudPhase = "MAIN_LINE";
+      sandbox.window.renderHud?.();
+      expect(stages).toEqual(["running"]);
+    });
+
     it("queues hitch_after_goal: end properly via config queue", async () => {
       const { enqueueConfigPatch, resetStickyFailure, setSettingsRevision } = await import("../src/config_queue");
       resetStickyFailure();

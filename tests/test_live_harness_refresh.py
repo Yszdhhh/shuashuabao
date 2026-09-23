@@ -173,6 +173,11 @@ def test_solo_chain_keeps_dashboard_room_creation_and_run_settings(monkeypatch) 
         auto_create_room=True,
         cycle_num=5,
         stage_targets=["1-21"],
+        bonds=["chengzhang", "jingji"],
+        cards=["dasheng", "fengshen"],
+        auto_bond=False,
+        auto_treasure=False,
+        auto_devour_dan=False,
     )
     monkeypatch.setattr(live_capture, "_load_operator_settings", lambda _path: dashboard)
 
@@ -182,6 +187,40 @@ def test_solo_chain_keeps_dashboard_room_creation_and_run_settings(monkeypatch) 
     assert settings.auto_create_room is True
     assert settings.cycle_num == 5
     assert settings.stage_targets == ["1-21"]
+    assert settings.bonds == dashboard.bonds
+    assert settings.cards == dashboard.cards
+    assert settings.auto_bond is False
+    assert settings.auto_treasure is False
+    assert settings.auto_devour_dan is False
+
+
+def test_12_launcher_requires_current_dashboard_settings_by_default() -> None:
+    script = (ROOT / "live_scenario_launcher.ps1").read_text(encoding="utf-8")
+    start = script.index("function Invoke-SoloIngameChainCapture")
+    end = script.index("function Invoke-SoloDirectArchaeologyCapture", start)
+    case_12 = script[start:end]
+    assert "New-DashboardSettingsSnapshot -RequireDashboard" in case_12
+    assert '"--settings", $settingsPath' in case_12
+    assert "$script:HarnessSettingsPath = $null" in case_12
+    assert "Resolve-OperatorSettingsPath" in script
+    assert "user_settings.json" in script
+
+
+def test_solo_chain_loads_saved_dashboard_snapshot_without_replacing_policy(tmp_path: Path) -> None:
+    saved = Settings(
+        mode_id="lobby_hitch", auto_create_room=True, cycle_num=3,
+        stage_targets=["1-22"], bonds=["成长", "经济"],
+        cards=["齐天大圣", "封神"], auto_devour_dan=True,
+        auto_bond=True, auto_treasure=False,
+    )
+    path = tmp_path / "user_settings.json"
+    saved.save(path)
+
+    actual = live_capture._prepare_settings(path, "solo_ingame_chain", live_input=True)
+
+    assert actual.mode_id == "normal_farm"
+    for field in ("auto_create_room", "cycle_num", "stage_targets", "bonds", "cards", "auto_devour_dan", "auto_bond", "auto_treasure"):
+        assert getattr(actual, field) == getattr(saved, field)
 
 
 def test_direct_archaeology_arms_only_after_production_stage_select() -> None:
