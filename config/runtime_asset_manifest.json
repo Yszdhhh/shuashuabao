@@ -26,38 +26,6 @@
   ],
   "entries": [
     {
-      "path": "assets/branding/app_logo.ico",
-      "purpose": "branding",
-      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
-      "reason_required": "packaged application branding",
-      "size_bytes": 179520,
-      "sha256": "1f5bbf29f2dd8f1301ebe4e93bf1dbfde07938374019dc43aa1ab62ec42a13a0"
-    },
-    {
-      "path": "assets/branding/app_logo.png",
-      "purpose": "branding",
-      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
-      "reason_required": "packaged application branding",
-      "size_bytes": 384765,
-      "sha256": "74e2f23882121e252145febedfb3bfa4e80f38556db650c3571ce0c7870a9d3a"
-    },
-    {
-      "path": "assets/branding/pet_mode_1.png",
-      "purpose": "branding",
-      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
-      "reason_required": "packaged application branding",
-      "size_bytes": 1302055,
-      "sha256": "544bc2e05362ede68b9c088807c8723a727e2538abca65ec7892aa083b71c7db"
-    },
-    {
-      "path": "assets/branding/pet_mode_2.png",
-      "purpose": "branding",
-      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
-      "reason_required": "packaged application branding",
-      "size_bytes": 1148599,
-      "sha256": "27616e2027501edf9c733cf874d05fe0dbc8f5fee059c571d504e83dcd2719e8"
-    },
-    {
       "path": "assets/Images/1-23.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
@@ -112,6 +80,14 @@
       "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 1456,
       "sha256": "2acbc762e298c38f30fc7497ceace5ecfc63da6732a588708f176810b004e38c"
+    },
+    {
+      "path": "assets/Images/HeroChallenge.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 4778,
+      "sha256": "71ae952da408093f3465ca838eb2743414b9cfb6a7cc27a6f8cef36536e01ce4"
     },
     {
       "path": "assets/Images/archiveChallenge.png",
@@ -714,20 +690,20 @@
       "sha256": "f2bc32245c22925a2a8f808e139760f45270fdf730577fbf43720156e693dca7"
     },
     {
-      "path": "assets/Images/card_hide.png",
-      "purpose": "runtime_ui",
-      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
-      "reason_required": "runtime UI/status/icon asset",
-      "size_bytes": 6184,
-      "sha256": "41ea509e2b1b9018666688fcfb9e9a457a4d29042bbfebfd4e2fc9fc24120f73"
-    },
-    {
       "path": "assets/Images/cardRefresh.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
       "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 3136,
       "sha256": "8e0723f6cf5a3dfe64ca8466458df6bf48eebad29d9a81f1cd042714e29dd8f4"
+    },
+    {
+      "path": "assets/Images/card_hide.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 6184,
+      "sha256": "41ea509e2b1b9018666688fcfb9e9a457a4d29042bbfebfd4e2fc9fc24120f73"
     },
     {
       "path": "assets/Images/cards/baoji.png",
@@ -1426,14 +1402,6 @@
       "sha256": "4e3278acdc6ae4badac0b0ec995b436d5ea190d38fbc28503378964c69362d89"
     },
     {
-      "path": "assets/Images/env/shortKey.png",
-      "purpose": "runtime_ui",
-      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
-      "reason_required": "runtime UI/status/icon asset",
-      "size_bytes": 6456,
-      "sha256": "887920ec190ddd746f8547b5d422c91372438ac77bd5a0c68a2a3e0bb9590095"
-    },
-    {
       "path": "assets/Images/env/game_chat_input_bar.png",
       "purpose": "runtime_ui",
       "provenance": "cropped from live game capture hitch_lobby_chain_20260912_015538_075268/f0150",
@@ -1448,6 +1416,14 @@
       "reason_required": "tell the great-rift confirm dialog from the 提前挑战 confirm that shares the grey 是 button",
       "size_bytes": 4134,
       "sha256": "797c88f3e9ccedb845d3663b1d83d90e45138a3f8c9e1aae36131d59ada5473f"
+    },
+    {
+      "path": "assets/Images/env/shortKey.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 6456,
+      "sha256": "887920ec190ddd746f8547b5d422c91372438ac77bd5a0c68a2a3e0bb9590095"
     },
     {
       "path": "assets/Images/env/tqtz_confirm_title.png",
@@ -1698,28 +1674,20 @@
       "sha256": "11db402e75bf9226682d9cbea88634f83c9f51ce14895420d6569dca2eb7c955"
     },
     {
-      "path": "assets/Images/hero_card_item.png",
-      "purpose": "runtime_ui",
-      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
-      "reason_required": "runtime UI/status/icon asset",
-      "size_bytes": 7024,
-      "sha256": "60ff9e32113c1923a7e9c518c63d92ea0cc201c2511e118d43753c7f45f3eedd"
-    },
-    {
-      "path": "assets/Images/HeroChallenge.png",
-      "purpose": "runtime_ui",
-      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
-      "reason_required": "runtime UI/status/icon asset",
-      "size_bytes": 4778,
-      "sha256": "71ae952da408093f3465ca838eb2743414b9cfb6a7cc27a6f8cef36536e01ce4"
-    },
-    {
       "path": "assets/Images/heroRefresh.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
       "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 1770,
       "sha256": "a859c8cfd6317dc535358b6258944f352031da0cf7bae27b0c055bf9a2e5f92d"
+    },
+    {
+      "path": "assets/Images/hero_card_item.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 7024,
+      "sha256": "60ff9e32113c1923a7e9c518c63d92ea0cc201c2511e118d43753c7f45f3eedd"
     },
     {
       "path": "assets/Images/hide.png",
@@ -2122,6 +2090,14 @@
       "sha256": "ba2a494b8c265a1b795e8f23ab57b1faab648e3805bfa51e3f18fc4ca0e9155b"
     },
     {
+      "path": "assets/Images/lobby/kk_nav_logo.png",
+      "purpose": "runtime_ui",
+      "provenance": "cropped from live KK lobby capture hitch_lobby_chain_20260911_205544_814227/f0000",
+      "reason_required": "hitch KK main-window navigation fallback anchor",
+      "size_bytes": 5873,
+      "sha256": "3fbd50caa9349b4a324a017f982b3a296420d0123410a633640b944667aadb01"
+    },
+    {
       "path": "assets/Images/lobby/kk_platform_prompt_cancel.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
@@ -2136,14 +2112,6 @@
       "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 2308,
       "sha256": "fa1f6d64d70f8e0dab9cf739aef49d1cc897a0823648427790e1d0ca1e1d78dc"
-    },
-    {
-      "path": "assets/Images/lobby/kk_nav_logo.png",
-      "purpose": "runtime_ui",
-      "provenance": "cropped from live KK lobby capture hitch_lobby_chain_20260911_205544_814227/f0000",
-      "reason_required": "hitch KK main-window navigation fallback anchor",
-      "size_bytes": 5873,
-      "sha256": "3fbd50caa9349b4a324a017f982b3a296420d0123410a633640b944667aadb01"
     },
     {
       "path": "assets/Images/lobby/kk_side_cssss_icon.png",
@@ -2298,6 +2266,14 @@
       "sha256": "2def6c4e2e3c4d1b60183cfcdc5c099454758d9dfb7eba33a506ce5b2187e1d6"
     },
     {
+      "path": "assets/Images/lobby/roomStart.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 5320,
+      "sha256": "b427857ed757f7fdaea8589685640502842147c4acf1d51680e272575807b596"
+    },
+    {
       "path": "assets/Images/lobby/room_cancel_ready.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
@@ -2328,14 +2304,6 @@
       "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 5246,
       "sha256": "c0b152633a759a4e83cd0a81ec6ddb42eba7204b4ea3f4c53397fdd00f58fbca"
-    },
-    {
-      "path": "assets/Images/lobby/roomStart.png",
-      "purpose": "runtime_ui",
-      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
-      "reason_required": "runtime UI/status/icon asset",
-      "size_bytes": 5320,
-      "sha256": "b427857ed757f7fdaea8589685640502842147c4acf1d51680e272575807b596"
     },
     {
       "path": "assets/Images/lobby/stage_action_buttons.png",
@@ -2546,6 +2514,14 @@
       "sha256": "f22f126d791668346774289028058c74a67db326fedcf2f6a759b86a74ba08ad"
     },
     {
+      "path": "assets/Images/pauseGame.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 4347,
+      "sha256": "942fcbe05bad24d082ce49ac44063ec3f2b5255ed81249d44a55c0e648378bb8"
+    },
+    {
       "path": "assets/Images/pause_continue_game.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
@@ -2560,14 +2536,6 @@
       "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 15791,
       "sha256": "155f3dee15d3ecbb8d53310a484120a6071c5fbd449b687ae8b0721b0e977246"
-    },
-    {
-      "path": "assets/Images/pauseGame.png",
-      "purpose": "runtime_ui",
-      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
-      "reason_required": "runtime UI/status/icon asset",
-      "size_bytes": 4347,
-      "sha256": "942fcbe05bad24d082ce49ac44063ec3f2b5255ed81249d44a55c0e648378bb8"
     },
     {
       "path": "assets/Images/pinfu.png",
@@ -2754,6 +2722,14 @@
       "sha256": "26c10855654c18ce92d859122af671c71f4376d3652b1821fa7d1e333587730f"
     },
     {
+      "path": "assets/Images/skillRefreshGift.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 2569,
+      "sha256": "803085ae37b52f2859fd7f85abb7cfc9aa3deab731d5b25fbed8f49727e9ae74"
+    },
+    {
       "path": "assets/Images/skill_giveup_btn.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
@@ -2784,14 +2760,6 @@
       "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 21429,
       "sha256": "42983e270f695ab83d6a27d88bacc6ce304df301d7813a0b9220e3d26a376ceb"
-    },
-    {
-      "path": "assets/Images/skillRefreshGift.png",
-      "purpose": "runtime_ui",
-      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
-      "reason_required": "runtime UI/status/icon asset",
-      "size_bytes": 2569,
-      "sha256": "803085ae37b52f2859fd7f85abb7cfc9aa3deab731d5b25fbed8f49727e9ae74"
     },
     {
       "path": "assets/Images/skills/asj.png",
@@ -3026,6 +2994,14 @@
       "sha256": "3bba18ff9ced63515f455a9ded35af4efe316495fefe1a82cf1285584172711e"
     },
     {
+      "path": "assets/Images/treasureRefreshGift.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 1946,
+      "sha256": "baca85e163f8c299688f4bc82cb09d5f55f69feccd6fa2e3b01c056078458e49"
+    },
+    {
       "path": "assets/Images/treasure_challenge_auto.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
@@ -3074,14 +3050,6 @@
       "sha256": "c26af0b1e69ffe8de782895219e8db4bab080f20f87a9048795d9dbe2476bf20"
     },
     {
-      "path": "assets/Images/treasureRefreshGift.png",
-      "purpose": "runtime_ui",
-      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
-      "reason_required": "runtime UI/status/icon asset",
-      "size_bytes": 1946,
-      "sha256": "baca85e163f8c299688f4bc82cb09d5f55f69feccd6fa2e3b01c056078458e49"
-    },
-    {
       "path": "assets/Images/tuanben.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
@@ -3096,6 +3064,14 @@
       "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 6061,
       "sha256": "5eeca2862a1d7155d0bd66e93f6959e1ff3796ceaccad86739d6616a4aad8880"
+    },
+    {
+      "path": "assets/Images/woodSuccess.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 11118,
+      "sha256": "5487b9ea98760e84ae215e30cb8dd0c6182ad2314079afc90852ec2b1c0ff370"
     },
     {
       "path": "assets/Images/wood_challenge_auto.png",
@@ -3120,14 +3096,6 @@
       "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 1360,
       "sha256": "7700fd7fc3395a33b52deb6a2d2b861c222ebc4c0976aba0eebf6f89060de92d"
-    },
-    {
-      "path": "assets/Images/woodSuccess.png",
-      "purpose": "runtime_ui",
-      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
-      "reason_required": "runtime UI/status/icon asset",
-      "size_bytes": 11118,
-      "sha256": "5487b9ea98760e84ae215e30cb8dd0c6182ad2314079afc90852ec2b1c0ff370"
     },
     {
       "path": "assets/Images/wzjh.png",
@@ -3194,6 +3162,30 @@
       "sha256": "20ea3299728453bf5353723764e081f7bcc9d62b8cce456f66c4db9d49d06d59"
     },
     {
+      "path": "assets/Images/yinyue_confirm_title.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 12589,
+      "sha256": "757bdd2e2cc9659284ad3efe054e08980090e240d1d0ee7e3a04e489e5e273c8"
+    },
+    {
+      "path": "assets/Images/yinyue_confirm_yes.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 2159,
+      "sha256": "d7ab7e1d94fbb9af4541de0b3b348e01d0137592c4860205c1aac0bf54087d6a"
+    },
+    {
+      "path": "assets/Images/yinyue_crystal.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 3228,
+      "sha256": "2ae0773d839ff20c67ec97d7d534508c52f7a6d0fd32e1c5e0c219247089a792"
+    },
+    {
       "path": "assets/Images/yishenshenzhuang.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
@@ -3232,6 +3224,38 @@
       "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 1101,
       "sha256": "aba4f2f97ca5847f286baba452077bb54e20dab98e047a4ce9169f8739f5d51b"
+    },
+    {
+      "path": "assets/branding/app_logo.ico",
+      "purpose": "branding",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "packaged application branding",
+      "size_bytes": 179520,
+      "sha256": "1f5bbf29f2dd8f1301ebe4e93bf1dbfde07938374019dc43aa1ab62ec42a13a0"
+    },
+    {
+      "path": "assets/branding/app_logo.png",
+      "purpose": "branding",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "packaged application branding",
+      "size_bytes": 384765,
+      "sha256": "74e2f23882121e252145febedfb3bfa4e80f38556db650c3571ce0c7870a9d3a"
+    },
+    {
+      "path": "assets/branding/pet_mode_1.png",
+      "purpose": "branding",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "packaged application branding",
+      "size_bytes": 1302055,
+      "sha256": "544bc2e05362ede68b9c088807c8723a727e2538abca65ec7892aa083b71c7db"
+    },
+    {
+      "path": "assets/branding/pet_mode_2.png",
+      "purpose": "branding",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "packaged application branding",
+      "size_bytes": 1148599,
+      "sha256": "27616e2027501edf9c733cf874d05fe0dbc8f5fee059c571d504e83dcd2719e8"
     }
   ]
 }
