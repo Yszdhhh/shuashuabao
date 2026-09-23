@@ -285,7 +285,7 @@ def test_records_once_per_free_stretch(tmp_path, monkeypatch):
     Mediator._solo_shadow_tick(med)
     assert len(writes) == 1
     assert writes[0]["actual_plan_target"] == "skill"
-    assert writes[0]["boundary"] == "plan_in_window"
+    assert writes[0]["boundary"] == "plan_observed_unpaired"
     Mediator._solo_shadow_tick(med)
     assert len(writes) == 1
     # 进入事务
@@ -301,7 +301,7 @@ def test_records_once_per_free_stretch(tmp_path, monkeypatch):
     Mediator._solo_shadow_tick(med)
     assert len(writes) == 2
     assert writes[1]["actual_plan_target"] is None
-    assert writes[1]["boundary"] == "window_closed_without_plan"
+    assert writes[1]["boundary"] == "window_closed_unpaired"
     # 新边界暂存后离开主线 → 如实落盘 phase_exit，不跨局配对
     med._pending_action = None
     Mediator._solo_shadow_tick(med)
@@ -309,12 +309,12 @@ def test_records_once_per_free_stretch(tmp_path, monkeypatch):
     med.phase = SimpleNamespace(name="POST_GAME")
     Mediator._solo_shadow_tick(med)
     assert len(writes) == 3
-    assert writes[2]["boundary"] == "phase_exit"
+    assert writes[2]["boundary"] == "phase_exit_unpaired"
     assert writes[2]["actual_plan_target"] is None
     assert getattr(med, "_solo_shadow_pending", None) is None
 
 
-def test_shadow_refreshes_current_frame_before_building_boundary(monkeypatch):
+def test_shadow_uses_shared_cache_without_refresh(monkeypatch):
     monkeypatch.setenv("SHUABAO_SOLO_SHADOW", "1")
     from shuabao.mediator import Mediator
 
@@ -377,7 +377,11 @@ def test_shadow_refreshes_current_frame_before_building_boundary(monkeypatch):
             return "r7"
 
     med = FakeMed()
+    # Shared production cache already refreshed before shadow; shadow must not
+    # call _refresh_solo_signals itself (observer cannot change perception).
+    med._refresh_solo_signals = lambda frame, now: events.append("refresh")
+    med._wood_balance = 321
     Mediator._solo_shadow_tick(med, "fresh-frame")
-    assert events == ["refresh"]
+    assert events == []
     assert med._solo_shadow_pending["snapshot"].wood.value == 321
     assert med._solo_shadow_pending["snapshot"].page_generation.value == 7
