@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "f353dad1be8e1941e4ce0833358c49e9a2ed2cb7",
-  "anchored_at": "2026-09-23T00:12:00+08:00",
-  "branch": "integrate/night-fixes-20260922",
-  "note": "云端影子审计修复 + UI-23 正式看板 + 蹭车三分支收尾"
+  "candidate_sha": "c93bca5f99d02a3c262a7b4fc0ca4fbb4cc33d40",
+  "anchored_at": "2026-09-23T20:21:28+08:00",
+  "branch": "fix/desktop-sync-20260923",
+  "note": "Desktop sync candidate: solo inventory, bond EX policy, dashboard and live harness"
 }
