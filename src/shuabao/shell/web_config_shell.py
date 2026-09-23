@@ -1,7 +1,7 @@
 """WebConfigShell —— QWebEngine 宿主（设计规格 §8）。
 
 薄壳职责：
-- frameless 宿主窗口与 OD12 产品窗同尺寸（1080×820），加载 ui-v2/dist/index.html（零网络）
+- frameless 宿主窗口与看板产品窗同尺寸（960×820；2026-09-23 由 1080 收窄），加载 ui-v2/dist/index.html（零网络）
 - QWebChannel 仅注册 DashboardFacade 一个对象（§6.1 唯一注册对象）
 - 严格本地限制：非 file/qrc 导航与子资源请求一律拦截；弹新窗口、下载一律拒绝；
   生产禁开发者工具
@@ -59,7 +59,7 @@ APP_TITLE = "刷刷宝"
 #: 严格本地 scheme 白名单（§8）：本地构建产物与 Qt 资源，别的一律不放行。
 ALLOWED_SCHEMES = frozenset({"file", "qrc"})
 
-_DASHBOARD_SIZE = (1080, 820)
+_DASHBOARD_SIZE = (960, 820)
 # 向导按内容分配宿主高度：单人只有一个选项，组队包含三种关系。
 # 宽度保持与 Web 沙盒一致；chooser 作为旧调用方的组队兼容别名。
 _CHOOSER_SOLO_SIZE = (560, 300)
@@ -70,7 +70,10 @@ _COMPACT_WIDTH = 360
 _COMPACT_DEFAULT_HEIGHT = 640
 _COMPACT_MIN_HEIGHT = 400
 _COMPACT_TITLEBAR_BUTTONS = 96  # 小窗右侧只有最小化 + 关闭
-_TITLEBAR_DRAG_WIDTH, _TITLEBAR_DRAG_HEIGHT = 690, 40
+# 看板标题栏：右侧订阅胶囊（激活后最宽约 150px）、方案下拉、按钮组和窗口按钮从 x≈371 开始，
+# 拖动区只盖左侧品牌与空白（0–360），否则会吞掉这些控件的点击。
+_TITLEBAR_DRAG_WIDTH, _TITLEBAR_DRAG_HEIGHT = 360, 40
+_DASHBOARD_TITLEBAR_RESERVE = _DASHBOARD_SIZE[0] - _TITLEBAR_DRAG_WIDTH
 
 #: QWebChannel 注册名，与 ui-v2/src/bridge/qtBridge.ts FACADE_OBJECT_NAME 对齐。
 FACADE_OBJECT_NAME = "facade"
@@ -349,7 +352,9 @@ class WebConfigShell(QMainWindow):
                     y = max(work.top(), min(y, work.bottom() - height))
                 self.move(x, y)
         # 只覆盖标题文字区；紧凑页必须保留右侧最小化/关闭按钮的点击权。
-        reserve = _COMPACT_TITLEBAR_BUTTONS if layout == "compact" else 230
+        reserve = _COMPACT_TITLEBAR_BUTTONS if layout == "compact" else (
+            _DASHBOARD_TITLEBAR_RESERVE if layout == "dashboard" else 230
+        )
         self._titlebar_drag_region.setGeometry(
             0, 0, max(0, width - reserve), _TITLEBAR_DRAG_HEIGHT
         )
