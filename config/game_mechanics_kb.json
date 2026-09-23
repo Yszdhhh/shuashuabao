@@ -2513,7 +2513,14 @@
         "guide_20260815"
       ],
       "status": "mixed",
-      "wired_to_decision": false
+      "wired_to_decision": false,
+      "external_guide_20260923": {
+        "ship_captain": "船长SSR 抽卡-10%（≠霍格船长）",
+        "red_ship_alias": "红船=毁灭战舰",
+        "rogers": "300木→悬赏；不可被悬赏吞",
+        "after_ship": "攻略称宝藏顶掉海盗池；与战舰300杀置入conflict",
+        "bounty_use_tip": "低品清低阶；高品留给高阶"
+      }
     },
     "kongao_ring": {
       "name": "恐鳌戒指",
@@ -2723,6 +2730,581 @@
           "flow": "通关主线后解锁，自选层数高压挑战，产出顶级UR法宝与限定外观"
         }
       }
+    },
+    "ex_synthesis_matrix": {
+      "evidence": "gap_audit_and_subagent_synthesis_20260923",
+      "status": "restructure_only_not_wired",
+      "schema": [
+        "stage_need",
+        "evolve_trigger",
+        "open_pool",
+        "remove_pool_on_ex",
+        "interleave",
+        "conflicts"
+      ],
+      "null_means": "unknown_do_not_invent",
+      "chains": {
+        "fengshen": {
+          "ex": "圣人",
+          "rarity": "EX",
+          "open_pool": "姜子牙",
+          "stage_need": {
+            "generals_to_board": "6@guide",
+            "board_devour_to_tianxian": "9@guide",
+            "fabao_per_jump": "5@guide"
+          },
+          "evolve_trigger": "board_timer_or_swallow; three_jump_fabao@guide",
+          "remove_pool_on_ex": "法宝",
+          "interleave": {
+            "black_market": "愈战愈勇@official"
+          },
+          "evidence": "live_starter+user_card_ex; needs_guide"
+        },
+        "shenshou": {
+          "ex": "祖龙",
+          "rarity": "EX",
+          "open_pool": "异兽蛋",
+          "stage_need": {
+            "egg_hatch_s": 60,
+            "same_name_devour_to_ur": "guide_16_green_per_ur",
+            "ur_to_zulong": "4@guide"
+          },
+          "evolve_trigger": "egg_self_devour_60s; same_name_pair_devour@guide",
+          "remove_pool_on_ex": "神兽",
+          "evidence": "live_egg_ocr+user_card_ex"
+        },
+        "longzu": {
+          "ex": "世界末日迦拉克隆",
+          "rarity": "EX",
+          "open_pool": "巨龙军团",
+          "stage_need": {
+            "pray_5": "guide",
+            "pray_10": "guide"
+          },
+          "evolve_trigger": "kill_only_evolution",
+          "remove_pool_on_ex": null,
+          "evidence": "live_starter+user_card_ex",
+          "note": "do_not_early_stop_pool_pollutes"
+        },
+        "sanguo": {
+          "ex": "吞食天地",
+          "rarity": "EX",
+          "open_pool": "乱世三国",
+          "stage_need": null,
+          "evolve_trigger": "3_ur_generals_swallow_all@conflict_guide",
+          "remove_pool_on_ex": null,
+          "evidence": "live_starter+user_card_ex",
+          "conflicts": [
+            "stages_name_三国争霸",
+            "ex_ur_pull_chain_鸿钧通天",
+            "remove_pool_unknown"
+          ]
+        },
+        "yihuo": {
+          "ex": "帝炎",
+          "rarity": "EX",
+          "open_pool": "焚诀·黄阶",
+          "stage_need": {
+            "fenjue_huang_evolve_after_devour": 3
+          },
+          "evolve_trigger": "kill_200_random_devour; evolve_huang_to_xuan",
+          "remove_pool_on_ex": null,
+          "evidence": "live_huang_and_devour3+user_card_ex",
+          "counter_note": "bottom_bar_yihuo_n_is_devour_count_not_need",
+          "conflicts": [
+            "guide_needs_6_9_12_22_not_live"
+          ]
+        },
+        "daodao": {
+          "ex": "解放的圣剑",
+          "rarity": "EX",
+          "open_pool": "刀刀萌新",
+          "stage_need": {
+            "starter_trio": 3,
+            "ur_to_ex": "5@guide"
+          },
+          "evolve_trigger": "trio_open_mengxin; five_ur_to_ex; dice_swallow_on_ex",
+          "remove_pool_on_ex": "刀刀",
+          "evidence": "live_main_chain+user_card_ex",
+          "forbid": [
+            "auto_chat_morph"
+          ]
+        },
+        "juntuan": {
+          "ex": "萨格拉斯",
+          "rarity": "EX",
+          "open_pool": "燃烧的远征",
+          "stage_need": {
+            "swallow_count": "27@guide",
+            "twisted_void_click": "3@guide"
+          },
+          "evolve_trigger": "third_void_detonate_settlement; under_27_never_ex",
+          "remove_pool_on_ex": null,
+          "evidence": "live_starter+user_card_ex",
+          "note": "do_not_early_stop"
+        },
+        "wangling": {
+          "ex": "兵主",
+          "rarity": "EX",
+          "open_pool": "亡灵天灾",
+          "stage_need": {
+            "starter_need": "3@lab",
+            "remains_to_lichking": "100@guide",
+            "runes_each": "10@guide"
+          },
+          "evolve_trigger": "evil_blast_detonate",
+          "remove_pool_on_ex": null,
+          "evidence": "live_need+user_card_ex",
+          "conflicts": [
+            "starter_need_3_vs_single_guide"
+          ]
+        },
+        "xiuxian": {
+          "ex": "大乘期",
+          "rarity": "EX",
+          "open_pool": "小绿瓶/纳气诀",
+          "stage_need": null,
+          "evolve_trigger": "guide_stages_uncertain",
+          "remove_pool_on_ex": "修仙",
+          "evidence": "user_card_ex",
+          "conflicts": [
+            "guide_ex_name_元神出窍_vs_canonical_大乘期"
+          ],
+          "ur_support": [
+            "元禾五极山",
+            "玄天斩灵剑"
+          ]
+        },
+        "shentong_dasheng": {
+          "ex": "法天象地",
+          "rarity": "EX",
+          "open_pool": "齐天大圣",
+          "stage_need": {
+            "liugen_remnant": 6,
+            "set_pieces": 5,
+            "total_cards_to_ex": "26@guide"
+          },
+          "evolve_trigger": "three_stage_auto_compose",
+          "remove_pool_on_ex": null,
+          "evidence": "user_card_ex+guide_full_chain"
+        },
+        "haidao_ur_reference": {
+          "ex": "毁灭战舰",
+          "rarity": "UR",
+          "open_pool": "藏宝图",
+          "stage_need": {
+            "treasure_map": 3
+          },
+          "evolve_trigger": "devour_12_or_orange_bounty@conflict",
+          "remove_pool_on_ex": null,
+          "evidence": "live_need+user_card",
+          "conflicts": [
+            "keep_sinking_vs_golden_ape_clear"
+          ]
+        }
+      },
+      "crosscut_rules": {
+        "set_full_auto_devour": true,
+        "devoured_no_further_evolve": true,
+        "finals_cannot_devour": true,
+        "progress_counters_not_need": [
+          "yihuo_n",
+          "remains",
+          "swallow_count"
+        ],
+        "danger_cards_fail_closed": [
+          "邪爆",
+          "扭曲虚空",
+          "解放的圣剑",
+          "黄金猿"
+        ]
+      },
+      "interleave_resources": {
+        "wood": "only_F_draw_and_bond_refresh",
+        "kill_count": "only_black_market",
+        "refresh_charges": "treasure_skill_hero_cards; zero_never_click",
+        "synthesis_sprint": "interleaved_with_skill_black_market_treasure_not_serial"
+      },
+      "policy_hints_not_wired": {
+        "order": [
+          "base_econ",
+          "one_attr_line",
+          "haidao_econ",
+          "yihuo_daodao_xiuxian",
+          "shenshou_before_sanguo",
+          "fengshen",
+          "wangling",
+          "longzu_juntuan_last"
+        ],
+        "stop_on_ex": "stop_group; neighbor_stop_if_remove_pool; longzu_juntuan_downrank_only"
+      }
+    },
+    "card_family_graph": {
+      "evidence": "lexicon_set_membership+ex_synthesis_matrix_20260923",
+      "status": "analysis_only_not_wired",
+      "evidence_scale": [
+        "live_frame",
+        "user_card",
+        "user_catalog",
+        "official",
+        "guide",
+        "user_confirmed"
+      ],
+      "null_means": "unknown_do_not_invent",
+      "edges": [
+        {
+          "parent": "异火",
+          "child_pool": "异火·N",
+          "via": "焚诀·黄阶",
+          "stage_enum": [
+            "黄",
+            "玄",
+            "地",
+            "天"
+          ],
+          "ex": "帝炎",
+          "remove_pool_on_ex": null,
+          "evidence": "live_frame+user_card"
+        },
+        {
+          "parent": "刀刀",
+          "child_pool": "图纸",
+          "open_via": "刀刀萌新",
+          "close": "EX解放的圣剑移除刀刀+掷骰吞",
+          "evidence": "live_frame+guide"
+        },
+        {
+          "parent": "封神",
+          "child_pool": "法宝",
+          "open_via": "天仙期",
+          "close": "EX圣人移除法宝",
+          "evidence": "user_card+guide"
+        },
+        {
+          "parent": "大圣",
+          "child_pool": "神通",
+          "open_via": "二阶齐天大圣后",
+          "ex_tag": "神通",
+          "evidence": "guide+user_card"
+        },
+        {
+          "parent": "海盗",
+          "child_pool": "宝藏",
+          "open_via": "黄金猿装备左键",
+          "evidence": "user_confirmed",
+          "note": "黄金猿不是猴子; forbid auto equipment bar click"
+        },
+        {
+          "parent": "海盗",
+          "child_pool": "战舰后N池",
+          "open_via": "毁灭战舰",
+          "evidence": "user_card"
+        },
+        {
+          "parent": "神兽",
+          "open_via": "异兽蛋60s",
+          "close": "EX祖龙移除神兽",
+          "evidence": "live_frame+user_card"
+        },
+        {
+          "parent": "修仙",
+          "close": "EX大乘期移除修仙",
+          "evidence": "live_frame+user_card"
+        },
+        {
+          "parent": "龙族",
+          "child_pool": "祈求",
+          "close": null,
+          "evidence": "live_frame"
+        },
+        {
+          "parent": "军团",
+          "child_pool": "扭曲虚空点爆",
+          "close": null,
+          "evidence": "live_frame+guide"
+        },
+        {
+          "parent": "亡灵",
+          "child_pool": "残骸/符文",
+          "sub_routes": [
+            "巫妖王UR",
+            "兵主EX"
+          ],
+          "evidence": "live_frame+guide"
+        },
+        {
+          "parent": "三国",
+          "child_pool": "魏蜀吴群雄",
+          "close": null,
+          "evidence": "live_frame"
+        },
+        {
+          "parent": "海贼王",
+          "child_pool": "四皇",
+          "open_via": "见习海贼; swallow14@guide",
+          "ex": "海贼王",
+          "evidence": "guide_external"
+        }
+      ],
+      "coarse_judge_without_full_name": {
+        "set_membership_first": true,
+        "progress_vs_counter": {
+          "xy": "collection_progress",
+          "n_only": "counter_not_need"
+        },
+        "rarity_no_red_for_skills": true,
+        "substring_map": {
+          "炎/火": "异火",
+          "*图纸": "刀刀",
+          "神通·/大成/残躯": "大圣神通",
+          "斩仙/盘古/太极": "法宝",
+          "海盗/悬赏/码头": "海盗"
+        },
+        "stage_pool_cap": {
+          "焚诀·黄阶": "N异火",
+          "天仙": "SR及以下法宝",
+          "金仙": "SSR法宝",
+          "大罗": "UR法宝"
+        }
+      },
+      "alias_traps_do_not_merge": [
+        [
+          "黄金猿",
+          "猴子"
+        ],
+        [
+          "克尔苏加德",
+          "巫妖",
+          "巫妖王"
+        ],
+        [
+          "圣剑",
+          "解放的圣剑"
+        ],
+        [
+          "剑刃",
+          "利刃海盗"
+        ],
+        [
+          "天命人",
+          "齐天大圣"
+        ],
+        [
+          "孙权",
+          "孙策"
+        ],
+        [
+          "辛达苟萨",
+          "冰霜巨龙"
+        ]
+      ],
+      "counters_not_need": [
+        "异火_n",
+        "remains",
+        "swallow_count",
+        "pray_count"
+      ],
+      "danger_fail_closed": [
+        "邪爆",
+        "扭曲虚空",
+        "解放的圣剑",
+        "黄金猿",
+        "禁自决",
+        "近字法"
+      ]
+    },
+    "fine_mechanics": {
+      "status": "analysis_only",
+      "wired_to_decision": false,
+      "devour_taxonomy": [
+        "set_complete_auto",
+        "kill_random",
+        "evolve_after_count",
+        "capstone_die",
+        "hatch_self_devour",
+        "pair_evolve",
+        "board_devour",
+        "detonate",
+        "pray_kill_evolve",
+        "bounty_color"
+      ],
+      "haidao": {
+        "open": "藏宝图x3",
+        "bounty_color": {
+          "红": "all",
+          "橙": "<=SSR",
+          "紫": "<=SR",
+          "蓝": "<=R",
+          "绿": "N"
+        },
+        "swallow_chain_guide": {
+          "6": "开进码头->制造混乱->罗杰斯",
+          "9": "霍格",
+          "12": "洛卡拉->毁灭战舰"
+        },
+        "conflict": [
+          "橙悬赏->战舰 vs 吞12->战舰"
+        ],
+        "gold_ape": "equipment_bar_left_click_opens_baozang; forbid_auto_click"
+      },
+      "wangling": {
+        "hall": "亡者大厅: each remnant +5 all_attr; unlock 邪爆",
+        "produce": "5 remnants / 120s (60 accel) -> 2 runes; stop at >=10 each; >15 auto detonate fails bingzhu",
+        "routes": {
+          "巫妖王": "start+kelersujiade+hall+blast_100remnant",
+          "兵主": "accel+produce runes>=10+100remnant"
+        },
+        "blast": "consume ALL remnants immediately; limited uses@guide"
+      },
+      "detonate_triggers": [
+        "邪爆",
+        "扭曲虚空x3",
+        "符文>15"
+      ],
+      "progress_not_need": [
+        "异火(n)",
+        "残骸",
+        "吞食数",
+        "祈求次数"
+      ],
+      "danger_cards": [
+        "邪爆",
+        "扭曲虚空",
+        "解放的圣剑",
+        "黄金猿"
+      ],
+      "order_constraints": [
+        "神兽先于吞食天地",
+        "军团/龙族殿后(不拆池)",
+        "黄金猿在战舰成型后"
+      ],
+      "haizeiwang_rules_guide": {
+        "auto_devour_only": "kill_200; manual_greed_dan_sanguo_breaks_chain",
+        "counter": "bond_local_kill_count@guide_not_live",
+        "shihuang_auto": "must_auto_devour_to_ex"
+      }
+    },
+    "card_effects_catalog": {
+      "status": "analysis_only",
+      "wired_to_decision": false,
+      "schema": [
+        "name",
+        "set",
+        "rarity",
+        "effects[]",
+        "combo_notes",
+        "ev"
+      ],
+      "ex_keywords": {
+        "圣人": [
+          "技能急速",
+          "技能伤害",
+          "刷CD",
+          "最终三系%"
+        ],
+        "祖龙": [
+          "最终%",
+          "全属性自适应",
+          "杀敌成长"
+        ],
+        "世界末日迦拉克隆": [
+          "暴击",
+          "暴伤",
+          "祈求缩放",
+          "结算*1.3"
+        ],
+        "吞食天地": [
+          "吞食成长",
+          "全属性增幅"
+        ],
+        "帝炎": [
+          "燃烧%",
+          "火系%",
+          "全属性自适应"
+        ],
+        "解放的圣剑": [
+          "随机倍率",
+          "无视闪避",
+          "形态切换"
+        ],
+        "萨格拉斯": [
+          "剥甲",
+          "军团卡缩放",
+          "每吞成长"
+        ],
+        "兵主": [
+          "三符文轴",
+          "技伤*1.25",
+          "生命自适应"
+        ],
+        "大乘期": [
+          "剑阵控",
+          "结算+20%",
+          "杀敌三系"
+        ],
+        "法天象地": [
+          "结算±%",
+          "生命转伤"
+        ],
+        "毁灭战舰": [
+          "海盗吞成长",
+          "置入海盗",
+          "开池"
+        ]
+      },
+      "combo_heuristics_not_wired": {
+        "order": [
+          "haidao_econ",
+          "shenshou_before_sanguo",
+          "wangling_daodao_yihuo",
+          "longzu_juntuan_last"
+        ],
+        "magic": [
+          "兵主冰霜",
+          "圣人急速",
+          "大乘法则"
+        ],
+        "physical": [
+          "解放的圣剑",
+          "祖龙圣痕",
+          "棍法大成"
+        ]
+      }
+    },
+    "haizeiwang_chain_guide": {
+      "status": "guide_external_not_wired",
+      "evidence": "user_forwarded_guide_20260923",
+      "open_pool": "见习海贼",
+      "stage_need_guide": {
+        "to_chaoxinxing": 4,
+        "to_qiwuhai": 9,
+        "to_shihuang_pool": 14,
+        "shihuang_to_ex": 4
+      },
+      "evolve_trigger": "kill_200_auto_devour_haizei_only; manual_greed_dan_sanguo_BREAK_CHAIN@guide",
+      "kill_counter_scope_guide": "only_this_bond_kills_summons_may_not_count",
+      "ex": "海贼王",
+      "shihuang": [
+        "凯多",
+        "红发",
+        "白胡子",
+        "大妈"
+      ],
+      "ex_effects_guide": {
+        "panel": "全属性+500 三最终+20% 最终伤+20%",
+        "haki": "见闻/武装/霸王 三系",
+        "armor_overflow": "无视甲溢出1%→伤+1%@guide"
+      },
+      "conflicts": [
+        "竞品21张停 vs 吞14+四皇4合EX",
+        "杀敌是否仅本羁绊(禁类推异火全局200)"
+      ],
+      "combo_guide": [
+        "海盗经济",
+        "挑战+成长",
+        "神通+三国",
+        "修仙保命"
+      ]
     }
   },
   "multiplayer": {
