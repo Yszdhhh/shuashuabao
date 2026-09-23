@@ -2190,7 +2190,12 @@ class MainWindow(QMainWindow):
             else self.skill_grid.get_skills()
         )
         self.launch_check.setText("\n".join(lines))
-        action_labels = {"solo": "去单人刷票", "arch": "去考古", "hitch": "转为大厅蹭车"}
+        action_labels = {
+            "solo": "去单人刷票",
+            "arch": "去考古",
+            "end": "直接结束",
+            "hitch": "转为大厅蹭车",
+        }
         for mode_id, check in getattr(self, "team_launch_checks", {}).items():
             if mode_id == "follow_team":
                 cycle = int(self.spn_follow_cycle_num.value())
@@ -2811,6 +2816,7 @@ class MainWindow(QMainWindow):
         self.cmb_hitch_after_goal.setFixedHeight(40)
         self.cmb_hitch_after_goal.addItem("去单人刷票", "solo")
         self.cmb_hitch_after_goal.addItem("去考古", "arch")
+        self.cmb_hitch_after_goal.addItem("直接结束", "end")
         form.addWidget(self.cmb_hitch_after_goal, 1, 1)
         form.setColumnStretch(0, 1)
         form.setColumnStretch(1, 1)

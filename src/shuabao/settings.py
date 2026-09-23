@@ -123,7 +123,7 @@ class Settings:
     follow_cycle_num: int = 100  # 跟车目标局数；启动时投影到 cycle_num
     hitch_cycle_num: int = 100  # 蹭车目标局数；启动时投影到 cycle_num
     follow_after_room: str = "solo"  # 房间解散/被踢后预案：solo / arch / hitch
-    hitch_after_goal: str = "solo"  # 达到蹭车目标后预案：solo / arch
+    hitch_after_goal: str = "solo"  # 达到蹭车目标后预案：solo / arch / end
     follow_pair_code: str = ""  # 带车端配对信息；当前只持久化，运行同步待接线
     dragon_ball_count: int = 7
     find_longzhu_where_multi_game: bool = False
@@ -461,7 +461,7 @@ class Settings:
             clean["hitch_stage_prefix"] = search_text or "4,3,速"
         for key, allowed, default in (
             ("follow_after_room", {"solo", "arch", "hitch"}, "solo"),
-            ("hitch_after_goal", {"solo", "arch"}, "solo"),
+            ("hitch_after_goal", {"solo", "arch", "end"}, "solo"),
         ):
             if key not in clean:
                 continue
@@ -636,7 +636,7 @@ class Settings:
                     errors.append("hitch_stage_prefix 必须为 1-64 个非空字符")
                 elif key == "follow_after_room" and value not in {"solo", "arch", "hitch"}:
                     errors.append("follow_after_room 取值非法")
-                elif key == "hitch_after_goal" and value not in {"solo", "arch"}:
+                elif key == "hitch_after_goal" and value not in {"solo", "arch", "end"}:
                     errors.append("hitch_after_goal 取值非法")
                 elif key == "ocr_mode" and value not in {"off", "shadow", "live"}:
                     errors.append("ocr_mode 取值非法")

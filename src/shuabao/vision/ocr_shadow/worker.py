@@ -149,9 +149,25 @@ def _predict(rec: Any, image_b64: str, kind: str | None) -> tuple[list[dict[str,
     src = str(_repo_root() / "src")
     if src not in sys.path:
         sys.path.insert(0, src)
-    from shuabao.vision.choice_ocr import load_lexicon, lookup_lexicon, normalize_choice_text
+    from shuabao.vision.choice_ocr import lookup_lexicon, load_lexicon, normalize_choice_text
 
-    lexicon = load_lexicon(_lexicon_path())
+    # Numeric HUD counters do not use the card/choice lexicon. Keep ticket,
+    # badge, and balance OCR available when that optional semantic catalog is
+    # being edited or is absent from a reduced runtime package.
+    lookup_kind = kind
+    is_description = isinstance(lookup_kind, str) and lookup_kind.endswith("_desc")
+    if is_description:
+        lookup_kind = lookup_kind.removesuffix("_desc")
+    lookup_kinds = ("skill", "bond", "treasure", "card", "hero", "reputation")
+    lexicon = None
+    if lookup_kind in lookup_kinds and not is_description:
+        try:
+            lexicon = load_lexicon(_lexicon_path())
+        except (OSError, ValueError):
+            # A missing/invalid semantic catalog must not take down unrelated
+            # OCR requests. Semantic kinds remain fail-closed below.
+            pass
+
     best: tuple[str, float, Any] | None = None
     progress_text: tuple[str, str, float] | None = None
     best_raw: tuple[str, float] = ("", 0.0)
@@ -172,15 +188,10 @@ def _predict(rec: Any, image_b64: str, kind: str | None) -> tuple[list[dict[str,
         normalized = normalize_choice_text(text)
         if rec_score > best_raw[1]:
             best_raw = (normalized, rec_score)
-        # Descriptions use the same transport as title OCR but are not a
-        # separate lexicon category.  Map ``treasure_desc``/``bond_desc`` to
-        # their base category so a description cannot abort the whole request
-        # with ``ValueError`` before raw text is returned.
-        lookup_kind = kind
-        if isinstance(lookup_kind, str) and lookup_kind.endswith("_desc"):
-            lookup_kind = lookup_kind.removesuffix("_desc")
+        if is_description or (lookup_kind in lookup_kinds and lexicon is None):
+            continue
         lookup = None
-        if lookup_kind in ("skill", "bond", "treasure", "card", "hero", "reputation"):
+        if lookup_kind in lookup_kinds:
             try:
                 lookup = lookup_lexicon(normalized, kind=lookup_kind, lexicon=lexicon)
             except ValueError:

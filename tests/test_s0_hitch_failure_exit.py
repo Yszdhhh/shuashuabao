@@ -260,7 +260,7 @@ def test_hitch_failure_exit_counts_round_and_rearms_next_round_deadline() -> Non
 
 def test_hitch_cycle_target_stops_only_after_verified_exit() -> None:
     med = Mediator(
-        Settings(dry_run=True, ocr_mode="off", mode_id="lobby_hitch", cycle_num=1),
+        Settings(dry_run=True, ocr_mode="off", mode_id="lobby_hitch", cycle_num=1, hitch_after_goal="end"),
         ROOT,
     )
     med._begin_recovery(RecoveryKind.FAIL)
@@ -270,6 +270,28 @@ def test_hitch_cycle_target_stops_only_after_verified_exit() -> None:
     assert med.game_count == 1
     assert med.phase == Phase.COMPLETE
     assert med.stop_signal.is_set()
+
+
+def test_hitch_cycle_target_solo_handoff_leaves_guest_room_before_create() -> None:
+    med = Mediator(
+        Settings(
+            dry_run=True,
+            ocr_mode="off",
+            mode_id="lobby_hitch",
+            cycle_num=1,
+            hitch_after_goal="solo",
+            auto_create_room=False,
+        ),
+        ROOT,
+    )
+
+    assert med._finish_hitch_round(100.0, "verified hitch exit") == LoopAction.Continue
+    assert med.game_count == 1
+    assert med.settings.mode_id == "normal_farm"
+    assert med.settings.auto_create_room is True
+    assert med.phase == Phase.ROOM_WAITING
+    assert med._room_leave_pending is True
+    assert not med.stop_signal.is_set()
 
 
 def test_hitch_cycle_target_arch_handoff_leaves_guest_room_before_existing_archaeology_route() -> None:

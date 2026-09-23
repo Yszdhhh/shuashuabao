@@ -67,14 +67,20 @@ def test_main_line_5_6_dialog_triggers_close_task() -> None:
     assert med._close_main_line_triggered
 
 
-def test_main_line_5_6_clean_triggers_and_disables_auto_task() -> None:
-    """f0581 任务栏显示主线5-6且自动任务为 ON，触发取消并发出 DisableAutoTask 点击。"""
+def test_main_line_5_6_clean_requests_disable_then_waits_for_off() -> None:
+    """ON 帧只发出取消请求；后续帧确认 OFF 后才记完成。"""
     frame = _load_frame(F0581)
     med = Mediator(Settings(ocr_mode="live", auto_close_main_line=True, dry_run=True), ROOT)
-    res = med._maybe_close_main_line_after_5_5(frame, time.time())
+    now = time.time()
+    res = med._maybe_close_main_line_after_5_5(frame, now)
     assert med._close_main_line_triggered
-    assert med._main_line_closed_done
+    assert not med._main_line_closed_done
+    assert med._main_line_close_attempts == 1
     assert res == LoopAction.Continue
+
+    with patch.object(med, "_auto_task_state", return_value=("OFF", None)):
+        assert med._maybe_close_main_line_after_5_5(frame, now + 1.1) is None
+    assert med._main_line_closed_done
 
 
 def test_main_line_tick_disables_auto_task_in_full_cycle() -> None:
@@ -87,8 +93,25 @@ def test_main_line_tick_disables_auto_task_in_full_cycle() -> None:
 
     res = med._tick_main_line(frame)
     assert med._close_main_line_triggered
-    assert med._main_line_closed_done
+    assert not med._main_line_closed_done
+    assert med._main_line_close_attempts == 1
     assert res == LoopAction.Continue
+
+
+def test_main_line_close_retries_are_bounded_until_off_is_observed() -> None:
+    frame = _load_frame(F0581)
+    med = Mediator(Settings(ocr_mode="off", auto_close_main_line=True, dry_run=True), ROOT)
+    med._close_main_line_triggered = True
+
+    with patch.object(med, "_auto_task_state", wraps=med._auto_task_state):
+        assert med._maybe_close_main_line_after_5_5(frame, 100.0) == LoopAction.Continue
+        assert med._maybe_close_main_line_after_5_5(frame, 100.5) == LoopAction.Continue
+        assert med._maybe_close_main_line_after_5_5(frame, 101.0) == LoopAction.Continue
+        assert med._maybe_close_main_line_after_5_5(frame, 102.0) == LoopAction.Continue
+        assert med._maybe_close_main_line_after_5_5(frame, 103.0) is None
+
+    assert med._main_line_close_attempts == 3
+    assert not med._main_line_closed_done
 
 
 def test_taskbar_ocr_interval_throttling() -> None:

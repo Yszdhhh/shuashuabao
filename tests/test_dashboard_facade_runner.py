@@ -19,6 +19,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives import serialization
@@ -344,6 +345,54 @@ def test_worker_signals_forward_to_facade(qapp, tmp_path: Path):
     assert st["game_count"] == 3
     assert st["ocr_status"] == "识别中"
     assert st["last_action"] == "拾取掉落"
+
+
+def test_run_summary_keeps_hitch_and_solo_evidence_separate(qapp, tmp_path: Path):
+    runner = FakeRunner()
+    worker = FakeWorker()
+    worker.mediator = SimpleNamespace(
+        game_count=5,
+        _hitch_stats_started=3,
+        _hitch_stats_victories=2,
+        _hitch_stats_failures=1,
+        _hitch_stats_stages={"2-1": 2, "2-3": 1},
+        _success_count=3,
+        _failure_count=2,
+        _disconnect_count=0,
+        _timeout_count=0,
+    )
+    runner.worker = worker
+    runner.mode_id = "lobby_hitch"
+    runner.runner_state = "COMPLETE"
+    f = DashboardFacade(tmp_path, runner)
+    f._run_finished_duration_s = 125
+
+    run = f._run_dto()
+    assert run["game_count"] == 5
+    assert run["summary"] == {
+        "available": True,
+        "duration_seconds": 125,
+        "hitch": {"started": 3, "completed": 3, "success": 2, "failure": 1, "stages": {"2-1": 2, "2-3": 1}},
+        "solo": {"completed": 2, "success": 1, "failure": 1},
+    }
+
+    statuses: list[dict] = []
+    f.run_status_changed.connect(lambda js: statuses.append(json.loads(js)))
+    f._on_status_updated(False, "COMPLETE", 5, "", "", "")
+    assert statuses[-1]["summary"] == run["summary"]
+    worker.mediator = None
+    assert f._run_dto()["summary"] == run["summary"]
+
+
+def test_run_dto_keeps_terminal_count_when_mediator_is_unavailable(qapp, tmp_path: Path):
+    runner = FakeRunner()
+    runner.worker = FakeWorker()
+    runner.runner_state = "COMPLETE"
+    f = DashboardFacade(tmp_path, runner)
+    f._on_status_updated(False, "COMPLETE", 3, "", "", "")
+    run = f._run_dto()
+    assert run["game_count"] == 3
+    assert run["summary"]["available"] is False
 
 
 def test_duplicate_status_payload_suppressed(qapp, tmp_path: Path):

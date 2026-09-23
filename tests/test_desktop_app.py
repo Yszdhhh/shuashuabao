@@ -1622,6 +1622,14 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertEqual("arch", self.window.cmb_hitch_after_goal.currentData())
         self.assertEqual("双端-01", self.window.txt_follow_pair_code.text())
 
+        self.window.cmb_hitch_after_goal.setCurrentIndex(
+            self.window.cmb_hitch_after_goal.findData("end")
+        )
+        end_settings = self.window.collect_settings_from_ui()
+        self.assertEqual("end", end_settings.hitch_after_goal)
+        self.window.apply_settings_to_ui(end_settings)
+        self.assertEqual("end", self.window.cmb_hitch_after_goal.currentData())
+
     def test_team_mode_projects_its_own_target_into_runner_snapshot(self):
         from shuabao.shell.runner_service import RunnerService
 

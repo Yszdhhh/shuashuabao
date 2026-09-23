@@ -609,9 +609,12 @@ class Mediator(CoreMediator):
 
     def _stage_bond_card(self, name: str | None) -> None:
         canonical = self._canonical_bond_name(name)
-        configured = self._configured_bond_presets()
-        if not matches_bond_preset(canonical, configured) and not any(same_bond_identity(canonical, c) for c in self._confirmed_bond_cards()):
+        if not canonical:
             return
+        # The policy has already authorized the clicked slot.  In soft mode it
+        # may deliberately choose a non-preset quality fallback, so filtering
+        # the confirmed result against the configured presets here would make
+        # the ownership ledger incomplete and corrupt later decisions.
         # 重复卡必须保留次数，供“已拿卡优先合成”决策使用。
         self._bond_cards_pending.append(canonical)
 

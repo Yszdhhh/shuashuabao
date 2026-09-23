@@ -478,9 +478,9 @@ def test_case_c_lobby_plus_pet_plus_room_selects_room(monkeypatch):
 # ===========================================================================
 
 def test_hitch_stats_tracking_and_formatting(monkeypatch):
-    """验证蹭车局数、胜负、难度统计以及格式化输出。"""
-    from shuabao.vision.stage_selector import StageId
+    """验证蹭车局数、胜负、局内 HUD 关卡统计以及格式化输出。"""
     from shuabao.mediator import RoundOutcome
+    from shuabao.vision.stage_selector import StageId
 
     settings = Settings(mode_id="lobby_hitch")
     root = Path(__file__).resolve().parents[1]
@@ -490,52 +490,64 @@ def test_hitch_stats_tracking_and_formatting(monkeypatch):
     # 1. 初始状态为空
     assert med.format_hitch_stats_progress() == ""
     assert med.format_hitch_stats_summary() == ""
-    assert med.format_hitch_difficulty_summary() == "无"
+    assert med.format_hitch_stage_summary() == "无"
 
-    # 2. 局 1 进入 MAIN_LINE 并识别出 2-7（难2）
+    # 2. 局内 HUD 的章节-关卡标签是 2-7，旁边独立的波次标签不参与统计。
     frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=1001)
-    monkeypatch.setattr(
-        "shuabao.mediator.detect_ingame_stage_label",
-        lambda f, img_dir: StageId(2, 7),
-    )
+    med._hitch_pending_selected_stage = "1-1"
+    monkeypatch.setattr("shuabao.mediator.detect_ingame_stage_label", lambda f, img: StageId(2, 7))
     med._tick_main_line(frame)
     assert med._hitch_stats_started == 1
-    assert med._hitch_stats_current_difficulty == 2
-    assert med._hitch_stats_difficulties == {2: 1}
-    assert med.format_hitch_stats_progress() == "难2"
+    assert med._hitch_stats_current_stage == "2-7"
+    assert med._hitch_stats_stages == {"2-7": 1}
+    assert med.format_hitch_stats_progress() == "关卡2-7"
+    med._record_hitch_challenge("金币(确认开启)")
+    med._record_hitch_challenge("档案-strengthen(已点击)")
 
     # 局 1 取得胜利
     med._record_round_outcome(RoundOutcome.VICTORY, "victory test")
     assert med._hitch_stats_victories == 1
     assert med._hitch_stats_failures == 0
-    assert med.format_hitch_stats_progress() == "胜1 败0 难2"
-    assert med.format_hitch_stats_summary() == "共开局 1 把 (胜 1 / 败 0) · 难2:1把"
+    assert med.format_hitch_stats_progress() == "胜1 败0 关卡2-7"
+    assert med.format_hitch_stats_summary() == (
+        "蹭车开局 1 把 / 完成 0 把 (胜 1 / 败 0) · 章节选择分布 2-7:1把 · "
+        "本局关卡 2-7 · 本局挑战 金币(确认开启)、档案-strengthen(已点击) · "
+        "门票约消耗 0 张 · 单刷完成 0 把"
+    )
 
     # 3. 局 1 退出，进入 episode 重置
     med._hitch_after_exit(100.0)
     assert med._hitch_round_started_counted is False
-    assert med._hitch_stats_difficulty_recorded_this_round is False
-    assert med._hitch_stats_current_difficulty is None
+    assert med._hitch_stats_stage_recorded_this_round is False
+    assert med._hitch_stats_current_stage is None
+    assert med._hitch_stats_current_challenges == []
     # 累计统计保留
     assert med._hitch_stats_started == 1
     assert med._hitch_stats_victories == 1
+    med.game_count = 1
 
-    # 4. 局 2 进入 MAIN_LINE 并识别出 3-4（难3）
-    monkeypatch.setattr(
-        "shuabao.mediator.detect_ingame_stage_label",
-        lambda f, img_dir: StageId(3, 4),
-    )
+    # 4. 局 2 局内 HUD 读到 3-9，优先于选关页候选 3-4。
+    med._hitch_pending_selected_stage = "3-4"
+    monkeypatch.setattr("shuabao.mediator.detect_ingame_stage_label", lambda f, img: StageId(3, 9))
     med._tick_main_line(frame)
     assert med._hitch_stats_started == 2
-    assert med._hitch_stats_current_difficulty == 3
-    assert med._hitch_stats_difficulties == {2: 1, 3: 1}
-    assert med.format_hitch_difficulty_summary() == "难2:1把 难3:1把"
+    assert med._hitch_stats_current_stage == "3-9"
+    assert med._hitch_stats_stages == {"2-7": 1, "3-9": 1}
+    assert med.format_hitch_stage_summary() == "2-7:1把 3-9:1把"
 
     # 局 2 超时失败
     med._record_round_outcome(RoundOutcome.TIMEOUT, "timeout test")
     assert med._hitch_stats_victories == 1
     assert med._hitch_stats_failures == 1
-    assert med.format_hitch_stats_summary() == "共开局 2 把 (胜 1 / 败 1) · 难2:1把 难3:1把"
+    assert med.format_hitch_stats_summary() == (
+        "蹭车开局 2 把 / 完成 1 把 (胜 1 / 败 1) · 章节选择分布 2-7:1把 3-9:1把 · "
+        "本局关卡 3-9 · 本局挑战 无确认记录 · 门票约消耗 2 张 · 单刷完成 0 把"
+    )
+    med.game_count = 2
+    med.settings.mode_id = "normal_farm"
+    assert med.format_hitch_stats_summary().startswith("蹭车开局 2 把 / 完成 2 把")
+    assert "门票约消耗 4 张" in med.format_hitch_stats_summary()
+    assert med.format_hitch_stats_progress() == med.format_hitch_stats_summary()
 
 
 def test_overlay_hud_stats_display(qapp):
@@ -549,10 +561,10 @@ def test_overlay_hud_stats_display(qapp):
         game_count=3,
         cycle_num=10,
         mode="lobby_hitch",
-        stats_text="胜2 败0 难2",
+        stats_text="胜2 败0 章节2",
     )
-    assert "胜2 败0 难2" in hud.round_chip.text()
-    assert "胜2 败0 难2" in hud.detail_label.text()
+    assert "胜2 败0 章节2" in hud.round_chip.text()
+    assert "胜2 败0 章节2" in hud.detail_label.text()
 
     # 停止后带总战绩统计
     hud.update_status(
@@ -561,9 +573,9 @@ def test_overlay_hud_stats_display(qapp):
         cycle_num=10,
         mode="lobby_hitch",
         terminal_reason="cycle_num reached",
-        stats_text="共开局 10 把 (胜 6 / 败 3) · 难1:1把 难2:6把 难3:2把",
+        stats_text="蹭车开局 10 把 / 完成 10 把 · 章节选择分布 1-1:1把 2-7:6把 3-9:2把",
     )
-    assert "共开局 10 把 (胜 6 / 败 3) · 难1:1把 难2:6把 难3:2把" in hud.detail_label.text()
+    assert "蹭车开局 10 把 / 完成 10 把 · 章节选择分布 1-1:1把 2-7:6把 3-9:2把" in hud.detail_label.text()
 
 
 def test_boss_challenge_attempt_limit_deadlock_prevention(monkeypatch):
