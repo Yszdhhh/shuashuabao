@@ -768,6 +768,9 @@ function applyRunStatus(run: RunStatusDTO): void {
   if (ctrlRunning) ctrlRunning.checked = runActive;
   document.body.dataset.running = runActive ? "true" : "false";
   state.running = runActive;
+  state.runState = run.state;
+  state.runModeId = run.mode_id;
+  state.runSummary = run.summary ?? null;
   state.hudPhase = run.phase;
   state.played = Math.max(0, Number(run.game_count) || 0);
   if (run.cycle_num !== undefined) state.cycle = run.cycle_num;
