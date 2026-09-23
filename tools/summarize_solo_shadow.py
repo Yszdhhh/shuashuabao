@@ -15,37 +15,117 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 
+# Explicit plan families, not substring matching and not executed actions.
+_PLAN_TARGETS = {
+    "open_skill_panel": "skill",
+    "open_treasure_panel": "treasure",
+    "bond_draw": "bond",
+    "bond_refresh": "bond",
+}
+_KINDS = {"RECOMMEND", "WAIT_OR_OBSERVE", "CONTINUE_TRANSACTION"}
+
+
+def _reject_constant(value: str) -> None:
+    raise ValueError("non-finite JSON number")
+
+
+def _unique_object(pairs: list[tuple]) -> dict:
+    obj: dict = {}
+    for key, value in pairs:
+        if key in obj:
+            raise ValueError("duplicate JSON key")
+        obj[key] = value
+    return obj
+
+
+def _validate_record(row: object) -> None:
+    """Validate consumed fields, not game facts or successful action evidence."""
+    if not isinstance(row, dict):
+        raise ValueError("record must be an object")
+    if type(row.get("schema")) is not int or row["schema"] not in (1, 2):
+        raise ValueError("unsupported log schema")
+    if type(row.get("seq")) is not int or row["seq"] < 1:
+        raise ValueError("seq must be a positive integer")
+    if not isinstance(row.get("round_id"), str) or not row["round_id"].strip():
+        raise ValueError("round_id must be a nonempty string")
+    dec, actual = row.get("decision"), row.get("actual")
+    if not isinstance(dec, dict) or not isinstance(actual, dict):
+        raise ValueError("decision and actual must be objects")
+    if not isinstance(dec.get("kind"), str) or dec["kind"] not in _KINDS:
+        raise ValueError("unsupported decision kind")
+    if actual.get("plan_target") is not None and not isinstance(actual["plan_target"], str):
+        raise ValueError("plan_target must be a string or null")
+    chosen = dec.get("chosen")
+    if chosen is not None and not isinstance(chosen, dict):
+        raise ValueError("chosen must be an object or null")
+    if dec["kind"] == "RECOMMEND" and (
+        not chosen or not isinstance(chosen.get("action_id"), str) or not chosen["action_id"]
+    ):
+        raise ValueError("recommendation must identify a candidate")
+    for key in ("review_required", "incomparable"):
+        values = dec.get(key, [])
+        if not isinstance(values, list) or any(not isinstance(v, str) for v in values):
+            raise ValueError(f"{key} must contain strings")
+    alternatives = dec.get("alternatives", [])
+    if not isinstance(alternatives, list) or any(
+        not isinstance(v, (list, tuple)) or len(v) != 2
+        or any(not isinstance(part, str) for part in v) for v in alternatives
+    ):
+        raise ValueError("alternatives must contain action/reason pairs")
+
+
 def load(paths: list[str]) -> list[dict]:
-    files: list[Path] = []
+    """Reject partial/corrupt inputs; a successful summary is still NOT a gate."""
+    files: dict[Path, None] = {}
     for raw in paths:
         p = Path(raw)
         if p.is_dir():
-            files.extend(sorted(p.glob("solo_shadow_*.jsonl")))
-        elif p.exists() and p.name.startswith("solo_shadow"):
-            files.append(p)
+            matches = sorted(p.glob("solo_shadow_*.jsonl"))
+            if not matches:
+                raise ValueError(f"{p}: no solo_shadow logs")
+        elif p.is_file() and p.name.startswith("solo_shadow") and p.suffix == ".jsonl":
+            matches = [p]
+        else:
+            raise ValueError(f"{p}: missing or unsupported log path")
+        for match in matches:
+            files[match.resolve()] = None
     rows: list[dict] = []
     for f in files:
+        last_seq = 0
         with f.open(encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if line:
-                    try:
-                        rows.append(json.loads(line))
-                    except json.JSONDecodeError:
-                        pass
+            for line_no, line in enumerate(fh, 1):
+                if not line.strip():
+                    continue
+                try:
+                    row = json.loads(line, parse_constant=_reject_constant, object_pairs_hook=_unique_object)
+                    _validate_record(row)
+                    if row["seq"] <= last_seq:
+                        raise ValueError("sequence reset/duplicate; session identity requires review")
+                    last_seq = row["seq"]
+                except ValueError as exc:
+                    # Report location, never echo the possibly sensitive raw line.
+                    raise ValueError(f"{f}:{line_no}: invalid shadow record ({type(exc).__name__})") from exc
+                row["_source_file"] = str(f)
+                rows.append(row)
+        if last_seq == 0:
+            raise ValueError(f"{f}: empty log")
     return rows
 
 
 def summarize(rows: list[dict]) -> dict:
     by_round: dict[str, list[dict]] = defaultdict(list)
     for r in rows:
-        by_round[str(r.get("round_id", "?"))].append(r)
+        _validate_record(r)
+        # round_id is only unique inside a recording session. Never merge
+        # different files or incompatible schema versions into one episode.
+        key = json.dumps([r.get("_source_file", "<memory>"), r["schema"], r["round_id"]], ensure_ascii=False)
+        by_round[key].append(r)
 
     rounds: dict[str, dict] = {}
     for rid, items in by_round.items():
         items.sort(key=lambda x: x.get("seq", 0))
         kinds = Counter((r.get("decision") or {}).get("kind", "?") for r in items)
-        agree = disagree = non_recommend = recommend_no_actual = 0
+        agree = disagree = non_recommend = recommend_no_actual = uncomparable = 0
         boundary_kinds = Counter(str(r.get("boundary") or "?") for r in items)
         review = Counter()
         incompar = 0
@@ -56,17 +136,21 @@ def summarize(rows: list[dict]) -> dict:
             if dec.get("kind") != "RECOMMEND":
                 non_recommend += 1
             else:
-                chosen = (dec.get("chosen") or {}).get("action_id") or ""
-                target = str(actual.get("plan_target") or "")
-                # 旧逻辑 plan_target 是 skill/bond/treasure；影子 action_id 形如 open_*_panel / bond_*
-                norm = chosen.replace("open_", "").replace("_panel", "")
-                if target and (target in chosen or target == norm or target == (dec.get("chosen") or {}).get("target")):
-                    agree += 1
-                elif chosen and target:
-                    disagree += 1
-                else:
-                    # 旧逻辑该窗口未出计划（window_closed_without_plan / phase_exit）
+                chosen = dec["chosen"]
+                family = _PLAN_TARGETS.get(chosen["action_id"])
+                target = actual.get("plan_target")
+                if not target:
                     recommend_no_actual += 1
+                elif (
+                    r.get("boundary") != "plan_in_window"
+                    or family is None or target not in set(_PLAN_TARGETS.values())
+                    or chosen.get("target", family) != family
+                ):
+                    uncomparable += 1
+                elif target == family:
+                    agree += 1
+                else:
+                    disagree += 1
             for reason in dec.get("review_required") or []:
                 review[str(reason)] += 1
             if dec.get("incomparable"):
@@ -84,8 +168,14 @@ def summarize(rows: list[dict]) -> dict:
                 rejects[str(ch["reject_reason"])] += 1
 
         total = len(items)
-        rec = kinds.get("RECOMMEND", 0)
         rounds[rid] = {
+            "round_id": items[0]["round_id"],
+            "source_file": items[0].get("_source_file"),
+            "log_schema": items[0]["schema"],
+            "recommend_vs_plan_target_agree": agree,
+            "recommend_vs_plan_target_disagree": disagree,
+            "recommend_plan_uncomparable": uncomparable,
+            # Compatibility aliases only: neither counter attests an action.
             "boundaries": total,
             "decision_counts": dict(kinds),
             "decision_ratio": {
@@ -107,17 +197,26 @@ def summarize(rows: list[dict]) -> dict:
         "rounds": len(rounds),
         "boundaries": sum(d["boundaries"] for d in rounds.values()),
     }
-    return {"totals": totals, "rounds": rounds}
+    return {
+        "report_schema": 2,
+        "evidence_scope": "PLAN_TARGET_ONLY",
+        "behavior_proof": False,
+        "actual_action_evidence": "NOT_AVAILABLE",
+        "warning": "NOT_BEHAVIOR_PROOF: logged plan-family comparison only; pairing and execution are not verified",
+        "legacy_counter_aliases": "recommend_vs_actual_* are deprecated aliases of recommend_vs_plan_target_*",
+        "totals": totals, "rounds": rounds,
+    }
 
 
 def render(s: dict) -> str:
-    out: list[str] = []
+    out: list[str] = [s["warning"], "Evidence scope: PLAN_TARGET_ONLY; actual action evidence: NOT_AVAILABLE"]
     t = s["totals"]
     out.append(f"== solo_shadow 汇总  行 {t['rows']}  局 {t['rounds']}  边界 {t['boundaries']} ==")
     for rid, d in s["rounds"].items():
         out.append(f"== 局 {rid} ==  边界 {d['boundaries']}")
         out.append("  decision: " + "  ".join(f"{k}:{v}" for k, v in d["decision_counts"].items()))
         out.append(f"  RECOMMEND vs 旧逻辑  一致 {d['recommend_vs_actual_agree']}  分歧 {d['recommend_vs_actual_disagree']}  旧逻辑无计划 {d['recommend_no_actual_plan']}  非推荐 {d['non_recommend']}")
+        out.append(f"  uncomparable plan records: {d['recommend_plan_uncomparable']}")
         out.append(f"  边界类型 {d['boundary_kinds']}")
         rate = d["incomparable_rate"]
         out.append(f"  不可比边界 {d['incomparable_boundaries']}" + (f"  ({rate*100:.0f}%)" if rate is not None else ""))
@@ -134,11 +233,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("paths", nargs="+")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args(argv)
-    rows = load(a.paths)
+    try:
+        rows = load(a.paths)
+        s = summarize(rows)
+    except (OSError, UnicodeError, ValueError) as exc:
+        print(f"INVALID_SHADOW_EVIDENCE: {exc}", file=sys.stderr)
+        return 2
     if not rows:
         print("没有找到 solo_shadow_*.jsonl", file=sys.stderr)
         return 2
-    s = summarize(rows)
     print(json.dumps(s, ensure_ascii=False, indent=2) if a.json else render(s))
     return 0
 
