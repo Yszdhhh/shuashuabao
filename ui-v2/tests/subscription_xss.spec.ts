@@ -179,8 +179,10 @@ describe("subscription pill / modal render backend strings as text only", () => 
       expect(Object.keys(elementChildren[0].attrs)).toEqual(["aria-hidden"]);
       const textChildren = pill.children.filter((c: FakeNode) => c.nodeType === 3);
       expect(textChildren).toHaveLength(1);
-      expect(textChildren[0].textContent).toContain(payload);
-      expect(textChildren[0].textContent).toContain(payload.slice(0, 10));
+      // UI-24：胶囊正文只写"卡密有效 · 月-日 到期"，完整有效期与 LIVE 状态进 aria-label / title（setAttribute，属性值不解析为 HTML）。
+      expect(textChildren[0].textContent.startsWith("卡密有效")).toBe(true);
+      expect(pill.attrs["aria-label"]).toContain(payload);
+      expect(pill.title).toContain(payload);
     });
 
     it(`pill keeps inactive-state payload as text: ${payload}`, () => {
@@ -227,9 +229,10 @@ describe("subscription pill / modal render backend strings as text only", () => 
       live_authorized: true,
     });
     const pill = dash.el("subscriptionPill");
-    expect(pill.textContent).toBe("卡密有效 · 2026-12-31 到期 · LIVE 已授权");
+    expect(pill.textContent).toBe("卡密有效 · 12-31 到期");
     expect(pill.dataset.state).toBe("ok");
     expect(pill.attrs["aria-label"]).toBe("订阅卡密有效 · 2026-12-31 到期 · LIVE 已授权");
+    expect(pill.title).toBe("卡密有效 · 2026-12-31 到期 · LIVE 已授权");
 
     dash.run("openSubscriptionModal()");
     expect(dash.el("subscriptionNow").textContent).toBe("卡密有效 · 2026-12-31 到期 · LIVE 已授权");
