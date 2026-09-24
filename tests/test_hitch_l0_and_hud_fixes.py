@@ -623,7 +623,7 @@ def test_hitch_l0_sleep_backoff_and_modal_close(monkeypatch):
     assert med._sleep_with_stop_check(10.0, slice_s=0.01) is False
     med.stop_signal.reset()
 
-    # 3. 弹窗有 shell.close 时优先点击 close
+    # 3. 弹窗先 Esc；Esc 关不掉（活动弹窗）时下一个 fresh 帧再点 X（Owner 2026-09-24）
     from shuabao.mediator import PlatformModalShell
 
     close_btn = MatchResult("test_close", 1.0, 100, 100, 10, 10, 100, 100)
@@ -635,7 +635,12 @@ def test_hitch_l0_sleep_backoff_and_modal_close(monkeypatch):
     monkeypatch.setattr(med, "act_key", lambda key, reason: clicked_reasons.append(reason) or True)
 
     med._tick_hitch_platform_modal(frame, shell, 100.0)
-    assert clicked_reasons == ["HitchDismissPlatformModalClose"]
+    assert clicked_reasons == ["HitchDismissPlatformModalEsc"]
+    assert med._hitch_platform_modal_last_action == "esc"
+
+    fresh = Frame(np.zeros((364, 560, 3), dtype=np.uint8), hwnd=2001, timestamp=200.0)
+    med._tick_hitch_platform_modal(fresh, shell, 200.0)
+    assert clicked_reasons == ["HitchDismissPlatformModalEsc", "HitchDismissPlatformModalClose"]
     assert med._hitch_platform_modal_last_action == "close"
 
 

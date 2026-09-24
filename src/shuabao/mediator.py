@@ -12681,7 +12681,9 @@ class Mediator:
 
         self._hitch_popup_esc_attempts += 1
         self._hitch_popup_esc_last_at = now
-        if shell.close is not None and self._hitch_platform_modal_last_action != "close":
+        # Owner 2026-09-24: Esc first; activity popups ignore Esc, so the next
+        # fresh observation of the same shell clicks its X.
+        if shell.close is not None and self._hitch_platform_modal_last_action == "esc":
             accepted = self.act_click(shell.close, "HitchDismissPlatformModalClose")
             self._hitch_platform_modal_last_action = "close"
         else:
