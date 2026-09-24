@@ -92,10 +92,10 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
 
     @patch("shuabao.mediator.time.time", return_value=100.0)
     def test_devour_pill_fail_closed_with_saved_opt_in_and_visible_pill(self, mock_time):
-        # P0-2 supersedes default-true/mock-open click authority: no reliable per-slot identity.
+        # Below the Owner 2026-09-24 6/10 threshold the pill stays unclicked even when visible.
         self.med.settings = Settings(auto_devour_dan=True)
         pill_match = MatchResult("danGif", 0.9, 1100, 750, 20, 20, 1100, 750)
-        for occupancy in (4, 5, 6):
+        for occupancy in (4, 5):
             with self.subTest(occupancy=occupancy), \
                  patch.object(self.med, "_bond_bar_occupancy", return_value=occupancy), \
                  patch.object(self.med, "find", return_value=pill_match), \
@@ -115,13 +115,13 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
         mock_find.assert_not_called()
         mock_click.assert_not_called()
 
-    def test_devour_pill_gate_stays_closed_at_four_five_and_six_bonds(self):
-        # P0-2 supersedes occupancy >= 4 authority: no reliable per-slot identity.
+    def test_devour_pill_gate_closed_at_four_five_open_at_six_bonds(self):
+        # Owner 2026-09-24 supersedes P0-2: solo eats the pill once the bond bar holds >= 6/10.
         self.med.settings = Settings(auto_devour_dan=True)
-        for occupancy in (4, 5, 6):
+        for occupancy, expected in ((4, False), (5, False), (6, True)):
             with self.subTest(occupancy=occupancy), \
                  patch.object(self.med, "_bond_bar_occupancy", return_value=occupancy):
-                self.assertFalse(self.med._can_consume_inventory_swallow_pill(self.frame))
+                self.assertIs(self.med._can_consume_inventory_swallow_pill(self.frame), expected)
 
     @patch("shuabao.mediator.time.time", return_value=100.0)
     def test_hero_card_triggers_evolution_flow_with_pending_action(self, mock_time):
