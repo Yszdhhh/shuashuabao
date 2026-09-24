@@ -140,8 +140,11 @@ def test_wood_counter_ocr_on_real_frames(name: str, wood: int) -> None:
         client.close()
 
 
-def test_monster_selected_during_bond_cooldown_gets_f2_hero_focus() -> None:
-    """选中小怪时，两个独立 HUD 帧后才以 F2 回归阵地。"""
+def test_monster_selected_during_bond_cooldown_gets_f1_hero_focus() -> None:
+    """选中小怪（看板丢失）时，两个独立 HUD 帧后按 F1 选回自身英雄。
+
+    Owner 2026-09-24：看板丢失走 F1；F2 只用于画面飞走、找回战场。
+    """
     med = _med()
     med._round_started_at = time.time() - 900
     med._round_deadline = time.time() + 2700
@@ -166,9 +169,10 @@ def test_monster_selected_during_bond_cooldown_gets_f2_hero_focus() -> None:
                      "monster_selected_f0408.png", "monster_selected_f0412.png"):
             med._tick_main_line(_frame(name))
             clock[0] += 1.5
-            if ("F2", "HeroFocusFallback") in keys:
+            if ("F1", "HeroFocusSelectHero") in keys:
                 break
-    assert ("F2", "HeroFocusFallback") in keys, keys
+    assert ("F1", "HeroFocusSelectHero") in keys, keys
+    assert not any(key == "F2" for key, _reason in keys), keys
 
 
 def test_bond_visit_advances_after_three_confirmed_picks() -> None:

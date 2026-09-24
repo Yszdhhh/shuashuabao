@@ -60,23 +60,34 @@ def test_maybe_execute_bond_slot_replacement_picks_victim(monkeypatch):
     assert hit.y == 658
 
 
-def test_select_hero_button_detection_triggers_click_and_f1(monkeypatch):
+def _select_hero_med(monkeypatch, *, hud: bool):
     med = Mediator(Settings(), ROOT)
-    frame = Frame(bgr=np.zeros((900, 1600, 3), dtype=np.uint8), left=0, top=0, hwnd=123)
-
-    # 模拟检测到 select_hero 按钮
     fake_hit = MatchResult("select_hero", 0.95, 800, 600, 50, 20, 800, 600)
     monkeypatch.setattr(med, "find", lambda f, names, **kw: fake_hit if "select_hero" in names else None)
-
-    clicked = []
-    keys = []
+    monkeypatch.setattr(med, "_is_in_game_hud", lambda f: hud)
+    monkeypatch.setattr(
+        "shuabao.input.keyboard_mouse.is_current_process_elevated", lambda: True
+    )
+    clicked, keys = [], []
     monkeypatch.setattr(med, "act_click", lambda hit, reason="": clicked.append((hit, reason)) or True)
     monkeypatch.setattr(med, "act_key", lambda key, reason="": keys.append((key, reason)) or True)
+    return med, clicked, keys
+
+
+def test_select_hero_button_detection_triggers_click_and_f1(monkeypatch):
+    med, clicked, keys = _select_hero_med(monkeypatch, hud=True)
+    frame = Frame(bgr=np.zeros((900, 1600, 3), dtype=np.uint8), left=0, top=0, hwnd=123)
 
     res = med._maybe_ensure_hero_panel_focus(frame, now=100.0)
     assert res is not None
-    assert len(clicked) == 1
-    assert clicked[0][1] == "ClickSelectHero"
-    assert len(keys) == 1
-    assert keys[0][0] == "F1"
-    assert keys[0][1] == "SelectHeroHotkey"
+    assert [reason for _hit, reason in clicked] == ["ClickSelectHero"]
+    assert keys == [("F1", "SelectHeroHotkey")]
+
+
+def test_select_hero_button_is_ignored_off_hud(monkeypatch):
+    """过渡帧/非 HUD 帧零输入（AGENTS.md 第 5 条）。"""
+    med, clicked, keys = _select_hero_med(monkeypatch, hud=False)
+    frame = Frame(bgr=np.zeros((900, 1600, 3), dtype=np.uint8), left=0, top=0, hwnd=123)
+
+    assert med._maybe_ensure_hero_panel_focus(frame, now=100.0) is None
+    assert clicked == [] and keys == []

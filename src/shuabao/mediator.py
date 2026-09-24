@@ -8898,20 +8898,6 @@ class Mediator:
         if now < getattr(self, "_hero_focus_next_check_at", 0.0):
             return None
 
-        # 0. 优先检测中央【▲ 选择英雄】提示按钮：误触小怪或取消选择后显式弹出，必须优先点击并按 F1 恢复
-        select_hero_btn = self.find(
-            frame,
-            ["select_hero"],
-            threshold=0.75,
-            roi=(0.40, 0.55, 0.65, 0.75),
-        )
-        if select_hero_btn is not None:
-            print(f"[med] 检测到【▲ 选择英雄】悬浮按钮 @ {select_hero_btn.center}，点击并发送 F1 锁定英雄")
-            self.act_click(select_hero_btn, "ClickSelectHero")
-            self.act_key("F1", "SelectHeroHotkey")
-            self._hero_focus_next_check_at = now + 1.0
-            return LoopAction.Continue
-
         if self._panel_state != PanelState.CLOSED:
             return None
 
@@ -8930,6 +8916,27 @@ class Mediator:
             return None
 
         self._hero_focus_next_check_at = now + 1.0
+
+        # 误触小怪后画面中央弹出【▲ 选择英雄】提示：点它并按 F1 选回自身英雄。
+        # 放在 HUD/面板关闭/提权门禁之后——过渡帧和打开的面板上零输入。
+        select_hero_btn = self.find(
+            frame,
+            ["select_hero"],
+            threshold=0.75,
+            roi=(0.40, 0.55, 0.65, 0.75),
+        )
+        if select_hero_btn is not None:
+            print(f"[med] 检测到【▲ 选择英雄】提示 @ {select_hero_btn.center}，点击并按 F1 选定自身英雄")
+            if not getattr(self.settings, "dry_run", False):
+                self.act_click(select_hero_btn, "ClickSelectHero")
+                self.act_key("F1", "SelectHeroHotkey")
+            self._hero_focus_lost_count = 0
+            self._hero_focus_last_frame_id = None
+            self._hero_focus_next_check_at = now + 1.5
+            return LoopAction.Continue
+
+        # 看板（羁绊/技能/宝物所在的英雄操作栏）丢失 -> F1；画面飞走找回战场是 F2，
+        # 只在战后广场链路里做（见 _maybe_recover_post_game_view）。
         hero_indicators = ["jihuo", "shortKey", "hc", "artifact_slot_e", "pingfu1"]
         hit = self.find(frame, hero_indicators, threshold=0.75, roi=(0.60, 0.60, 0.98, 0.98))
         if hit is not None:
@@ -8937,7 +8944,7 @@ class Mediator:
             self._hero_focus_last_frame_id = None
             return None
         # The bag page and its item tooltips cover the hero strip; that is our
-        # own UI, not lost hero focus. F2 there would only fight the bag hop.
+        # own UI, not lost hero focus. F1 there would only fight the bag hop.
         bag_fsm = getattr(self, "_public_bag_fsm", None)
         if (bag_fsm is not None and bag_fsm.active) or self._bag_layout(frame) is not None:
             self._hero_focus_lost_count = 0
