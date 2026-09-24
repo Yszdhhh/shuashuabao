@@ -25,6 +25,18 @@ from shuabao.versioned_install import (
 
 pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="Windows launcher smoke")
 
+# Success-path budgets.  Every step below spawns a cold powershell.exe /
+# wscript.exe or a freshly compiled, unsigned PE that Defender scans on first
+# run.  Alone the whole test takes ~17 s, but inside the 2,680-test gate run
+# the same steps overran the old 8/12/15 s budgets (local 2026-09-24: failed
+# twice in release_gate.py, passed 3/3 alone).  Success returns as soon as the
+# step finishes, so a generous ceiling costs nothing; failure paths keep their
+# short budgets because they only need rc != 0.
+PS_STEP_TIMEOUT_S = 60
+DIRECT_EXE_TIMEOUT_S = 45
+VBS_SUCCESS_TIMEOUT_S = 60
+MARKER_TIMEOUT_S = 30.0
+
 CSC = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
 SMOKE_CS = r"""
 using System;
@@ -72,7 +84,7 @@ def _compile_smoke_exe(dest: Path) -> Path:
         text=True,
         encoding="utf-8",
         errors="replace",
-        timeout=30,
+        timeout=PS_STEP_TIMEOUT_S,
     )
     assert compiled.returncode == 0, compiled.stdout + compiled.stderr
     assert dest.is_file()
@@ -90,7 +102,7 @@ def _kill_tree(pid: int) -> None:
     )
 
 
-def _wait_marker(path: Path, timeout_s: float = 12.0) -> dict:
+def _wait_marker(path: Path, timeout_s: float = MARKER_TIMEOUT_S) -> dict:
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         if path.is_file():
@@ -100,7 +112,7 @@ def _wait_marker(path: Path, timeout_s: float = 12.0) -> dict:
                 time.sleep(0.1)
                 continue
         time.sleep(0.1)
-    raise AssertionError(f"launcher did not write marker: {path}")
+    raise AssertionError(f"launcher did not write marker within {timeout_s:.0f}s: {path}")
 
 
 def _run_vbs(vbs: Path, timeout_s: float) -> int:
@@ -129,7 +141,7 @@ def _host_probe() -> dict[str, str]:
         text=True,
         encoding="utf-8",
         errors="replace",
-        timeout=20,
+        timeout=PS_STEP_TIMEOUT_S,
     )
     wsh = subprocess.run(
         [
@@ -231,7 +243,7 @@ def test_windows_launcher_shortcut_vbs_ps1_current_and_rollback(tmp_path: Path, 
                 "$s.Save()",
             ],
             check=True,
-            timeout=20,
+            timeout=PS_STEP_TIMEOUT_S,
             env={
                 **os.environ,
                 "LNK": str(com_probe_lnk),
@@ -251,7 +263,7 @@ def test_windows_launcher_shortcut_vbs_ps1_current_and_rollback(tmp_path: Path, 
                 "[IO.File]::WriteAllText($env:PROOF, ($s.TargetPath + [char]10 + $s.WorkingDirectory), $utf8)",
             ],
             check=True,
-            timeout=20,
+            timeout=PS_STEP_TIMEOUT_S,
             env={**os.environ, "LNK": str(com_probe_lnk), "PROOF": str(proof)},
         )
         lines = proof.read_text(encoding="utf-8").splitlines()
@@ -290,7 +302,7 @@ def test_windows_launcher_shortcut_vbs_ps1_current_and_rollback(tmp_path: Path, 
                 "$s.Save()",
             ],
             check=True,
-            timeout=20,
+            timeout=PS_STEP_TIMEOUT_S,
             env={
                 **os.environ,
                 "LNK": str(lnk),
@@ -311,7 +323,7 @@ def test_windows_launcher_shortcut_vbs_ps1_current_and_rollback(tmp_path: Path, 
                 "[IO.File]::WriteAllText($env:PROOF, ($s.TargetPath + [char]10 + $s.WorkingDirectory + [char]10 + [string]$s.Arguments), $utf8)",
             ],
             check=True,
-            timeout=20,
+            timeout=PS_STEP_TIMEOUT_S,
             env={**os.environ, "LNK": str(lnk), "PROOF": str(proof)},
         )
         lines = proof.read_text(encoding="utf-8").splitlines()
@@ -334,7 +346,7 @@ def test_windows_launcher_shortcut_vbs_ps1_current_and_rollback(tmp_path: Path, 
         direct = subprocess.run(
             [str(n1_dir / "ShuaBao.exe")],
             cwd=str(n1_dir),
-            timeout=8,
+            timeout=DIRECT_EXE_TIMEOUT_S,
             check=False,
         )
         assert direct.returncode == 0, direct
@@ -342,13 +354,15 @@ def test_windows_launcher_shortcut_vbs_ps1_current_and_rollback(tmp_path: Path, 
         (n1_dir / "launched.json").unlink()
         Path(os.environ.get("TEMP", "")).joinpath("shuabao-p0-launch.json").unlink(missing_ok=True)
 
-        rc = _run_vbs(launcher_vbs, timeout_s=15)
+        started = time.monotonic()
+        rc = _run_vbs(launcher_vbs, timeout_s=VBS_SUCCESS_TIMEOUT_S)
         if rc != 0:
             pointer = json.loads((root / "current.json").read_text(encoding="utf-8"))
             identity = json.loads((n1_dir / "build_identity.json").read_text(encoding="utf-8"))
             raise AssertionError(
                 "VBS launcher failed on the N+1 path "
-                f"rc={rc} exe={ (n1_dir / 'ShuaBao.exe').is_file() } "
+                f"rc={rc} (-1 = no exit within {VBS_SUCCESS_TIMEOUT_S}s) "
+                f"elapsed={time.monotonic() - started:.1f}s exe={ (n1_dir / 'ShuaBao.exe').is_file() } "
                 f"size={(n1_dir / 'ShuaBao.exe').stat().st_size if (n1_dir / 'ShuaBao.exe').is_file() else 0} "
                 f"current={pointer.get('current')!r} "
                 f"ptr_sha={pointer.get('current_source_sha')!r} "
@@ -382,8 +396,9 @@ def test_windows_launcher_shortcut_vbs_ps1_current_and_rollback(tmp_path: Path, 
     original_n = _swap_exe(n_dir, pe)
     (n_dir / "launched.json").unlink(missing_ok=True)
     try:
-        rc = _run_vbs(launcher_vbs, timeout_s=12)
-        assert rc == 0
+        started = time.monotonic()
+        rc = _run_vbs(launcher_vbs, timeout_s=VBS_SUCCESS_TIMEOUT_S)
+        assert rc == 0, f"rollback path rc={rc} elapsed={time.monotonic() - started:.1f}s"
         marker = _wait_marker(n_dir / "launched.json")
         assert Path(marker["cwd"]).resolve() == n_dir.resolve()
         assert "aaaaaaaaaaaa" in marker["exe"]
