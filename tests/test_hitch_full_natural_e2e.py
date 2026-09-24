@@ -282,3 +282,13 @@ def test_primary_launcher_defaults_to_one_round_and_allows_longer_archaeology_tr
     assert '$cliArgs += @("--settings", $settingsPath)' in launcher
     assert "局蹭车退出 + fresh 考古锚点确认后退出脚本" in launcher
 
+
+def test_primary_launcher_clears_boss_targets_for_bottom_fallback() -> None:
+    """Owner 2026-09-24: the long hitch chain picks the last Boss card for both
+    时光之穴 and 传家宝, so the temp settings copy carries no Boss target."""
+    launcher = (ROOT / "live_scenario_launcher.ps1").read_text(encoding="utf-8")
+    body = launcher.split("function New-HitchE2ESettingsSnapshot", 1)[1].split("\nfunction ", 1)[0]
+    assert '@("cjb_boss", "sgzx_boss", "reputation_cjb_boss", "reputation_sgzx_boss")' in body
+    assert '-NotePropertyValue "" -Force' in body
+    assert body.index("NotePropertyValue") < body.index("Save-HarnessSettingsCopy")
+

@@ -231,8 +231,13 @@ function New-HitchE2ESettingsSnapshot {
     $loaded.Value.cycle_num = $rounds
     $loaded.Value.hitch_after_goal = "arch"
     $loaded.Value.auto_archaeology = $true
+    # Owner 2026-09-24：长链测试里时光之穴和传家宝都不指定 Boss，走"拉到列表最下面、
+    # 选最后一张"的 BossBottomFallback；只清临时副本，正式看板的 Boss 选择不变。
+    foreach ($bossKey in @("cjb_boss", "sgzx_boss", "reputation_cjb_boss", "reputation_sgzx_boss")) {
+        $loaded.Value | Add-Member -NotePropertyName $bossKey -NotePropertyValue "" -Force
+    }
     $path = Save-HarnessSettingsCopy $loaded.Value
-    Write-Host "[launcher] 13 号试跑契约：hitch_cycle_num=$rounds, hitch_after_goal=arch" -ForegroundColor DarkGray
+    Write-Host "[launcher] 13 号试跑契约：hitch_cycle_num=$rounds, hitch_after_goal=arch, 时光之穴/传家宝 Boss=末卡兜底" -ForegroundColor DarkGray
     Write-Host "[launcher] 已只读复制正式看板设置：$($loaded.Path)" -ForegroundColor DarkGray
     Write-Host "[launcher] 本次隔离设置副本：$path" -ForegroundColor DarkGray
     return $path
