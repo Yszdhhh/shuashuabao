@@ -28,6 +28,23 @@ python tools/release_gate.py
 `--update-baseline` 需要 `--reason`。正当顺序永远是：先判断哪边才对 → 修代码或修夹具期望 →
 再更新快照。把 FAIL 写进快照当 PASS 是本项目明令禁止的（见 `docs/AGENT_CORRECTION_GATES_20260811.md`）。
 
+### 1.1 纯资料提交走快速通道，不跑门禁（Owner 2026-09-24）
+
+截图、录像抽帧、实机素材、研究文档这类**只改 `docs/` 或 `fixtures/live_captures/`** 的提交，
+不跑 pytest、不跑 `release_gate.py`、不构建、不重钉身份锚点，只跑：
+
+```powershell
+git add <资料文件>
+python tools/check_material_commit.py        # 退出码 0 才能提交；已提交的一段用 --range origin/main..HEAD
+```
+
+它只检查三件事：路径全在 `docs/`、`fixtures/live_captures/` 下（`docs/baselines/` 是门禁快照，不算）；
+单个文件 ≤ 10MB、合计 ≤ 200MB；文本里没有私钥、卡密、机器码。推到 `docs/<主题>-<日期>` 或
+`material/<主题>-<日期>` 分支，开 PR 即可。
+
+素材要变成运行时模板（`assets/`）或被测试引用的夹具时，就不再是纯资料：由改代码的一方切图、
+登记 `config/runtime_asset_manifest.json`、写测试，按第 1 条过门禁。
+
 ### 2. 一个 commit 只动一层
 
 层的划分：**L0 大厅**（地图/建房/房间/选关/英雄弹窗）、**L1 局内**（主线循环/面板 FSM/挑战开关）、

@@ -71,7 +71,8 @@
 
 - 不在 main 上提交，不直接推 main；main 只经 PR 的 merge commit 前进。
 - 一个 commit 只动一层：L0 大厅、L1 局内、恢复与战后、感知、外壳。
-- 提交前本机过 `python tools/release_gate.py`；不改快照 `docs/baselines/GATE_BASELINE.json` 来让门禁变绿，`--update-baseline` 必须带 `--reason`。
+- 纯资料提交（只改 `docs/`、`fixtures/live_captures/`）不跑门禁，只跑 `python tools/check_material_commit.py`（AGENTS.md §1.1，Owner 09-24）。
+- 其它提交前本机过 `python tools/release_gate.py`；不改快照 `docs/baselines/GATE_BASELINE.json` 来让门禁变绿，`--update-baseline` 必须带 `--reason`。
 - 改局内状态字段时同步 C2 契约的 `INGAME_POLLUTION` 清单。
 - 进房 / 建房禁止颜色兜底（契约 C4）；不得用合成帧冒充真机证据。
 - 看不到锚点就零输入等待（fail-closed），不要"卡住就连按 Esc"或盲点固定坐标。
