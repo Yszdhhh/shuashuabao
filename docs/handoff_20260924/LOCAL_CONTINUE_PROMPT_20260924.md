@@ -25,11 +25,11 @@ git fetch origin
 git merge-base --is-ancestor dd7d91b origin/claude/project-thread-fqyf7h; $LASTEXITCODE
 ```
 
-上面最后一条返回 0，就用 `origin/claude/project-thread-fqyf7h` 作为基点。返回非 0，说明统一线程还没把修复快进进来，改用 `origin/claude/project-thread-8rydkf`，两者是同一条线。
+基点永远是 `origin/claude/project-thread-fqyf7h` 的最新头，不要写死 SHA。上面最后一条只用来确认它已包含启动器测试的修复 `dd7d91b`：返回 0 就继续；返回非 0 说明统一线程还没把修复合进来，停下报告，等它合入后再从这里开始。
 
 ```powershell
 git switch local/quicktest-20260924b      # 上一轮已建好，没有新提交
-git merge --ff-only <基点>
+git merge --ff-only origin/claude/project-thread-fqyf7h
 git config core.hooksPath .githooks
 ```
 
