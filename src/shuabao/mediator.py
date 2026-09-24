@@ -3077,7 +3077,7 @@ class Mediator:
             candidates_4 = scan(rois_4, f"{panel_id}:4s")
         named_4 = sum(1 for s in candidates_4 if s.get("name"))
         candidates_3: list[dict] = []
-        if named_4 <= 2:
+        if named_4 < 4:
             candidates_3 = scan(rois_3, panel_id)
         named_3 = sum(1 for s in candidates_3 if s.get("name"))
 
@@ -3519,21 +3519,21 @@ class Mediator:
 
     def _find_panel_refresh(self, frame: Frame, kind: str) -> MatchResult | None:
         names = {
-            "skill": ["skill_refresh_btn", "refresh", "bwRefresh", "cardRefresh", "heroRefresh"],
+            "skill": ["refresh", "bwRefresh", "cardRefresh", "heroRefresh"],
             "bond": ["bond_refresh_btn", "refresh", "cardRefresh", "heroRefresh", "bwRefresh"],
             "treasure": ["treasure_refresh_btn", "refresh", "cardRefresh", "bwRefresh"],
-        }.get(kind, ["skill_refresh_btn", "refresh", "bwRefresh", "cardRefresh"])
+        }.get(kind, ["refresh", "bwRefresh", "cardRefresh"])
         def preferred(scales: tuple[float, ...]) -> MatchResult | None:
-            # Do not let a high-scoring generic `refresh`/`bwRefresh` template
-            # replace the panel-specific refresh button at a different coordinate.
+            best_hit: MatchResult | None = None
             for name in names:
                 hit = self.find(
                     frame, [name], threshold=min(0.70, self.settings.match_threshold),
                     scales=scales, roi=self._PANEL_BUTTONS_ROI,
                 )
                 if hit is not None:
-                    return hit
-            return None
+                    if best_hit is None or hit.score > best_hit.score:
+                        best_hit = hit
+            return best_hit
 
         hit = preferred(self._hot_scales())
         if hit is None and self._scaled_up_frame(frame):
@@ -4685,30 +4685,26 @@ class Mediator:
         wood = getattr(self, "_wood_balance", None)
         bond_blocked = self._bond_step_blocked(frame, now)
 
-        # 技能点不会过期；木材充足且 F 可推进时，不抢占成长中的羁绊。
+        # 1. 基础羁绊未成型（未达 80%）：羁绊享有绝对最高优先权，绝不允许被技能抢占
+        # 只要羁绊可推进（有木材、未冷却、未达停留上限），全速推进羁绊面板
         if (
-            skill is not None
-            and skill >= 8
-            and (wood is None or wood < self._BOND_HIGH_WOOD or bond_blocked is not None or bond_held)
-            and not skill_held
-            and now >= getattr(self, "_skill_idle_until", 0.0)
-            and self._panel_kind_available("skill", now)
-        ):
-            return "skill", f"技能积压 {skill} ≥ 8（紧急强抢占），先点技能"
-
-        # 2. 狂暴发育期/基础羁绊：木材 >= 1000 优先消耗木材转战力，或基础羁绊未满 80% 且木材充足
-        bond_priority_affordable = wood is None or wood >= self._BOND_HIGH_WOOD
-        # V remains reachable after the bounded F visit.
-        if (
-            bond_blocked is None
+            self._bond_base_progress_pending()
+            and bond_blocked is None
             and not bond_held
-            and bond_priority_affordable
-            and (self._bond_base_progress_pending() or (wood is not None and wood >= self._BOND_HIGH_WOOD))
         ):
-            why = f"木材充足（{wood} ≥ {self._BOND_HIGH_WOOD}），羁绊优先转化战力" if (wood is not None and wood >= self._BOND_HIGH_WOOD) else "基础羁绊未满 80% 且木材充足，羁绊优先"
-            return "bond", why
+            return "bond", "基础羁绊未成型（羁绊绝对优先，先做羁绊）"
 
-        # 3. 高优先技能：技能积压 4~7，木材 < 1000 时先于普通轮换
+        # 2. 狂暴发育期/木材充裕期：木材 >= 1000 优先消耗木材转战力（冲高级卡与合成）
+        if (
+            wood is not None
+            and wood >= self._BOND_HIGH_WOOD
+            and bond_blocked is None
+            and not bond_held
+        ):
+            return "bond", f"木材充足（{wood} ≥ {self._BOND_HIGH_WOOD}），羁绊优先转化战力"
+
+        # 3. 技能处理窗口：在羁绊暂不推进（木材耗尽等待产出/冷却中/基础已成型且木材未溢出）时，
+        # 若技能有积压，优先开技能面板消耗技能点
         if (
             skill is not None
             and skill >= self._skill_backlog_force()
@@ -4716,7 +4712,7 @@ class Mediator:
             and now >= getattr(self, "_skill_idle_until", 0.0)
             and self._panel_kind_available("skill", now)
         ):
-            return "skill", f"技能积压 {skill} ≥ {self._skill_backlog_force()}，先点技能"
+            return "skill", f"技能积压 {skill} ≥ {self._skill_backlog_force()}，处理技能"
 
         # 4. 轮换到 bond 时的调度
         if step == "bond":
