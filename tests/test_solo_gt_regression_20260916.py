@@ -326,9 +326,12 @@ def test_owned_off_whitelist_debt_lifecycle_and_release():
     assert cf.exact_name == "智力(2/4)"
 
     # HARD whitelist 下，用户仅配置了经济类预设（智力 off-whitelist）
+    # 81ff1a8 起祝福系是默认系统必拿；这里只验证 identity/债务语义，
+    # 所以显式清空必拿名单，避免「智力祝福」走必拿通道。
     off_whitelist_settings = PolicySettings(
         bond_presets=("经济",),
         bond_whitelist_mode=WHITELIST_HARD,
+        bond_must_take=(),
     )
 
     # 2. 未持有 + 智力(1/4) -> 不得选入，刷新
@@ -472,6 +475,7 @@ def test_owned_off_whitelist_debt_lifecycle_and_release():
     whitelisted_settings = PolicySettings(
         bond_presets=("智力", "智力祝福", "经济"),
         bond_whitelist_mode=WHITELIST_HARD,
+        bond_must_take=(),
     )
     cands_preset_zhufu = PanelCandidates(
         panel_kind="bond",

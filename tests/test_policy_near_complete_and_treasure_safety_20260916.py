@@ -40,17 +40,18 @@ def test_must_take_outranks_near_complete_and_low_confidence_rejected():
 
 
 def test_near_complete_respects_capacity_and_owned_merge_when_full():
-    """满槽 free_slots == 0 时：未持有的 near-complete 禁止拿取；仅限已持有同卡合并。"""
+    """满槽 free_slots == 0：非预设、未持有的 near-complete 禁止拿取；
+    已持有同卡合并允许；预设核心卡允许（7751495，满槽后由顶替流程腾位）。"""
     settings = PolicySettings(
         bond_presets=("智力", "力量"),
         min_confidence=0.80,
     )
 
-    # 1. free_slots == 0，面板卡为未持有的“力量(3/4)”，禁止拿取，转为刷新或安全关闭
+    # 1. 非预设、未持有的“敏捷(3/4)”：禁止拿取，转为刷新或安全关闭
     cands_unowned = PanelCandidates(
         panel_kind=PANEL_BOND,
         slots=(
-            SlotCandidate(index=0, name="力量(3/4)", confidence=0.95),
+            SlotCandidate(index=0, name="敏捷(3/4)", confidence=0.95),
         ),
         owned_bond_cards=("智力",),
         free_slots=0,
@@ -60,7 +61,7 @@ def test_near_complete_respects_capacity_and_owned_merge_when_full():
     dec_unowned = choose_action(cands_unowned, SessionState())
     assert dec_unowned.action == PolicyAction.CLOSE
 
-    # 2. free_slots == 0，面板卡为已持有的“智力(2/3)”，属于合法同卡升级合并，允许拿取
+    # 2. 已持有的“智力(2/3)”：合法同卡升级合并，允许拿取
     cands_owned = PanelCandidates(
         panel_kind=PANEL_BOND,
         slots=(
@@ -74,6 +75,19 @@ def test_near_complete_respects_capacity_and_owned_merge_when_full():
     dec_owned = choose_action(cands_owned, SessionState())
     assert dec_owned.action == PolicyAction.SELECT_SLOT
     assert dec_owned.index == 0
+
+    # 3. 预设核心卡“力量(3/4)”：满槽也允许（Owner 7751495）
+    cands_core = PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(
+            SlotCandidate(index=0, name="力量(3/4)", confidence=0.95),
+        ),
+        owned_bond_cards=("智力",),
+        free_slots=0,
+        can_refresh=False,
+        settings=settings,
+    )
+    assert choose_action(cands_core, SessionState()).action == PolicyAction.SELECT_SLOT
 
 
 def test_treasure_unknown_slot_forbidden_even_with_highest_rarity():
