@@ -252,7 +252,8 @@ def test_dashboard_bonds_drive_the_live_hard_whitelist(qapp, tmp_path: Path):
         policy_doc={"bond": {"whitelist_mode": "soft", "must_take_names": []}},
     )
     assert policy.bond_presets == ("成长", "海盗")
-    assert policy.bond_must_take == ()
+    from shuabao.choice_policy import DEFAULT_BOND_MUST_TAKE
+    assert policy.bond_must_take == DEFAULT_BOND_MUST_TAKE
     decision = choose_action(PanelCandidates(
         panel_kind=PANEL_BOND,
         slots=(
@@ -262,7 +263,7 @@ def test_dashboard_bonds_drive_the_live_hard_whitelist(qapp, tmp_path: Path):
         ),
         settings=policy,
     ))
-    assert (decision.action, decision.index) == (PolicyAction.SELECT_SLOT, 1)
+    assert (decision.action, decision.index) == (PolicyAction.SELECT_SLOT, 0)
 
 
 def test_template_mode_uses_saved_bond_labels_as_card_anchors(qapp, tmp_path: Path):

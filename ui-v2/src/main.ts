@@ -287,7 +287,6 @@ function pushBondsAndAttributes(): void {
 function pushNegatives(): void {
   const negatives = Array.isArray(state.negative) ? state.negative : Array.from(state.negative || []);
   pushConfig({
-    treasure_allow_negative: negatives,
     strategy: {
       treasure: { negative_allowlist: negatives },
     },
