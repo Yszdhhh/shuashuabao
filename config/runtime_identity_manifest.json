@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "candidate_sha": "81ff1a82799784fb53462acafdc27f542285648a",
+  "anchored_at": "2026-09-24T00:21:00+08:00",
+  "branch": "fix/desktop-sync-20260923",
+  "note": "Anchor candidate after Dasheng EX chain, choice stall fix, and evolve interleave"
+}

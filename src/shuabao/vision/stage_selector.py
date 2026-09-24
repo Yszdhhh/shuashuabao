@@ -149,6 +149,55 @@ def _classify_glyph(glyph: np.ndarray, templates: dict[str, list[np.ndarray]]) -
     return best[1] if best is not None and best[0] <= 0.45 else None
 
 
+def _classify_topbar_one(glyph: np.ndarray) -> str | None:
+    """Top-bar font only: a thin, tall stroke is "1".
+
+    Kept out of ``_classify_glyph`` on purpose: the stage-list parser shares
+    that classifier, and there loading-screen streaks became "1-1" rows that
+    faked a stage page and quit the hitch round (20260921 f0150).
+    """
+    ys, _ = np.where(glyph)
+    if not len(ys):
+        return None
+    height = int(ys.max() - ys.min() + 1)
+    if height >= 12 and glyph.shape[1] / height < 0.38:
+        return "1"
+    return None
+
+
+def detect_ingame_stage_label(frame: Frame, images_dir: Path) -> StageId | None:
+    """Read the top-bar in-game stage label (e.g. 2-7, 3-4, 1-16) from a live frame."""
+    if frame.width < 600 or frame.height < 400:
+        return None
+    x0 = int(frame.width * 0.550)
+    x1 = int(frame.width * 0.600)
+    y0 = int(frame.height * 0.018)
+    y1 = int(frame.height * 0.055)
+
+    gray = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2GRAY)
+    crop = gray[y0:y1, x0:x1]
+    mask = (crop > 170).astype(np.uint8)
+
+    y_sums = mask.sum(axis=1) > 0
+    y_runs = _runs(y_sums, minimum=10)
+    if not y_runs:
+        return None
+    gy0, gy1 = y_runs[0]
+    submask = mask[gy0:gy1, :]
+
+    columns = _runs(submask.sum(axis=0) > 0, minimum=2)
+    templates = _glyph_templates(images_dir)
+    chars: list[str] = []
+    for c_start, c_end in columns:
+        glyph = submask[:, c_start:c_end]
+        char = _classify_topbar_one(glyph) or _classify_glyph(glyph, templates)
+        if char:
+            chars.append(char)
+    text = "".join(chars)
+    return StageId.parse(text)
+
+
+
 def _read_row(mask: np.ndarray, x_offset: int, y_offset: int, templates: dict[str, list[np.ndarray]]) -> StageRow | None:
     columns = _runs(mask.sum(axis=0) > 0)
     chars: list[str] = []

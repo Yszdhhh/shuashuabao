@@ -217,6 +217,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
                 patch.object(self.med, "_handle_self_opened_compact_panel", return_value=None), \
                 patch.object(self.med, "_maybe_open_choice_panel", return_value=None), \
                 patch.object(self.med, "_maybe_ensure_hero_panel_focus", return_value=None), \
+                patch.object(self.med, "_is_in_game_hud", return_value=True), \
                 patch.object(self.med, "act_key", return_value=True) as key:
             self.assertIs(self.med._tick_main_line(self.frame), LoopAction.Continue)
         key.assert_not_called()
@@ -236,6 +237,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
                 patch.object(self.med, "_handle_self_opened_compact_panel", return_value=None), \
                 patch.object(self.med, "_maybe_open_choice_panel", return_value=None), \
                 patch.object(self.med, "_maybe_ensure_hero_panel_focus", return_value=None), \
+                patch.object(self.med, "_is_in_game_hud", return_value=True), \
                 patch.object(self.med, "_hud_item_bar_overflowed", return_value=True), \
                 patch.object(self.med, "_pickup_bag_has_space", return_value=True), \
                 patch.object(self.med, "act_key", return_value=True) as key:
@@ -896,7 +898,7 @@ class L1RuntimeAccountingTests(unittest.TestCase):
         with patch("shuabao.mediator.time.time", return_value=200.0), \
                 patch.object(self.med, "act_click") as click:
             result = self.med._maybe_open_choice_panel(self.frame, anchor=None)
-        self.assertIs(result, LoopAction.Continue)
+        self.assertIsNone(result)
         click.assert_not_called()
         self.assertEqual(self.med._l1_cycle_step, "skill")
 

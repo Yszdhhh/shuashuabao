@@ -493,12 +493,13 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
             "ROOM_LIST", "SEARCH_CONFIRMED", "JOIN", "MODAL_RECOVERY",
             "ROOM_READY", "INGAME_HUD_CONFIRMED", "PRESSURE_CONFIRMED",
             "OPTIONAL_ROUTES", "OUTCOME", "REAL_EXIT", "LOBBY_RETURN", "NEXT_ROUND",
+            "ARCHAEOLOGY_HANDOFF",
         ),
-        "success_postcondition": "至少 3 个完整 hitch round；每轮由 production fresh-confirm 搜索/进房/Ready/Pressure/Outcome/真实回厅，至少覆盖一次 blocking modal recovery 和一次 Victory 或 Failure；首次公共背包动作只作为 GT_CAPTURE/MANUAL_INTERVENTION，不计 Natural E2E PASS。",
+        "success_postcondition": "完成配置的 hitch_cycle_num 个 hitch round；每轮由 production fresh-confirm 搜索/进房/Ready/Pressure/Outcome/真实回厅，至少覆盖一次 blocking modal recovery 和一次 Victory 或 Failure；hitch_after_goal=arch 时，最后还须经既有单人选关路由得到 fresh 考古锚点。首次公共背包动作只作为 GT_CAPTURE/MANUAL_INTERVENTION，不计 Natural E2E PASS。",
         "fail_condition": "production runtime ERROR/静默停止/永久零输入 stall、UNKNOWN 上输入、ROOM_LIST-as-ROOM、ROOM-as-MODAL、重复 Ready、盲 GO_HOME、Pressure 未确认即放行、或回厅未 fresh-confirm。",
         "blocked_condition": "窗口身份/页面 UNKNOWN、无可信 ROOM_LIST、candidate source 未验证、或尚未取得 Public Backpack GT；BLOCKED 时零业务输入。",
         "max_probe_time_s": 3600.0,
-        "natural_e2e_eligible": "HITCH_FULL_NATURAL_E2E 只认连续真实 Mediator.tick()；至少 3 rounds 且无人工介入，public backpack GT capture 不算 PASS。",
+        "natural_e2e_eligible": "HITCH_FULL_NATURAL_E2E 只认连续真实 Mediator.tick()；完成配置的 rounds，hitch_after_goal=arch 时还须 fresh-confirm 考古，且无人工介入；public backpack GT capture 不算 PASS。",
         "bundle_replay": "沿用现有事件帧、trace、ReplayCaseLoader 和 FakeInputExecutor；只重放证据结构，不把大厅/局内 FSM 复制到 Harness。",
         "runbook_manual": "把 KK 停在英雄三国房间列表；确认普通刷刷宝未运行。紧急停止用 Shift+F12。",
         "runbook_hands_off": "启动后不要点房间、刷新、准备、开始、压力、黑商、宝物、背包或退出；让 production Mediator.tick() 接管。",
@@ -1229,8 +1230,10 @@ class HitchLobbyChainObserver:
         "Artifact-Q", "Artifact-W", "Artifact-E", "ClearPressureMonsters",
     }
 
-    def __init__(self, *, required_rounds: int = 3) -> None:
-        self.required_rounds = max(3, int(required_rounds or 3))
+    def __init__(self, *, required_rounds: int = 3, require_archaeology: bool = False) -> None:
+        # 配置 1 局也要能达标：只兜底非法值，不再把下限抬到 3。
+        self.required_rounds = max(1, int(required_rounds or 3))
+        self.require_archaeology = bool(require_archaeology)
         self.failed_reason: str | None = None
         self.blocked_reason: str | None = None
         self.blocked_evidence: dict[str, Any] | None = None
@@ -1264,7 +1267,10 @@ class HitchLobbyChainObserver:
             "PRESSURE_CONFIRMED": {"status": "NOT_OBSERVED"},
             "OUTCOME_OBSERVED": {"status": "NOT_OBSERVED"},
             "LOBBY_RETURN_CONFIRMED": {"status": "NOT_OBSERVED"},
-            "THREE_ROUNDS_CONFIRMED": {"status": "NOT_OBSERVED"},
+            "CONFIGURED_ROUNDS_CONFIRMED": {"status": "NOT_OBSERVED"},
+            "ARCHAEOLOGY_HANDOFF_CONFIRMED": {
+                "status": "NOT_OBSERVED" if self.require_archaeology else "NOT_REQUIRED"
+            },
         }
         self.metrics: dict[str, Any] = {
             "rounds_started": 0,
@@ -1414,7 +1420,11 @@ class HitchLobbyChainObserver:
 
         if phase == "ERROR":
             self.fail("production runtime entered ERROR", evidence=evidence)
-        if str((trace_row or {}).get("loop_action") or "") == "Break" and phase != "ERROR":
+        if (
+            str((trace_row or {}).get("loop_action") or "") == "Break"
+            and phase != "ERROR"
+            and not (self.require_archaeology and bool(state.get("archaeology_handoff_confirmed")))
+        ):
             self.metrics["silent_stop_count"] += 1
             self.fail("production loop returned Break without ERROR evidence", evidence=evidence)
         if action is not None:
@@ -1436,7 +1446,7 @@ class HitchLobbyChainObserver:
                     self.metrics["unknown_seat_exit"] += 1
             if reason == "HitchGoHome" and not bool(surface.get("room") or surface.get("room_list")):
                 self.metrics["blind_go_home"] += 1
-            if reason.startswith(("CreateRoom", "QuickJoin", "RoomStart", "StartHeroMode")):
+            if reason.startswith(("CreateRoom", "QuickJoin", "RoomStart", "StartHeroMode")) and not bool(state.get("hitch_goal_archaeology_handoff")):
                 self.metrics["unexpected_inputs"] += 1
                 self.fail("forbidden positive Lobby input in hitch chain", evidence=evidence)
             if reason in self._PRESSURE_CORE_REASONS and not bool(state.get("hitch_pressure_transferred")):
@@ -1563,7 +1573,9 @@ class HitchLobbyChainObserver:
             self.metrics["rounds_started"] >= self.required_rounds
             and self.metrics["lobby_returns"] >= self.required_rounds
         ):
-            self._pass("THREE_ROUNDS_CONFIRMED", evidence={"metrics": self.metrics})
+            self._pass("CONFIGURED_ROUNDS_CONFIRMED", evidence={"metrics": self.metrics})
+        if self.require_archaeology and bool(state.get("archaeology_handoff_confirmed")):
+            self._pass("ARCHAEOLOGY_HANDOFF_CONFIRMED", evidence=evidence)
         return self.is_pass
 
     @property
@@ -1571,8 +1583,10 @@ class HitchLobbyChainObserver:
         required = {
             "PRECHECK_OK", "ROOM_LIST_CONFIRMED", "SEARCH_CONFIRMED", "ROOM_JOINED",
             "READY_CONFIRMED", "MODAL_RECOVERY", "INGAME_HUD_CONFIRMED", "PRESSURE_CONFIRMED",
-            "OUTCOME_OBSERVED", "LOBBY_RETURN_CONFIRMED", "THREE_ROUNDS_CONFIRMED",
+            "OUTCOME_OBSERVED", "LOBBY_RETURN_CONFIRMED", "CONFIGURED_ROUNDS_CONFIRMED",
         }
+        if self.require_archaeology:
+            required.add("ARCHAEOLOGY_HANDOFF_CONFIRMED")
         safety_zero = (
             self.metrics["silent_stop_count"] == 0
             and self.metrics["permanent_zero_input_stall"] == 0
@@ -1600,6 +1614,7 @@ class HitchLobbyChainObserver:
             "scenario": PRIMARY_LIVE_SCENARIO,
             "primary_target": PRIMARY_LIVE_TARGET,
             "required_rounds": self.required_rounds,
+            "require_archaeology": self.require_archaeology,
             "checkpoints": _jsonable(self.checkpoints),
             "metrics": _jsonable(self.metrics),
             "public_backpack": {
@@ -1974,6 +1989,8 @@ def _state_snapshot(med: Mediator, context: str | None = None) -> dict[str, Any]
         "hitch_ready_confirmed_at": getattr(med, "_hitch_ready_confirmed_at", None),
         "hitch_re_search": getattr(med, "_hitch_re_search", False),
         "hitch_status": getattr(med, "_hitch_status", None),
+        "hitch_goal_archaeology_handoff": getattr(med, "_hitch_goal_archaeology_handoff", False),
+        "archaeology_handoff_confirmed": getattr(med, "_archaeology_handoff_confirmed", False),
         "game_count": getattr(med, "game_count", None),
         "disconnect_count": getattr(med, "_disconnect_count", None),
         "timeout_count": getattr(med, "_timeout_count", None),
@@ -3179,7 +3196,10 @@ class BundleRecorder:
         elif target == "hitch_lobby_chain":
             self.solo_observer_key = "hitch_lobby_chain"
             configured_rounds = getattr(settings, "hitch_cycle_num", 3)
-            self.solo_observer = HitchLobbyChainObserver(required_rounds=configured_rounds)
+            self.solo_observer = HitchLobbyChainObserver(
+                required_rounds=configured_rounds,
+                require_archaeology=str(getattr(settings, "hitch_after_goal", "solo") or "solo") == "arch",
+            )
             self.manifest[self.solo_observer_key] = self.solo_observer.payload()
         else:
             self.solo_observer = None
@@ -3753,9 +3773,13 @@ class BundleRecorder:
                 self._record_authoritative_target_result(
                     event_id=last_event.get("event_id"),
                     postcondition={
-                        "kind": "hitch_rounds_complete",
+                        "kind": "hitch_rounds_and_archaeology_complete"
+                        if getattr(self.solo_observer, "require_archaeology", False)
+                        else "hitch_rounds_complete",
                     },
-                    target_stage="THREE_ROUNDS_CONFIRMED",
+                    target_stage="ARCHAEOLOGY_HANDOFF_CONFIRMED"
+                    if getattr(self.solo_observer, "require_archaeology", False)
+                    else "CONFIGURED_ROUNDS_CONFIRMED",
                 )
         window = self.manifest.get("window") or {}
         preflight_window = (self.manifest.get("live_preflight") or {}).get("window") or {}
@@ -4844,6 +4868,29 @@ def _initial_phase_for_target(target: str) -> Phase:
     return Phase.MAIN_LINE
 
 
+def _arm_direct_archaeology_after_stage_select(med: Mediator, enabled: bool) -> bool:
+    """Arm the harness-only archaeology handoff only after production reaches Stage Select."""
+    if not enabled or med.phase is not Phase.STAGE_SELECT:
+        return False
+    if bool(getattr(med, "_archaeology_handoff_pending", False)):
+        return False
+    med._archaeology_handoff_pending = True
+    return True
+
+
+def _arm_current_room_archaeology_handoff(med: Mediator) -> None:
+    """Arm the short live handoff after the operator places self on floor one."""
+    med.settings.mode_id = "normal_farm"
+    med.settings.auto_create_room = True
+    med.settings.auto_archaeology = True
+    med._hitch_goal_archaeology_handoff = True
+    med._archaeology_handoff_pending = True
+    med._room_leave_pending = True
+    med._room_leave_next_at = 0.0
+    med._room_action_deadline = time.time() + min(med.settings.query_timeout, 30)
+    med.set_phase(Phase.ROOM_WAITING, "current room handoff; leave for archaeology")
+
+
 def _resume_after_manual_intervention(med: Mediator) -> None:
     """Resume the observation loop only after an explicit manual bookmark."""
     med.stop_signal.reset()
@@ -4887,6 +4934,26 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
     _require_live_confirmation(args.live_input, args.confirm_live_input)
     repo_root = Path(args.repo_root).resolve()
     settings = _prepare_settings(Path(args.settings) if args.settings else None, target, args.live_input)
+    direct_archaeology = bool(getattr(args, "direct_archaeology", False))
+    if direct_archaeology:
+        if target != "solo_ingame_chain":
+            raise ValueError("--direct-archaeology 仅支持 solo_ingame_chain")
+        # This is a harness-only request.  It is armed only after production
+        # L0 has reached Stage Select, so room creation and RoomStart keep
+        # their normal production behavior.  Production archaeology handoff
+        # owns the actual click and fresh-anchor confirmation.
+        settings.mode_id = "normal_farm"
+        settings.auto_create_room = True
+        settings.auto_archaeology = True
+    current_room_archaeology = bool(getattr(args, "current_room_archaeology", False))
+    if current_room_archaeology:
+        if target != "hitch_lobby_chain":
+            raise ValueError("--current-room-archaeology 仅支持 hitch_lobby_chain")
+        if not args.live_input:
+            raise ValueError("--current-room-archaeology 必须使用 --live-input")
+        settings.mode_id = "normal_farm"
+        settings.auto_create_room = True
+        settings.auto_archaeology = True
     output_root = Path(args.out).resolve()
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     bundle_dir = output_root / f"{target}_{stamp}"
@@ -4910,7 +4977,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         med = Mediator(settings, runtime_root, stop_signal=stop_signal, incident_dir=bundle_dir / "incidents")
         if elevation_blocked:
             runtime_mediator_error = "Real input requires an elevated process; accept the UAC prompt from the desktop launcher"
-    initial_phase = _initial_phase_for_target(target)
+    initial_phase = Phase.ROOM_WAITING if current_room_archaeology else _initial_phase_for_target(target)
     med.set_phase(initial_phase, f"{target} {'target probe' if probe else 'live capture'}")
     if target == "hitch_lobby_chain":
         med._hitch_re_search = False
@@ -4939,6 +5006,13 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         production_source_root=runtime_root if runtime_root != repo_root else None,
         production_source_sha=getattr(args, "production_source_sha", None),
     )
+    if current_room_archaeology:
+        recorder.solo_observer = None
+        recorder.solo_observer_key = None
+        recorder.manifest["current_room_archaeology"] = {
+            "operator_precondition": "当前 KK 房间内已把自己放到一楼",
+            "handoff": "leave_old_room -> fresh_lobby -> create_room -> archaeology",
+        }
     if probe_bootstrap:
         recorder.manifest["probe_bootstrap"] = probe_bootstrap
     if execution_mode == "ground_truth_only":
@@ -4963,6 +5037,10 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         if recorder.solo_observer is not None:
             recorder.solo_observer.precheck(preflight.get("status") == "READY", preflight)
             recorder.manifest[str(recorder.solo_observer_key)] = recorder.solo_observer.payload()
+        if current_room_archaeology:
+            if not _frame_is_valid(preflight_frame) or not med._is_confirmed_room_frame(preflight_frame):
+                raise ValueError("当前房间考古短链要求预检帧确认真实 ROOM 页面；请先把自己放到一楼")
+            _arm_current_room_archaeology_handoff(med)
     else:
         dry_identity = _scenario_identity(
             repo_root=repo_root,
@@ -5143,6 +5221,13 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                 time.sleep(min(0.2, max(0.01, float(args.interval))))
                 continue
             recorder.begin_tick()
+            if _arm_direct_archaeology_after_stage_select(med, direct_archaeology):
+                print("[scenario] 生产 L0 已确认选关页，启用直达考古 handoff")
+                recorder.manifest["direct_archaeology_arm"] = {
+                    "phase": med.phase.name,
+                    "tick": ticks,
+                }
+                recorder._write_manifest()
             phase_before = med.phase.name
             state_before = _state_snapshot(med)
             current_frame["value"] = None
@@ -5201,6 +5286,14 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                     after_frame=_capture_after(med) if recorder.inputs_this_tick else None,
                     loop_action=loop_action,
                 )
+            if current_room_archaeology and getattr(med, "_archaeology_handoff_confirmed", False):
+                if not recorder.manifest["target_result"].get("authoritative"):
+                    last_event = (recorder.manifest.get("events") or [{}])[-1]
+                    recorder._record_authoritative_target_result(
+                        event_id=last_event.get("event_id"),
+                        postcondition={"kind": "current_room_archaeology_handoff_complete"},
+                        target_stage="ARCHAEOLOGY_HANDOFF_CONFIRMED",
+                    )
             if not _frame_is_valid(current_frame["value"]):
                 # 坚韧容错原则：无论切屏、最小化还是转场黑屏，不直接退出进程自杀！记录并等待恢复
                 print(f"[live] 当前帧无效或正在过渡/最小化中，等待画面恢复 (tick {ticks})")
@@ -5309,6 +5402,8 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             "production_readiness": _production_fact(target)["production_readiness"],
             "bookmark_file": str(bookmark_file),
             "continue_after_failure": bool(getattr(args, "continue_after_failure", False)),
+            "direct_archaeology": direct_archaeology,
+            "current_room_archaeology": current_room_archaeology,
         }
         recorder.finalize()
         if live_lane is not None:
@@ -5941,6 +6036,16 @@ def _common_live_args(parser: argparse.ArgumentParser) -> None:
         help="expected injected production SHA (required for GT runs when candidate source is injected)",
     )
     parser.add_argument("--settings", type=Path, default=None)
+    parser.add_argument(
+        "--direct-archaeology",
+        action="store_true",
+        help="仅单人链路：建房并到达选关页后，直接走 production 考古 handoff",
+    )
+    parser.add_argument(
+        "--current-room-archaeology",
+        action="store_true",
+        help="当前房间已把自己放到一楼：真实离旧房→自建房→选关→考古",
+    )
     parser.add_argument("--duration", type=float, default=60.0)
     parser.add_argument(
         "--start-surface-wait",

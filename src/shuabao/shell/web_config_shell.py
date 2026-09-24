@@ -48,6 +48,7 @@ except ImportError as exc:
     ) from exc
 
 from shuabao.shell.dashboard_facade import DashboardFacade
+from shuabao.shell.live_execute import source_quick_test_window_title
 from shuabao.shell.bridge_contract import BRIDGE_SCHEMA_VERSION
 from shuabao.shell.mode_catalog import get_spec
 from shuabao.shell.overlay_hud import OverlayHud
@@ -255,7 +256,8 @@ class WebConfigShell(QMainWindow):
         else:
             index = resolve_dist_index(self.root)
 
-        self.setWindowTitle(APP_TITLE)
+        # 源码快速测试（冻结包恒 False）必须在标题上自报身份，防止被当成签名包/GT。
+        self.setWindowTitle(source_quick_test_window_title(APP_TITLE))
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setFixedSize(*_DASHBOARD_SIZE)
 
@@ -435,8 +437,13 @@ class WebConfigShell(QMainWindow):
         )
         worker = getattr(self.runner, "worker", None)
         mediator = getattr(worker, "mediator", None)
+        stats_text = ""
         if mediator is not None:
             self.overlay_hud.anchor_to_target(getattr(mediator, "_last_frame", None))
+            if active and hasattr(mediator, "format_hitch_stats_progress"):
+                stats_text = mediator.format_hitch_stats_progress()
+            elif not active and hasattr(mediator, "format_hitch_stats_summary"):
+                stats_text = mediator.format_hitch_stats_summary()
         self.overlay_hud.update_status(
             active,
             str(run.get("phase") or ""),
@@ -448,6 +455,7 @@ class WebConfigShell(QMainWindow):
             target=target,
             mode=mode,
             strategy=strategy,
+            stats_text=stats_text,
         )
         if active and not self._runtime_active:
             self.showMinimized()

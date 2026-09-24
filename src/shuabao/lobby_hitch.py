@@ -72,6 +72,11 @@ def has_prefix_evidence(text: str, prefix: str) -> bool:
     expected = unicodedata.normalize("NFKC", str(prefix or "")).strip()
     if not expected or len(expected) > MAX_LENGTH:
         return False
+    expected_counter = parse_counter(expected)
+    if expected_counter is not None:
+        observed_counter = parse_counter(normalized)
+        if observed_counter is not None and observed_counter == expected_counter:
+            return True
     if not expected.isdecimal():
         return verify_expected_text(normalized, expected)
     compact = "".join(normalized.split())
@@ -167,7 +172,7 @@ class HitchSearchSM:
         self.refresh_s_min = max(0.0, lo)
         self.refresh_s_max = max(self.refresh_s_min, hi)
         self.continuous = bool(continuous)
-        self.join_confirm_timeout_s = 1.0
+        self.join_confirm_timeout_s = 2.0
         # A navigation click is an input, not a navigation.  If GO_HOME never
         # produces lobby-page evidence, stop re-sending it and take the
         # bounded sleep instead of clicking the same dead anchor forever.

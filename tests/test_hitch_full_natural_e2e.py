@@ -46,13 +46,14 @@ def test_primary_lane_is_the_full_chain_not_the_s01_to_s06_diagnostics() -> None
 
     contract = TARGET_CONTRACTS[PRIMARY_LIVE_TARGET]
     assert "Mediator.tick()" in contract["production_entry"]
-    assert "至少 3 个完整 hitch round" in contract["success_postcondition"]
+    assert "配置的 hitch_cycle_num" in contract["success_postcondition"]
+    assert "fresh 考古锚点" in contract["success_postcondition"]
     assert "公共背包" in contract["success_postcondition"]
     assert contract["expected_steps"][:4] == (
         "ROOM_LIST", "SEARCH_CONFIRMED", "JOIN", "MODAL_RECOVERY",
     )
-    assert contract["expected_steps"][-3:] == (
-        "REAL_EXIT", "LOBBY_RETURN", "NEXT_ROUND",
+    assert contract["expected_steps"][-4:] == (
+        "REAL_EXIT", "LOBBY_RETURN", "NEXT_ROUND", "ARCHAEOLOGY_HANDOFF",
     )
 
 
@@ -80,11 +81,58 @@ def test_primary_ledger_exposes_required_metrics_and_does_not_pass_empty() -> No
     assert required_metrics <= set(observer.metrics)
     assert observer.is_pass is False
 
+
+def test_primary_ledger_requires_archaeology_after_configured_hitch_goal() -> None:
+    observer = HitchLobbyChainObserver(required_rounds=5, require_archaeology=True)
+    observer.metrics["rounds_started"] = 5
+    observer.metrics["lobby_returns"] = 5
+    for checkpoint in (
+        "PRECHECK_OK", "ROOM_LIST_CONFIRMED", "SEARCH_CONFIRMED", "ROOM_JOINED",
+        "READY_CONFIRMED", "MODAL_RECOVERY", "INGAME_HUD_CONFIRMED", "PRESSURE_CONFIRMED",
+        "OUTCOME_OBSERVED", "LOBBY_RETURN_CONFIRMED", "CONFIGURED_ROUNDS_CONFIRMED",
+    ):
+        observer.checkpoints[checkpoint] = {"status": "PASS"}
+
+    assert observer.is_pass is False
+    observer.checkpoints["ARCHAEOLOGY_HANDOFF_CONFIRMED"] = {"status": "PASS"}
+    assert observer.is_pass is True
+
     observer.precheck(False, {"status": "BLOCKED_PRECHECK", "reason": "no KK window"})
     payload = observer.payload()
     assert payload["natural_e2e"] == "BLOCKED"
     assert payload["metrics"] == observer.metrics
     assert observer.is_pass is False
+
+
+_CORE_CHECKPOINTS = (
+    "PRECHECK_OK", "ROOM_LIST_CONFIRMED", "SEARCH_CONFIRMED", "ROOM_JOINED",
+    "READY_CONFIRMED", "MODAL_RECOVERY", "INGAME_HUD_CONFIRMED", "PRESSURE_CONFIRMED",
+    "OUTCOME_OBSERVED", "LOBBY_RETURN_CONFIRMED", "CONFIGURED_ROUNDS_CONFIRMED",
+)
+
+
+def test_single_configured_round_can_pass_without_three_round_floor() -> None:
+    observer = HitchLobbyChainObserver(required_rounds=1, require_archaeology=True)
+    assert observer.required_rounds == 1
+    observer.metrics["rounds_started"] = 1
+    observer.metrics["lobby_returns"] = 1
+    for checkpoint in _CORE_CHECKPOINTS:
+        observer.checkpoints[checkpoint] = {"status": "PASS"}
+    observer.checkpoints["ARCHAEOLOGY_HANDOFF_CONFIRMED"] = {"status": "PASS"}
+    assert observer.is_pass is True
+
+
+def test_required_archaeology_starts_unobserved_and_blocks_pass() -> None:
+    observer = HitchLobbyChainObserver(required_rounds=30, require_archaeology=True)
+    assert observer.checkpoints["ARCHAEOLOGY_HANDOFF_CONFIRMED"]["status"] == "NOT_OBSERVED"
+    observer.metrics["rounds_started"] = 30
+    observer.metrics["lobby_returns"] = 30
+    for checkpoint in _CORE_CHECKPOINTS:
+        observer.checkpoints[checkpoint] = {"status": "PASS"}
+    assert observer.is_pass is False
+
+    plain = HitchLobbyChainObserver(required_rounds=3, require_archaeology=False)
+    assert plain.checkpoints["ARCHAEOLOGY_HANDOFF_CONFIRMED"]["status"] == "NOT_REQUIRED"
 
 
 def test_candidate_source_identity_is_explicit_and_clean() -> None:
@@ -220,4 +268,17 @@ def test_harness_and_launcher_do_not_contain_a_second_lobby_fsm() -> None:
     assert "production-source-root" in launcher
     assert "public_backpack_deposit" in launcher
     assert "Mediator.tick()" in source
+
+
+def test_primary_launcher_defaults_to_one_round_and_allows_longer_archaeology_trial() -> None:
+    launcher = (ROOT / "live_scenario_launcher.ps1").read_text(encoding="utf-8")
+    assert "function New-HitchE2ESettingsSnapshot" in launcher
+    assert "SHUABAO_HITCH_E2E_ROUNDS" in launcher
+    assert "$rounds = 1" in launcher
+    assert "$loaded.Value.hitch_cycle_num = $rounds" in launcher
+    assert "$loaded.Value.cycle_num = $rounds" in launcher
+    assert 'hitch_after_goal = "arch"' in launcher
+    assert "auto_archaeology = $true" in launcher
+    assert '$cliArgs += @("--settings", $settingsPath)' in launcher
+    assert "局蹭车退出 + fresh 考古锚点确认后退出脚本" in launcher
 

@@ -396,12 +396,14 @@ class P0SecurityFoundationTests(unittest.TestCase):
             MatchResult("box2", 0.9, 5, 15, 10, 10, 5, 15),
         ]
         with patch("shuabao.mediator.find_input_boxes", return_value=boxes), \
-             patch.object(mediator, "act_click", return_value=True), \
-             patch.object(mediator.executor, "hotkey", return_value=True) as mock_hk, \
-             patch.object(mediator.executor, "paste_text", return_value=True) as mock_paste:
+             patch.object(mediator.executor, "click", return_value=ActionResult(True, "OK")) as mock_click, \
+             patch.object(mediator.executor, "hotkey", return_value=ActionResult(True, "OK")) as mock_hk, \
+             patch.object(mediator.executor, "paste_text", return_value=ActionResult(True, "OK")) as mock_paste:
 
-            res = mediator._fill_room_dialog(frame, confirm)
+            results = [mediator._fill_room_dialog(frame, confirm) for _ in range(6)]
+            res = results[-1]
             self.assertTrue(res)
+            self.assertEqual(mock_click.call_count, 2)
             self.assertEqual(mock_hk.call_count, 2)
             self.assertEqual(mock_paste.call_count, 2)
 

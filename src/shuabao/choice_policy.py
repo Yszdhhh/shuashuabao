@@ -87,7 +87,7 @@ DEFAULT_QUALITY_ORDER = ("red", "orange", "purple", "blue", "white", "green")
 WHITELIST_HARD = "hard"
 WHITELIST_SOFT = "soft"
 VALID_WHITELIST_MODES = frozenset({WHITELIST_HARD, WHITELIST_SOFT})
-DEFAULT_BOND_MUST_TAKE: tuple[str, ...] = ()
+DEFAULT_BOND_MUST_TAKE: tuple[str, ...] = ("祝福", "智力祝福", "敏捷祝福", "力量祝福")
 DEFAULT_SKILL_SLOT_CAP = 4
 DEFAULT_TREASURE_MUST_TAKE = ("全都要", "卡牌大师")
 _CATALOG_RARITY_TO_BAND = {
@@ -120,6 +120,10 @@ DEFAULT_NEGATIVE_PATTERNS = (
     "宝物效果-",
     "攻击间隔",
     "基础攻击间隔",
+    "无法再升级",
+    "受到的所有伤害提高",
+    "木材清0",
+    "金币清0",
 )
 DEFAULT_NEGATIVE_NAMES = (
     "透支力量",
@@ -127,7 +131,9 @@ DEFAULT_NEGATIVE_NAMES = (
     "金转木",
     "杀敌梭哈",
     "伐木契约",
-    "等级优势",
+    "诅咒之力",
+    "提高上限",
+    "木材梭哈",
 )
 DEFAULT_MAX_ATTEMPTS = 12
 DEFAULT_MAX_REFRESHES = 3
@@ -364,7 +370,10 @@ class PolicySettings:
             quality_order=(tuple(str(s) for s in qo) if qo is not None else DEFAULT_QUALITY_ORDER),
             min_confidence=0.0 if min_conf is None else float(min_conf),
             bond_whitelist_mode=WHITELIST_HARD if bond_mode is None else str(bond_mode),
-            bond_must_take=tuple(dict.fromkeys(str(s) for s in (bond_must_take or ()))),
+            bond_must_take=tuple(dict.fromkeys(
+                DEFAULT_BOND_MUST_TAKE
+                + tuple(str(s) for s in (bond_must_take or ()))
+            )),
             treasure_negative_patterns=(
                 tuple(str(s) for s in neg) if neg is not None else DEFAULT_NEGATIVE_PATTERNS
             ),
@@ -500,8 +509,10 @@ def assemble_policy_settings(
                         bond_presets.append(name)
                 break
 
+    selected_group_names = tuple(name for group in selected_groups for name in group)
     advanced_presets = tuple(
-        item for item in bond_presets if matches_bond_preset(item, advanced_names)
+        item for item in bond_presets
+        if matches_bond_preset(item, advanced_names) or item in selected_group_names
     )
     base_presets = tuple(
         item for item in bond_presets
@@ -586,7 +597,8 @@ def assemble_policy_settings(
                 or bond_cfg.get("whitelist_mode", WHITELIST_HARD)
             ),
             "bond_must_take": tuple(dict.fromkeys(
-                tuple(str(s) for s in (getattr(settings, "bond_must_take", None) or ()))
+                DEFAULT_BOND_MUST_TAKE
+                + tuple(str(s) for s in (getattr(settings, "bond_must_take", None) or ()))
                 + tuple(str(s) for s in (bond_cfg.get("must_take_names") or ()))
             )),
             "treasure_negative_patterns": treasure_cfg.get("negative_patterns"),
@@ -1120,32 +1132,121 @@ def _slot_stack_progress(slot: SlotCandidate) -> tuple[int, int] | None:
     return None
 
 
+_BOND_PROGRESS_RATIO_RE = re.compile(r"[\[（(]\s*\d+\s*/\s*\d+\s*[\])）)]")
+
+
+def canonical_bond_identity(name: str | None) -> str:
+    """返回严格的规范化羁绊卡牌身份名（纯函数）。
+
+    1. 剥离 OCR (x/y) 等级/进度数字串；
+    2. 经由 choice_lexicon 查表映射 alias -> canonical；
+    3. 若词典未收录，退避为去除进度后缀与多余空白的基础名称；
+    4. 绝不使用 substring/family 包含作为身份判定。
+    """
+    if not name:
+        return ""
+    text = str(name).strip()
+    if not text:
+        return ""
+    try:
+        from shuabao.vision.choice_ocr import lookup_lexicon
+
+        looked = lookup_lexicon(text, kind="bond").canonical
+        if looked:
+            return looked
+    except Exception:
+        pass
+    return _BOND_PROGRESS_RATIO_RE.sub("", text).strip()
+
+
+def same_bond_identity(name1: str | None, name2: str | None) -> bool:
+    """严格判断两个卡名是否代表同一张羁绊卡（Same Card Identity）。
+
+    必须 canonical card identity 相等，严禁用 preset in text 这种 family substring。
+    """
+    if not name1 or not name2:
+        return False
+    c1 = canonical_bond_identity(name1)
+    c2 = canonical_bond_identity(name2)
+    return bool(c1 and c2 and c1 == c2)
+
+
+def _is_bond_must_take(name: str | None, must_take: tuple[str, ...]) -> bool:
+    if not name or not must_take:
+        return False
+    return any(token and same_bond_identity(name, token) for token in must_take)
+
+
+
 def _near_complete_bond_slots(
-    cands: PanelCandidates, settings: PolicySettings
+    cands: PanelCandidates,
+    settings: PolicySettings,
+    slots: tuple[SlotCandidate, ...] | None = None,
 ) -> tuple[SlotCandidate, ...]:
-    """差一张就能合成的预设/已持有卡，无脑拿。"""
+    """差一张就能合成的预设/已持有卡。"""
     owned = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
     from shuabao.bond_capacity import stack_need
 
+    eval_slots = cands.slots if slots is None else slots
     found: list[SlotCandidate] = []
-    for slot in cands.slots:
+    for slot in eval_slots:
         name = str(slot.name or "").strip()
-        if not name or float(slot.confidence or 0.0) < _BOND_NEAR_COMPLETE_CONF:
+        if not name or float(slot.confidence or 0.0) < settings.min_confidence:
             continue
         allowed = matches_bond_preset(name, settings.bond_presets) or any(
-            matches_bond_preset(have, (name,)) for have in owned
+            same_bond_identity(name, have) for have in owned
         )
         if not allowed:
             continue
         progress = _slot_stack_progress(slot)
         if progress is None:
             need = stack_need(name)
-            have = sum(1 for item in owned if matches_bond_preset(item, (name,)))
+            have = sum(1 for item in owned if same_bond_identity(name, item))
         else:
             have, need = progress
         if need and have is not None and int(need) - int(have) == 1:
             found.append(slot)
     return tuple(found)
+
+
+def _is_uncompleted_merge_upgrade(
+    slot: SlotCandidate, owned_cards: tuple[str, ...]
+) -> bool:
+    """已持有羁绊卡是否处于未满星/未完成的待补债合成状态。
+
+    1/4～3/4 或拥有张数未达 need 时返回 True，允许补债；
+    若卡片已达完成态（如 4/4、已拥有张数 >= need），返回 False，不得仅因历史 owned 记录无限优先拿。
+    使用严格 canonical card identity 匹配，绝不使用 family substring。
+    """
+    if not slot.name or not owned_cards:
+        return False
+    matching = [
+        b for b in owned_cards
+        if b and same_bond_identity(slot.name, b)
+    ]
+    if not matching:
+        return False
+    # 若已持有卡中已明确为完成态（如 4/4、已满张），不再视为未完成待补债
+    for b in matching:
+        hit = _BOND_PROGRESS_RE.search(str(b))
+        if hit:
+            have_o, need_o = int(hit.group(1)), int(hit.group(2))
+            if need_o > 1 and have_o >= need_o:
+                return False
+    prog = _slot_stack_progress(slot)
+    if prog is not None:
+        have, need = prog
+        if have >= need:
+            return False
+        return True
+    from shuabao.bond_capacity import stack_need
+
+    need = stack_need(slot.name)
+    if need is not None:
+        have = len(matching)
+        if have >= need:
+            return False
+    return True
 
 
 def _bond_progress_hits(
@@ -1195,19 +1296,19 @@ def _bond_capacity_candidates(
     progress = _bond_progress_hits(cands, slots)
     progress_names = {slot.name for slot, _tier, _gap, _set in progress}
     tier_names = {slot.name for slot, tier, _gap, _set in progress if tier == 0}
-    owned = {name for name in cands.owned_bond_cards if name}
+    owned = tuple(name for name in cands.owned_bond_cards if name)
     kept: list[SlotCandidate] = []
     for slot in slots:
-        merge = bool(slot.name and slot.name in owned)
-        core = _is_must_take(slot.name, settings.bond_must_take) or matches_bond_preset(
+        merge = bool(slot.name and _is_uncompleted_merge_upgrade(slot, owned))
+        core = _is_bond_must_take(slot.name, settings.bond_must_take) or matches_bond_preset(
             slot.name, settings.bond_presets
         )
         if free <= 0:
-            allowed = merge or slot.zero_cost
+            allowed = merge or core or slot.zero_cost
         elif free == 1:
             allowed = merge or core or slot.name in tier_names
         else:
-            allowed = merge or slot.name in progress_names
+            allowed = merge or core or slot.name in progress_names
         if allowed:
             kept.append(slot)
     return tuple(kept)
@@ -1222,8 +1323,17 @@ def _decide_collectible(
         return _no_safe_candidate(cands, state, kind, "卡名未读出/无安全候选")
     if kind == PANEL_TREASURE:
         eligible = _drop_negative_treasures(cands.slots, settings)
+        if getattr(settings, "mode_id", "normal_farm") != "lobby_hitch":
+            eligible = tuple(
+                slot for slot in eligible
+                if "神符" not in f"{slot.name or ''} {slot.description or ''}"
+            )
+        eligible = tuple(
+            slot for slot in eligible
+            if bool(slot.name and str(slot.name).strip()) or bool(slot.description and str(slot.description).strip())
+        )
         if not eligible:
-            return _no_safe_candidate(cands, state, kind, "无安全候选（全部为负面宝物）")
+            return _no_safe_candidate(cands, state, kind, "无安全候选（卡名与描述均未知或全部为负面宝物）")
 
         # 蹭车模式：只拿能交给车队的共享道具
         if getattr(settings, "mode_id", "normal_farm") == "lobby_hitch":
@@ -1243,7 +1353,7 @@ def _decide_collectible(
                     slot.index, f"宝物必拿秒选【{slot.name}】（EX 不看品质） @ slot {slot.index}"
                 )
         # 其余先过滤黑名单，只按现有品质顺序选择，不让 presets / synthesis 压过更高品质。
-        best_quality_hit = _match_quality(cands, settings, slots=eligible, allow_unnamed=True)
+        best_quality_hit = _match_quality(cands, settings, slots=eligible, allow_unnamed=False)
         if best_quality_hit is None:
             return _no_safe_candidate(cands, state, kind, "无安全候选")
 
@@ -1285,24 +1395,20 @@ def _decide_collectible(
     else:
         eligible = cands.slots
         if kind == PANEL_BOND:
-            near = _near_complete_bond_slots(cands, settings)
-            if near:
-                slot = max(near, key=lambda item: (float(item.confidence or 0.0), -int(item.index)))
-                return PolicyDecision.select(
-                    slot.index,
-                    f"羁绊差一张合成秒选【{slot.name}】 @ slot {slot.index}",
-                )
             eligible = _bond_capacity_candidates(cands, eligible, settings)
-            owned_bonds = {str(name).strip() for name in cands.owned_bond_cards if str(name).strip()}
+            owned_bonds = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
+            simple_ex = _selected_simple_ex_presets(settings)
             if not _bond_base_ready(cands, settings):
                 eligible = tuple(
                     slot for slot in eligible
                     if (
-                        matches_bond_preset(slot.name, settings.bond_base_presets)
+                        _is_bond_must_take(slot.name, settings.bond_must_take)
+                        or matches_bond_preset(slot.name, settings.bond_base_presets)
                         or matches_bond_preset(slot.name, settings.bond_chain_presets)
+                        or matches_bond_preset(slot.name, simple_ex)
                         # A past run may already contain an advanced card. Let
                         # its duplicate finish/merge, but never start another.
-                        or str(slot.name or "").strip() in owned_bonds
+                        or _is_uncompleted_merge_upgrade(slot, owned_bonds)
                     )
                 )
                 if not eligible:
@@ -1319,10 +1425,12 @@ def _decide_collectible(
                     eligible = tuple(
                         slot for slot in eligible
                         if (
-                            matches_bond_preset(slot.name, settings.bond_base_presets)
+                            _is_bond_must_take(slot.name, settings.bond_must_take)
+                            or matches_bond_preset(slot.name, settings.bond_base_presets)
                             or matches_bond_preset(slot.name, settings.bond_chain_presets)
                             or matches_bond_preset(slot.name, active_adv)
-                            or str(slot.name or "").strip() in owned_bonds
+                            or matches_bond_preset(slot.name, simple_ex)
+                            or _is_uncompleted_merge_upgrade(slot, owned_bonds)
                         )
                     )
                     if not eligible:
@@ -1336,29 +1444,59 @@ def _decide_collectible(
             if settings.bond_whitelist_mode == WHITELIST_HARD:
                 eligible = tuple(
                     slot for slot in eligible
-                    if _is_must_take(slot.name, settings.bond_must_take)
+                    if _is_bond_must_take(slot.name, settings.bond_must_take)
                     or matches_bond_preset(slot.name, settings.bond_presets)
+                    or _is_uncompleted_merge_upgrade(slot, owned_bonds)
                 )
-        if kind == PANEL_BOND:
+
+            # 禁字法避坑：献祭50%生命转高额攻击，必须在持有「安身法」百分比回血后才可选择，前期无安身法拿易暴毙
+            if any(slot.name == "禁字法" for slot in eligible):
+                has_anshen = any(
+                    "安身法" in str(b) for b in (cands.owned_bond_cards or ())
+                ) or any("安身法" in str(b) for b in (owned_bonds or ()))
+                if not has_anshen:
+                    eligible = tuple(slot for slot in eligible if slot.name != "禁字法")
+
+            # 1. 必拿名单优先级最高（不受 near_complete 抢占）
             for slot in eligible:
                 if (
                     slot.confidence >= settings.min_confidence
-                    and _is_must_take(slot.name, settings.bond_must_take)
+                    and _is_bond_must_take(slot.name, settings.bond_must_take)
                 ):
                     return PolicyDecision.select(
                         slot.index, f"羁绊系统必拿【{slot.name}】 @ slot {slot.index}"
                     )
-            # 20260822：已持有的羁绊卡合成跃升（如 1/3, 2/3 未满星卡牌）
+
+            # 2. 差一张合成秒选（受容量与门禁约束；满槽仅限已持有同卡合并）
+            near = _near_complete_bond_slots(cands, settings, slots=eligible)
+            if cands.free_slots is not None and cands.free_slots <= 0:
+                near = tuple(s for s in near if _is_uncompleted_merge_upgrade(s, owned_bonds))
+            if near:
+                slot = max(near, key=lambda item: (float(item.confidence or 0.0), -int(item.index)))
+                return PolicyDecision.select(
+                    slot.index,
+                    f"羁绊差一张合成秒选【{slot.name}】 @ slot {slot.index}",
+                )
+
+            # 3. 20260822：已持有的羁绊卡合成跃升（如 1/3, 2/3 未满星卡牌）
             # 只要手中已持有过某羁绊卡，且当前面板再次出现该卡，优先合成升级，绝不可刷新丢弃！
-            owned_bonds_set = {b for b in getattr(cands, "owned_bond_cards", ()) if b}
             for slot in eligible:
                 if (
                     slot.confidence >= settings.min_confidence
-                    and slot.name in owned_bonds_set
+                    and _is_uncompleted_merge_upgrade(slot, owned_bonds)
                 ):
                     return PolicyDecision.select(
                         slot.index, f"羁绊已持有合成优先：{slot.name} @ slot {slot.index}"
                     )
+            # Owner-selected direct EX families should keep their own chain
+            # moving when a member appears, without waiting for unrelated
+            # economy/base checkboxes to reach 80%.
+            simple_hit = _match_bond_preset(
+                eligible, simple_ex, settings.min_confidence, settings.quality_order
+            )
+            if simple_hit is not None:
+                name = _slot_name(cands.slots, simple_hit)
+                return PolicyDecision.select(simple_hit, f"已选 EX 卡组持续推进：{name} @ slot {simple_hit}")
     preset_hit = (
         _match_bond_preset(eligible, presets, settings.min_confidence, settings.quality_order)
         if kind == PANEL_BOND
@@ -1397,7 +1535,7 @@ def _decide_collectible(
     # 橙→紫优先链，未读名的槽位按边框采样稀有度参与排序（按槽位坐标点击）。
     # 羁绊/英雄卡保持"未读名不可选"的安全语义不变。
     quality_hit = _match_quality(
-        cands, settings, slots=eligible, allow_unnamed=(kind == PANEL_TREASURE)
+        cands, settings, slots=eligible, allow_unnamed=False
     )
     if quality_hit is not None:
         name = _slot_name(cands.slots, quality_hit)
@@ -1419,10 +1557,21 @@ def _bond_base_ready(cands: PanelCandidates, settings: PolicySettings) -> bool:
     required = math.ceil(len(bases) * settings.bond_base_completion_ratio)
     owned = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
     completed = sum(
-        any(matches_bond_preset(name, (base,)) for name in owned)
+        any(same_bond_identity(name, base) for name in owned)
         for base in bases
     )
     return completed >= required
+
+
+def _selected_simple_ex_presets(settings: PolicySettings) -> tuple[str, ...]:
+    """Configured direct EX families; catalog entries alone never enable one."""
+    markers = ("齐天大圣", "大圣", "异火", "封神")
+    return tuple(
+        name
+        for group in settings.bond_advanced_groups
+        if any(marker in group for marker in markers)
+        for name in group
+    )
 
 
 def _active_advanced_presets(cands: PanelCandidates, settings: PolicySettings) -> tuple[str, ...]:
@@ -1434,7 +1583,7 @@ def _active_advanced_presets(cands: PanelCandidates, settings: PolicySettings) -
     for group in groups:
         required = max(1, math.ceil(len(group) * settings.bond_base_completion_ratio))
         have = sum(
-            any(matches_bond_preset(name, (card,)) for name in owned)
+            any(same_bond_identity(name, card) for name in owned)
             for card in group
         )
         if have < required:
@@ -1539,9 +1688,11 @@ def _rarity_rank(rarity: str | None, quality_order: tuple[str, ...]) -> int:
     return len(quality_order)
 
 
-def _is_must_take(name: str | None, must_take: tuple[str, ...]) -> bool:
+def _is_must_take(name: str | None, must_take: tuple[str, ...], is_bond: bool = False) -> bool:
     if not name or not must_take:
         return False
+    if is_bond:
+        return _is_bond_must_take(name, must_take)
     lowered = name.lower()
     return any(token and token.lower() in lowered for token in must_take)
 
@@ -1642,6 +1793,8 @@ def _match_quality(
             continue
         if not slot.name:
             if not allow_unnamed or not slot.rarity:
+                continue
+            if not (slot.description and str(slot.description).strip()):
                 continue
         key = (
             _rarity_rank(slot.rarity, settings.quality_order),

@@ -143,6 +143,12 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_inventory_clicks_this_visit": 2,
         "_inventory_same_pt_hits": 5,
         "_inventory_next_at": 1.0e9,
+        "_inventory_probe_next_slot": 5,
+        "_inventory_slot_attempts": {1: ("polluted", 1.0e9)},
+        "_inventory_settle_until": 1.0e9,
+        "_inventory_modal_until": 1.0e9,
+        "_opportunistic_yinyue_next_at": 1.0e9,
+        "_yinyue_dialog_next_at": 1.0e9,
         "_skill_refresh_attempts": 3,
         "_choice_session": __import__(
             "shuabao.choice_policy", fromlist=["SessionState"]
@@ -150,6 +156,10 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_choice_fp_before_refresh": "0:污染|1:污染|2:污染",
         "_choice_policy_idle": True,
         "_panel_fingerprint_attempts": 4,
+        "_f_draw_fingerprint": "polluted-draw",
+        "_f_draw_reopen_count": 11,
+        "_f_draw_backoff_until": 1.0e9,
+        "_exit_rearm_attempts": 2,
         "_panel_f1_used_this_episode": True,
         "_merchant_next_at": 1.0e9,
         "_merchant_budget_retry_at": 1.0e9,
@@ -179,6 +189,10 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_tick_post_confirm": False,
         "_boss_challenge_scroll_signature": "polluted",
         "_boss_challenge_scroll_stable_frames": 7,
+        "_time_cave_boss_result_confirmed": True,
+        "_time_cave_boss_confirm_unconfirmed": True,
+        "_time_cave_boss_clear_frames": 5,
+        "_time_cave_boss_clear_last_frame": object(),
     }
 
     def _pollute(self, med: Mediator) -> None:

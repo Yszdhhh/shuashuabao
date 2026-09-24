@@ -146,35 +146,39 @@ def test_solo_post_game_hard_cap_ends_round_not_run() -> None:
     assert med.phase is Phase.QUIT
 
 
-def test_solo_secret_realm_npc_timeout_abandons_rift_and_quits() -> None:
+def test_solo_secret_realm_npc_timeout_rearms_without_quitting() -> None:
     med = _med(auto_secret_realm=True)
     med._post_game_pending = True
     med._post_game_route = "secret"
     med._secret_realm_request_attempts = 3
     med._secret_realm_request_since = time.time()
     _tick_post_game(med, "NPC_HUB")
-    assert med.phase is Phase.QUIT
-    assert med._post_game_pending is False
-    assert med._secret_realm_request_pending is False
+    assert med.phase is Phase.MAIN_LINE
+    assert med._post_game_pending is True
+    assert med._secret_realm_request_attempts == 0
+    assert med._secret_realm_next_observe_at > time.time()
 
 
-def test_solo_exit_chain_timeouts_rearm() -> None:
+def test_solo_secret_realm_unclassified_request_keeps_zero_input_wait() -> None:
+    med = _med(auto_secret_realm=True)
+    med._post_game_pending = True
+    med._post_game_route = "secret"
+    med._secret_realm_request_pending = True
+    med._secret_realm_request_since = time.time() - 60.0
+    _tick_post_game(med, None)
+    assert med.phase is Phase.MAIN_LINE
+    assert med._post_game_pending and med._secret_realm_request_pending
+
+
+def test_solo_exit_chain_unknown_timeouts_fail_closed() -> None:
     med = _med()
     med.set_phase(Phase.QUIT)
     med._exit_button_attempts = 3
     med._exit_since = time.time() - 60.0
     with patch.object(med, "stop") as stop, patch.object(med, "_find_exit_confirm", return_value=None):
-        assert _quiet(med._tick_l1_tail, _frame()) is LoopAction.Continue
-    stop.assert_not_called()
-    assert med._exit_button_attempts == 0 and med.phase is Phase.QUIT
-
-    med.set_phase(Phase.NEXT)
-    med._exit_confirm_attempts = 3
-    med._exit_since = time.time() - 60.0
-    with patch.object(med, "stop") as stop:
-        assert _quiet(med._tick_l1_tail, _frame()) is LoopAction.Continue
-    stop.assert_not_called()
-    assert med._exit_confirm_attempts == 0 and med.phase is Phase.NEXT
+        assert _quiet(med._tick_l1_tail, _frame()) is LoopAction.Break
+    stop.assert_called_once()
+    assert med.phase is Phase.ERROR
 
 
 def test_solo_unverified_archive_entry_is_zero_input_observation() -> None:
@@ -206,45 +210,51 @@ def test_lab_mode_keeps_fail_closed() -> None:
 
 # ---- 单人传家宝收口（用户 2026-09-14）----
 
-def _heirloom_wait(med: Mediator, waited: float) -> None:
+def _heirloom_wait(med: Mediator, _waited: float) -> None:
     med._post_game_route = "boss_active"
     med._post_game_pending = False
-    med._hitch_heirloom_exit_since = time.time() - waited
+    med._hitch_heirloom_exit_since = None
+    med._solo_heirloom_boss_waiting = True
+    med._solo_heirloom_boss_clear_frames = 0
 
 
-def test_solo_heirloom_loot_without_secret_quits_as_victory() -> None:
+def test_solo_heirloom_two_reward_proxy_frames_without_secret_quit_as_victory() -> None:
     med = _med()
-    _heirloom_wait(med, 10.0)
-    _tick_post_game(med, None, _top_bar_mode="plaza", _heirloom_loot_popup_visible=True)
-    assert med.phase is Phase.QUIT
-    assert med._hitch_heirloom_exit_since is None
-
-
-def test_solo_heirloom_window_is_120s() -> None:
-    med = _med()
-    _heirloom_wait(med, 70.0)
-    _tick_post_game(med, None, _top_bar_mode="plaza", _heirloom_loot_popup_visible=False)
-    assert med.phase is Phase.MAIN_LINE, "60s is the passenger window, solo waits 120s"
-    _heirloom_wait(med, 121.0)
-    _tick_post_game(med, None, _top_bar_mode="plaza", _heirloom_loot_popup_visible=False)
-    assert med.phase is Phase.QUIT
-
-
-def test_solo_heirloom_loot_with_secret_goes_straight_to_the_rift() -> None:
-    # Solo has no heirloom Victory page (live 2026-09-14 f0570-f0584).
-    med = _med(auto_secret_realm=True)
     _heirloom_wait(med, 10.0)
     _tick_post_game(med, None, _top_bar_mode="plaza", _heirloom_loot_popup_visible=True)
     assert med.phase is Phase.MAIN_LINE
+    _tick_post_game(med, None, _top_bar_mode="plaza", _heirloom_loot_popup_visible=True)
+    assert med.phase is Phase.QUIT
+    assert not med._solo_heirloom_boss_waiting
+
+
+def test_solo_heirloom_old_timer_never_authorizes_exit_while_boss_is_unclear() -> None:
+    med = _med()
+    _heirloom_wait(med, 70.0)
+    _tick_post_game(med, None, _top_bar_mode="plaza", _heirloom_loot_popup_visible=False)
+    _heirloom_wait(med, 121.0)
+    _tick_post_game(med, None, _top_bar_mode="plaza", _heirloom_loot_popup_visible=False)
+    assert med.phase is Phase.MAIN_LINE
+    assert med._solo_heirloom_boss_waiting
+
+
+def test_solo_heirloom_two_reward_proxy_frames_with_secret_enter_rift_route() -> None:
+    med = _med(auto_secret_realm=True)
+    _heirloom_wait(med, 10.0)
+    _tick_post_game(med, None, _top_bar_mode="plaza", _heirloom_loot_popup_visible=True)
+    assert not med._post_game_pending
+    _tick_post_game(med, None, _top_bar_mode="plaza", _heirloom_loot_popup_visible=True)
+    assert med.phase is Phase.MAIN_LINE
     assert med._post_game_pending is True and med._post_game_route == "secret"
-    assert med._hitch_heirloom_exit_since is None
+    assert not med._solo_heirloom_boss_waiting
 
 
-def test_solo_heirloom_timer_with_secret_goes_straight_to_the_rift() -> None:
+def test_solo_heirloom_old_timer_with_secret_still_waits_for_boss_clear() -> None:
     med = _med(auto_secret_realm=True)
     _heirloom_wait(med, 121.0)
     _tick_post_game(med, None, _top_bar_mode="plaza", _heirloom_loot_popup_visible=False)
-    assert med._post_game_pending is True and med._post_game_route == "secret"
+    assert not med._post_game_pending
+    assert med._solo_heirloom_boss_waiting
 
 
 def test_solo_heirloom_secret_waits_before_the_window() -> None:

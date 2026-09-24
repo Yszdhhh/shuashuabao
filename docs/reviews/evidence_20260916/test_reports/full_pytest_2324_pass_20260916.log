@@ -1,0 +1,134 @@
+................................... [  1%]
+...................................................................... [  4%]
+........................................................................ [  7%]
+.................................................................. [ 10%]
+.................................................................................................................................... [ 16%]
+........................................................................ [ 19%]
+............................................................................................................................. [ 24%]
+................................................................................................................................. [ 30%]
+........................................................................ [ 33%]
+........................................................................ [ 36%]
+................ss...................................................... [ 39%]
+........................................................................ [ 42%]
+........................................................................ [ 45%]
+........................................................................ [ 48%]
+............................................ [ 50%]
+..................................................................................................... [ 54%]
+........................................................................ [ 57%]
+.................................................................... [ 60%]
+.................................................................... [ 63%]
+........................................................................ [ 66%]
+........................................................................ [ 69%]
+........................................................................ [ 73%]
+........................................................................ [ 76%]
+.............x....x............................................. [ 78%]
+........................................................................ [ 82%]
+........................................................................ [ 85%]
+........................................................................ [ 88%]
+........................................................................ [ 91%]
+........................................................................ [ 94%]
+........................................................................ [ 97%]
+..................................s........................              [100%]
+============================== warnings summary ===============================
+tests/test_ocr_shadow.py::TestClientLifecycle::test_corrupt_model_is_unavailable
+  C:\Users\10639\AppData\Local\hermes\hermes-agent\venv\Lib\site-packages\_pytest\threadexception.py:58: PytestUnhandledThreadExceptionWarning: Exception in thread Thread-2258 (_read_stderr)
+  
+  Traceback (most recent call last):
+    File "C:\Users\10639\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\threading.py", line 1045, in _bootstrap_inner
+      self.run()
+    File "C:\Users\10639\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\threading.py", line 982, in run
+      self._target(*self._args, **self._kwargs)
+    File "G:\刷刷宝\GameScript-Local\src\shuabao\vision\ocr_shadow\client.py", line 327, in _read_stderr
+      for line in stream:
+  ValueError: I/O operation on closed file.
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+tests/test_ocr_shadow.py::TestClientLifecycle::test_corrupt_model_is_unavailable
+  C:\Users\10639\AppData\Local\hermes\hermes-agent\venv\Lib\site-packages\_pytest\threadexception.py:58: PytestUnhandledThreadExceptionWarning: Exception in thread Thread-2256 (_read_stderr)
+  
+  Traceback (most recent call last):
+    File "C:\Users\10639\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\threading.py", line 1045, in _bootstrap_inner
+      self.run()
+    File "C:\Users\10639\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\threading.py", line 982, in run
+      self._target(*self._args, **self._kwargs)
+    File "G:\刷刷宝\GameScript-Local\src\shuabao\vision\ocr_shadow\client.py", line 327, in _read_stderr
+      for line in stream:
+  ValueError: I/O operation on closed file.
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+tests/test_trace_jsonl.py::TraceTest::test_trace_disabled_by_default
+  C:\Users\10639\AppData\Local\hermes\hermes-agent\venv\Lib\site-packages\_pytest\unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001F1B21016C0>
+  
+  Traceback (most recent call last):
+    File "G:\刷刷宝\GameScript-Local\src\shuabao\vision\capture.py", line 409, in enum_proc
+      if not user32.IsWindowVisible(hwnd):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+tests/test_trace_jsonl.py::TraceTest::test_trace_disabled_by_default
+  C:\Users\10639\AppData\Local\hermes\hermes-agent\venv\Lib\site-packages\_pytest\unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001F1B2101DA0>
+  
+  Traceback (most recent call last):
+    File "G:\刷刷宝\GameScript-Local\src\shuabao\vision\capture.py", line 409, in enum_proc
+      if not user32.IsWindowVisible(hwnd):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+tests/test_trace_jsonl.py::TraceTest::test_trace_disabled_by_default
+  C:\Users\10639\AppData\Local\hermes\hermes-agent\venv\Lib\site-packages\_pytest\unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001F1B2101B20>
+  
+  Traceback (most recent call last):
+    File "G:\刷刷宝\GameScript-Local\src\shuabao\vision\capture.py", line 409, in enum_proc
+      if not user32.IsWindowVisible(hwnd):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+tests/test_trace_jsonl.py::TraceTest::test_trace_disabled_by_default
+  C:\Users\10639\AppData\Local\hermes\hermes-agent\venv\Lib\site-packages\_pytest\unraisableexception.py:67: PytestUnraisableExceptionWarning: Exception ignored on calling ctypes callback function: <function find_window_targets.<locals>.collect.<locals>.enum_proc at 0x000001F1B21018A0>
+  
+  Traceback (most recent call last):
+    File "G:\刷刷宝\GameScript-Local\src\shuabao\vision\capture.py", line 409, in enum_proc
+      if not user32.IsWindowVisible(hwnd):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ctypes.ArgumentError: argument 1: OverflowError: int too long to convert
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnraisableExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2324 passed, 3 skipped, 2 xfailed, 6 warnings, 250 subtests passed in 859.05s (0:14:19)
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !

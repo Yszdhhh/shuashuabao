@@ -2,10 +2,13 @@
   "version": 1,
   "kb_id": "official_game_mechanics",
   "ingested_at": "2026-08-15",
-  "updated_at": "2026-08-17",
+  "updated_at": "2026-09-20",
   "wired_to_decision": false,
   "status": "official_help",
   "_comment": "游戏内官方说明底库。比攻略优先。整份 JSON 仍不驱动公式。partially_wired 只列源码真接上的。白绿先刷 / 目录压 OCR / 审判排斥 曾误登记，见 skill_card_colors。不要把截图 PNG 复制进仓库。2026-08-17 新增批次契约条目标注为 status=wired_contract，非游戏机制。",
+  "evidence_corrections": {
+    "capture_slot_titles_20260920": "撤销 2026-09-19 的「三槽共用 ROI」告警：mediator._fill_bond_slots_by_title_template 逐项 zip(slots, rois)；该兜底路径只处理空/低置信槽位及窄模板集合。9 组祝福/经济样本不是总体，三张同名卡符合 need=3 的套装机制，同卡模板分数相同属预期。captures 槽位名恢复为可用证据，live_verified 无需因此标注存疑。"
+  },
   "partially_wired": [
     "skill_points_via_G_before_wood_F",
     "skill_mode_strict_max_four",
@@ -97,11 +100,11 @@
         "装备栏左键",
         "黄金猿"
       ],
-      "text": "黄金猿是装备。在装备栏点左键才开宝藏卡组。锚点未钉。禁止自动点装备栏（可能误点脱装/别的装备）。",
+      "text": "黄金猿在单人物品栏 2-6 号格时左键使用，开启宝藏卡组；1 号装备格仍只走右键升级。",
       "source": "user_confirmed",
       "status": "user_confirmed",
-      "script_rule": "fail_closed_never_click",
-      "wired": false,
+      "script_rule": "solo_item_bar_2_6_left_click",
+      "wired": true,
       "note": "攻略语音识别曾写成黄金元。不是 F 三选卡。"
     }
   ],
@@ -198,6 +201,36 @@
       "status": "official_help",
       "vs_old_research": "旧研究把技能点约等于「三选一次数」。官方：经验→升级→技能点→G 抽技能。"
     },
+    "skill_bond_timing": {
+      "name": "技能点与羁绊的时序和机会成本",
+      "source": "owner_verbal_20260920",
+      "status": "user_confirmed",
+      "wired_to_decision": false,
+      "skill_points": {
+        "cap": "无上限",
+        "expiry": "不过期",
+        "opportunity_cost": "无",
+        "timing": "技能无成长性；早学和晚学等效。技能点积压仅表示尚未花费，不构成问题。"
+      },
+      "bonds": {
+        "opportunity_cost": "高",
+        "timing": "羁绊有成长；合成存在周期，晚获得可能赶不上进度。",
+        "devour_condition_examples": [
+          "击杀 200",
+          "时间 60 秒"
+        ],
+        "devour_condition_examples_exhaustive": false,
+        "condition_catalog": "未提供完整条件目录；示例不得外推为穷尽列表。"
+      },
+      "owner_strategy": "优先拿羁绊；羁绊接近成型或木材不再溢出后，再取其他项。",
+      "known_policy_conflict": {
+        "location": "src/shuabao/mediator.py:_solo_plan_panel",
+        "current_rule": "技能积压 >= 8 时，无论木材多少优先技能。",
+        "conflict": "该规则把技能积压当作紧急抢占条件，与本条“技能点无时序机会成本、羁绊优先”的 Owner 机制相反。",
+        "observations": "9 局中 6 局此规则影响 >=40% 的决策；20260918_210044 为 22 次调度（羁绊 13、技能抢占 9）。",
+        "resolution": "等待 TASK_H 的基线测试与 Owner 裁决；本条不调整策略代码。"
+      }
+    },
     "kill_count": {
       "name": "杀敌数",
       "primary_use": "黑商刷新",
@@ -245,8 +278,15 @@
         "cost_amount": null,
         "charges_from": null,
         "free": null,
-        "script_rule": "wood_gated_not_wired",
-        "note": "B2 木头阈值（<100 不开 F、<40 不刷新）因此更站得住。单价未知，不猜。"
+        "script_rule": "runtime_price_schedule_unverified",
+        "price_evidence": {
+          "status": "indeterminate",
+          "reviewed_at": "2026-09-19",
+          "evidence": "captures 日志证明羁绊刷新点击、羁绊确认获得和木材下降均会发生；hud.csv 提供 435 个 HUD 快照。",
+          "limitation": "快照与刷新事件未逐点对齐，间隔内存在击杀木材收入，且 F 抽羁绊与三选刷新是两笔木材支出；不能由相邻余额或首尾余额分离单价。",
+          "runtime_note": "mediator.py 的价格常量是待验证实现，不构成机制证据，禁止倒灌为 cost_amount。"
+        },
+        "note": "单价仍为未知，不猜；需要同一刷新点击前后的 HUD 木材读数及可见价格文字，且同时标记 F 抽事件。"
       },
       "skill": {
         "name": "技能刷新",
@@ -2252,11 +2292,12 @@
           "元神出窍"
         ]
       },
-      "ex": "大乘期"
+      "ex": "大乘期",
+      "ex_conflict_note": "canonical_ex=大乘期@user_card; guide_ex=元神出窍 guide_only"
     },
     "haidao_chain": {
       "name": "海盗：藏宝图→毁灭战舰；黄金猿开宝藏",
-      "text": "海盗无 EX，终点 UR 毁灭战舰。实机：藏宝图(三)/贪婪/白赚海盗/海盗劫掠者 need 都是 3。战舰卡面：攻幅+10%，每击杀300置入随机海盗，每吞1张海盗杀敌金/木+1%，开池 N利刃海盗/战斗海盗/冲浪海盗+SSR重拳先生，无法吞噬。黄金猿是装备，装备栏左键开宝藏（user_confirmed）；禁止自动点装备栏。",
+      "text": "海盗无 EX，终点 UR 毁灭战舰。实机：藏宝图(三)/贪婪/白赚海盗/海盗劫掠者 need 都是 3。战舰卡面：攻幅+10%，每击杀300置入随机海盗，每吞1张海盗杀敌金/木+1%，开池 N利刃海盗/战斗海盗/冲浪海盗+SSR重拳先生，无法吞噬。黄金猿在单人物品栏 2-6 号格左键开宝藏（user_confirmed）；1 号格不走该路径。",
       "live_verified": {
         "map_need": {
           "name": "藏宝图(三)",

@@ -11,7 +11,9 @@ panel_priority / 无面板 NONE / 期限与尝试上限抢占。
 from __future__ import annotations
 
 import itertools
+import json
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 
 from shuabao.card_fact import CardFact
@@ -386,6 +388,44 @@ class TestBondTreasureUnknown(unittest.TestCase):
         )
         self.assertEqual(d.action, PolicyAction.REFRESH)
 
+    def test_selected_simple_ex_families_progress_before_base_eighty_percent(self):
+        for root, member in (
+            ("异火", "焚诀·黄阶"),
+            ("齐天大圣", "大圣残躯"),
+            ("封神", "封神榜"),
+        ):
+            with self.subTest(root=root):
+                policy = settings(
+                    bond_presets=["经济", "成长", root, member],
+                    bond_base_presets=["经济", "成长"],
+                    bond_advanced_presets=[root, member],
+                    bond_advanced_groups=[(root, member)],
+                    bond_whitelist_mode="hard",
+                )
+                decision = choose_action(
+                    bond_cands(
+                        [slot(0, "经济"), slot(1, member)],
+                        settings=policy,
+                        owned_bond_cards=(),
+                    ),
+                    SessionState(),
+                )
+                self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))
+
+    def test_unselected_simple_ex_family_is_not_taken(self):
+        policy = settings(
+            bond_presets=["经济"],
+            bond_base_presets=["经济"],
+            bond_advanced_presets=["封神"],
+            bond_advanced_groups=(),
+            bond_whitelist_mode="hard",
+        )
+        decision = choose_action(
+            bond_cands([slot(0, "封神"), slot(1, "经济")], settings=policy),
+            SessionState(),
+        )
+        self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))
+
     def test_advanced_bond_unlocks_after_eighty_percent_base_progress(self):
         policy = settings(
             bond_presets=["成长", "经济", "贪婪", "挑战", "封神"],
@@ -401,7 +441,7 @@ class TestBondTreasureUnknown(unittest.TestCase):
         )
         self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 0))
 
-    def test_second_advanced_pack_waits_for_active_pack(self):
+    def test_selected_simple_ex_pack_is_not_blocked_by_other_advanced_pack(self):
         policy = settings(
             bond_presets=["成长", "经济", "贪婪", "挑战", "海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏", "封神"],
             bond_base_presets=["成长", "经济", "贪婪", "挑战"],
@@ -418,7 +458,7 @@ class TestBondTreasureUnknown(unittest.TestCase):
             ),
             SessionState(),
         )
-        self.assertEqual(d.action, PolicyAction.REFRESH)
+        self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 0))
 
     def test_second_advanced_pack_unlocks_after_active_pack(self):
         policy = settings(
@@ -1245,7 +1285,7 @@ class TestTreasureMustTake(unittest.TestCase):
         d = choose_action(
             treasure_cands(
                 [slot(0, "我全都要", rarity="white", confidence=0.99),
-                 slot(1, "双倍神符", rarity="red", confidence=0.99)],
+                 slot(1, "风暴之眼", rarity="red", confidence=0.99)],
                 settings=settings(treasure_must_take=[]),
             ),
             SessionState(),
@@ -1255,7 +1295,7 @@ class TestTreasureMustTake(unittest.TestCase):
         d_default = choose_action(
             treasure_cands(
                 [slot(0, "我全都要", rarity="white", confidence=0.99),
-                 slot(1, "双倍神符", rarity="red", confidence=0.99)],
+                 slot(1, "风暴之眼", rarity="red", confidence=0.99)],
                 settings=settings(),
             ),
             SessionState(),
@@ -1435,6 +1475,25 @@ class TestAssemblePolicySettings(unittest.TestCase):
         self.assertEqual(ps.bond_advanced_presets, ("封神", "封神榜", "海盗"))
         self.assertEqual(ps.bond_advanced_groups[0][0], "封神")
         self.assertEqual(ps.bond_advanced_groups[1][0], "海盗")
+
+    def test_configured_simple_ex_chains_reach_final_cards(self):
+        policy_doc = json.loads(
+            (Path(__file__).resolve().parents[1] / "config/choice_policy.json").read_text(encoding="utf-8")
+        )
+        for root, final in (("异火", "帝炎"), ("齐天大圣", "法天象地"), ("封神", "圣人")):
+            with self.subTest(root=root):
+                policy = assemble_policy_settings(
+                    settings=self.fake_settings(["jq"], cards=[root], bonds=["经济", "成长"]),
+                    skill_labels=self.LABELS,
+                    fetter_labels={},
+                    policy_doc=policy_doc,
+                )
+                self.assertIn(final, policy.bond_advanced_presets)
+                decision = choose_action(
+                    bond_cands([slot(0, "经济"), slot(1, final)], settings=policy),
+                    SessionState(),
+                )
+                self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))
 
     def test_treasure_allow_negative_from_settings(self):
         ps = assemble_policy_settings(
@@ -1841,9 +1900,8 @@ class TestLiveRegressions20260822(unittest.TestCase):
             PolicyAction.CLOSE,
         )
 
-    def test_treasure_unnamed_high_rarity_beats_readable_green(self):
-        """宝物橙/紫卡 OCR 读不出名时按边框稀有度参与品质链（trace 203910
-        20:42:19/22：两张可读绿卡压过不可读橙卡）。羁绊不放宽。"""
+    def test_treasure_unnamed_high_rarity_and_solo_talismans_are_not_selected(self):
+        """未知卡和单人神符均不是可选的安全宝物。"""
         ps = PolicySettings(treasure_presets=())
         cands = treasure_cands(
             [slot(0, "属性神符", confidence=0.84, rarity="green"),
@@ -1852,8 +1910,18 @@ class TestLiveRegressions20260822(unittest.TestCase):
             settings=ps,
         )
         d = choose_action(cands, session=SessionState())
-        self.assertEqual(d.action, PolicyAction.SELECT_SLOT)
-        self.assertEqual(d.index, 1)
+        self.assertEqual(d.action, PolicyAction.CLOSE)
+
+    def test_solo_talisman_in_description_is_excluded(self):
+        d = choose_action(
+            treasure_cands(
+                [slot(0, "属性奖励", rarity="red", description="获得双倍神符"),
+                 slot(1, "攻击强化", rarity="orange")],
+                settings=PolicySettings(),
+            ),
+            SessionState(),
+        )
+        self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 1))
 
     def test_bond_unnamed_still_not_clickable(self):
         """羁绊未读名槽位保持不可选（安全语义不随宝物放宽）。"""
@@ -1894,6 +1962,44 @@ class TestLiveRegressions20260822(unittest.TestCase):
         )
         d = choose_action(cands_4, session=SessionState())
         self.assertEqual(d.action, PolicyAction.CLOSE)
+
+    def test_bond_capacity_free_two_allows_core_preset(self):
+        """当已占8格（free_slots == 2）时，白名单核心预设卡（大圣/力量）仍允许抓取，绝不判为空直接关闭。"""
+        ps = settings(
+            bond_presets=["齐天大圣", "力量祝福"],
+            bond_whitelist_mode="soft",
+        )
+        cands = bond_cands(
+            [
+                slot(0, "齐天大圣", rarity="red"),
+                slot(1, "无关散卡", rarity="white"),
+                slot(2, "无关散卡2", rarity="white"),
+            ],
+            settings=ps,
+            free_slots=2,
+        )
+        d = choose_action(cands, session=SessionState(refreshes=3, max_refreshes=3))
+        self.assertEqual(d.action, PolicyAction.SELECT_SLOT)
+        self.assertEqual(d.index, 0)
+
+    def test_bond_capacity_full_slots_allows_core_preset_for_replace(self):
+        """当卡槽全满（free_slots == 0）时，白名单核心预设卡（如法宝、大圣）仍允许抓取以触发顶替，不直接判空关闭。"""
+        ps = settings(
+            bond_presets=["法宝", "齐天大圣"],
+            bond_whitelist_mode="soft",
+        )
+        cands = bond_cands(
+            [
+                slot(0, "法宝", rarity="blue"),
+                slot(1, "无关散卡", rarity="white"),
+                slot(2, "无关散卡2", rarity="white"),
+            ],
+            settings=ps,
+            free_slots=0,
+        )
+        d = choose_action(cands, session=SessionState(refreshes=3, max_refreshes=3))
+        self.assertEqual(d.action, PolicyAction.SELECT_SLOT)
+        self.assertEqual(d.index, 0)
 
 
 if __name__ == "__main__":

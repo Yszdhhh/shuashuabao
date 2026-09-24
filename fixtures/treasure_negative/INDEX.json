@@ -5,7 +5,21 @@
     "金转木",
     "杀敌梭哈",
     "伐木契约",
-    "等级优势"
+    "等级优势",
+    "力之极",
+    "命运骰子",
+    "恶魔契约",
+    "提高上限",
+    "敏之极",
+    "智之极",
+    "木材梭哈",
+    "混乱转换",
+    "玻璃大炮",
+    "登神长阶",
+    "经验压制",
+    "贪婪契约",
+    "金币梭哈",
+    "诅咒之力"
   ],
   "entries": [
     {
@@ -100,6 +114,402 @@
         "fixtures\\treasure_negative\\等级优势\\desc2_d0_b_001077_slot1.png",
         "fixtures\\treasure_negative\\等级优势\\desc_d0_a_000756_slot2.png",
         "fixtures\\treasure_negative\\等级优势\\desc_d0_b_001077_slot1.png"
+      ]
+    },
+    {
+      "name": "力之极",
+      "panels": [
+        "fixtures/treasure_negative/力之极/panel_010357_352_f63f4ba1.png",
+        "fixtures/treasure_negative/力之极/panel_030308_666_6e5a9909.png"
+      ],
+      "panel_slots": [
+        {
+          "panel": "fixtures/treasure_negative/力之极/panel_010357_352_f63f4ba1.png",
+          "slot": 2,
+          "shared_with": []
+        },
+        {
+          "panel": "fixtures/treasure_negative/力之极/panel_030308_666_6e5a9909.png",
+          "slot": 0,
+          "shared_with": [
+            "混乱转换"
+          ]
+        }
+      ],
+      "name_crops": [
+        "fixtures/treasure_negative/力之极/name_010357_352_f63f4ba1_slot2_name.png",
+        "fixtures/treasure_negative/力之极/name_030308_666_6e5a9909_slot0_name.png"
+      ],
+      "desc_crops": [
+        "fixtures/treasure_negative/力之极/desc2_010357_352_f63f4ba1_slot2.png",
+        "fixtures/treasure_negative/力之极/desc_010357_352_f63f4ba1_slot2.png",
+        "fixtures/treasure_negative/力之极/desc2_030308_666_6e5a9909_slot0.png",
+        "fixtures/treasure_negative/力之极/desc_030308_666_6e5a9909_slot0.png"
+      ]
+    },
+    {
+      "name": "命运骰子",
+      "panels": [
+        "fixtures/treasure_negative/命运骰子/panel_010952_626_abdd003a.png",
+        "fixtures/treasure_negative/命运骰子/panel_015148_242_5981a06a.png"
+      ],
+      "panel_slots": [
+        {
+          "panel": "fixtures/treasure_negative/命运骰子/panel_010952_626_abdd003a.png",
+          "slot": 1,
+          "shared_with": []
+        },
+        {
+          "panel": "fixtures/treasure_negative/命运骰子/panel_015148_242_5981a06a.png",
+          "slot": 2,
+          "shared_with": []
+        }
+      ],
+      "name_crops": [
+        "fixtures/treasure_negative/命运骰子/name_010952_626_abdd003a_slot1_name.png",
+        "fixtures/treasure_negative/命运骰子/name_015148_242_5981a06a_slot2_name.png"
+      ],
+      "desc_crops": [
+        "fixtures/treasure_negative/命运骰子/desc2_010952_626_abdd003a_slot1.png",
+        "fixtures/treasure_negative/命运骰子/desc_010952_626_abdd003a_slot1.png",
+        "fixtures/treasure_negative/命运骰子/desc2_015148_242_5981a06a_slot2.png",
+        "fixtures/treasure_negative/命运骰子/desc_015148_242_5981a06a_slot2.png"
+      ]
+    },
+    {
+      "name": "恶魔契约",
+      "panels": [
+        "fixtures/treasure_negative/恶魔契约/panel_224832_196_1a8248a7.png",
+        "fixtures/treasure_negative/恶魔契约/panel_204112_528_1e1e99b4.png"
+      ],
+      "panel_slots": [
+        {
+          "panel": "fixtures/treasure_negative/恶魔契约/panel_224832_196_1a8248a7.png",
+          "slot": 2,
+          "shared_with": []
+        },
+        {
+          "panel": "fixtures/treasure_negative/恶魔契约/panel_204112_528_1e1e99b4.png",
+          "slot": 0,
+          "shared_with": []
+        }
+      ],
+      "name_crops": [
+        "fixtures/treasure_negative/恶魔契约/name_224832_196_1a8248a7_slot2_name.png",
+        "fixtures/treasure_negative/恶魔契约/name_204112_528_1e1e99b4_slot0_name.png"
+      ],
+      "desc_crops": [
+        "fixtures/treasure_negative/恶魔契约/desc2_224832_196_1a8248a7_slot2.png",
+        "fixtures/treasure_negative/恶魔契约/desc_224832_196_1a8248a7_slot2.png",
+        "fixtures/treasure_negative/恶魔契约/desc2_204112_528_1e1e99b4_slot0.png",
+        "fixtures/treasure_negative/恶魔契约/desc_204112_528_1e1e99b4_slot0.png"
+      ]
+    },
+    {
+      "name": "提高上限",
+      "panels": [
+        "fixtures/treasure_negative/提高上限/panel_185040_112_8b9790d7.png",
+        "fixtures/treasure_negative/提高上限/panel_003339_375_1feb9109.png"
+      ],
+      "panel_slots": [
+        {
+          "panel": "fixtures/treasure_negative/提高上限/panel_185040_112_8b9790d7.png",
+          "slot": 1,
+          "shared_with": [
+            "经验压制"
+          ]
+        },
+        {
+          "panel": "fixtures/treasure_negative/提高上限/panel_003339_375_1feb9109.png",
+          "slot": 2,
+          "shared_with": []
+        }
+      ],
+      "name_crops": [
+        "fixtures/treasure_negative/提高上限/name_185040_112_8b9790d7_slot1_name.png",
+        "fixtures/treasure_negative/提高上限/name_003339_375_1feb9109_slot2_name.png"
+      ],
+      "desc_crops": [
+        "fixtures/treasure_negative/提高上限/desc2_185040_112_8b9790d7_slot1.png",
+        "fixtures/treasure_negative/提高上限/desc_185040_112_8b9790d7_slot1.png",
+        "fixtures/treasure_negative/提高上限/desc2_003339_375_1feb9109_slot2.png",
+        "fixtures/treasure_negative/提高上限/desc_003339_375_1feb9109_slot2.png"
+      ]
+    },
+    {
+      "name": "敏之极",
+      "panels": [
+        "fixtures/treasure_negative/敏之极/panel_024047_510_2a1de354.png",
+        "fixtures/treasure_negative/敏之极/panel_024041_520_45091041.png"
+      ],
+      "panel_slots": [
+        {
+          "panel": "fixtures/treasure_negative/敏之极/panel_024047_510_2a1de354.png",
+          "slot": 2,
+          "shared_with": []
+        },
+        {
+          "panel": "fixtures/treasure_negative/敏之极/panel_024041_520_45091041.png",
+          "slot": 2,
+          "shared_with": []
+        }
+      ],
+      "name_crops": [
+        "fixtures/treasure_negative/敏之极/name_024047_510_2a1de354_slot2_name.png",
+        "fixtures/treasure_negative/敏之极/name_024041_520_45091041_slot2_name.png"
+      ],
+      "desc_crops": [
+        "fixtures/treasure_negative/敏之极/desc2_024047_510_2a1de354_slot2.png",
+        "fixtures/treasure_negative/敏之极/desc_024047_510_2a1de354_slot2.png",
+        "fixtures/treasure_negative/敏之极/desc2_024041_520_45091041_slot2.png",
+        "fixtures/treasure_negative/敏之极/desc_024041_520_45091041_slot2.png"
+      ]
+    },
+    {
+      "name": "智之极",
+      "panels": [
+        "fixtures/treasure_negative/智之极/panel_020043_011_4900b098.png",
+        "fixtures/treasure_negative/智之极/panel_020036_447_983259de.png"
+      ],
+      "panel_slots": [
+        {
+          "panel": "fixtures/treasure_negative/智之极/panel_020043_011_4900b098.png",
+          "slot": 0,
+          "shared_with": []
+        },
+        {
+          "panel": "fixtures/treasure_negative/智之极/panel_020036_447_983259de.png",
+          "slot": 0,
+          "shared_with": []
+        }
+      ],
+      "name_crops": [
+        "fixtures/treasure_negative/智之极/name_020043_011_4900b098_slot0_name.png",
+        "fixtures/treasure_negative/智之极/name_020036_447_983259de_slot0_name.png"
+      ],
+      "desc_crops": [
+        "fixtures/treasure_negative/智之极/desc2_020043_011_4900b098_slot0.png",
+        "fixtures/treasure_negative/智之极/desc_020043_011_4900b098_slot0.png",
+        "fixtures/treasure_negative/智之极/desc2_020036_447_983259de_slot0.png",
+        "fixtures/treasure_negative/智之极/desc_020036_447_983259de_slot0.png"
+      ]
+    },
+    {
+      "name": "木材梭哈",
+      "panels": [
+        "fixtures/treasure_negative/木材梭哈/panel_010322_206_257a6635.png",
+        "fixtures/treasure_negative/木材梭哈/panel_010318_135_637a248d.png"
+      ],
+      "panel_slots": [
+        {
+          "panel": "fixtures/treasure_negative/木材梭哈/panel_010322_206_257a6635.png",
+          "slot": 1,
+          "shared_with": []
+        },
+        {
+          "panel": "fixtures/treasure_negative/木材梭哈/panel_010318_135_637a248d.png",
+          "slot": 1,
+          "shared_with": []
+        }
+      ],
+      "name_crops": [
+        "fixtures/treasure_negative/木材梭哈/name_010322_206_257a6635_slot1_name.png",
+        "fixtures/treasure_negative/木材梭哈/name_010318_135_637a248d_slot1_name.png"
+      ],
+      "desc_crops": [
+        "fixtures/treasure_negative/木材梭哈/desc2_010322_206_257a6635_slot1.png",
+        "fixtures/treasure_negative/木材梭哈/desc_010322_206_257a6635_slot1.png",
+        "fixtures/treasure_negative/木材梭哈/desc2_010318_135_637a248d_slot1.png",
+        "fixtures/treasure_negative/木材梭哈/desc_010318_135_637a248d_slot1.png"
+      ]
+    },
+    {
+      "name": "混乱转换",
+      "panels": [
+        "fixtures/treasure_negative/混乱转换/panel_030308_666_6e5a9909.png",
+        "fixtures/treasure_negative/混乱转换/panel_011210_617_57527ff7.png"
+      ],
+      "panel_slots": [
+        {
+          "panel": "fixtures/treasure_negative/混乱转换/panel_030308_666_6e5a9909.png",
+          "slot": 1,
+          "shared_with": [
+            "力之极"
+          ]
+        },
+        {
+          "panel": "fixtures/treasure_negative/混乱转换/panel_011210_617_57527ff7.png",
+          "slot": 2,
+          "shared_with": []
+        }
+      ],
+      "name_crops": [
+        "fixtures/treasure_negative/混乱转换/name_030308_666_6e5a9909_slot1_name.png",
+        "fixtures/treasure_negative/混乱转换/name_011210_617_57527ff7_slot2_name.png"
+      ],
+      "desc_crops": [
+        "fixtures/treasure_negative/混乱转换/desc2_030308_666_6e5a9909_slot1.png",
+        "fixtures/treasure_negative/混乱转换/desc_030308_666_6e5a9909_slot1.png",
+        "fixtures/treasure_negative/混乱转换/desc2_011210_617_57527ff7_slot2.png",
+        "fixtures/treasure_negative/混乱转换/desc_011210_617_57527ff7_slot2.png"
+      ]
+    },
+    {
+      "name": "玻璃大炮",
+      "panels": [
+        "fixtures/treasure_negative/玻璃大炮/panel_011316_987_f55eed81.png",
+        "fixtures/treasure_negative/玻璃大炮/panel_011313_112_2fe287e1.png"
+      ],
+      "panel_slots": [
+        {
+          "panel": "fixtures/treasure_negative/玻璃大炮/panel_011316_987_f55eed81.png",
+          "slot": 0,
+          "shared_with": []
+        },
+        {
+          "panel": "fixtures/treasure_negative/玻璃大炮/panel_011313_112_2fe287e1.png",
+          "slot": 0,
+          "shared_with": []
+        }
+      ],
+      "name_crops": [
+        "fixtures/treasure_negative/玻璃大炮/name_011316_987_f55eed81_slot0_name.png",
+        "fixtures/treasure_negative/玻璃大炮/name_011313_112_2fe287e1_slot0_name.png"
+      ],
+      "desc_crops": [
+        "fixtures/treasure_negative/玻璃大炮/desc2_011316_987_f55eed81_slot0.png",
+        "fixtures/treasure_negative/玻璃大炮/desc_011316_987_f55eed81_slot0.png",
+        "fixtures/treasure_negative/玻璃大炮/desc2_011313_112_2fe287e1_slot0.png",
+        "fixtures/treasure_negative/玻璃大炮/desc_011313_112_2fe287e1_slot0.png"
+      ]
+    },
+    {
+      "name": "登神长阶",
+      "panels": [
+        "fixtures/treasure_negative/登神长阶/panel_013909_223_2f68ed51.png",
+        "fixtures/treasure_negative/登神长阶/panel_013902_288_e8074dbe.png"
+      ],
+      "panel_slots": [
+        {
+          "panel": "fixtures/treasure_negative/登神长阶/panel_013909_223_2f68ed51.png",
+          "slot": 2,
+          "shared_with": []
+        },
+        {
+          "panel": "fixtures/treasure_negative/登神长阶/panel_013902_288_e8074dbe.png",
+          "slot": 2,
+          "shared_with": []
+        }
+      ],
+      "name_crops": [
+        "fixtures/treasure_negative/登神长阶/name_013909_223_2f68ed51_slot2_name.png",
+        "fixtures/treasure_negative/登神长阶/name_013902_288_e8074dbe_slot2_name.png"
+      ],
+      "desc_crops": [
+        "fixtures/treasure_negative/登神长阶/desc2_013909_223_2f68ed51_slot2.png",
+        "fixtures/treasure_negative/登神长阶/desc_013909_223_2f68ed51_slot2.png",
+        "fixtures/treasure_negative/登神长阶/desc2_013902_288_e8074dbe_slot2.png",
+        "fixtures/treasure_negative/登神长阶/desc_013902_288_e8074dbe_slot2.png"
+      ]
+    },
+    {
+      "name": "经验压制",
+      "panels": [
+        "fixtures/treasure_negative/经验压制/panel_185040_112_8b9790d7.png",
+        "fixtures/treasure_negative/经验压制/panel_172145_829_5f653c51.png"
+      ],
+      "panel_slots": [
+        {
+          "panel": "fixtures/treasure_negative/经验压制/panel_185040_112_8b9790d7.png",
+          "slot": 0,
+          "shared_with": [
+            "提高上限"
+          ]
+        },
+        {
+          "panel": "fixtures/treasure_negative/经验压制/panel_172145_829_5f653c51.png",
+          "slot": 2,
+          "shared_with": []
+        }
+      ],
+      "name_crops": [
+        "fixtures/treasure_negative/经验压制/name_185040_112_8b9790d7_slot0_name.png",
+        "fixtures/treasure_negative/经验压制/name_172145_829_5f653c51_slot2_name.png"
+      ],
+      "desc_crops": [
+        "fixtures/treasure_negative/经验压制/desc2_185040_112_8b9790d7_slot0.png",
+        "fixtures/treasure_negative/经验压制/desc_185040_112_8b9790d7_slot0.png",
+        "fixtures/treasure_negative/经验压制/desc2_172145_829_5f653c51_slot2.png",
+        "fixtures/treasure_negative/经验压制/desc_172145_829_5f653c51_slot2.png"
+      ]
+    },
+    {
+      "name": "贪婪契约",
+      "panels": [
+        "fixtures/treasure_negative/贪婪契约/panel_183207_476_61758acc.png",
+        "fixtures/treasure_negative/贪婪契约/panel_183109_859_767ab1d9.png"
+      ],
+      "panel_slots": [
+        {
+          "panel": "fixtures/treasure_negative/贪婪契约/panel_183207_476_61758acc.png",
+          "slot": 0,
+          "shared_with": []
+        },
+        {
+          "panel": "fixtures/treasure_negative/贪婪契约/panel_183109_859_767ab1d9.png",
+          "slot": 0,
+          "shared_with": []
+        }
+      ],
+      "name_crops": [
+        "fixtures/treasure_negative/贪婪契约/name_183207_476_61758acc_slot0_name.png",
+        "fixtures/treasure_negative/贪婪契约/name_183109_859_767ab1d9_slot0_name.png"
+      ],
+      "desc_crops": [
+        "fixtures/treasure_negative/贪婪契约/desc2_183207_476_61758acc_slot0.png",
+        "fixtures/treasure_negative/贪婪契约/desc_183207_476_61758acc_slot0.png",
+        "fixtures/treasure_negative/贪婪契约/desc2_183109_859_767ab1d9_slot0.png",
+        "fixtures/treasure_negative/贪婪契约/desc_183109_859_767ab1d9_slot0.png"
+      ]
+    },
+    {
+      "name": "金币梭哈",
+      "panels": [
+        "fixtures/treasure_negative/金币梭哈/panel_015322_653_7c66d569.png"
+      ],
+      "panel_slots": [
+        {
+          "panel": "fixtures/treasure_negative/金币梭哈/panel_015322_653_7c66d569.png",
+          "slot": 1,
+          "shared_with": []
+        }
+      ],
+      "name_crops": [
+        "fixtures/treasure_negative/金币梭哈/name_015322_653_7c66d569_slot1_name.png"
+      ],
+      "desc_crops": [
+        "fixtures/treasure_negative/金币梭哈/desc2_015322_653_7c66d569_slot1.png",
+        "fixtures/treasure_negative/金币梭哈/desc_015322_653_7c66d569_slot1.png"
+      ]
+    },
+    {
+      "name": "诅咒之力",
+      "panels": [
+        "fixtures/treasure_negative/诅咒之力/panel_img_v3_0215p_31b47da6.png"
+      ],
+      "panel_slots": [
+        {
+          "panel": "fixtures/treasure_negative/诅咒之力/panel_img_v3_0215p_31b47da6.png",
+          "slot": 0,
+          "shared_with": []
+        }
+      ],
+      "name_crops": [
+        "fixtures/treasure_negative/诅咒之力/name_img_v3_0215p_31b47da6_slot0_name.png"
+      ],
+      "desc_crops": [
+        "fixtures/treasure_negative/诅咒之力/desc2_img_v3_0215p_31b47da6_slot0.png",
+        "fixtures/treasure_negative/诅咒之力/desc_img_v3_0215p_31b47da6_slot0.png"
       ]
     }
   ]

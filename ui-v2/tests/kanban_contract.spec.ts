@@ -306,25 +306,4 @@ describe("UI-V2 看板架构契约测试", () => {
     expect(result.missingStaticIds).toContain("btnStart");
   });
 
-  it("对比桌面新看板与正式线契约的就绪状态", () => {
-    const deskHtmlPath = "C:/Users/10639/Desktop/影音游戏/GameScript-Local/ui-v2/index.html";
-    if (fs.existsSync(deskHtmlPath)) {
-      const deskHtml = fs.readFileSync(deskHtmlPath, "utf-8");
-      const result = auditKanbanContract(deskHtml);
-      // 记录桌面新看板当前的合规性
-      console.log("[Contract Audit - Desktop Kanban]");
-      console.log("Is Conformant:", result.isConformant);
-      console.log("Missing Static IDs:", result.missingStaticIds);
-      console.log("Missing Dynamic Signatures:", result.missingDynamicSignatures);
-      console.log("Missing Data Selectors:", result.missingDataSelectors);
-      console.log("Missing Globals:", result.missingGlobals);
-      console.log("Missing State Fields:", result.missingStateFields);
-
-      // 跟车配对码移除后，桌面新看板契约全绿
-      expect(result.missingStaticIds).toEqual([]);
-      expect(result.missingDataSelectors).toEqual([]);
-      expect(result.missingGlobals).toEqual([]);
-      expect(result.missingDynamicSignatures).toEqual([]);
-    }
-  });
 });

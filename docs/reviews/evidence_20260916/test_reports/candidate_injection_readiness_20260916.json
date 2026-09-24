@@ -1,0 +1,696 @@
+﻿{
+  "readiness_schema_version": 2,
+  "repo_root": "G:\\刷刷宝\\GameScript-Local",
+  "tested_commit_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+  "primary_live_scenario": "HITCH_FULL_NATURAL_E2E",
+  "primary_live_target": "hitch_lobby_chain",
+  "production_source_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+  "production_source_root": "G:\\刷刷宝\\GameScript-Local",
+  "harness_identity": {
+    "harness_head": "ff0d7ca948084f598a76877f5a080595dd4de840",
+    "harness_branch": "fix/solo-live-regression-20260915",
+    "harness_base": "7a6c36bbbdc39064ceed1aebd9ffc301bfeea342",
+    "runtime_worktree": "G:\\刷刷宝\\GameScript-Local",
+    "runtime_worktree_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+    "runtime_source_path": "G:\\刷刷宝\\GameScript-Local\\src\\shuabao\\__init__.py",
+    "runtime_source_verified": true,
+    "frozen_production_code_baseline": "7a6c36bbbdc39064ceed1aebd9ffc301bfeea342",
+    "production_code_diff": "NOT_CLEAN",
+    "production_code_diff_files": [
+      "src/shuabao/choice_policy.py",
+      "src/shuabao/mediator.py",
+      "src/shuabao/runtime_mediator.py"
+    ],
+    "automation_exe": {
+      "path": null,
+      "source_sha": null,
+      "status": "NOT_PROVIDED",
+      "blocked_reasons": []
+    },
+    "ready_for_gt": true,
+    "match": "READY",
+    "blocked_reasons": [],
+    "production_source_root": "G:\\刷刷宝\\GameScript-Local",
+    "production_source_expected_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+    "production_source_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+    "production_source_clean": true,
+    "candidate_source_injection": "ACTIVE"
+  },
+  "ready_for_gt": true,
+  "replay_self_check": {
+    "status": "PASS",
+    "detail": "not run (--quick)"
+  },
+  "live_input_preflight": {
+    "status": "REQUIRED",
+    "required_facts": [
+      "tested_source_sha",
+      "actual_exe_build_hash",
+      "settings_snapshot",
+      "ocr_bootstrap_health",
+      "hwnd_title_size",
+      "single_instance",
+      "harness_base",
+      "production_code_diff",
+      "runtime_worktree"
+    ]
+  },
+  "targets": [
+    {
+      "target": "black_merchant",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "同一黑商遭遇内：买吞噬丹/木材/折扣并持续刷新；背包吞噬丹与英雄卡走各自现有 verifier，神器 Q/W/E 仅按现有开关、槽位与冷却条件释放。悬赏令仅留 Ground Truth。",
+      "production_routes": [
+        {
+          "route": "black_merchant_swallow_pill",
+          "readiness": "CONDITIONAL"
+        },
+        {
+          "route": "black_merchant_wood",
+          "readiness": "CONDITIONAL"
+        },
+        {
+          "route": "black_merchant_discount_2_5",
+          "readiness": "CONDITIONAL"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "依次调用现有 Mediator._maybe_black_merchant(frame)、_maybe_use_inventory_item(frame)、_maybe_fire_artifacts(frame)；每 tick 最多一个真实输入。",
+      "max_probe_time_s": 600.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "inventory_item",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "吞噬丹（羁绊至少 4 个 + WAIT_DEVOUR_DAN）与英雄卡（完成进化 + WAIT_HERO_CHOICE）可实测；海盗悬赏令尚无生产模板和后置验证，仅采 Ground Truth。",
+      "production_routes": [
+        {
+          "route": "inventory_swallow_pill",
+          "readiness": "CONDITIONAL"
+        },
+        {
+          "route": "inventory_hero_card",
+          "readiness": "CONDITIONAL"
+        },
+        {
+          "route": "inventory_pirate_bounty",
+          "readiness": "BLOCKED_GROUND_TRUTH_ONLY"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "Mediator._maybe_use_inventory_item(frame)",
+      "max_probe_time_s": 15.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "boss_challenge",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "整链 capture 复用现有 Mediator.tick()，覆盖 tqtz→配置 Boss→转场→战后存档 8 卡；战后时光之穴与传家宝配置 Boss 路径均使用末位可识别 Boss fallback；本 target 隔离自动秘境。",
+      "production_routes": [
+        {
+          "route": "configured_boss",
+          "readiness": "CONDITIONAL"
+        },
+        {
+          "route": "postgame_archive_8",
+          "readiness": "CONDITIONAL"
+        },
+        {
+          "route": "postgame_heirloom",
+          "readiness": "CONDITIONAL"
+        },
+        {
+          "route": "tqtz_to_sgzx",
+          "readiness": "CONDITIONAL"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "整链 capture 使用现有 Mediator.tick()（包含既有 tqtz/early-challenge/post-game 分支）；Boss 测试会隔离自动秘境，局部 probe 只调用 Mediator._maybe_challenge_configured_boss(frame, time.time())。",
+      "max_probe_time_s": 60.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "time_cave",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "已打开时光之穴 Boss 列表后，复用现有 handler 选择最后一个可识别 Boss 并确认真实挑战 HUD。",
+      "production_routes": [
+        {
+          "route": "open_time_cave_boss_list",
+          "readiness": "CONDITIONAL"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "Mediator._maybe_challenge_configured_boss(frame, time.time())，复用现有 Boss 模板/滚动/末位 fallback。",
+      "max_probe_time_s": 60.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "heirloom",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "战后广场可由 production 自动打开传家宝 NPC；配置 cjb_boss 时优先匹配，未配置时滚到底选择最后一个模板可识别 Boss。Live PASS 仍必须由真实挑战 HUD 后置确认。",
+      "production_routes": [
+        {
+          "route": "heirloom_boss_selection",
+          "readiness": "CONDITIONAL"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "Mediator._tick_main_line(frame)：必要时先关背包→OpenHeirloomChallenges→HEIRLOOM_DIALOG→配置 Boss 或最后可识别卡。",
+      "max_probe_time_s": 90.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "secret_realm",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "只允许现有 OpenGreatRift/ConfirmGreatRift；Live PASS 必须到真实 HUD + _secret_realm_active。",
+      "production_routes": [
+        {
+          "route": "secret_realm_entry",
+          "readiness": "CONDITIONAL"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "Mediator._tick_main_line(frame)",
+      "max_probe_time_s": 30.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "lobby_hitch",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "在大厅房间列表按自定义搜索词搜房；支持刷新 CD、点击房间行与失败弹窗兜底；不点 Quick Join、创建房间或开始游戏。",
+      "production_routes": [
+        {
+          "route": "lobby_hitch_search",
+          "readiness": "CONDITIONAL"
+        },
+        {
+          "route": "lobby_hitch_join",
+          "readiness": "CONDITIONAL"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "Mediator._tick_lobby_hitch(frame, context, room_start, stage_page)",
+      "max_probe_time_s": 600.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "lobby_search",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "调用大厅生产 handler 持续搜索、跳过失败房、按 5 秒 CD 刷新并在合规房点击客人准备；禁止 Quick Join、创建房间或开始游戏。",
+      "production_routes": [
+        {
+          "route": "lobby_hitch_search_ready",
+          "readiness": "CONDITIONAL"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "Mediator._tick_lobby_hitch(frame, context, room_start, stage_page)；默认探针最长 90 秒，桌面整链使用 --until-success 持续到准备成功。",
+      "max_probe_time_s": 90.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "s01_lobby_surface_identity",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "GROUND_TRUTH_ONLY",
+      "production_scope": "只采集 production 页面身份、Platform Modal Shell、Ready/CancelReady contract、WindowRole、HWND 与 capture generation；默认零输入。",
+      "production_routes": [
+        {
+          "route": "lobby_surface_classification",
+          "readiness": "GROUND_TRUTH_ONLY"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "NOT_INVOKED_GROUND_TRUTH_ONLY",
+      "ground_truth_only": true,
+      "production_entry": "每次 fresh capture 调用 production Mediator 的页面/弹窗/Ready detector；Scenario 只记录分类、HWND 连续性与 contract。",
+      "max_probe_time_s": 30.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "s02_lobby_platform_modal",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "只调用 production tick 的统一 Platform Modal Shell neutral Esc/X recovery；禁止所有正向业务按钮。",
+      "production_routes": [
+        {
+          "route": "platform_modal_neutral_dismiss",
+          "readiness": "CONDITIONAL"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "调用 production Mediator.tick()；只允许统一 Platform Modal Shell 的 neutral Esc/X dismiss。",
+      "max_probe_time_s": 60.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "s03_lobby_room_ready",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "真实 ROOM 中验证 production Ready/CancelReady contract；仅 ready contract=ready 允许 Ready，UNKNOWN 零输入。",
+      "production_routes": [
+        {
+          "route": "room_ready_contract",
+          "readiness": "CONDITIONAL"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "先由 production fresh-confirm ROOM，再读取 production Ready/CancelReady contract；仅在 ready contract=ready 时调用现有 Ready action。",
+      "max_probe_time_s": 60.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "s04_lobby_single_hwnd_room",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "GROUND_TRUTH_ONLY",
+      "production_scope": "只采集单 KK HWND/全屏 ROOM identity continuity 与 confirmed_room_hwnd；默认零输入。",
+      "production_routes": [
+        {
+          "route": "single_hwnd_room_continuity",
+          "readiness": "GROUND_TRUTH_ONLY"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "NOT_INVOKED_GROUND_TRUTH_ONLY",
+      "ground_truth_only": true,
+      "production_entry": "fresh capture 调用 production ROOM detector 与 confirmed_room_hwnd 归属；Scenario 默认零输入。",
+      "max_probe_time_s": 30.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "s05_lobby_search_join_ready",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "调用 production Lobby handler 完成搜索、Join、异常 modal neutral recovery、ROOM、Ready 与 CancelReady fresh-confirm；禁止 Quick Join/建房/开始。",
+      "production_routes": [
+        {
+          "route": "search_join_ready_chain",
+          "readiness": "CONDITIONAL"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "调用现有 production _tick_lobby_hitch；Harness 不复制搜索、座位、退出或弹窗 FSM。",
+      "max_probe_time_s": 600.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "s06_lobby_recovery_chain",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "在 S01–S05 通过后运行 10–20 分钟或至少 5 次 join attempt，统计 Lobby 恢复和零安全回归指标。",
+      "production_routes": [
+        {
+          "route": "lobby_recovery_soak",
+          "readiness": "CONDITIONAL"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "连续调用 production Mediator.tick()；所有 Lobby 输入、恢复、弹窗与 seat decision 均由 production handler 产生。",
+      "max_probe_time_s": 1200.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "public_backpack_deposit",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "K：局内 HUD 上物品栏除 1 号外至少两件可搬物；production 开包、物品栏→个人格→公共格、搬完关闭。公共格占用变化才算 probe PASS。",
+      "production_routes": [
+        {
+          "route": "public_backpack_deposit",
+          "readiness": "CONDITIONAL"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "Mediator._maybe_public_backpack_deposit：HUD 开包→物品栏右键→个人空格→个人右键→公共空格→关包。",
+      "max_probe_time_s": 120.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "hitch_runtime",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "从当前蹭车局随时接管：已确认 HUD 不再检查压力转移，直接复用自动任务、四挑战与既有战后存档/时光之穴/传家宝末位 Boss fallback。",
+      "production_routes": [
+        {
+          "route": "hitch_pressure_transfer",
+          "readiness": "CONDITIONAL"
+        },
+        {
+          "route": "hitch_auto_task_and_challenges",
+          "readiness": "CONDITIONAL"
+        },
+        {
+          "route": "hitch_postgame_boss_fallback",
+          "readiness": "CONDITIONAL"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "Mediator.tick()，从局内接管时跳过仅属于自然开局的压力转移，继续自动任务、四挑战与既有战后 Boss 路由。",
+      "max_probe_time_s": 3600.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "solo_ingame_chain",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "从 KK 地图/建房/房间或游戏内选关页接管真实 normal_farm；沿用正式看板自动建房，覆盖生产 L0、Hero setup、MAIN_LINE、局尾与既有秘境/Boss/存档/传家宝路线。",
+      "production_routes": [
+        {
+          "route": "solo_lobby_to_stage_to_hud",
+          "readiness": "CONDITIONAL"
+        },
+        {
+          "route": "solo_ingame_l1_policy_handlers",
+          "readiness": "CONDITIONAL"
+        },
+        {
+          "route": "solo_ingame_postgame_secret_or_boss",
+          "readiness": "CONDITIONAL"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "RuntimeMediator.tick() / Mediator.tick()，初始 phase=BOOT；production _tick_l0 完成地图→建房→房间→选关，之后继续既有 Hero setup、MAIN_LINE、局尾与秘境/Boss 路由。Harness 不复制建房或局内决策。",
+      "max_probe_time_s": 3600.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "hitch_lobby_chain",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "HITCH_FULL_NATURAL_E2E：从真实 ROOM_LIST 连续调用 production Mediator.tick()，覆盖搜房、Join、blocking modal recovery、ROOM/Ready、Pressure、局内黑商/宝物/背包、Victory/Failure、真实退出、fresh 回厅与下一轮；Public Backpack 在真实 GT 前只记录 GT_CAPTURE。",
+      "production_routes": [
+        {
+          "route": "production_lobby_hitch_search_join_ready",
+          "readiness": "CONDITIONAL"
+        },
+        {
+          "route": "production_hitch_pressure_and_ingame",
+          "readiness": "CONDITIONAL"
+        },
+        {
+          "route": "production_hitch_outcome_exit_lobby_return",
+          "readiness": "CONDITIONAL"
+        },
+        {
+          "route": "public_backpack_gt_capture",
+          "readiness": "BLOCKED_UNTIL_GT"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "Mediator.tick() → production _tick_l0/_tick_lobby_hitch/_tick_main_line；Harness 只采证据和汇总，不复制 Lobby/L1 FSM。",
+      "max_probe_time_s": 3600.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "choice_bond_skill",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "只调用现有面板 FSM / 打开羁绊或技能面板入口；PASS 需要 mutation 后置。",
+      "production_routes": [
+        {
+          "route": "production_panel_fsm_bond_skill",
+          "readiness": "CONDITIONAL"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "先调用现有 Mediator._tick_panel_fsm(frame, anchor, now)；若面板未打开，再调用 _maybe_open_choice_panel(frame)。不复制选卡策略。",
+      "max_probe_time_s": 45.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "treasure",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "只调用现有宝物面板入口；PASS 需要 mutation 后置。",
+      "production_routes": [
+        {
+          "route": "production_panel_fsm_treasure",
+          "readiness": "CONDITIONAL"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "现有 Mediator._tick_panel_fsm / _maybe_open_choice_panel；Harness 只把 cycle step 设为 treasure，不实现宝物策略。",
+      "max_probe_time_s": 45.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "hero_evolve",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "只进入 production 进化分支；PASS 需要 _evolve_feedback_seen 或英雄选择面板。",
+      "production_routes": [
+        {
+          "route": "production_click_evolve",
+          "readiness": "CONDITIONAL"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "现有 Mediator._tick_main_line(frame)；仅把 _l1_cycle_step 设为 evolve，让生产进化分支与 _evolve_feedback_seen 后置生效。",
+      "max_probe_time_s": 30.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "inventory_devour",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "只走现有吞噬丹 verifier。",
+      "production_routes": [
+        {
+          "route": "inventory_swallow_pill",
+          "readiness": "CONDITIONAL"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "Mediator._maybe_use_inventory_item(frame)；只接受 WAIT_DEVOUR_DAN 业务后置。",
+      "max_probe_time_s": 15.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "inventory_hero_card",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "只走现有英雄卡 WAIT_HERO_CHOICE verifier。",
+      "production_routes": [
+        {
+          "route": "inventory_hero_card",
+          "readiness": "CONDITIONAL"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "Mediator._maybe_use_inventory_item(frame)；只接受 WAIT_HERO_CHOICE 业务后置。",
+      "max_probe_time_s": 15.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    },
+    {
+      "target": "archive_challenge",
+      "harness_readiness": "READY",
+      "harness_missing": [],
+      "production_readiness": "CONDITIONAL",
+      "production_scope": "复用现有 main-line 战后链：从挑战广场自动打开存档 NPC，或在已打开面板消费 1~8 卡位；PASS 必须看到挑战 HUD/后续业务页，而不是 click success。",
+      "production_routes": [
+        {
+          "route": "archive_challenge_1_to_8",
+          "readiness": "CONDITIONAL"
+        }
+      ],
+      "production_missing": [],
+      "production_prerequisites": [],
+      "production_entry_status": "PRESENT",
+      "ground_truth_only": false,
+      "production_entry": "Mediator._tick_main_line(frame)：NPC_HUB→OpenArchiveChallenges→ARCHIVE_PANEL 打卡→关闭；Harness 不实现开面板也不实现卡位策略。",
+      "max_probe_time_s": 30.0,
+      "capture": "READY",
+      "bookmark": "READY",
+      "tested_sha": "ff0d7ca948084f598a76877f5a080595dd4de840",
+      "failure_summary": "READY",
+      "replay_conversion": "READY"
+    }
+  ]
+}

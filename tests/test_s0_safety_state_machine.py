@@ -473,8 +473,11 @@ class S0PanelFsmTests(unittest.TestCase):
                 patch.object(med, "_ensure_auto_task_enabled", return_value=None), \
                 patch.object(med, "_ensure_challenge_buttons", return_value=None), \
                 patch.object(med, "_find_stage_page", return_value=False), \
+                patch.object(med, "_is_in_game_hud", return_value=True), \
                 patch.object(med, "_handle_self_opened_compact_panel", return_value=None), \
                 patch.object(med, "_maybe_fire_artifacts", return_value=None), \
+                patch.object(med, "_maybe_use_inventory_item", return_value=None), \
+                patch.object(med, "_hud_item_bar_overflowed", return_value=False), \
                 patch.object(med, "act_click", side_effect=lambda _h, reason="": clicked.append(reason) or True):
             # tick1：主动打开技能面板（G）
             clock.set(100.5)
@@ -508,8 +511,11 @@ class S0PanelFsmTests(unittest.TestCase):
                 patch.object(med2, "_ensure_auto_task_enabled", return_value=None), \
                 patch.object(med2, "_ensure_challenge_buttons", return_value=None), \
                 patch.object(med2, "_find_stage_page", return_value=False), \
+                patch.object(med2, "_is_in_game_hud", return_value=True), \
                 patch.object(med2, "_handle_self_opened_compact_panel", return_value=None), \
                 patch.object(med2, "_maybe_fire_artifacts", return_value=None), \
+                patch.object(med2, "_maybe_use_inventory_item", return_value=None), \
+                patch.object(med2, "_hud_item_bar_overflowed", return_value=False), \
                 patch.object(med2, "act_click", side_effect=lambda _h, reason="": clicked2.append(reason) or True):
             clock2.set(200.5)
             med2.tick()  # 打开

@@ -869,6 +869,8 @@ class NegativeTreasureGroup(QGroupBox):
         "杀敌梭哈": "收益中断",
         "伐木契约": "之后不再获得木材",
         "等级优势": "立即获得当前等级×10的全属性；卡面未见副作用，完整描述待补帧",
+        "诅咒之力": "造成的所有伤害×1.75，自身受到诅咒，恢复效果-99%，护甲-10000；默认不拿",
+        "提高上限": "攻击间隔-0.2，攻速-200%；[1星效果]普攻伤害+5%；默认不拿",
     }
 
     def __init__(self, names: list[str], prefix: str = "", parent=None):
@@ -2188,7 +2190,12 @@ class MainWindow(QMainWindow):
             else self.skill_grid.get_skills()
         )
         self.launch_check.setText("\n".join(lines))
-        action_labels = {"solo": "去单人刷票", "arch": "去考古", "hitch": "转为大厅蹭车"}
+        action_labels = {
+            "solo": "去单人刷票",
+            "arch": "去考古",
+            "end": "直接结束",
+            "hitch": "转为大厅蹭车",
+        }
         for mode_id, check in getattr(self, "team_launch_checks", {}).items():
             if mode_id == "follow_team":
                 cycle = int(self.spn_follow_cycle_num.value())
@@ -2809,6 +2816,7 @@ class MainWindow(QMainWindow):
         self.cmb_hitch_after_goal.setFixedHeight(40)
         self.cmb_hitch_after_goal.addItem("去单人刷票", "solo")
         self.cmb_hitch_after_goal.addItem("去考古", "arch")
+        self.cmb_hitch_after_goal.addItem("直接结束", "end")
         form.addWidget(self.cmb_hitch_after_goal, 1, 1)
         form.setColumnStretch(0, 1)
         form.setColumnStretch(1, 1)
@@ -3766,6 +3774,9 @@ class MainWindow(QMainWindow):
         self._runtime_phase = phase
         self._ocr_status = ocr_status
         self._last_action = last_action or self._last_action
+        stats_text = ""
+        if hasattr(mediator, "format_hitch_stats_progress"):
+            stats_text = mediator.format_hitch_stats_progress()
         if self.overlay_hud is not None:
             target, mode, strategy, cycle = self._runtime_display_context()
             self.overlay_hud.anchor_to_target(getattr(mediator, "_last_frame", None))
@@ -3773,6 +3784,7 @@ class MainWindow(QMainWindow):
                 True, phase, ocr_status, self._game_count, cycle,
                 self._terminal_reason, self._last_action,
                 target=target, mode=mode, strategy=strategy,
+                stats_text=stats_text,
             )
         self._refresh_progress()
 
@@ -4115,9 +4127,13 @@ class MainWindow(QMainWindow):
         terminal_reason: str = "",
         ocr_status: str = "",
         last_action: str = "",
+        stats_text: str = "",
     ):
         self._game_count = int(game_count or 0)
         self._runtime_phase = str(phase or "IDLE")
+        if stats_text:
+            self._last_stats_text = stats_text
+        current_stats = stats_text or getattr(self, "_last_stats_text", "")
         if running:
             self._terminal_reason = ""
             if ocr_status:
@@ -4133,7 +4149,8 @@ class MainWindow(QMainWindow):
             self.lbl_run_status.setText("待命" if reason in {"待命", "待命中"} else reason)
             self.lbl_run_status.setStyleSheet("")
             self.lbl_run_status.setProperty("state", "idle")
-            self.lbl_summary.setText(f"已停止：{reason}")
+            summary_msg = f"已停止：{current_stats}" if current_stats else f"已停止：{reason}"
+            self.lbl_summary.setText(summary_msg)
         self.lbl_run_status.setStyle(self.lbl_run_status.style())
         if self.overlay_hud is not None:
             target, mode, strategy, cycle = self._runtime_display_context()
@@ -4141,6 +4158,7 @@ class MainWindow(QMainWindow):
                 bool(running), self._runtime_phase, self._ocr_status,
                 self._game_count, cycle, self._terminal_reason, self._last_action,
                 target=target, mode=mode, strategy=strategy,
+                stats_text=current_stats,
             )
         self._refresh_progress()
         self._refresh_chrome()
@@ -4454,14 +4472,20 @@ class MainWindow(QMainWindow):
     def _on_worker_finished(self) -> None:
         self._status_timer.stop()
         worker = self.worker_thread
-        count = int(getattr(getattr(worker, "mediator", None), "game_count", 0) or 0)
+        mediator = getattr(worker, "mediator", None)
+        count = int(getattr(mediator, "game_count", 0) or 0)
         reason = str(getattr(worker, "terminal_reason", "") or self._terminal_reason or "任务已停止")
         phase = str(getattr(worker, "phase", "IDLE") or "IDLE")
         ocr_status = str(getattr(worker, "ocr_status", "") or self._ocr_status)
         last_action = str(getattr(worker, "last_action", "") or self._last_action)
+        stats_summary = ""
+        if mediator is not None and hasattr(mediator, "format_hitch_stats_summary"):
+            stats_summary = mediator.format_hitch_stats_summary()
+        if stats_summary:
+            self.log(f"[统计] 蹭车战绩：{stats_summary}", "info")
         self.runner.release_after_finish()
         self.worker_thread = None
-        self.update_status(False, phase, count, reason, ocr_status, last_action)
+        self.update_status(False, phase, count, reason, ocr_status, last_action, stats_text=stats_summary)
         self.showNormal()
         self.raise_()
 

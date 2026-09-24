@@ -175,6 +175,13 @@ function Resolve-OcrModelDir {
 }
 
 function Read-HarnessSettingsSource {
+    param([switch]$RequireDashboard)
+    # Resolve on each launch: a dashboard settings file may have been saved
+    # after this launcher window opened.
+    $script:OperatorSettingsPath = Resolve-OperatorSettingsPath
+    if ($RequireDashboard -and -not $script:OperatorSettingsPath) {
+        throw "12 号需要正式看板 user_settings.json；请先在刷刷宝看板保存单人配置。"
+    }
     $source = if ($script:OperatorSettingsPath) { $script:OperatorSettingsPath } else { Join-Path $RepoRoot "config\default_settings.json" }
     try {
         $raw = [System.IO.File]::ReadAllText($source, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
@@ -197,8 +204,35 @@ function Save-HarnessSettingsCopy {
 }
 
 function New-DashboardSettingsSnapshot {
-    $loaded = Read-HarnessSettingsSource
+    param([switch]$RequireDashboard)
+    $loaded = Read-HarnessSettingsSource -RequireDashboard:$RequireDashboard
     $path = Save-HarnessSettingsCopy $loaded.Value
+    Write-Host "[launcher] 已只读复制正式看板设置：$($loaded.Path)" -ForegroundColor DarkGray
+    Write-Host "[launcher] 本次隔离设置副本：$path" -ForegroundColor DarkGray
+    return $path
+}
+
+function New-HitchE2ESettingsSnapshot {
+    # 当前 13 号默认做一局退出→考古切入验证；需要长链时设置
+    # SHUABAO_HITCH_E2E_ROUNDS=5。正式 user_settings.json 不会被改写。
+    # 只改临时副本，正式 user_settings.json 保持不变；capture observer 与
+    # production Mediator 都从这份副本读取同一个局数 + archaeology 契约。
+    $loaded = Read-HarnessSettingsSource
+    $rounds = 1
+    $roundsText = [string]$env:SHUABAO_HITCH_E2E_ROUNDS
+    if (-not [string]::IsNullOrWhiteSpace($roundsText)) {
+        $parsedRounds = 0
+        if (-not [int]::TryParse($roundsText.Trim(), [ref]$parsedRounds) -or $parsedRounds -lt 1 -or $parsedRounds -gt 100) {
+            throw "SHUABAO_HITCH_E2E_ROUNDS 必须是 1-100 的整数：$roundsText"
+        }
+        $rounds = $parsedRounds
+    }
+    $loaded.Value.hitch_cycle_num = $rounds
+    $loaded.Value.cycle_num = $rounds
+    $loaded.Value.hitch_after_goal = "arch"
+    $loaded.Value.auto_archaeology = $true
+    $path = Save-HarnessSettingsCopy $loaded.Value
+    Write-Host "[launcher] 13 号试跑契约：hitch_cycle_num=$rounds, hitch_after_goal=arch" -ForegroundColor DarkGray
     Write-Host "[launcher] 已只读复制正式看板设置：$($loaded.Path)" -ForegroundColor DarkGray
     Write-Host "[launcher] 本次隔离设置副本：$path" -ForegroundColor DarkGray
     return $path
@@ -533,23 +567,57 @@ function Invoke-HitchRuntimeCapture {
 
 function Invoke-HitchLobbyChainCapture {
     Assert-ReadyForGt
+    $settingsPath = New-HitchE2ESettingsSnapshot
+    # Duration is bounded for both the default one-round handoff trial and
+    # an optional longer run selected by SHUABAO_HITCH_E2E_ROUNDS.  Overnight
+    # runs raise the bound via SHUABAO_HITCH_E2E_DURATION_S (1800-43200).
+    $durationS = 10800
+    $maxTicks = 60000
+    $durationText = [string]$env:SHUABAO_HITCH_E2E_DURATION_S
+    if (-not [string]::IsNullOrWhiteSpace($durationText)) {
+        $parsedDuration = 0
+        if (-not [int]::TryParse($durationText.Trim(), [ref]$parsedDuration) -or $parsedDuration -lt 1800 -or $parsedDuration -gt 43200) {
+            throw "SHUABAO_HITCH_E2E_DURATION_S 必须是 1800-43200 的整数：$durationText"
+        }
+        $durationS = $parsedDuration
+        $maxTicks = [int][Math]::Max(60000, [Math]::Ceiling($durationS / 0.15))
+    }
+    Write-Host "[launcher] 13 号时长上限：duration=${durationS}s, max_ticks=$maxTicks" -ForegroundColor DarkGray
     $cliArgs = @(
         "capture",
         "--target", "hitch_lobby_chain",
         "--out", $script:CaptureRoot,
         "--repo-root", $RepoRoot,
-        # 5 full hitch rounds (hitch_cycle_num=5) do not fit in one hour.
-        "--duration", "10800",
-        "--max-ticks", "60000",
+        "--duration", "$durationS",
+        "--max-ticks", "$maxTicks",
         "--interval", "0.15",
         "--continue-after-failure",
         "--generate"
     )
     $cliArgs += @(Get-LiveRuntimeArgs)
-    if ($script:OperatorSettingsPath) {
-        $cliArgs += @("--settings", $script:OperatorSettingsPath)
-    }
+    $cliArgs += @("--settings", $settingsPath)
     Write-Host "[launcher] PRIMARY HITCH_FULL_NATURAL_E2E：production Mediator.tick() 连续大厅蹭车链；Harness 不复制 FSM" -ForegroundColor Cyan
+    Write-Host "[launcher] 试跑验收：$rounds 局蹭车退出 + fresh 考古锚点确认后退出脚本" -ForegroundColor Cyan
+    Invoke-CaptureTool $cliArgs
+}
+
+function Invoke-HitchRoomArchaeologyHandoffCapture {
+    Assert-ReadyForGt
+    $settingsPath = New-DashboardSettingsSnapshot
+    $cliArgs = @(
+        "capture",
+        "--target", "hitch_lobby_chain",
+        "--current-room-archaeology",
+        "--out", $script:CaptureRoot,
+        "--repo-root", $RepoRoot,
+        "--duration", "600",
+        "--max-ticks", "5000",
+        "--interval", "0.15",
+        "--generate"
+    )
+    $cliArgs += @(Get-LiveRuntimeArgs)
+    $cliArgs += @("--settings", $settingsPath)
+    Write-Host "[launcher] 当前房间短链：自己先放到一楼；退出旧房→自建房→选关→考古" -ForegroundColor Cyan
     Invoke-CaptureTool $cliArgs
 }
 
@@ -576,7 +644,7 @@ function Invoke-SoloIngameChainCapture {
     $settingsPath = $script:HarnessSettingsPath
     $script:HarnessSettingsPath = $null
     if (-not $settingsPath -or -not (Test-Path -LiteralPath $settingsPath -PathType Leaf)) {
-        $settingsPath = New-DashboardSettingsSnapshot
+        $settingsPath = New-DashboardSettingsSnapshot -RequireDashboard
     } else {
         Write-Host "[launcher] 本次使用已保存的临时覆盖：$settingsPath" -ForegroundColor DarkGray
     }
@@ -593,6 +661,26 @@ function Invoke-SoloIngameChainCapture {
     $cliArgs += @(Get-LiveRuntimeArgs)
     $cliArgs += @("--settings", $settingsPath)
     Write-Host "[launcher] 单人完整链路：沿用正式看板自动建房/局数/关卡；production 从大厅建房→选关→局内→战后" -ForegroundColor Cyan
+    Invoke-CaptureTool $cliArgs
+}
+
+function Invoke-SoloDirectArchaeologyCapture {
+    Assert-ReadyForGt
+    $settingsPath = New-DashboardSettingsSnapshot
+    $cliArgs = @(
+        "capture",
+        "--target", "solo_ingame_chain",
+        "--direct-archaeology",
+        "--out", $script:SoloCaptureRoot,
+        "--repo-root", $RepoRoot,
+        "--duration", "600",
+        "--max-ticks", "5000",
+        "--interval", "0.15",
+        "--generate"
+    )
+    $cliArgs += @(Get-LiveRuntimeArgs)
+    $cliArgs += @("--settings", $settingsPath)
+    Write-Host "[launcher] 单人考古直达：production 建房→选关→点击考古→fresh kaogu 锚点确认" -ForegroundColor Cyan
     Invoke-CaptureTool $cliArgs
 }
 
@@ -850,11 +938,13 @@ Add-MenuButton "单项实机测试`r`n    A-K 只调 production handler" 24 442 
 Add-MenuButton "9  打开最新 FAIL bundle`r`n    直接查看最近失败/阻塞证据" 390 442 { Open-LatestFailBundle } $blue
 Add-MenuButton "10 Reproduce 最新 FAIL`r`n    进入 Frozen Replay（离线回归）" 24 528 { Reproduce-LatestFail } $blue
 Add-MenuButton "单人临时设置（可选）`r`n    仅覆盖下一次 12；默认读取正式看板" 390 528 { Invoke-SoloSettingsPanel } $yellow
+Add-MenuButton "14 单人考古直达`r`n    建房→选关→直接考古；fresh 锚点确认" 24 586 { Invoke-SoloDirectArchaeologyCapture } $(if ($script:ReadyForGt) { $green } else { $locked })
+Add-MenuButton "15 当前房间短链`r`n    一楼→退出旧房→自建房→考古" 390 586 { Invoke-HitchRoomArchaeologyHandoffCapture } $(if ($script:ReadyForGt) { $green } else { $locked })
 
 $exitButton = New-Object System.Windows.Forms.Button
 $exitButton.Text = "关闭菜单"
 $exitButton.Size = New-Object System.Drawing.Size(706, 44)
-$exitButton.Location = [System.Drawing.Point]::new(24, 624)
+$exitButton.Location = [System.Drawing.Point]::new(24, 676)
 $exitButton.Add_Click({ $script:MenuForm.Close() })
 $script:MenuForm.Controls.Add($exitButton)
 
@@ -862,7 +952,7 @@ $footer = New-Object System.Windows.Forms.Label
 $footer.Text = "注意：不要同时启动普通刷刷宝。UNKNOWN / 窗口身份不可信时 ZERO INPUT。点击测试按钮后本窗口暂时隐藏。"
 $footer.AutoSize = $false
 $footer.Size = New-Object System.Drawing.Size(700, 48)
-$footer.Location = [System.Drawing.Point]::new(24, 680)
+$footer.Location = [System.Drawing.Point]::new(24, 730)
 $footer.ForeColor = [System.Drawing.Color]::Firebrick
 $script:MenuForm.Controls.Add($footer)
 

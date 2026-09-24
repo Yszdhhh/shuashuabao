@@ -1,0 +1,15 @@
+      for line in stream:
+  ValueError: I/O operation on closed file.
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_habit_preference.py::HabitTieBreakTests::test_habit_path_uses_shuabao_appdata
+FAILED tests/test_live_harness_refresh.py::test_identity_uses_current_worktree_not_old_runtime
+FAILED tests/test_live_harness_refresh.py::test_production_code_diff_gate_is_clean_on_this_worktree
+FAILED tests/test_live_harness_refresh.py::test_fail_bundle_schema_includes_identity_and_window
+FAILED tests/test_ocr_production_bundle.py::test_frozen_bundle_resolves_worker_and_model
+5 failed, 2252 passed, 13 skipped, 2 xfailed, 2 warnings, 213 subtests passed in 816.36s (0:13:36)

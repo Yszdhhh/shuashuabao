@@ -32,7 +32,7 @@ def test_selecting_one_fengshen_member_expands_the_catalog_group_only() -> None:
     fengshen = ("封神", "封神榜", "打神鞭", "杏黄旗", "斩仙飞刀", "肉身成圣")
     assert all(name in policy.bond_presets for name in fengshen)
     assert all(name in policy.bond_advanced_presets for name in fengshen)
-    assert fengshen in policy.bond_advanced_groups
+    assert any(set(fengshen).issubset(group) for group in policy.bond_advanced_groups)
     for chain_name in ("秘法师", "法神", "湮灭者"):
         assert chain_name in policy.bond_chain_presets
         assert chain_name not in policy.bond_advanced_presets

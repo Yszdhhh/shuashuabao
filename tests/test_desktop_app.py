@@ -1157,13 +1157,14 @@ class DesktopPanelTests(unittest.TestCase):
         """勾选 → collect → apply 往返一致；放行是逐卡的，不牵连其它卡。"""
         group = self.window.grp_negative
         self.assertNotIn("金转木", group._boxes, "金转木由后台策略处理，不在面板勾选")
-        self.assertIn("等级优势", group._boxes)
-        group.set_allowed(["等级优势"])
+        self.assertNotIn("等级优势", group._boxes, "等级优势 Owner 2026-09-22 移出默认不拿")
+        self.assertIn("诅咒之力", group._boxes)
+        group.set_allowed(["诅咒之力"])
         collected = self.window.collect_settings_from_ui()
-        self.assertEqual(["等级优势"], collected.treasure_allow_negative)
+        self.assertEqual(["诅咒之力"], collected.treasure_allow_negative)
 
         self.window.apply_settings_to_ui(collected)
-        self.assertEqual(["等级优势"], self.window.grp_negative.get_allowed())
+        self.assertEqual(["诅咒之力"], self.window.grp_negative.get_allowed())
         self.assertFalse(
             self.window.grp_negative._boxes["透支力量"].isChecked(),
             "放行一张不得连带放行其它负面宝物",
@@ -1205,8 +1206,6 @@ class DesktopPanelTests(unittest.TestCase):
         group = self.window.grp_negative
         self.assertIn("收益待验证", group._boxes["贪婪献祭"].toolTip())
         self.assertNotIn("长期期望为负", group._boxes["贪婪献祭"].toolTip())
-        self.assertIn("卡面未见副作用", group._boxes["等级优势"].toolTip())
-        self.assertNotIn("之后不再升级", group._boxes["等级优势"].toolTip())
         self.assertEqual([], self.window.collect_settings_from_ui().treasure_allow_negative)
 
     def test_exact_stage_and_solo_defaults_are_fixed(self):
@@ -1622,6 +1621,14 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertEqual("hitch", self.window.cmb_follow_after_room.currentData())
         self.assertEqual("arch", self.window.cmb_hitch_after_goal.currentData())
         self.assertEqual("双端-01", self.window.txt_follow_pair_code.text())
+
+        self.window.cmb_hitch_after_goal.setCurrentIndex(
+            self.window.cmb_hitch_after_goal.findData("end")
+        )
+        end_settings = self.window.collect_settings_from_ui()
+        self.assertEqual("end", end_settings.hitch_after_goal)
+        self.window.apply_settings_to_ui(end_settings)
+        self.assertEqual("end", self.window.cmb_hitch_after_goal.currentData())
 
     def test_team_mode_projects_its_own_target_into_runner_snapshot(self):
         from shuabao.shell.runner_service import RunnerService

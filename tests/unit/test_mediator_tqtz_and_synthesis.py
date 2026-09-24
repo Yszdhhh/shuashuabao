@@ -74,9 +74,8 @@ def test_treasure_yazhi_negative_ban_by_default():
     )
     session = SessionState()
     dec = choose_action(cands, session)
-    # 压制被 ban，降级选 全能神符
-    assert dec.action == PolicyAction.SELECT_SLOT
-    assert dec.index == 1
+    # 单人模式既不拿负面宝物，也不拿神符。
+    assert dec.action == PolicyAction.CLOSE
 
 
 def test_global_treasure_must_take_still_outranks_talisman():
