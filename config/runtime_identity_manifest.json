@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "81ff1a82799784fb53462acafdc27f542285648a",
-  "anchored_at": "2026-09-24T00:21:00+08:00",
-  "branch": "fix/desktop-sync-20260923",
-  "note": "Anchor candidate after Dasheng EX chain, choice stall fix, and evolve interleave"
+  "candidate_sha": "8a0266db1d0f8b5010ce9b966cf37cd27cfb4c91",
+  "anchored_at": "2026-09-24T17:34:37+08:00",
+  "branch": "claude/project-thread-fqyf7h",
+  "note": "Unified #39 candidate: Owner 09-24 decisions, regression fixes, F2 battle view, Owner in-game rule lock"
 }
