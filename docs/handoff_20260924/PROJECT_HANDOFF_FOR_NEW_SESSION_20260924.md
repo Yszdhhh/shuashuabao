@@ -71,7 +71,8 @@
 
 - 不在 main 上提交，不直接推 main；main 只经 PR 的 merge commit 前进。
 - 一个 commit 只动一层：L0 大厅、L1 局内、恢复与战后、感知、外壳。
-- 提交前本机过 `python tools/release_gate.py`；不改快照 `docs/baselines/GATE_BASELINE.json` 来让门禁变绿，`--update-baseline` 必须带 `--reason`。
+- 纯资料提交（只改 `docs/`、`fixtures/live_captures/`）不跑门禁，只跑 `python tools/check_material_commit.py`（AGENTS.md §1.1，Owner 09-24）。
+- 其它提交前本机过 `python tools/release_gate.py`；不改快照 `docs/baselines/GATE_BASELINE.json` 来让门禁变绿，`--update-baseline` 必须带 `--reason`。
 - 改局内状态字段时同步 C2 契约的 `INGAME_POLLUTION` 清单。
 - 进房 / 建房禁止颜色兜底（契约 C4）；不得用合成帧冒充真机证据。
 - 看不到锚点就零输入等待（fail-closed），不要"卡住就连按 Esc"或盲点固定坐标。
@@ -91,7 +92,9 @@
   - 截大圣再临、海贼王的卡族标题（两者已登记为 `pending_live_capture`）。
 - 本机交接材料惯例放在 `G:\刷刷宝\handoff_prompts\`（云端看不到）。
 
-## 7. 待 Owner 决策的两个问题
+## 7. 待 Owner 决策的两个问题（09-24 晚已答复）
+
+答复（Owner 2026-09-24）：EX 靠合成链得到，不从面板拿；同一时刻只推进一组高级卡组，羁绊栏出现蓝色 EX（海盗为 UR）才解锁下一组，不设基础 80% 等硬门槛。实现见 `CURRENT_STATUS_AND_HANDOFF_20260924_UNIFIED.md` 末节。原问题保留如下：
 
 来自 `CARD_FAMILY_PICKUP_AUDIT_20260924.md` 第二节第 3、4 条：
 
@@ -116,10 +119,14 @@ GPT 的 PR 由接手的 Claude 审查，Owner 在 GitHub 上合。
 
 ## 10. 下一步
 
+**09-24 晚进度**：Owner 新规则（拿卡顺序、单组推进到 EX、吞噬丹 6/10 与亡灵例外、插队黑商、木材三档）和 EX 模板已并入 fqyf7h；
+单人调度链路见 `SOLO_SCHEDULING_CHAIN_20260924.md`；本地第四轮按 `LOCAL_ROUND4_PROMPT_20260924.md` 实测。
+下面第 2、4 步已完成（登记进规则锁 20–28），第 1 步改为等第四轮回传。
+
 按顺序：
 
 1. 等本机续跑回传（`local/quicktest-20260924b` 的 PR 或 #40 的后续）：门禁结果、快照刷新、19 条规则核对、两局 trace。出现真实失败就抽帧固化成夹具再修。
-2. 主线第二块：给刀刀、修仙、海盗、亡灵各补一条端到端拿取锁定测试（真实配置、按看板勾选方式、从首卡拿到终卡），并登记进规则锁表。这一步云端就能做。
+2. 主线第二块：给刀刀、修仙、海盗、亡灵各补一条端到端拿取锁定测试（真实配置、按看板勾选方式、从首卡拿到终卡），并登记进规则锁表。**09-24 测试已补**（`tests/test_slow_pack_pickup_lock_20260924.py`），登记进规则锁表待 Owner 同意。
 3. 实机截到卡顶标题后：海盗补藏宝图等成员进白名单，修仙确认练气期等卡的标题；大圣再临、海贼王补标题模板。
 4. 等 Owner 回答第 7 节的两个问题后实现。
 5. 主线第三块：业务进度看门狗、跨局健康统计、通知。

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "4e0b91744ed29b25c8cb46dbdbfe74f97298e06d",
-  "anchored_at": "2026-09-24T20:04:12+08:00",
+  "candidate_sha": "5a23ce4c742e5ebb601e7a610697e2e6975726e1",
+  "anchored_at": "2026-09-25T00:40:00+08:00",
   "branch": "claude/project-thread-fqyf7h",
-  "note": "Unified #39 candidate: Owner 09-24 decisions, rule lock, OCR reader shutdown fix"
+  "note": "Owner 09-24 late rules (pick order, one pack until EX, devour 6/10 with undead hold, urgent merchant, wood 500) + bond-bar EX templates"
 }

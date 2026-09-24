@@ -25,7 +25,7 @@
   "bond": {
     "whitelist_mode": "hard",
     "_whitelist_source": "Settings.bonds + Settings.cards（看板羁绊配置）",
-    "_note": "看板保存后使用严格白名单：只拿用户选中的羁绊家族与卡组。已选异火/大圣/封神卡组在卡出现时优先持续推进，不等待基础卡 80%；其他高级卡仍按原门槛与单组规则。",
+    "_note": "看板保存后使用严格白名单：只拿用户选中的羁绊家族与卡组。Owner 2026-09-24：高级卡组不设硬门槛；同一时刻只推进一组，羁绊栏出现蓝色 EX（海盗为 UR）后解锁下一组；同页有还没拿到的勾选基础羁绊时先拿基础。base_completion_ratio / advanced_unlock_s 只用于调度（木材 ≥500 时基础羁绊未成型先点 F），不再拦拿卡。",
     "base_completion_ratio": 0.8,
     "advanced_names": [
       "刀刀",
@@ -231,7 +231,7 @@
     ],
     "must_take_names": [],
     "advanced_unlock_s": 480,
-    "_advanced_unlock_note": "2026-09-15：基础卡门槛（base_completion_ratio）的时间兜底。实机 000229 碰到 10/13 个基础家族后木材见底，门槛再没解开，封神/海盗一张没拿；开局 8 分钟后高级卡组不再等基础卡。待 A/B 实测校准。"
+    "_advanced_unlock_note": "2026-09-15 起是基础卡门槛（base_completion_ratio）的时间兜底；Owner 2026-09-24 取消拿卡硬门槛后，只用来结束调度上的\"基础羁绊未成型，F 优先\"。"
   },
   "treasure": {
     "refresh_on_no_safe": true,

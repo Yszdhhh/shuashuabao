@@ -11,7 +11,6 @@ from shuabao.choice_policy import (
     SlotCandidate,
     WHITELIST_HARD,
     _active_advanced_presets,
-    _bond_base_ready,
     _is_bond_must_take,
     canonical_bond_identity,
     choose_action,
@@ -61,47 +60,25 @@ def test_bond_must_take_no_substring_pollution():
     assert dec.action != PolicyAction.SELECT_SLOT or dec.index != 0
 
 
-def test_bond_base_ready_no_substring_inflation():
-    """80% 基础羁绊完成度检查不因包含子串而虚假计入已完成。"""
-    settings = PolicySettings(
-        bond_base_presets=("海盗", "力量"),
-        bond_advanced_presets=("修仙",),
-        bond_base_completion_ratio=0.8,
-    )
-    # 拥有白赚海盗和力量提升，不等于拥有海盗和力量
-    cands_falsy = PanelCandidates(
-        panel_kind=PANEL_BOND,
-        slots=(),
-        owned_bond_cards=("白赚海盗", "力量提升"),
-        settings=settings,
-    )
-    assert not _bond_base_ready(cands_falsy, settings)
-
-    # 真正拥有海盗和力量
-    cands_truth = PanelCandidates(
-        panel_kind=PANEL_BOND,
-        slots=(),
-        owned_bond_cards=("海盗", "力量"),
-        settings=settings,
-    )
-    assert _bond_base_ready(cands_truth, settings)
-
-
-def test_active_advanced_presets_no_substring_inflation():
-    """高级卡组进度计算不因持有子串卡而错误推进。"""
+def test_active_advanced_pack_only_moves_on_after_its_ex():
+    """Owner 2026-09-24：换组只看羁绊栏上的 EX 数；持有材料（含子串同名卡）都不换组。"""
     settings = PolicySettings(
         bond_advanced_groups=(("海盗", "探险"), ("封神", "修仙")),
         bond_base_completion_ratio=1.0,
     )
-    # 拥有白赚海盗，不满足第一组 ("海盗", "探险")
-    cands = PanelCandidates(
-        panel_kind=PANEL_BOND,
-        slots=(),
-        owned_bond_cards=("白赚海盗",),
-        settings=settings,
-    )
-    active = _active_advanced_presets(cands, settings)
-    assert active == ("海盗", "探险")
+    for owned in (("白赚海盗",), ("海盗", "探险")):
+        cands = PanelCandidates(
+            panel_kind=PANEL_BOND,
+            slots=(),
+            owned_bond_cards=owned,
+            settings=settings,
+        )
+        assert _active_advanced_presets(cands, settings) == ("海盗", "探险")
+    for done, expected in ((1, ("封神", "修仙")), (5, ("封神", "修仙"))):
+        cands = PanelCandidates(
+            panel_kind=PANEL_BOND, slots=(), settings=settings, completed_advanced_groups=done,
+        )
+        assert _active_advanced_presets(cands, settings) == expected
 
 
 def test_runtime_mediator_stages_policy_authorized_nonpreset_bond_card():

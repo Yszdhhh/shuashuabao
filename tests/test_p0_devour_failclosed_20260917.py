@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """P0-2：低占用不吞丹；用户 2026-09-23 授权近满时使用。
 
-普通丹仍尊重 auto_devour_dan，羁绊栏 8/10 起允许使用；弹窗与未知
+Owner 2026-09-24：单人默认吃吞噬丹（看板不加开关，不再看 auto_devour_dan），
+羁绊栏超过一半（≥6/10）就吃；吞噬只提前腾格子，不影响合成进度。弹窗与未知
 道具由单人物品栏调度另行处理。本文件只运行 mock 输入。
 
 本文件零真实输入：executor 一律换成 MagicMock 记录器，任何一次真的
@@ -122,22 +123,59 @@ def test_saved_true_is_preserved_and_missing_key_falls_back_to_disabled(tmp_path
 # ---------------------------------------------------------------- the gate
 
 
-def test_real_gate_waits_until_bond_bar_nearly_full() -> None:
+def test_real_gate_waits_until_bond_bar_is_over_half() -> None:
     med = _med(CoreMediator)
-    for occupied in (4, 5, 6):
+    for occupied in (3, 4, 5):
         frame = _bond_frame(occupied)
         assert med._bond_bar_occupancy(frame) == occupied
         assert med._can_consume_inventory_swallow_pill(frame) is False
-    for occupied in (8, 9, 10):
+    for occupied in (6, 8, 10):
         assert med._can_consume_inventory_swallow_pill(_bond_frame(occupied)) is True
+
+
+@pytest.mark.parametrize("cls", [CoreMediator, RuntimeMediator])
+def test_solo_eats_pill_over_half_even_with_saved_false(cls) -> None:
+    med = _med(cls, auto_devour_dan=False)
+    pill = MatchResult("danGif", 0.95, 1100, 780, 20, 20, 1100, 780)
+    with _pill_only_find(med, pill), patch.object(med, "act_click", return_value=True) as click:
+        assert med._maybe_use_inventory_item(_bond_frame(6)) is LoopAction.Continue
+    click.assert_called_once_with(pill, "UseInventory-swallow_pill")
+
+
+UNDEAD = ["亡灵", "亡灵天灾", "白骨复生", "魂火收割", "巫妖之躯"]
+
+
+@pytest.mark.parametrize("cls", [CoreMediator, RuntimeMediator])
+def test_undead_pack_in_progress_holds_the_pill(cls) -> None:
+    """Owner 2026-09-24：只有亡灵例外——提前吞掉倒计时卡会断碎片，兵主合成不了。"""
+    med = _med(cls, bonds=["经济"], cards=UNDEAD)
+    pill = MatchResult("danGif", 0.95, 1100, 780, 20, 20, 1100, 780)
+    med._bond_cards_owned = ["经济", "亡灵天灾"]
+    assert med._devour_hold_reason() is not None
+    with _pill_only_find(med, pill), patch.object(med, "act_click", return_value=True) as click:
+        med._maybe_use_inventory_item(_bond_frame(8))
+    assert not [c for c in click.call_args_list if c.args[1] == "UseInventory-swallow_pill"]
+
+    # 兵主已出（羁绊栏数到第 1 张 EX）→ 恢复吃丹。
+    med._advanced_groups_completed = 1
+    assert med._devour_hold_reason() is None
+    with _pill_only_find(med, pill), patch.object(med, "act_click", return_value=True) as click:
+        med._maybe_use_inventory_item(_bond_frame(8))
+    click.assert_called_once_with(pill, "UseInventory-swallow_pill")
+
+
+def test_undead_selected_but_not_started_does_not_hold() -> None:
+    med = _med(CoreMediator, bonds=["经济"], cards=UNDEAD)
+    med._bond_cards_owned = ["经济"]
+    assert med._devour_hold_reason() is None
 
 
 # ------------------------------------------------------- the two consumers
 
 
 @pytest.mark.parametrize("cls", [CoreMediator, RuntimeMediator])
-@pytest.mark.parametrize("occupied", [4, 5, 6])
-def test_consumer_waits_for_nearly_full_bar_even_with_saved_true(cls, occupied: int) -> None:
+@pytest.mark.parametrize("occupied", [3, 4, 5])
+def test_consumer_waits_for_half_full_bar_even_with_saved_true(cls, occupied: int) -> None:
     med = _med(cls, auto_devour_dan=True)
     frame = _bond_frame(occupied)
     assert med._bond_bar_occupancy(frame) == occupied

@@ -49,7 +49,6 @@
 
 from __future__ import annotations
 
-import math
 import re
 from dataclasses import dataclass, fields
 from enum import Enum
@@ -420,7 +419,11 @@ _ATTRIBUTE_CHAINS = {
     "str": ("力量", "野蛮人", "战神", "屠戮者"),
     "agi": ("敏捷", "猎魔人", "弓神", "收割者"),
 }
-_ECONOMY_BOND_ORDER = ("经济", "祝福", "贪婪", "挑战", "成长")
+# Owner 2026-09-24：基础羁绊同页时的优先顺序 = 祝福 → 成长 → 经济 → 挑战 → 力量线 → 智力线
+# → 敏捷线 → 其他基础卡（贪婪归入其他基础卡，排在看板基础卡之前）。只排看板勾选的，
+# 没勾的剔除。单张出现时按预设照拿，这个顺序只决定同页多张时先拿哪张。
+_BASIC_BOND_HEAD = ("祝福", "成长", "经济", "挑战")
+_ATTRIBUTE_ORDER = ("str", "int", "agi")
 _ATTRIBUTE_IDS = {
     "int": "int", "intelligence": "int", "智力": "int",
     "str": "str", "strength": "str", "力量": "str",
@@ -456,23 +459,22 @@ def assemble_policy_settings(
     advanced_names = tuple(
         str(item).strip() for item in (bond_cfg.get("advanced_names") or ()) if str(item).strip()
     )
-    # Whitelist order = pick priority (_match_bond_preset ranks by position):
-    #   1. economy bonds by payback (KB 2026-09-15 card text: 祝福 nets wood
-    #      at once, 经济 ~10 min, 贪婪 key +150 wood, 挑战 indirect, 成长
-    #      ~22 min -- outside the 5-5 window)
-    #   2. basic cards ticked on the dashboard
-    #   3. attribute lines gate -> UR (live 000229: taking them early cost
-    #      8-14 extra F draws and ran wood dry at 5:24)
+    # Whitelist order = pick priority (_match_bond_preset ranks by position),
+    # Owner 2026-09-24:
+    #   1. 祝福 / 成长 / 经济 / 挑战 (ticked ones only)
+    #   2. attribute lines 力量 → 智力 → 敏捷, each gate -> UR
+    #   3. other basic bonds: 贪婪 first, then basic cards ticked on the dashboard
     #   4. advanced packs
-    # Attribute-line cards never count toward the 80% basic gate.
+    # Attribute-line cards never count toward the basic-formed ratio used by
+    # the wood scheduler (live 000229).
     bond_presets: list[str] = []
     economy: list[str] = []
     for item in getattr(settings, "bonds", None) or ():
         text = str(item or "").strip()
         if text and text not in economy:
             economy.append(text)
-    economy.sort(key=lambda name: _ECONOMY_BOND_ORDER.index(name) if name in _ECONOMY_BOND_ORDER else len(_ECONOMY_BOND_ORDER))
-    bond_presets.extend(economy)
+    bond_presets.extend(name for name in _BASIC_BOND_HEAD if name in economy)
+    other_bonds = [name for name in economy if name not in _BASIC_BOND_HEAD]
     card_presets: list[str] = []
     for item in getattr(settings, "cards", None) or ():
         text = str(item or "").strip()
@@ -482,19 +484,25 @@ def assemble_policy_settings(
         text = str(fetter_labels.get(stem, stem))
         if text and text not in card_presets:
             card_presets.append(text)
-    for text in card_presets:
-        if not matches_bond_preset(text, advanced_names) and text not in bond_presets:
-            bond_presets.append(text)
+    selected_attrs = {
+        _ATTRIBUTE_IDS.get(str(item or "").strip(), "")
+        for item in getattr(settings, "attributes", None) or ()
+    }
     chain_presets: list[str] = []
-    for item in getattr(settings, "attributes", None) or ():
-        chain = _ATTRIBUTE_CHAINS.get(_ATTRIBUTE_IDS.get(str(item or "").strip(), ""))
-        if not chain:
+    for attr_id in _ATTRIBUTE_ORDER:
+        if attr_id not in selected_attrs:
             continue
-        for name in chain:
+        for name in _ATTRIBUTE_CHAINS[attr_id]:
             if name not in bond_presets:
                 bond_presets.append(name)
             if name not in chain_presets:
                 chain_presets.append(name)
+    for text in other_bonds:
+        if text not in bond_presets:
+            bond_presets.append(text)
+    for text in card_presets:
+        if not matches_bond_preset(text, advanced_names) and text not in bond_presets:
+            bond_presets.append(text)
     for text in card_presets:
         if text not in bond_presets:
             bond_presets.append(text)
@@ -664,8 +672,11 @@ class PanelCandidates:
     owned_skill_cards: tuple[str, ...] = ()
     owned_bond_cards: tuple[str, ...] = ()
     free_slots: int | None = None
-    # Seconds since the round started (None = unknown); drives time releases.
+    # Seconds since the round started (None = unknown); trace context only.
     round_elapsed_s: float | None = None
+    # Selected advanced packs already finished this round, counted from the
+    # blue EX (pirates: UR) cards seen in the bond bar.  Picks the active pack.
+    completed_advanced_groups: int = 0
     def __post_init__(self) -> None:
         if self.panel_kind is not None and self.panel_kind not in VALID_PANEL_KINDS:
             raise ValueError(
@@ -1405,17 +1416,19 @@ def _decide_collectible(
         if kind == PANEL_BOND:
             eligible = _bond_capacity_candidates(cands, eligible, settings)
             owned_bonds = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
-            simple_ex = _selected_simple_ex_presets(settings)
-            if not _bond_base_ready(cands, settings):
+            # Owner 2026-09-24：高级卡组不设基础 80% / 开局时间这类硬门槛；同一时刻
+            # 只推进一组，合成出 EX（海盗为 UR）后才解锁下一组。
+            active_adv = _active_advanced_presets(cands, settings)
+            if settings.bond_advanced_presets and active_adv:
                 eligible = tuple(
                     slot for slot in eligible
                     if (
                         _is_bond_must_take(slot.name, settings.bond_must_take)
                         or matches_bond_preset(slot.name, settings.bond_base_presets)
                         or matches_bond_preset(slot.name, settings.bond_chain_presets)
-                        or matches_bond_preset(slot.name, simple_ex)
-                        # A past run may already contain an advanced card. Let
-                        # its duplicate finish/merge, but never start another.
+                        or matches_bond_preset(slot.name, active_adv)
+                        # A past run may already contain another pack's card.
+                        # Let its duplicate finish/merge, but never start it.
                         or _is_uncompleted_merge_upgrade(slot, owned_bonds)
                     )
                 )
@@ -1424,31 +1437,9 @@ def _decide_collectible(
                         return PolicyDecision(
                             PolicyAction.REFRESH,
                             None,
-                            f"基础羁绊未达 80%，第 {state.refreshes + 1}/{state.max_refreshes} 次刷新",
+                            f"当前高级卡组未完成，第 {state.refreshes + 1}/{state.max_refreshes} 次刷新",
                         )
-                    return _no_safe_candidate(cands, state, kind, "基础羁绊未达 80%，本页无基础卡")
-            else:
-                active_adv = _active_advanced_presets(cands, settings)
-                if settings.bond_advanced_presets and active_adv:
-                    eligible = tuple(
-                        slot for slot in eligible
-                        if (
-                            _is_bond_must_take(slot.name, settings.bond_must_take)
-                            or matches_bond_preset(slot.name, settings.bond_base_presets)
-                            or matches_bond_preset(slot.name, settings.bond_chain_presets)
-                            or matches_bond_preset(slot.name, active_adv)
-                            or matches_bond_preset(slot.name, simple_ex)
-                            or _is_uncompleted_merge_upgrade(slot, owned_bonds)
-                        )
-                    )
-                    if not eligible:
-                        if state.refreshes < state.max_refreshes and getattr(cands, "can_refresh", False):
-                            return PolicyDecision(
-                                PolicyAction.REFRESH,
-                                None,
-                                f"当前高级卡组未完成，第 {state.refreshes + 1}/{state.max_refreshes} 次刷新",
-                            )
-                        return _no_safe_candidate(cands, state, kind, "当前高级卡组未完成，本页无合法卡")
+                    return _no_safe_candidate(cands, state, kind, "当前高级卡组未完成，本页无合法卡")
             if settings.bond_whitelist_mode == WHITELIST_HARD:
                 eligible = tuple(
                     slot for slot in eligible
@@ -1486,24 +1477,23 @@ def _decide_collectible(
                     f"羁绊差一张合成秒选【{slot.name}】 @ slot {slot.index}",
                 )
 
-            # 2.5 Owner 2026-09-24：预设基础羁绊与高级羁绊同时出现时先拿基础羁绊。
-            #     排在"差一张合成"之后：差一张的卡本页不拿就可能丢掉整组合成。
-            #     只对"还没拿到"的基础卡生效，已拿到的基础卡走下方合成/预设顺序；
-            #     已经起步的高级卡组（持有同组卡）本页有同组卡时继续推进。
-            chain_in_progress = any(
-                matches_bond_preset(slot.name, group)
-                and any(matches_bond_preset(name, group) for name in owned_bonds)
-                for slot in eligible
-                for group in settings.bond_advanced_groups
+            # 2.5 Owner 2026-09-24：勾选的基础羁绊与高级羁绊同时出现时先拿基础羁绊，
+            #     高级卡组起步前后都一样；基础之间按白名单顺序（祝福 → 成长 → 经济
+            #     → 挑战 → 力量/智力/敏捷线 → 其他基础卡）。排在"差一张合成"之后：
+            #     差一张的卡本页不拿就可能丢掉整组合成。只对还没拿到的基础卡生效，
+            #     已拿到的基础卡走下方合成/预设顺序。
+            basic_tier = tuple(
+                name for name in settings.bond_presets
+                if name in settings.bond_base_presets or name in settings.bond_chain_presets
             )
-            if settings.bond_base_presets and settings.bond_advanced_presets and not chain_in_progress:
+            if basic_tier and settings.bond_advanced_presets:
                 missing_base = tuple(
                     slot for slot in eligible
-                    if matches_bond_preset(slot.name, settings.bond_base_presets)
+                    if matches_bond_preset(slot.name, basic_tier)
                     and not any(same_bond_identity(name, slot.name) for name in owned_bonds)
                 )
                 base_hit = _match_bond_preset(
-                    missing_base, settings.bond_base_presets,
+                    missing_base, basic_tier,
                     settings.min_confidence, settings.quality_order,
                 )
                 if base_hit is not None:
@@ -1520,15 +1510,15 @@ def _decide_collectible(
                     return PolicyDecision.select(
                         slot.index, f"羁绊已持有合成优先：{slot.name} @ slot {slot.index}"
                     )
-            # Owner-selected direct EX families should keep their own chain
-            # moving when a member appears, without waiting for unrelated
-            # economy/base checkboxes to reach 80%.
-            simple_hit = _match_bond_preset(
-                eligible, simple_ex, settings.min_confidence, settings.quality_order
-            )
-            if simple_hit is not None:
-                name = _slot_name(cands.slots, simple_hit)
-                return PolicyDecision.select(simple_hit, f"已选 EX 卡组持续推进：{name} @ slot {simple_hit}")
+            # The active advanced pack keeps moving when one of its members
+            # appears; only a missing basic bond (2.5) goes before it.
+            if settings.bond_advanced_groups:
+                pack_hit = _match_bond_preset(
+                    eligible, active_adv, settings.min_confidence, settings.quality_order
+                )
+                if pack_hit is not None:
+                    name = _slot_name(cands.slots, pack_hit)
+                    return PolicyDecision.select(pack_hit, f"当前高级卡组持续推进：{name} @ slot {pack_hit}")
     preset_hit = (
         _match_bond_preset(eligible, presets, settings.min_confidence, settings.quality_order)
         if kind == PANEL_BOND
@@ -1577,50 +1567,18 @@ def _decide_collectible(
     return _no_safe_candidate(cands, state, kind, "无安全候选")
 
 
-def _bond_base_ready(cands: PanelCandidates, settings: PolicySettings) -> bool:
-    """高级卡只在已确认取得 80% 配置基础卡后才有选择权（或到了时间兜底）。"""
-    bases = settings.bond_base_presets
-    if not bases or not settings.bond_advanced_presets:
-        return True
-    unlock = float(settings.bond_advanced_unlock_s or 0.0)
-    elapsed = cands.round_elapsed_s
-    if unlock > 0 and elapsed is not None and elapsed >= unlock:
-        return True
-    required = math.ceil(len(bases) * settings.bond_base_completion_ratio)
-    owned = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
-    completed = sum(
-        any(same_bond_identity(name, base) for name in owned)
-        for base in bases
-    )
-    return completed >= required
-
-
-def _selected_simple_ex_presets(settings: PolicySettings) -> tuple[str, ...]:
-    """Configured direct EX families; catalog entries alone never enable one."""
-    markers = ("齐天大圣", "大圣", "异火", "封神")
-    return tuple(
-        name
-        for group in settings.bond_advanced_groups
-        if any(marker in group for marker in markers)
-        for name in group
-    )
-
-
 def _active_advanced_presets(cands: PanelCandidates, settings: PolicySettings) -> tuple[str, ...]:
-    """同一时刻只推进一套高级卡组，顺序取自用户白名单里这套卡第一次出现的位置。"""
+    """同一时刻只推进一套高级卡组，顺序取自用户白名单里这套卡第一次出现的位置。
+
+    Owner 2026-09-24：一组合成出 EX（海盗为 UR）才解锁下一组。EX 靠合成得到，不从
+    面板拿；已完成的组数由羁绊栏上的蓝色 EX 卡数得出（``completed_advanced_groups``），
+    看不到 EX 就停在当前组。
+    """
     groups = settings.bond_advanced_groups
     if not groups:
         return settings.bond_advanced_presets
-    owned = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
-    for group in groups:
-        required = max(1, math.ceil(len(group) * settings.bond_base_completion_ratio))
-        have = sum(
-            any(same_bond_identity(name, card) for name in owned)
-            for card in group
-        )
-        if have < required:
-            return group
-    return groups[-1]
+    done = max(0, int(cands.completed_advanced_groups or 0))
+    return groups[min(done, len(groups) - 1)]
 
 
 def _no_safe_candidate(

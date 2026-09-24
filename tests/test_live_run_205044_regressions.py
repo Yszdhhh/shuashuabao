@@ -717,7 +717,9 @@ class LiveRun205044Tests(unittest.TestCase):
         med = RuntimeMediator(Settings(), ROOT)
         med._evolve_ok_this_cycle = True
         fr = Frame(image, hwnd=1, window_title="英雄三国KK")
-        with patch.object(med, "act_click", return_value=True) as click:
+        # 羁绊栏没过半时不吃吞噬丹（Owner 2026-09-24 ≥6/10 才吃），这里只看英雄卡。
+        with patch.object(med, "act_click", return_value=True) as click, \
+             patch.object(med, "_bond_bar_occupancy", return_value=5):
             med._maybe_use_inventory_item(fr)
         self.assertEqual(click.call_args.args[1], "UseInventory-hero-card")
 
@@ -726,11 +728,29 @@ class LiveRun205044Tests(unittest.TestCase):
         med = RuntimeMediator(Settings(), ROOT)
         fr = Frame(image, hwnd=1, window_title="英雄三国KK")
         self.assertEqual(med._hud_item_bar_occupied_count(fr), 5)
-        with patch.object(med, "act_click", return_value=True) as click:
+        with patch.object(med, "act_click", return_value=True) as click, \
+             patch.object(med, "_bond_bar_occupancy", return_value=5):
             self.assertIs(med._maybe_use_inventory_item(fr), LoopAction.Continue)
         self.assertEqual(click.call_args.args[1], "UseInventorySlot2")
         self.assertLess(click.call_args.args[0].x, fr.width)
         self.assertGreater(med._inventory_settle_until, 0)
+
+    def test_live_20260923_devour_pill_goes_first_once_bond_bar_is_over_half(self) -> None:
+        """Owner 2026-09-24：单人默认吃吞噬丹，羁绊栏超过一半就吃。
+
+        真机帧：羁绊栏 7 格，物品栏第 4 格是紫色吞噬丹，进化未完成。
+        """
+        image = cv2.imdecode(np.fromfile(ROOT / "tests/fixtures/evolve_false_positive_20260923.jpg", dtype=np.uint8), cv2.IMREAD_COLOR)
+        for cls in (Mediator, RuntimeMediator):
+            with self.subTest(cls=cls.__module__):
+                med = cls(Settings(), ROOT)
+                fr = Frame(image, hwnd=1, window_title="英雄三国KK")
+                self.assertEqual(med._bond_bar_occupancy(fr), 7)
+                with patch.object(med, "act_click", return_value=True) as click:
+                    self.assertIs(med._maybe_use_inventory_item(fr), LoopAction.Continue)
+                self.assertEqual(click.call_args.args[1], "UseInventory-swallow_pill")
+                pill = click.call_args.args[0]
+                self.assertTrue(1100 <= pill.x <= 1170, pill)  # 物品栏第 4 格
 
     def test_inventory_slot_probe_advances_and_does_not_spam_same_icon(self) -> None:
         image = cv2.imdecode(np.fromfile(ROOT / "tests/fixtures/evolve_false_positive_20260923.jpg", dtype=np.uint8), cv2.IMREAD_COLOR)
