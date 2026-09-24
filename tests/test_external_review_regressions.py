@@ -289,6 +289,10 @@ class ExternalReviewRegressionTests(unittest.TestCase):
                 patch.object(med, "_handle_self_opened_compact_panel", return_value=None), \
                 patch.object(med, "_maybe_open_choice_panel", return_value=LoopAction.Continue) as panels, \
                 patch.object(med, "find") as find:
+            # No 【▲选择英雄】 prompt on screen: on an elevated Windows runner the
+            # blanket mock would otherwise "see" it and preempt the panels.
+            default_hit = find.return_value
+            find.side_effect = lambda _frame, names, *a, **k: None if "select_hero" in names else default_hit
             action = med._tick_main_line(frame)
         self.assertIs(action, LoopAction.Continue)
         panels.assert_called_once()
