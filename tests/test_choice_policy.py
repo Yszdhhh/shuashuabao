@@ -389,6 +389,8 @@ class TestBondTreasureUnknown(unittest.TestCase):
         self.assertEqual(d.action, PolicyAction.REFRESH)
 
     def test_selected_simple_ex_families_progress_before_base_eighty_percent(self):
+        """Owner-selected EX families still progress before 80% when no missing
+        basic card is on the page (Owner 2026-09-24: a missing basic card wins)."""
         for root, member in (
             ("异火", "焚诀·黄阶"),
             ("齐天大圣", "大圣残躯"),
@@ -404,13 +406,38 @@ class TestBondTreasureUnknown(unittest.TestCase):
                 )
                 decision = choose_action(
                     bond_cands(
-                        [slot(0, "经济"), slot(1, member)],
+                        [slot(0, "三国"), slot(1, member)],
+                        settings=policy,
+                        owned_bond_cards=("经济",),
+                    ),
+                    SessionState(),
+                )
+                self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))
+
+    def test_missing_basic_bond_beats_advanced_on_the_same_page(self):
+        """Owner 2026-09-24：预设基础羁绊与高级羁绊同屏时先拿基础。"""
+        for root, member in (
+            ("齐天大圣", "大圣残躯"),
+            ("封神", "封神榜"),
+        ):
+            with self.subTest(root=root):
+                policy = settings(
+                    bond_presets=["经济", "成长", root, member],
+                    bond_base_presets=["经济", "成长"],
+                    bond_advanced_presets=[root, member],
+                    bond_advanced_groups=[(root, member)],
+                    bond_whitelist_mode="hard",
+                )
+                decision = choose_action(
+                    bond_cands(
+                        [slot(0, member), slot(1, "成长")],
                         settings=policy,
                         owned_bond_cards=(),
                     ),
                     SessionState(),
                 )
                 self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))
+                self.assertIn("基础羁绊优先", decision.reason)
 
     def test_unselected_simple_ex_family_is_not_taken(self):
         policy = settings(
@@ -1489,8 +1516,17 @@ class TestAssemblePolicySettings(unittest.TestCase):
                     policy_doc=policy_doc,
                 )
                 self.assertIn(final, policy.bond_advanced_presets)
+                # The final card only shows up once the chain has started; an
+                # in-progress chain is not interrupted by a missing basic card
+                # (Owner 2026-09-24 basic-first rule).
+                group = next(g for g in policy.bond_advanced_groups if final in g)
+                started = next(name for name in group if name != final)
                 decision = choose_action(
-                    bond_cands([slot(0, "经济"), slot(1, final)], settings=policy),
+                    bond_cands(
+                        [slot(0, "经济"), slot(1, final)],
+                        settings=policy,
+                        owned_bond_cards=(started,),
+                    ),
                     SessionState(),
                 )
                 self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))

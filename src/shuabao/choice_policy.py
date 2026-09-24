@@ -1478,6 +1478,30 @@ def _decide_collectible(
                     f"羁绊差一张合成秒选【{slot.name}】 @ slot {slot.index}",
                 )
 
+            # 2.5 Owner 2026-09-24：预设基础羁绊与高级羁绊同时出现时先拿基础羁绊。
+            #     排在"差一张合成"之后：差一张的卡本页不拿就可能丢掉整组合成。
+            #     只对"还没拿到"的基础卡生效，已拿到的基础卡走下方合成/预设顺序；
+            #     已经起步的高级卡组（持有同组卡）本页有同组卡时继续推进。
+            chain_in_progress = any(
+                matches_bond_preset(slot.name, group)
+                and any(matches_bond_preset(name, group) for name in owned_bonds)
+                for slot in eligible
+                for group in settings.bond_advanced_groups
+            )
+            if settings.bond_base_presets and settings.bond_advanced_presets and not chain_in_progress:
+                missing_base = tuple(
+                    slot for slot in eligible
+                    if matches_bond_preset(slot.name, settings.bond_base_presets)
+                    and not any(same_bond_identity(name, slot.name) for name in owned_bonds)
+                )
+                base_hit = _match_bond_preset(
+                    missing_base, settings.bond_base_presets,
+                    settings.min_confidence, settings.quality_order,
+                )
+                if base_hit is not None:
+                    name = _slot_name(cands.slots, base_hit)
+                    return PolicyDecision.select(base_hit, f"基础羁绊优先：{name} @ slot {base_hit}")
+
             # 3. 20260822：已持有的羁绊卡合成跃升（如 1/3, 2/3 未满星卡牌）
             # 只要手中已持有过某羁绊卡，且当前面板再次出现该卡，优先合成升级，绝不可刷新丢弃！
             for slot in eligible:
