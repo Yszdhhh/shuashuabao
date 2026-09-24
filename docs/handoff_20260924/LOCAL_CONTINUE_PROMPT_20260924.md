@@ -45,8 +45,13 @@ git config core.hooksPath .githooks
 2. 如果 pytest 或 contract 有失败，现在汇总里会逐条打出 `FAILED <node id>` 和完整日志路径。遇到失败：
    - 把每个 node 单独跑 3 次：`python -m pytest "<node id>" -q -p no:cacheprovider`；
    - 从门禁日志里把该用例的 traceback 段原样摘出来（从 `____ <用例名> ____` 到下一个分隔线），放进报告；
-   - 记录 node ID、3 次结果和日志路径，然后停下报告，不要刷新快照。
-   - 门禁现在会拒绝在红灯时 `--update-baseline`，这是有意的，不要绕过。
+   - 记录 node ID、3 次结果和日志路径。
+   - **允许重跑一次完整门禁**（Owner 2026-09-24 同意），但必须同时满足三条：
+     - 失败的每个 node 都不在本轮改动范围内，用 `git log --oneline 1b0a1a8..HEAD -- <测试文件及其被测源码>` 判断，没有输出才算；
+     - 每个 node 单独跑 3 次全部通过；
+     - 本轮还没用过这次重跑。
+   - 重跑绿了就接第 3 步，报告里如实写"首跑红、重跑绿"，附上首跑的 node ID 和日志；重跑再红，或者上面三条有一条不满足，就停下报告。
+   - 门禁红着时 `--update-baseline` 会被拒绝，这是有意的，不要绕过；快照只能在绿灯的那次门禁之后刷新。
 3. 只有两类预期差异、没有失败用例时，执行：
 
    ```powershell
