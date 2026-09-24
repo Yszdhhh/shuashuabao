@@ -42,9 +42,21 @@ Owner 2026-09-24 三条决策加审查发现的问题，按层分成 7 个提交
 - L0：KK 平台弹窗恢复先 Esc、fresh 帧复核仍在再点叉（Owner 09-24：活动弹窗 Esc 关不掉就点叉）。`e0ad7f6` 曾改成先点叉，`test_b15da05_real_regressions` 5 条、`test_live_scenario_capture` 2 条转绿；`test_hitch_l0_and_hud_fixes` 里 e0ad7f6 的用例同步改成 Esc→X 两步。
 - 测试同步：默认必拿「祝福」与满槽核心卡的策略期望（`test_solo_gt_regression`、`test_policy_near_complete`）；`test_external_review_regressions` 的全局 find mock 排除【▲选择英雄】（Windows 提权环境下才触发）。
 
-卡族 `dashengzailin`（大圣再临）、`haizeiwang`（海贼王）已登记为 `templates_index.json` 的 `pending_live_capture`：当前只走 OCR 标题识别，下次实机在羁绊选卡面板截卡顶卡族标题补图，补图后移入 `shortcodes`。`test_solo_main_line_close_task` 5 条在 main 上同样失败（云端缺 `.venv-ocr`），属环境问题。身份锚点已在云端改指 `8a0266d`（最后一个改动 `src/shuabao` 的提交），`test_live_harness_refresh` 全过；之后 `src/shuabao` 再有提交要重新锚定。
+卡族 `dashengzailin`（大圣再临）、`haizeiwang`（海贼王）已登记为 `templates_index.json` 的 `pending_live_capture`：当前只走 OCR 标题识别，下次实机在羁绊选卡面板截卡顶卡族标题补图，补图后移入 `shortcodes`。`test_solo_main_line_close_task` 5 条在 main 上同样失败（云端缺 `.venv-ocr`），属环境问题。身份锚点已在云端改指 `4e0b917`（最后一个改动 `src/shuabao` 的提交，09-24 本地门禁复查时的 OCR 读线程修复），`test_live_harness_refresh` 全过；之后 `src/shuabao` 再有提交要重新锚定。
 
 需要真机验证（新增）：F2 的触发时机和回阵地效果（尤其大秘境、传家宝 Boss 前后）；平台活动弹窗 Esc 后点叉。
+
+## 本地门禁单次失败的处理（2026-09-24 晚）
+
+本地首跑 `release_gate.py` 的 pytest 阶段 2679 passed / 1 failed，重跑 2680 全过，失败用例名没有留下（门禁只保留输出最后 3 行）。云端判断与处理，三个提交，未改业务逻辑：
+
+- `263cb59` 门禁：pytest/contract 加 `-rfE`，汇总逐条打印失败用例 node ID（`--json` 里是 `failed_nodes`），完整输出存 `logs/release_gate_<阶段>_<时间>.log`；pytest 或 contract 红着时 `--update-baseline` 直接拒绝（退出 1）。
+- `4e0b917` 感知：OCR worker 被 `_terminate` 关管道时，stdout/stderr 读线程抛 `ValueError`，就是重跑里 `test_corrupt_model_is_unavailable` 那 2 条线程告警。现在读线程安静退出。
+- `4a15327` 测试：本机有 OCR 运行时时，pytest 会话开始先起一次真实 OCR worker 预热（`SHUABAO_SKIP_OCR_PRIME=1` 可关）。
+
+失败原因是推断，未证实：只在首跑出现、重跑不复现，最可能是 OCR 冷启动第一次推理超过单请求 1.5s 预算，worker 被杀，某条读真帧的 OCR 断言拿到空结果。这类用例只在本机有 OCR 运行时时才真跑，云端复现不了。本轮改动没有碰 OCR 推理路径（`ocr_shadow` 除 `659ab71` 资产外未改），所以判为环境性的首跑失败，不是本轮回归。门禁现在会打印 node ID，下次再出现就能直接定位。
+
+PR #40（本地门禁记录，只改本文件末尾）内容与本地报告一致，可以合进 fqyf7h；本节插在前面以免与它冲突。
 
 ## Owner 局内规则锁（2026-09-24）
 
