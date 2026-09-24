@@ -19087,7 +19087,11 @@ class Mediator:
                 if self._passenger_mode() and self._find_stage_page(frame):
                     self.act_key("esc", "HitchLeaveMisopenedStage")
                     return LoopAction.Continue
-                if self._hitch_unstarted_exit_pending and self._host_choosing_difficulty(frame):
+                # 蹭车 QUIT 落到选难度页（不只是未开局退房）也走同一次语义 Esc，
+                # 否则等不到左上角退出按钮会一直零动作空转。
+                if (
+                    self._hitch_unstarted_exit_pending or self._hitch_enabled()
+                ) and self._host_choosing_difficulty(frame):
                     print("[med] 蹭车房主选难度页无专用退出按钮，发送语义 Esc 并等待退出结果")
                     self._request_hitch_unstarted_exit_escape("HitchLeaveHostDifficulty")
                     return LoopAction.Continue

@@ -206,6 +206,27 @@ class GuestStageSelectRecoveryTests(unittest.TestCase):
         key.assert_called_once_with("esc", "HitchLeaveHostDifficulty")
         self.assertEqual(med.phase, Phase.NEXT)
 
+    def test_hitch_quit_landing_on_difficulty_page_escapes_once_and_returns(self) -> None:
+        """QUIT 阶段看到选难度页（非未开局退房）也发一次 Esc，回到房间后 LOBBY_ROOM。"""
+        med = _med()
+        self.assertFalse(med._hitch_unstarted_exit_pending)
+        med.set_phase(Phase.QUIT, "hitch round finished")
+        with patch.object(med, "_find_exit_confirm", return_value=None), \
+                patch.object(med, "_find_game_exit", return_value=None), \
+                patch.object(med, "_find_stage_page", return_value=False), \
+                patch.object(med, "_host_choosing_difficulty", return_value=True), \
+                patch.object(med, "act_key", return_value=True) as key:
+            med._tick_l1_tail(_game_frame())
+            med._tick_l1_tail(_game_frame())
+
+        key.assert_called_once_with("esc", "HitchLeaveHostDifficulty")
+        self.assertEqual(med.phase, Phase.NEXT)
+
+        room_start = MatchResult("room_start", 0.95, 980, 760, 140, 50, 1050, 785)
+        with patch.object(med, "_find_room_start", return_value=room_start):
+            med._tick_l1_tail(_platform_frame())
+        self.assertEqual(med.phase, Phase.LOBBY_ROOM)
+
     def test_host_chooser_loading_transition_times_out_and_recovers(self) -> None:
         """A chooser that moved to a stuck load frame stays bounded and re-searches."""
         med = _med()
