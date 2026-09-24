@@ -1013,10 +1013,14 @@ class Mediator:
         self._post_game_hero_focus_lost_count: int = 0
         self._post_game_hero_focus_last_frame: Frame | None = None
         self._post_game_hero_focus_next_check_at: float = 0.0
-        self._post_game_view_lost_since: float | None = None
-        self._post_game_view_last_frame: Frame | None = None
-        self._post_game_view_f2_count: int = 0
-        self._post_game_view_f2_next_at: float = 0.0
+        self._battle_view_home: tuple[float, float] | None = None
+        self._battle_view_home_candidate: tuple[float, float] | None = None
+        self._battle_view_home_since: float = 0.0
+        self._battle_view_home_frames: int = 0
+        self._battle_view_away_since: float | None = None
+        self._battle_view_last_frame: Frame | None = None
+        self._battle_view_f2_count: int = 0
+        self._battle_view_f2_next_at: float = 0.0
         self._bond_replace_pending: bool = False
         self._bond_replace_incoming: str | None = None
         self._bond_replace_at: float = 0.0
@@ -8958,8 +8962,8 @@ class Mediator:
             self._hero_focus_next_check_at = now + 1.5
             return LoopAction.Continue
 
-        # 看板（羁绊/技能/宝物所在的英雄操作栏）丢失 -> F1；画面飞走找回战场是 F2，
-        # 只在战后广场链路里做（见 _maybe_recover_post_game_view）。
+        # 看板（羁绊/技能/宝物所在的英雄操作栏）丢失 -> F1；画面飞走找回战斗
+        # 主画面是 F2（见 _maybe_recover_battle_view）。
         hero_indicators = ["jihuo", "shortKey", "hc", "artifact_slot_e", "pingfu1"]
         hit = self.find(frame, hero_indicators, threshold=0.75, roi=(0.60, 0.60, 0.98, 0.98))
         if hit is not None:
@@ -9034,64 +9038,142 @@ class Mediator:
         self._post_game_hero_focus_last_frame = None
         self._post_game_hero_focus_next_check_at = now + 1.0
         return LoopAction.Continue
-    _POST_GAME_VIEW_CONFIRM_S = 2.0
-    _POST_GAME_VIEW_F2_INTERVAL_S = 8.0
-    _POST_GAME_VIEW_F2_MAX = 3
+    # Owner 2026-09-24：自己英雄打怪/Boss、存档挑战/传家宝所在的「战后大厅」就是
+    # 常规战斗应保持的主画面（游戏内 F2 = 返回阵地）。画面飞走的证据是小地图上
+    # 白色视野框离开了本局学到的阵地位置：视野框只随镜头移动，与英雄、面板无关。
+    _BATTLE_VIEW_MINIMAP_ROI = (0.078, 0.775, 0.199, 0.99)
+    _BATTLE_VIEW_HOME_FRAMES = 3
+    _BATTLE_VIEW_HOME_SPAN_S = 3.0
+    _BATTLE_VIEW_HOME_TOL = 0.03
+    _BATTLE_VIEW_AWAY_DIST = 0.12
+    _BATTLE_VIEW_CONFIRM_S = 2.0
+    _BATTLE_VIEW_F2_INTERVAL_S = 8.0
+    _BATTLE_VIEW_F2_MAX = 3
 
-    def _maybe_recover_post_game_view(
-        self, frame: Frame, post_game: str | None, now: float
-    ) -> LoopAction | None:
-        """Owner 2026-09-24：战后既看不到英雄看板也看不到广场时，F2 拉回广场。
+    def _minimap_viewport_center(self, frame: Frame) -> tuple[float, float] | None:
+        """Centre of the white camera box on the minimap, in minimap-relative units.
 
-        只在战后链路里、顶栏仍是「存档」广场模式（不是加载/秘境/团本）且
-        两个不同帧、间隔 ≥2s 都认不出任何战后页面时按 F2；每 8s 最多一次，
-        每个战后事务最多 3 次。看板在（只是广场 NPC 不在画面里）也算画面飞走。
+        Real frames (solo 2026-09-14, hitch 2026-09-11/14): the box is one thin
+        white outline ~0.20x0.11 of the minimap with fill <= 0.26; a dimmed
+        minimap (selection/victory overlays) yields nothing, which is no
+        evidence either way.
         """
-        def reset() -> None:
-            self._post_game_view_lost_since = None
-            self._post_game_view_last_frame = None
-
-        if post_game is not None:
-            reset()
-            self._post_game_view_f2_count = 0
+        if frame.bgr is None or frame.width < 480 or frame.height < 270:
             return None
+        rx1, ry1, rx2, ry2 = self._BATTLE_VIEW_MINIMAP_ROI
+        x0, y0 = int(frame.width * rx1), int(frame.height * ry1)
+        x1, y1 = int(frame.width * rx2), int(frame.height * ry2)
+        roi = frame.bgr[y0:y1, x0:x1]
+        if roi.size == 0:
+            return None
+        rh, rw = roi.shape[:2]
+        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        white = ((hsv[..., 2] >= 200) & (hsv[..., 1] <= 40)).astype(np.uint8)
+        count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(white, connectivity=8)
+        if count <= 1:
+            return None
+        best = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+        x, y, bw, bh, area = (int(v) for v in stats[best, :5])
+        if not (0.14 * rw <= bw <= 0.32 * rw and 0.07 * rh <= bh <= 0.20 * rh):
+            return None
+        if area < 80 or area / float(bw * bh) > 0.40:
+            return None
+        return (x + bw / 2.0) / rw, (y + bh / 2.0) / rh
+
+    def _reset_battle_view_home(self) -> None:
+        """A new round (or a great rift, which may play elsewhere) re-learns home."""
+        self._battle_view_home = None
+        self._battle_view_home_candidate = None
+        self._battle_view_home_since = 0.0
+        self._battle_view_home_frames = 0
+        self._battle_view_away_since = None
+        self._battle_view_last_frame = None
+        self._battle_view_f2_count = 0
+        self._battle_view_f2_next_at = 0.0
+
+    def _battle_view_blocked(self, frame: Frame) -> bool:
+        """Moments where the camera may legitimately be elsewhere, or input is not ours."""
         route = str(getattr(self, "_post_game_route", "") or "")
-        if (
-            not getattr(self, "_post_game_pending", False)
-            or route.endswith("_active")
+        return bool(
+            route.endswith("_active")
             or getattr(self, "_hitch_heirloom_exit_since", None)
             or getattr(self, "_solo_heirloom_boss_waiting", False)
             or getattr(self, "_secret_realm_request_pending", False)
-            or self._panel_state != PanelState.CLOSED
+            or getattr(self, "_secret_realm_entering_since", None) is not None
+            or getattr(self, "_hitch_instance_seen", False)
             or self._public_bag_fsm.active
-            or self._has_active_transaction(frame)
-            or self._top_bar_mode(frame) != "plaza"
-        ):
-            reset()
+        )
+
+    def _battle_view_input_ok(self, frame: Frame) -> bool:
+        """F2 only between panel sessions; observation may continue meanwhile."""
+        return (
+            self._panel_state in (PanelState.CLOSED, PanelState.COOLDOWN)
+            and not self._has_active_transaction(frame)
+        )
+
+    def _maybe_recover_battle_view(self, frame: Frame, now: float) -> LoopAction | None:
+        """F2 back to the battle/plaza view once the minimap box has left home.
+
+        Home is learned per round from the first stable box (3 distinct frames
+        over >= 3s).  Away needs two distinct frames >= 2s apart; F2 at most
+        every 8s and 3 times until the box is seen home again.  Without a
+        learned home or a readable box: zero input.
+        """
+        if self._battle_view_blocked(frame):
+            self._battle_view_away_since = None
             return None
-        if getattr(self, "_post_game_view_f2_count", 0) >= self._POST_GAME_VIEW_F2_MAX:
+        if frame is self._battle_view_last_frame:
             return None
-        if frame is getattr(self, "_post_game_view_last_frame", None):
+        self._battle_view_last_frame = frame
+        center = self._minimap_viewport_center(frame)
+        if center is None or not self._is_in_game_hud(frame) or self._top_bar_mode(frame) == "raid":
+            self._battle_view_away_since = None
             return None
-        self._post_game_view_last_frame = frame
-        since = getattr(self, "_post_game_view_lost_since", None)
+        home = self._battle_view_home
+        if home is None:
+            cand = self._battle_view_home_candidate
+            if cand is None or max(abs(center[0] - cand[0]), abs(center[1] - cand[1])) > self._BATTLE_VIEW_HOME_TOL:
+                self._battle_view_home_candidate = center
+                self._battle_view_home_since = now
+                self._battle_view_home_frames = 1
+                return None
+            self._battle_view_home_frames += 1
+            if (
+                self._battle_view_home_frames >= self._BATTLE_VIEW_HOME_FRAMES
+                and now - self._battle_view_home_since >= self._BATTLE_VIEW_HOME_SPAN_S
+            ):
+                self._battle_view_home = cand
+                print(f"[med] 战斗主画面阵地已学习：小地图视野框 @ ({cand[0]:.2f},{cand[1]:.2f})")
+            return None
+        if max(abs(center[0] - home[0]), abs(center[1] - home[1])) <= self._BATTLE_VIEW_AWAY_DIST:
+            self._battle_view_away_since = None
+            self._battle_view_f2_count = 0
+            return None
+        if self._battle_view_f2_count >= self._BATTLE_VIEW_F2_MAX:
+            return None
+        since = self._battle_view_away_since
         if since is None:
-            self._post_game_view_lost_since = now
-            print("[med] 战后广场模式下认不出广场页面，候选第 1 帧（零动作）")
+            self._battle_view_away_since = now
+            print(
+                f"[med] 小地图视野框离开阵地 ({center[0]:.2f},{center[1]:.2f}) vs "
+                f"({home[0]:.2f},{home[1]:.2f})，候选第 1 帧（零动作）"
+            )
             return None
-        if now - since < self._POST_GAME_VIEW_CONFIRM_S:
+        if (
+            now - since < self._BATTLE_VIEW_CONFIRM_S
+            or now < self._battle_view_f2_next_at
+            or not self._battle_view_input_ok(frame)
+        ):
             return None
-        if now < getattr(self, "_post_game_view_f2_next_at", 0.0):
-            return None
-        self._post_game_view_f2_count = getattr(self, "_post_game_view_f2_count", 0) + 1
-        self._post_game_view_f2_next_at = now + self._POST_GAME_VIEW_F2_INTERVAL_S
+        self._battle_view_f2_count += 1
+        self._battle_view_f2_next_at = now + self._BATTLE_VIEW_F2_INTERVAL_S
+        self._battle_view_away_since = None
         print(
-            f"[med] 战后画面已飞离广场（{now - since:.1f}s 认不出广场页面），"
-            f"按 F2 回到广场（{self._post_game_view_f2_count}/{self._POST_GAME_VIEW_F2_MAX}）"
+            f"[med] 画面已飞离战斗主画面（{now - since:.1f}s），按 F2 返回阵地"
+            f"（{self._battle_view_f2_count}/{self._BATTLE_VIEW_F2_MAX}）"
         )
         if not getattr(self.settings, "dry_run", False):
-            self.act_key("F2", "PostGameViewReturnPlaza")
-        reset()
+            self.act_key("F2", "BattleViewReturnHome")
         return LoopAction.Continue
 
     # Icon centre sits 48px above the caption centre at 900px height.
@@ -10834,10 +10916,7 @@ class Mediator:
             self._post_game_hero_focus_lost_count = 0
             self._post_game_hero_focus_last_frame = None
             self._post_game_hero_focus_next_check_at = 0.0
-            self._post_game_view_lost_since = None
-            self._post_game_view_last_frame = None
-            self._post_game_view_f2_count = 0
-            self._post_game_view_f2_next_at = 0.0
+            self._reset_battle_view_home()
             self._bond_replace_pending = False
             self._bond_replace_incoming = None
             self._bond_replace_at = 0.0
@@ -17275,6 +17354,7 @@ class Mediator:
             self._hitch_postgame_started_at = None
             self._post_game_close_attempts = 0
             self._post_game_route = "secret"
+            self._reset_battle_view_home()
             self._victory_continue_attempts = 0
             self._victory_continue_since = None
             self._round_started_at = now
@@ -17861,7 +17941,7 @@ class Mediator:
         if not challenge_hud:
             self._post_game_hud_confirmations = 0
         if not secret_entry_observation:
-            view_res = self._maybe_recover_post_game_view(frame, post_game, now)
+            view_res = self._maybe_recover_battle_view(frame, now)
             if view_res is not None:
                 return view_res
         if (
