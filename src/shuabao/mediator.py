@@ -4534,7 +4534,7 @@ class Mediator:
 
     def _l1_step_visit_exhausted(self, now: float) -> bool:
         # One visit rule with the solo planner:
-        # F: wood >= 1000 -> 15 (狂暴抽卡，充分转化木材资源), 300..1000 -> 2 (让步给技能与支线), < 300 -> 1;
+        # F: wood >= 1000 -> 15 (狂暴抽卡，充分转化木材资源), 500..1000 -> 2 (让步给技能与支线), < 500 -> 1;
         # G 5, everything else 3; plus the 30s/60s ceiling below.
         cap = self._L1_STEP_VISIT_MAX_SUCCESSES
         step = getattr(self, "_l1_cycle_step", None)
@@ -4558,7 +4558,9 @@ class Mediator:
         return started is not None and now - started >= max_s
 
     _BOND_HIGH_WOOD = 1000
-    _BOND_LOW_WOOD = 300
+    # Owner 2026-09-24：木材 < 500 以支线循环为主（F 每次最多 1 张），与先点技能、
+    # 插队买木材用同一个 500。
+    _BOND_LOW_WOOD = 500
     # 木材低于该值且有技能积压时先点技能（Owner 2026-09-24 定 500，待实机调）。
     _SKILL_FIRST_WOOD = 500
     _WOOD_BALANCE_ROI = (1178 / 1600, 8 / 900, 1240 / 1600, 34 / 900)
@@ -5572,9 +5574,25 @@ class Mediator:
         """Solo eats devour pills once more than half of the ten-cell bond bar is used."""
         return (
             str(getattr(self.settings, "mode_id", "normal_farm")) == "normal_farm"
+            and self._devour_hold_reason() is None
             and (occupied := self._bond_bar_occupancy(frame)) is not None
             and occupied >= self._DEVOUR_BOND_OCCUPANCY
         )
+
+    def _devour_hold_reason(self) -> str | None:
+        """Owner 2026-09-24：吞噬只腾格子不影响进度，唯一例外是亡灵——提前吞掉它的
+        倒计时卡会断碎片，兵主合成不了。吞噬丹吞哪张认不出，所以亡灵卡组进行中
+        （手里有亡灵卡、羁绊栏还没出现它的 EX）整段不吃丹。"""
+        policy = self._policy_settings()
+        owned = self._confirmed_bond_cards()
+        for index, group in enumerate(policy.bond_advanced_groups):
+            if "亡灵" not in group:
+                continue
+            if self._advanced_groups_completed > index:
+                return None
+            if any(matches_bond_preset(name, group) for name in owned):
+                return "亡灵卡组进行中，吞噬丹可能吞掉倒计时卡"
+        return None
 
     def _inventory_has_swallow_pill(self, frame: Frame) -> bool:
         return self.find(
@@ -5593,6 +5611,7 @@ class Mediator:
         if (
             occupied is not None
             and occupied >= self._DEVOUR_BOND_OCCUPANCY
+            and self._devour_hold_reason() is None
             and not self._inventory_has_swallow_pill(frame)
         ):
             return f"羁绊栏已占 {occupied}/10 格且物品栏没有吞噬丹"
@@ -19164,7 +19183,11 @@ class Mediator:
                 else:
                     bond_occ = self._bond_bar_occupancy(frame)
                     wood = getattr(self, "_wood_balance", None)
-                    want_pill = bond_occ is not None and bond_occ >= self._DEVOUR_BOND_OCCUPANCY
+                    want_pill = (
+                        bond_occ is not None
+                        and bond_occ >= self._DEVOUR_BOND_OCCUPANCY
+                        and self._devour_hold_reason() is None
+                    )
                     want_wood = wood is not None and wood < self._SKILL_FIRST_WOOD
                     if (
                         getattr(self.settings, "merchant_enabled", True)

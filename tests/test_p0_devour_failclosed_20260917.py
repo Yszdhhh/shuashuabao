@@ -142,6 +142,34 @@ def test_solo_eats_pill_over_half_even_with_saved_false(cls) -> None:
     click.assert_called_once_with(pill, "UseInventory-swallow_pill")
 
 
+UNDEAD = ["亡灵", "亡灵天灾", "白骨复生", "魂火收割", "巫妖之躯"]
+
+
+@pytest.mark.parametrize("cls", [CoreMediator, RuntimeMediator])
+def test_undead_pack_in_progress_holds_the_pill(cls) -> None:
+    """Owner 2026-09-24：只有亡灵例外——提前吞掉倒计时卡会断碎片，兵主合成不了。"""
+    med = _med(cls, bonds=["经济"], cards=UNDEAD)
+    pill = MatchResult("danGif", 0.95, 1100, 780, 20, 20, 1100, 780)
+    med._bond_cards_owned = ["经济", "亡灵天灾"]
+    assert med._devour_hold_reason() is not None
+    with _pill_only_find(med, pill), patch.object(med, "act_click", return_value=True) as click:
+        med._maybe_use_inventory_item(_bond_frame(8))
+    assert not [c for c in click.call_args_list if c.args[1] == "UseInventory-swallow_pill"]
+
+    # 兵主已出（羁绊栏数到第 1 张 EX）→ 恢复吃丹。
+    med._advanced_groups_completed = 1
+    assert med._devour_hold_reason() is None
+    with _pill_only_find(med, pill), patch.object(med, "act_click", return_value=True) as click:
+        med._maybe_use_inventory_item(_bond_frame(8))
+    click.assert_called_once_with(pill, "UseInventory-swallow_pill")
+
+
+def test_undead_selected_but_not_started_does_not_hold() -> None:
+    med = _med(CoreMediator, bonds=["经济"], cards=UNDEAD)
+    med._bond_cards_owned = ["经济"]
+    assert med._devour_hold_reason() is None
+
+
 # ------------------------------------------------------- the two consumers
 
 

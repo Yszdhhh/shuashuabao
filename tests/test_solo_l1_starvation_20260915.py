@@ -365,19 +365,20 @@ def test_wood_tiers_visit_cap() -> None:
     med._l1_cycle_step_successes = 15
     assert med._l1_step_visit_exhausted(100.0)
 
-    # 300..1000: 2
+    # 500..1000: 2
     med._wood_balance = 600
     med._l1_cycle_step_successes = 1
     assert not med._l1_step_visit_exhausted(100.0)
     med._l1_cycle_step_successes = 2
     assert med._l1_step_visit_exhausted(100.0)
 
-    # < 300: 1
-    med._wood_balance = 200
-    med._l1_cycle_step_successes = 0
-    assert not med._l1_step_visit_exhausted(100.0)
-    med._l1_cycle_step_successes = 1
-    assert med._l1_step_visit_exhausted(100.0)
+    # < 500: 1（Owner 2026-09-24：木材 < 500 以支线循环为主）
+    for wood in (200, 499):
+        med._wood_balance = wood
+        med._l1_cycle_step_successes = 0
+        assert not med._l1_step_visit_exhausted(100.0)
+        med._l1_cycle_step_successes = 1
+        assert med._l1_step_visit_exhausted(100.0)
 
 
 def test_skill_backlog_urgent_preempt() -> None:
