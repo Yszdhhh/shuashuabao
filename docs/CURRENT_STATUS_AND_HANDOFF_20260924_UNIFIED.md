@@ -42,7 +42,7 @@ Owner 2026-09-24 三条决策加审查发现的问题，按层分成 7 个提交
 - L0：KK 平台弹窗恢复先 Esc、fresh 帧复核仍在再点叉（Owner 09-24：活动弹窗 Esc 关不掉就点叉）。`e0ad7f6` 曾改成先点叉，`test_b15da05_real_regressions` 5 条、`test_live_scenario_capture` 2 条转绿；`test_hitch_l0_and_hud_fixes` 里 e0ad7f6 的用例同步改成 Esc→X 两步。
 - 测试同步：默认必拿「祝福」与满槽核心卡的策略期望（`test_solo_gt_regression`、`test_policy_near_complete`）；`test_external_review_regressions` 的全局 find mock 排除【▲选择英雄】（Windows 提权环境下才触发）。
 
-仍未解决：`test_card_template_bidirectional`（2 条）需要 `dashengzailin`、`haizeiwang` 两张 `cards/*.png`，素材只能 Owner 截。`test_solo_main_line_close_task` 5 条、`test_live_harness_refresh` 3 条在 main 上同样失败（缺 `.venv-ocr` / 身份锚点），属环境问题。
+卡族 `dashengzailin`（大圣再临）、`haizeiwang`（海贼王）已登记为 `templates_index.json` 的 `pending_live_capture`：当前只走 OCR 标题识别，下次实机在羁绊选卡面板截卡顶卡族标题补图，补图后移入 `shortcodes`。`test_solo_main_line_close_task` 5 条、`test_live_harness_refresh` 3 条在 main 上同样失败（缺 `.venv-ocr` / 身份锚点），属环境问题。
 
 需要真机验证（新增）：F2 的触发时机和回阵地效果（尤其大秘境、传家宝 Boss 前后）；平台活动弹窗 Esc 后点叉。
 
