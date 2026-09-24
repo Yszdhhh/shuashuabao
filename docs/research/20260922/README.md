@@ -12,7 +12,7 @@
 | solo_strategy/SOLO_DECISION_SPEC_DRAFT.md | 单人决策规格草案（D1–D14） | 草案；多项“待 Owner 拍板”，硬阈值方向已被动态架构取代 |
 | mechanics_solo/SOLO_MECHANICS_FACTS.md | 单人局内机制事实表（带证据等级与 n） | 研究资料，证据等级见各表 |
 | mechanics_solo/BOSS_*.md | Boss 历史链路复核 | **撤回**旧报告“f0310 掉落弹窗 = 挑战成功”；有效结论见 BOSS_VISUAL_ACCEPTANCE 与 BOSS_POSTCONDITION_REVIEW |
-| competitor/*.md | 竞品静态观察 | 竞品 ≠ 游戏事实；未经我方真机帧不得接入运行逻辑 |
+| competitor/*.md | 竞品静态观察 | 竞品 ≠ 游戏事实；未经我方真机帧不得接入运行逻辑。全量分析与 1.6.2 观察的正本在 `docs/research/` 根目录（随 PR #36 入库），此处不再保留副本 |
 | treasure/*.md | 宝物负面卡取证与 96 卡目录 | 已入库为 fixtures/treasure_negative |
 | handoff/*.md | 当日任务单、验收记录、提示词 | 过程记录；以最新一份为准 |
 
