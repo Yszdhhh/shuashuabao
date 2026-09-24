@@ -98,7 +98,7 @@ OWNER_RULES: tuple[tuple[str, str, str], ...] = (
     ("刀刀/修仙/海盗/亡灵按看板勾选从首卡拿到白名单末卡",
      "Owner 2026-09-24（上线主线：卡组拿取跑通）",
      "tests/test_slow_pack_pickup_lock_20260924.py::test_slow_pack_is_walked_from_first_to_last_card"),
-    ("单人默认吃吞噬丹（看板不加开关），羁绊栏超过一半（≥6/10）就吃",
+    ("单人默认吃吞噬丹（看板不加开关），羁绊栏超过一半（≥6/10）就吃（亡灵例外见下）",
      "Owner 2026-09-24（吞噬只腾格子，不影响合成进度）",
      "tests/test_p0_devour_failclosed_20260917.py::test_solo_eats_pill_over_half_even_with_saved_false"),
     ("羁绊栏过半没丹、木材 < 500：插队去黑商，绕一趟回到被打断的步骤",
@@ -107,6 +107,12 @@ OWNER_RULES: tuple[tuple[str, str, str], ...] = (
     ("黑商一步按 H 开店：羁绊栏过半找吞噬丹，木材 < 500 买木材",
      "Owner 2026-09-24",
      "tests/test_urgent_merchant_20260924.py::test_merchant_step_opens_the_shop_with_h"),
+    ("亡灵卡组进行中（持有亡灵卡、兵主 EX 未出）不吃吞噬丹：提前吞倒计时卡会断碎片",
+     "Owner 2026-09-24",
+     "tests/test_p0_devour_failclosed_20260917.py::test_undead_pack_in_progress_holds_the_pill"),
+    ("木材 < 500 以支线循环为主：F 每次最多 1 张（500–1000 两张，≥1000 十五张）",
+     "Owner 2026-09-24",
+     "tests/test_solo_l1_starvation_20260915.py::test_wood_tiers_visit_cap"),
 )
 
 
