@@ -91,7 +91,9 @@
   - 截大圣再临、海贼王的卡族标题（两者已登记为 `pending_live_capture`）。
 - 本机交接材料惯例放在 `G:\刷刷宝\handoff_prompts\`（云端看不到）。
 
-## 7. 待 Owner 决策的两个问题
+## 7. 待 Owner 决策的两个问题（09-24 晚已答复）
+
+答复（Owner 2026-09-24）：EX 靠合成链得到，不从面板拿；同一时刻只推进一组高级卡组，羁绊栏出现蓝色 EX（海盗为 UR）才解锁下一组，不设基础 80% 等硬门槛。实现见 `CURRENT_STATUS_AND_HANDOFF_20260924_UNIFIED.md` 末节。原问题保留如下：
 
 来自 `CARD_FAMILY_PICKUP_AUDIT_20260924.md` 第二节第 3、4 条：
 
