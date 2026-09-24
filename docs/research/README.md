@@ -8,3 +8,4 @@
 | `SCRIPTABLE_LOGIC_MAP_20260812.md` | 攻略 → 脚本 P0/P1/P2 |
 | `MATERIAL_GAP_AND_FRAME_PLAN_20260812.md` | 素材缺口与抽帧顺序 |
 | `DISTRIBUTION_AND_IP_PLAN_20260812.md` | 双权重、订阅、核心加固 |
+| [`card_item_assets_20260924/README.md`](card_item_assets_20260924/README.md) | EX、英雄卡、吞噬丹与竞品新增卡牌的视觉证据索引 |
