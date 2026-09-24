@@ -3715,6 +3715,29 @@ class Mediator:
         have, need = int(match.group(1)), int(match.group(2))
         return (have, need) if 0 <= have <= need and need > 0 else None
 
+    # Owner 2026-09-24：高级卡组合成出 EX 后，羁绊栏上出现一张蓝色 EX 卡（海盗为 UR），
+    # 鼠标悬停能看到羁绊详情。EX「无法吞噬」，出现后整局都在栏上。模板要从真机帧切
+    # （放 assets/Images/bond_bar/），缺模板时返回 None，调度停在当前卡组。
+    _BOND_BAR_CELL_XS = (603, 655, 707, 759, 811, 863, 915, 967, 1019, 1071)
+    _BOND_BAR_EX_TEMPLATES = ("bond_bar/ex_card", "bond_bar/ur_card_haidao")
+    _BOND_BAR_EX_THRESHOLD = 0.80
+
+    def _bond_bar_ex_count(self, frame: Frame) -> int | None:
+        """Blue EX / pirate UR cards in the bond bar; None = no template or unsupported frame."""
+        if frame.bgr is None or not LayoutTransform.is_supported(frame.width, frame.height):
+            return None
+        names = [n for n in self._BOND_BAR_EX_TEMPLATES if resolve_template(Path(self.images), n)]
+        if not names:
+            return None
+        transform = LayoutTransform.from_frame(frame.width, frame.height)
+        count = 0
+        for cx in self._BOND_BAR_CELL_XS:
+            rx1, ry1, rx2, ry2 = transform.logical_roi(cx - 26, 628, cx + 26, 688)
+            roi = (rx1 / frame.width, ry1 / frame.height, rx2 / frame.width, ry2 / frame.height)
+            if self.find(frame, names, threshold=self._BOND_BAR_EX_THRESHOLD, scales=self._hot_scales(), roi=roi):
+                count += 1
+        return count
+
     @staticmethod
     def _bond_bar_occupancy(frame: Frame) -> int | None:
         """Count occupied bond-bar cells using LayoutTransform; used only as an overflow guard."""
