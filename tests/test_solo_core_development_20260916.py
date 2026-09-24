@@ -277,23 +277,24 @@ def test_12_refresh_click_with_confirmed_mutation_increments_budget() -> None:
     assert med._panel_state == PanelState.ACTIVE
 
 
-def test_13_dedicated_skill_refresh_btn_wins_over_generic_refresh() -> None:
-    """13. Dedicated skill_refresh_btn is searched first and keeps click authority.
+def test_13_skill_refresh_never_uses_label_template() -> None:
+    """13. The skill panel clicks the real 刷新(N) button, never the label.
 
-    giveup_panel_not_fail / C-skill-refresh contract: generic ``refresh`` at a
-    different coordinate must not beat the panel-specific button.
+    skill_refresh_btn is a crop of the 「技能免费刷新次数+1」 caption; on
+    giveup_panel.jpg it lands on the top edge of 放弃 (1020,654).  Owner
+    2026-09-24: the real button is the generic ``refresh`` hit (1171,677).
     """
     med = _med()
     frame = _blank_frame()
     searched: list[str] = []
-    dedicated = MatchResult("skill_refresh_btn", 0.759, 1000, 640, 40, 28, 1020, 654)
+    label = MatchResult("skill_refresh_btn", 0.759, 1000, 640, 40, 28, 1020, 654)
     generic = MatchResult("refresh", 0.936, 1151, 663, 40, 28, 1171, 677)
 
     def mock_find(_frame, names, *a, **kw):
         searched.extend(names)
         key = names[0] if names else None
         if key == "skill_refresh_btn":
-            return dedicated
+            return label
         if key == "refresh":
             return generic
         return None
@@ -301,9 +302,9 @@ def test_13_dedicated_skill_refresh_btn_wins_over_generic_refresh() -> None:
     with patch.object(med, "find", side_effect=mock_find):
         res = med._find_panel_refresh(frame, "skill")
     assert res is not None
-    assert res.name == "skill_refresh_btn"
-    assert res.center == (1020, 654)
-    assert searched[0] == "skill_refresh_btn"
+    assert res.name == "refresh"
+    assert res.center == (1171, 677)
+    assert "skill_refresh_btn" not in searched
 
 
 def test_14_true_refresh_template_searched_for_skill() -> None:

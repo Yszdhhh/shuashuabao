@@ -2642,6 +2642,14 @@
       "sha256": "7cdb41ed55715737439eb402764f34993522d1922f738de06ee534d34e2c15be"
     },
     {
+      "path": "assets/Images/select_hero.png",
+      "purpose": "runtime_ui",
+      "provenance": "added in 61b5e28 from a live solo capture of the 【▲选择英雄】 prompt shown after clicking a mob",
+      "reason_required": "detect the hero-deselected prompt before pressing F1",
+      "size_bytes": 11723,
+      "sha256": "6ebd250bb60012dfa5143611abd17bbe04c12c72171b8c431191f54af84af243"
+    },
+    {
       "path": "assets/Images/sgzxBoss.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",

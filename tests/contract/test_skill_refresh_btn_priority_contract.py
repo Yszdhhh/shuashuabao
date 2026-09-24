@@ -1,13 +1,12 @@
-"""技能刷新必须点面板专用钮，不能被通用 refresh 模板抢走。
+"""技能刷新必须点真正的【刷新(N)】按钮，不能点「技能免费刷新次数+1」文字。
 
-giveup_panel_not_fail 在生产锚点上 FAIL ledger_mismatch=1，不是没点，是点错了：
+2026-09-24 纠错（Owner 实机 + 真帧核对）：原契约（af22c5a）把
+``skill_refresh_btn`` 当成"专用钮"，但该模板截的是「刷新次数+1」这行说明文字，
+在 giveup_panel.jpg（1920x1080）上命中 (1020,654)，正好压在【放弃】按钮上沿；
+通用 ``refresh`` 命中的 (1171,677) 才是【刷新(3)】。旧期望是被焊进基线的错误期望。
 
-    期望 skill_refresh_btn @ [1020, 654]
-    实际 refresh            @ [1171, 677]（分数 0.936 压过专用钮 0.759）
-
-根因：_find_panel_refresh 按 names 顺序返回第一个命中，skill 列表把通用
-`refresh` 放在专用 `skill_refresh_btn` 前面。函数注释已经防了 bwRefresh，
-漏防了 refresh。这是产品语义，不是某次夹具的偶然。
+仍然保留的产品语义：面板专用钮（如 ``bond_refresh_btn``）先于通用模板，
+即使通用模板分数更高——_find_panel_refresh 按名单顺序取第一个命中。
 """
 
 from __future__ import annotations
@@ -48,10 +47,10 @@ def _find_by_first_name(name_to_hit: dict[str, MatchResult]):
     return _find
 
 
-class DedicatedSkillRefreshBeatsGeneric(unittest.TestCase):
-    """专用钮即使分数更低，也必须先于通用 refresh 被选中。"""
+class SkillRefreshClicksRealButton(unittest.TestCase):
+    """技能面板不再使用文字模板；专用钮优先的顺序语义对其它面板保持。"""
 
-    def test_generic_refresh_must_not_steal_skill_refresh_btn(self):
+    def test_skill_panel_never_uses_label_template(self):
         med = _med()
         hits = {
             "refresh": GENERIC,
@@ -60,11 +59,20 @@ class DedicatedSkillRefreshBeatsGeneric(unittest.TestCase):
         with patch.object(med, "find", side_effect=_find_by_first_name(hits)):
             hit = med._find_panel_refresh(_frame(), "skill")
         self.assertIsNotNone(hit)
-        self.assertEqual(hit.name, "skill_refresh_btn")
-        self.assertEqual(hit.center, (1020, 654))
+        self.assertEqual(hit.name, "refresh")
+        self.assertEqual(hit.center, (1171, 677))
 
-    def test_giveup_panel_fixture_clicks_skill_refresh_not_generic_refresh(self):
-        """门禁夹具 giveup_panel.jpg：真实模板匹配也必须落到专用钮。"""
+    def test_bond_dedicated_button_still_beats_higher_scoring_generic(self):
+        med = _med()
+        dedicated = MatchResult("bond_refresh_btn", 0.72, 1000, 640, 40, 28, 1020, 654)
+        hits = {"refresh": GENERIC, "bond_refresh_btn": dedicated}
+        with patch.object(med, "find", side_effect=_find_by_first_name(hits)):
+            hit = med._find_panel_refresh(_frame(), "bond")
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit.name, "bond_refresh_btn")
+
+    def test_giveup_panel_fixture_clicks_real_refresh_button(self):
+        """门禁夹具 giveup_panel.jpg：真实模板匹配落到【刷新(3)】，不落到【放弃】上沿。"""
         path = ROOT / "tests" / "performance" / "fixtures" / "giveup_panel.jpg"
         data = np.fromfile(str(path), dtype=np.uint8)
         bgr = cv2.imdecode(data, cv2.IMREAD_COLOR)
@@ -72,8 +80,8 @@ class DedicatedSkillRefreshBeatsGeneric(unittest.TestCase):
         frame = Frame(bgr, window_title="英雄三国KK", hwnd=10001, role="l1")
         hit = _med()._find_panel_refresh(frame, "skill")
         self.assertIsNotNone(hit)
-        self.assertEqual(hit.name, "skill_refresh_btn")
-        self.assertEqual(list(hit.center), [1020, 654])
+        self.assertEqual(hit.name, "refresh")
+        self.assertEqual(list(hit.center), [1171, 677])
 
 
 if __name__ == "__main__":

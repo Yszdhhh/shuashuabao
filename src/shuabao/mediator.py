@@ -3523,17 +3523,19 @@ class Mediator:
             "bond": ["bond_refresh_btn", "refresh", "cardRefresh", "heroRefresh", "bwRefresh"],
             "treasure": ["treasure_refresh_btn", "refresh", "cardRefresh", "bwRefresh"],
         }.get(kind, ["refresh", "bwRefresh", "cardRefresh"])
+        # skill_refresh_btn 是「技能免费刷新次数+1」文字截图，命中点压在【放弃】
+        # 上沿（giveup_panel.jpg @ 1920x1080: (1020,654)），不能作为技能刷新钮。
         def preferred(scales: tuple[float, ...]) -> MatchResult | None:
-            best_hit: MatchResult | None = None
+            # Do not let a high-scoring generic `refresh`/`bwRefresh` template
+            # replace the panel-specific refresh button at a different coordinate.
             for name in names:
                 hit = self.find(
                     frame, [name], threshold=min(0.70, self.settings.match_threshold),
                     scales=scales, roi=self._PANEL_BUTTONS_ROI,
                 )
                 if hit is not None:
-                    if best_hit is None or hit.score > best_hit.score:
-                        best_hit = hit
-            return best_hit
+                    return hit
+            return None
 
         hit = preferred(self._hot_scales())
         if hit is None and self._scaled_up_frame(frame):
