@@ -1017,6 +1017,10 @@ class Mediator:
         self._post_game_view_last_frame: Frame | None = None
         self._post_game_view_f2_count: int = 0
         self._post_game_view_f2_next_at: float = 0.0
+        self._bond_replace_pending: bool = False
+        self._bond_replace_incoming: str | None = None
+        self._bond_replace_at: float = 0.0
+        self._merchant_open_next_at: float = 0.0
         self._opportunistic_merchant_next_at: float = 0.0
         self._opportunistic_hero_card_next_at: float = 0.0
         self._passenger_heirloom_for_secret = False
@@ -3753,56 +3757,62 @@ class Mediator:
             target_kws.append(str(c))
         return any(kw in name_str for kw in target_kws if kw)
 
+    _BOND_REPLACE_MIN_SCORE = 0.6
+
     def _maybe_execute_bond_slot_replacement(self, frame: Frame) -> bool:
-        """满槽选卡后的顶替逻辑：在上方卡槽排中随机选择一个非你要合成卡组替换。"""
-        if not LayoutTransform.is_supported(frame.width, frame.height):
+        """满槽选卡后的顶替：在上方卡槽排里随机点一张 OCR 认出的非目标卡。
+
+        Fail-closed（AGENTS.md 第 5 条）：只有 OCR 读出名字、且不属于目标合成
+        卡组、也不是刚拿的同名卡的槽位才是候选；一张都认不出就零输入，
+        绝不按拿卡顺序猜槽位或在 10 格里盲点（可能顶掉大圣/封神核心卡）。
+        """
+        if frame.bgr is None or not LayoutTransform.is_supported(frame.width, frame.height):
+            return False
+        ocr_client = getattr(self, "_ocr_client", None)
+        if not (ocr_client and getattr(ocr_client, "is_available", False)):
+            print("[L1] 卡槽已满但 OCR 不可用，无法确认顶替对象，零输入")
             return False
         import random
         transform = LayoutTransform.from_frame(frame.width, frame.height)
         xs = (603, 655, 707, 759, 811, 863, 915, 967, 1019, 1071)
         cy = 658
+        incoming = str(getattr(self, "_bond_replace_incoming", "") or "").strip()
 
-        # 1. 尝试使用 OCR 对各槽位文字进行快速识别
-        victim_indices: list[int] = []
-        all_occupied: list[int] = []
-        ocr_client = getattr(self, "_ocr_client", None)
         slot_texts: dict[int, str] = {}
-        if ocr_client and getattr(ocr_client, "is_available", False) and frame.bgr is not None:
-            for idx, cx in enumerate(xs):
-                rx1, ry1, rx2, ry2 = transform.logical_roi(cx - 24, 635, cx + 24, 680)
-                crop = frame.bgr[ry1:ry2, rx1:rx2]
-                if crop.size > 0:
-                    all_occupied.append(idx)
-                    try:
-                        resp = ocr_client.predict_sync(crop, f"slot_replace_{idx}")
-                        txt = "".join(getattr(resp, "text", "") or "")
-                        if txt:
-                            slot_texts[idx] = txt
-                    except Exception:
-                        pass
+        for idx, cx in enumerate(xs):
+            rx1, ry1, rx2, ry2 = transform.logical_roi(cx - 24, 635, cx + 24, 680)
+            if rx2 <= rx1 or ry2 <= ry1:
+                continue
+            try:
+                resp = ocr_client.shadow_predict(
+                    frame,
+                    "bond_slot_replace",
+                    {"index": idx, "bbox": (rx1, ry1, rx2, ry2), "kind": "bond_slot"},
+                )
+            except Exception as exc:  # noqa: BLE001 - OCR worker failures are non-fatal
+                print(f"[L1] 顶替槽位 {idx + 1} OCR 失败：{exc}")
+                continue
+            status = str(getattr(resp, "status", "") or "").lower()
+            text = re.sub(r"\s", "", str(getattr(resp, "raw_text", "") or ""))
+            score = float(getattr(resp, "rec_score", 0.0) or 0.0)
+            if status == "ok" and score >= self._BOND_REPLACE_MIN_SCORE and len(text) >= 2:
+                slot_texts[idx] = text
 
-        # 2. 识别文字中，不属于目标合成卡组的槽位列为待顶替候选
-        for idx, txt in slot_texts.items():
-            if not self._is_target_synthetic_bond(txt):
-                victim_indices.append(idx)
-
-        # 3. 若 OCR 没读出，结合已记录的羁绊卡列表 _confirmed_bond_cards 进行分析
+        victim_indices = [
+            idx for idx, txt in slot_texts.items()
+            if not self._is_target_synthetic_bond(txt)
+            and not (incoming and (incoming in txt or txt in incoming))
+        ]
         if not victim_indices:
-            owned = list(self._confirmed_bond_cards())
-            for idx in range(min(10, len(owned))):
-                if not self._is_target_synthetic_bond(owned[idx]):
-                    victim_indices.append(idx)
-
-        # 4. 终极兜底：如果全部槽位均看似目标卡或未识别，随机选择一个槽位（排除 incoming 同名）
-        if not victim_indices:
-            victim_indices = all_occupied if all_occupied else list(range(10))
+            print(
+                f"[L1] 卡槽已满，但没有认出可顶替的非目标卡（认出 {len(slot_texts)}/10 格），零输入"
+            )
+            return False
 
         chosen_idx = random.choice(victim_indices)
-        chosen_cx = xs[chosen_idx]
-        rx1, ry1, rx2, ry2 = transform.logical_roi(chosen_cx - 5, cy - 5, chosen_cx + 5, cy + 5)
+        rx1, ry1, rx2, ry2 = transform.logical_roi(xs[chosen_idx] - 5, cy - 5, xs[chosen_idx] + 5, cy + 5)
         click_x = (rx1 + rx2) // 2
         click_y = (ry1 + ry2) // 2
-
         hit = MatchResult(
             f"ReplaceBondSlot_{chosen_idx + 1}",
             1.0,
@@ -3814,11 +3824,10 @@ class Mediator:
             frame.top + click_y,
         )
         print(
-            f"[L1] 卡槽已满执行顶替：在非目标合成卡组槽位 {[i + 1 for i in victim_indices]} 中"
-            f"随机选中第 {chosen_idx + 1} 格完成替换"
+            f"[L1] 卡槽已满执行顶替：非目标卡槽位 {[i + 1 for i in sorted(victim_indices)]} 中"
+            f"随机选中第 {chosen_idx + 1} 格（{slot_texts[chosen_idx]}）"
         )
-        ok = self.act_click(hit, f"ReplaceBondSlot-{chosen_idx + 1}")
-        return ok
+        return self.act_click(hit, f"ReplaceBondSlot-{chosen_idx + 1}")
 
     def _extract_live_set_progress(self, frame: Frame | None) -> dict[str, int] | None:
         """Extract current active bond tier progress counts from confirmed card state.
@@ -10819,6 +10828,10 @@ class Mediator:
             self._post_game_view_last_frame = None
             self._post_game_view_f2_count = 0
             self._post_game_view_f2_next_at = 0.0
+            self._bond_replace_pending = False
+            self._bond_replace_incoming = None
+            self._bond_replace_at = 0.0
+            self._merchant_open_next_at = 0.0
             self._opportunistic_merchant_next_at = 0.0
             self._opportunistic_hero_card_next_at = 0.0
             self._passenger_heirloom_for_secret = False

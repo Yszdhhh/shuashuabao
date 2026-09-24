@@ -1,4 +1,5 @@
 import numpy as np
+from types import SimpleNamespace
 import pytest
 from pathlib import Path
 from shuabao.mediator import Mediator, MatchResult
@@ -27,37 +28,59 @@ def test_is_target_synthetic_bond():
     assert med._is_target_synthetic_bond("普通攻击") is False
 
 
-def test_maybe_execute_bond_slot_replacement_picks_victim(monkeypatch):
+class _FakeOcr:
+    is_available = True
+
+    def __init__(self, texts):
+        self.texts = texts
+
+    def shadow_predict(self, frame, panel_id, slot):
+        text = self.texts[slot["index"]]
+        return SimpleNamespace(status="ok" if text else "empty", raw_text=text, rec_score=0.9 if text else 0.0)
+
+
+_FULL_BAR = [
+    "大圣再临", "齐天大圣", "风雷双翅", "哮天犬", "力量",
+    "成长", "经济", "祝福", "大圣残躯", "屠戮者",
+]
+
+
+def _replace_med(monkeypatch, texts, incoming=None):
     med = Mediator(Settings(), ROOT)
-    
-    # 模拟 1600x900 画面
-    dummy_bgr = np.zeros((900, 1600, 3), dtype=np.uint8)
-    frame = Frame(bgr=dummy_bgr, left=0, top=0, hwnd=123)
+    med._ocr_client = _FakeOcr(texts) if texts is not None else None
+    med._bond_replace_incoming = incoming
+    clicked = []
+    monkeypatch.setattr(med, "act_click", lambda hit, reason="": clicked.append((hit, reason)) or True)
+    frame = Frame(bgr=np.zeros((900, 1600, 3), dtype=np.uint8), left=0, top=0, hwnd=123)
+    return med, frame, clicked
 
-    # 模拟已有 10 张卡，前 9 张为大圣/封神/力量，第 10 张为屠戮者
-    mock_owned = [
-        "大圣再临", "齐天大圣", "风雷双翅", "哮天犬", "力量",
-        "成长", "经济", "祝福", "大圣残躯", "屠戮者"
-    ]
-    monkeypatch.setattr(med, "_confirmed_bond_cards", lambda: tuple(mock_owned))
 
-    clicked_actions = []
-    def mock_act_click(hit, reason=""):
-        clicked_actions.append((hit, reason))
-        return True
+def test_bond_slot_replacement_clicks_only_an_ocr_identified_non_target(monkeypatch):
+    med, frame, clicked = _replace_med(monkeypatch, _FULL_BAR)
+    assert med._maybe_execute_bond_slot_replacement(frame) is True
+    assert len(clicked) == 1
+    hit, reason = clicked[0]
+    assert reason == "ReplaceBondSlot-10"
+    assert (hit.x, hit.y) == (1071, 658)
 
-    monkeypatch.setattr(med, "act_click", mock_act_click)
 
-    ok = med._maybe_execute_bond_slot_replacement(frame)
-    assert ok is True
-    assert len(clicked_actions) == 1
-    hit, reason = clicked_actions[0]
-    
-    # 第 10 张卡（index=9，即第 10 格）是非目标卡，必须命中第 10 格
-    assert "ReplaceBondSlot-10" in reason or "10" in hit.name
-    # 验证点击坐标对应第 10 格（cx=1071, cy=658）
-    assert hit.x == 1071
-    assert hit.y == 658
+def test_bond_slot_replacement_is_zero_input_without_ocr(monkeypatch):
+    med, frame, clicked = _replace_med(monkeypatch, None)
+    monkeypatch.setattr(med, "_confirmed_bond_cards", lambda: tuple(_FULL_BAR))
+    assert med._maybe_execute_bond_slot_replacement(frame) is False
+    assert clicked == []
+
+
+def test_bond_slot_replacement_never_guesses_unread_slots(monkeypatch):
+    med, frame, clicked = _replace_med(monkeypatch, _FULL_BAR[:9] + [""])
+    assert med._maybe_execute_bond_slot_replacement(frame) is False
+    assert clicked == []
+
+
+def test_bond_slot_replacement_skips_the_card_just_taken(monkeypatch):
+    med, frame, clicked = _replace_med(monkeypatch, _FULL_BAR, incoming="屠戮者")
+    assert med._maybe_execute_bond_slot_replacement(frame) is False
+    assert clicked == []
 
 
 def _select_hero_med(monkeypatch, *, hud: bool):

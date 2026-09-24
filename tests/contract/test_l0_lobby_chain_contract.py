@@ -206,6 +206,10 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_post_game_view_last_frame": object(),
         "_post_game_view_f2_count": 3,
         "_post_game_view_f2_next_at": 1.0e9,
+        "_bond_replace_pending": True,
+        "_bond_replace_incoming": "polluted",
+        "_bond_replace_at": 1.0e9,
+        "_merchant_open_next_at": 1.0e9,
     }
 
     def _pollute(self, med: Mediator) -> None:
