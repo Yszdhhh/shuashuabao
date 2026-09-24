@@ -5329,6 +5329,15 @@ class Mediator:
             return None
         if not self._is_in_game_hud(frame) or self._selection_anchor(frame) is not None:
             return None
+        # Owner 规则（B8-3 2026-08-10，2026-09-24 重申）：英雄卡使用前先把
+        # 「点击进化」用完。逐格左键认不出哪格是英雄卡，所以金条亮着、或进化
+        # 还在等反馈/选英雄时，整个物品栏都不点。
+        if (
+            getattr(self, "_evolve_feedback_pending", False)
+            or getattr(self, "_evolve_awaiting_hero_pick", False)
+            or (not getattr(self, "_evolve_ok_this_cycle", False) and self._has_evolve_button(frame))
+        ):
+            return None
         now = time.time() if now is None else now
         if now < self._inventory_next_at:
             return None
