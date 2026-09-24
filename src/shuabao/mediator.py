@@ -1013,6 +1013,10 @@ class Mediator:
         self._post_game_hero_focus_lost_count: int = 0
         self._post_game_hero_focus_last_frame: Frame | None = None
         self._post_game_hero_focus_next_check_at: float = 0.0
+        self._post_game_view_lost_since: float | None = None
+        self._post_game_view_last_frame: Frame | None = None
+        self._post_game_view_f2_count: int = 0
+        self._post_game_view_f2_next_at: float = 0.0
         self._opportunistic_merchant_next_at: float = 0.0
         self._opportunistic_hero_card_next_at: float = 0.0
         self._passenger_heirloom_for_secret = False
@@ -9011,6 +9015,66 @@ class Mediator:
         self._post_game_hero_focus_last_frame = None
         self._post_game_hero_focus_next_check_at = now + 1.0
         return LoopAction.Continue
+    _POST_GAME_VIEW_CONFIRM_S = 2.0
+    _POST_GAME_VIEW_F2_INTERVAL_S = 8.0
+    _POST_GAME_VIEW_F2_MAX = 3
+
+    def _maybe_recover_post_game_view(
+        self, frame: Frame, post_game: str | None, now: float
+    ) -> LoopAction | None:
+        """Owner 2026-09-24：战后既看不到英雄看板也看不到广场时，F2 拉回广场。
+
+        只在战后链路里、顶栏仍是「存档」广场模式（不是加载/秘境/团本）且
+        两个不同帧、间隔 ≥2s 都认不出任何战后页面时按 F2；每 8s 最多一次，
+        每个战后事务最多 3 次。看板在（只是广场 NPC 不在画面里）也算画面飞走。
+        """
+        def reset() -> None:
+            self._post_game_view_lost_since = None
+            self._post_game_view_last_frame = None
+
+        if post_game is not None:
+            reset()
+            self._post_game_view_f2_count = 0
+            return None
+        route = str(getattr(self, "_post_game_route", "") or "")
+        if (
+            not getattr(self, "_post_game_pending", False)
+            or route.endswith("_active")
+            or getattr(self, "_hitch_heirloom_exit_since", None)
+            or getattr(self, "_solo_heirloom_boss_waiting", False)
+            or getattr(self, "_secret_realm_request_pending", False)
+            or self._panel_state != PanelState.CLOSED
+            or self._public_bag_fsm.active
+            or self._has_active_transaction(frame)
+            or self._top_bar_mode(frame) != "plaza"
+        ):
+            reset()
+            return None
+        if getattr(self, "_post_game_view_f2_count", 0) >= self._POST_GAME_VIEW_F2_MAX:
+            return None
+        if frame is getattr(self, "_post_game_view_last_frame", None):
+            return None
+        self._post_game_view_last_frame = frame
+        since = getattr(self, "_post_game_view_lost_since", None)
+        if since is None:
+            self._post_game_view_lost_since = now
+            print("[med] 战后广场模式下认不出广场页面，候选第 1 帧（零动作）")
+            return None
+        if now - since < self._POST_GAME_VIEW_CONFIRM_S:
+            return None
+        if now < getattr(self, "_post_game_view_f2_next_at", 0.0):
+            return None
+        self._post_game_view_f2_count = getattr(self, "_post_game_view_f2_count", 0) + 1
+        self._post_game_view_f2_next_at = now + self._POST_GAME_VIEW_F2_INTERVAL_S
+        print(
+            f"[med] 战后画面已飞离广场（{now - since:.1f}s 认不出广场页面），"
+            f"按 F2 回到广场（{self._post_game_view_f2_count}/{self._POST_GAME_VIEW_F2_MAX}）"
+        )
+        if not getattr(self.settings, "dry_run", False):
+            self.act_key("F2", "PostGameViewReturnPlaza")
+        reset()
+        return LoopAction.Continue
+
     # Icon centre sits 48px above the caption centre at 900px height.
     _TQTZ_ICON_LIFT = 48 / 900
     # The icon opens 「是否确认提前挑战？」 with the same grey 是/否 buttons as
@@ -10751,6 +10815,10 @@ class Mediator:
             self._post_game_hero_focus_lost_count = 0
             self._post_game_hero_focus_last_frame = None
             self._post_game_hero_focus_next_check_at = 0.0
+            self._post_game_view_lost_since = None
+            self._post_game_view_last_frame = None
+            self._post_game_view_f2_count = 0
+            self._post_game_view_f2_next_at = 0.0
             self._opportunistic_merchant_next_at = 0.0
             self._opportunistic_hero_card_next_at = 0.0
             self._passenger_heirloom_for_secret = False
@@ -17767,6 +17835,10 @@ class Mediator:
             return LoopAction.Continue
         if not challenge_hud:
             self._post_game_hud_confirmations = 0
+        if not secret_entry_observation:
+            view_res = self._maybe_recover_post_game_view(frame, post_game, now)
+            if view_res is not None:
+                return view_res
         if (
             self.settings.auto_secret_realm
             and self._post_game_pending
