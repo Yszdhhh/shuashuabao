@@ -1214,6 +1214,13 @@ class Mediator:
         self._merchant_kill_balance_fingerprint: str | None = None
         self._merchant_kill_balance_value: int | None = None
         self._merchant_discovery_deadline: float | None = None
+        # Owner 2026-09-24：羁绊栏超过一半且没有吞噬丹、或木材不足时插队去黑商；
+        # 插队有冷却，黑商空手时不会把轮换饿死。
+        self._merchant_urgent_next_at = 0.0
+        # 插队前所在的轮换位置 (index, step)：黑商一步结束后回到这里，不跳过装备/拾取。
+        self._l1_cycle_resume: tuple[int, str] | None = None
+        # 本局羁绊栏上见过的 EX 卡数（EX 无法吞噬，只增不减），决定当前推进哪组高级卡。
+        self._advanced_groups_completed = 0
         self._equipment_next_at = 0.0
         self._equipment_pending_until = 0.0
         self._equipment_fsm = EquipmentFSM()
@@ -3974,6 +3981,7 @@ class Mediator:
                     owned_skill_cards=self._confirmed_skill_cards(),
                     owned_bond_cards=self._confirmed_bond_cards(),
                     round_elapsed_s=self._round_elapsed_s(),
+                    completed_advanced_groups=self._advanced_groups_completed,
                 ),
                 self._choice_session,
             )
@@ -3997,6 +4005,7 @@ class Mediator:
                     can_refresh=can_refresh,
                     has_giveup=self._panel_has_giveup(frame, kind),
                     round_elapsed_s=self._round_elapsed_s(),
+                    completed_advanced_groups=self._advanced_groups_completed,
                     wood=getattr(self, "_wood_balance", None),
                     refresh_price=self._bond_refresh_price() if kind == "bond" else None,
                     downgraded_from=_obs_from, downgrade_reason=_obs_why,
@@ -4470,6 +4479,17 @@ class Mediator:
             self._l1_cycle_last_advance_at = time.time()
             self._l1_cycle_step_successes = 0
             return
+        resume = getattr(self, "_l1_cycle_resume", None)
+        if resume is not None and current == "merchant":
+            # An urgent merchant detour returns to the step it interrupted.
+            self._l1_cycle_resume = None
+            ridx, rstep = resume
+            if 0 <= ridx < len(order) and order[ridx] == rstep:
+                self._l1_cycle_index = ridx
+                self._l1_cycle_step = rstep
+                self._l1_cycle_last_advance_at = time.time()
+                self._l1_cycle_step_successes = 0
+                return
         # Advance by position, not tuple.index(), so duplicate bond/skill steps work.
         idx = int(getattr(self, "_l1_cycle_index", 0) or 0)
         if not (0 <= idx < len(order) and order[idx] == current):
@@ -4572,6 +4592,7 @@ class Mediator:
         self._last_confirmed_treasure_service = None
         self._wood_balance = None
         self._wood_next_read_at = 0.0
+        self._advanced_groups_completed = 0
 
     def _refresh_solo_signals(self, frame: Frame, now: float) -> None:
         """Wood / unspent skill picks / pending treasure, read at most every 3s."""
@@ -4589,6 +4610,10 @@ class Mediator:
         if treasure is not None:
             self._treasure_pending_seen = treasure
             self._treasure_pending_seen_at = now
+        ex_count = self._bond_bar_ex_count(frame)
+        if ex_count is not None and ex_count > self._advanced_groups_completed:
+            print(f"[L1] 羁绊栏出现第 {ex_count} 张 EX，解锁下一组高级卡组")
+            self._advanced_groups_completed = ex_count
 
     # Unspent skill picks that pre-empt the early bond priority (Owner:
     # 前期 羁绊>技能>其它, but live 000229 banked 32 picks and lost 4-5).
@@ -5276,7 +5301,7 @@ class Mediator:
         if yinyue_res is not None:
             return yinyue_res
         inventory_roi = (0.64, 0.77, 0.74, 0.98)
-        if self.settings.auto_devour_dan and self._can_consume_inventory_swallow_pill(frame):
+        if self._can_consume_inventory_swallow_pill(frame):
             pill = self.find(
                 frame,
                 ["danGif", "swallow_pill"],
@@ -5530,13 +5555,59 @@ class Mediator:
         min_colored = max(20, int(250 * scale * scale))
         return int(colored.sum()) >= min_colored
 
+    # Owner 2026-09-24：单人默认吃吞噬丹（看板不加开关），羁绊栏超过一半就吃。
+    # 吞噬只提前腾出格子，不影响合成进度：凑齐后同组剩下的卡照样一起合成。
+    _DEVOUR_BOND_OCCUPANCY = 6
+    _MERCHANT_URGENT_COOLDOWN_S = 45.0
+
     def _can_consume_inventory_swallow_pill(self, frame: Frame) -> bool:
-        """Use opted-in devour pills when the ten-cell bond bar is nearly full."""
+        """Solo eats devour pills once more than half of the ten-cell bond bar is used."""
         return (
             str(getattr(self.settings, "mode_id", "normal_farm")) == "normal_farm"
             and (occupied := self._bond_bar_occupancy(frame)) is not None
-            and occupied >= 8
+            and occupied >= self._DEVOUR_BOND_OCCUPANCY
         )
+
+    def _inventory_has_swallow_pill(self, frame: Frame) -> bool:
+        return self.find(
+            frame, ["danGif"], threshold=0.55, scales=self._hot_scales(), roi=(0.64, 0.77, 0.74, 0.98),
+        ) is not None
+
+    def _urgent_merchant_reason(self, frame: Frame, now: float) -> str | None:
+        """Why solo should jump the L1 cycle to the black merchant now, if at all."""
+        if self._passenger_mode() or not getattr(self.settings, "merchant_enabled", True):
+            return None
+        if getattr(self, "_l1_cycle_step", None) == "merchant" or self._panel_state != PanelState.CLOSED:
+            return None
+        if now < self._merchant_urgent_next_at or now < getattr(self, "_merchant_budget_retry_at", 0.0):
+            return None
+        occupied = self._bond_bar_occupancy(frame)
+        if (
+            occupied is not None
+            and occupied >= self._DEVOUR_BOND_OCCUPANCY
+            and not self._inventory_has_swallow_pill(frame)
+        ):
+            return f"羁绊栏已占 {occupied}/10 格且物品栏没有吞噬丹"
+        wood = getattr(self, "_wood_balance", None)
+        if wood is not None and wood < self._SKILL_FIRST_WOOD:
+            return f"木材 {wood} < {self._SKILL_FIRST_WOOD}"
+        return None
+
+    def _detour_l1_cycle(self, step: str) -> None:
+        """Jump to ``step`` now; the next advance from it resumes the interrupted step."""
+        order = self._l1_cycle_order()
+        if step not in order:
+            return
+        here = getattr(self, "_l1_cycle_step", None)
+        idx = int(getattr(self, "_l1_cycle_index", 0) or 0)
+        if here in order and here != step:
+            if not (0 <= idx < len(order) and order[idx] == here):
+                idx = order.index(here)
+            self._l1_cycle_resume = (idx, here)
+        self._l1_cycle_index = order.index(step)
+        self._l1_cycle_step = step
+        self._l1_cycle_last_advance_at = time.time()
+        self._l1_cycle_step_successes = 0
 
     def _bag_page_swallow_pill(self, frame: Frame) -> MatchResult | None:
         """Devour pill inside an open bag page's 物品栏, aimed at the slot center.
@@ -10953,6 +11024,8 @@ class Mediator:
             self._bond_replace_incoming = None
             self._bond_replace_at = 0.0
             self._merchant_open_next_at = 0.0
+            self._merchant_urgent_next_at = 0.0
+            self._l1_cycle_resume = None
             self._opportunistic_merchant_next_at = 0.0
             self._opportunistic_hero_card_next_at = 0.0
             self._passenger_heirloom_for_secret = False
@@ -17462,6 +17535,7 @@ class Mediator:
             log.note_tick(
                 round_id=self._observe_round_id(),
                 round_elapsed_s=self._round_elapsed_s(),
+                completed_advanced_groups=self._advanced_groups_completed,
                 phase=getattr(getattr(self, "phase", None), "name", ""),
                 cycle_step=getattr(self, "_l1_cycle_step", None),
                 wood=getattr(self, "_wood_balance", None),
@@ -18891,7 +18965,7 @@ class Mediator:
             bond_occupied = self._bond_bar_occupancy(frame)
             if (
                 (occupied is not None and occupied >= 4)
-                or (bond_occupied is not None and bond_occupied >= 8)
+                or (bond_occupied is not None and bond_occupied >= self._DEVOUR_BOND_OCCUPANCY)
                 or self._evolve_ok_this_cycle
             ):
                 item_res = self._maybe_use_inventory_item(frame)
@@ -18916,6 +18990,17 @@ class Mediator:
                     self._pickup_next_at = now + 10.0
                     self._main_line_since = now
                     return LoopAction.Continue
+
+        # Owner 2026-09-24：羁绊栏超过一半没丹、木材不足时，黑商是当前最紧急的支线，
+        # 插队到黑商一步，不等轮换走完。
+        if surface == InteractionSurface.HUD_ONLY and anchor is None:
+            urgent = self._urgent_merchant_reason(frame, now)
+            if urgent is not None:
+                print(f"[L1] {urgent}，插队去黑商")
+                self._merchant_urgent_next_at = now + self._MERCHANT_URGENT_COOLDOWN_S
+                self._detour_l1_cycle("merchant")
+                self._main_line_since = now
+                return LoopAction.Continue
 
         # 技能/羁绊/宝物优先于会重复出现的进化按钮，避免 G/F/V 饿死。
         opened = self._maybe_open_choice_panel(frame, anchor=anchor)
@@ -19020,7 +19105,7 @@ class Mediator:
             bond_occupied = self._bond_bar_occupancy(frame)
             if not self._passenger_mode() and (
                 (occupied is not None and occupied >= 4)
-                or (bond_occupied is not None and bond_occupied >= 8)
+                or (bond_occupied is not None and bond_occupied >= self._DEVOUR_BOND_OCCUPANCY)
                 or self._evolve_ok_this_cycle
             ):
                 item_res = self._maybe_use_inventory_item(frame)
@@ -19070,16 +19155,22 @@ class Mediator:
                         return LoopAction.Continue
                 else:
                     bond_occ = self._bond_bar_occupancy(frame)
+                    wood = getattr(self, "_wood_balance", None)
+                    want_pill = bond_occ is not None and bond_occ >= self._DEVOUR_BOND_OCCUPANCY
+                    want_wood = wood is not None and wood < self._SKILL_FIRST_WOOD
                     if (
                         getattr(self.settings, "merchant_enabled", True)
-                        and bond_occ is not None
-                        and bond_occ >= 8
+                        and (want_pill or want_wood)
                         and now >= getattr(self, "_merchant_open_next_at", 0.0)
                     ):
-                        if self.act_key("h", "OpenBlackMerchantForDevourPill"):
+                        action = "OpenBlackMerchantForDevourPill" if want_pill else "OpenBlackMerchantForWood"
+                        if self.act_key("h", action):
                             self._merchant_open_next_at = now + 15.0
                             self._merchant_next_at = now + 1.2
-                            print(f"[L1] 羁绊栏已占 {bond_occ}/10 格，按 [H] 打开黑商寻找吞噬丹")
+                            if want_pill:
+                                print(f"[L1] 羁绊栏已占 {bond_occ}/10 格，按 [H] 打开黑商寻找吞噬丹")
+                            else:
+                                print(f"[L1] 木材 {wood} < {self._SKILL_FIRST_WOOD}，按 [H] 打开黑商买木材")
                             return LoopAction.Continue
                 print("[L1] 黑商不在，转回 G 技能")
                 self._advance_l1_cycle("merchant")

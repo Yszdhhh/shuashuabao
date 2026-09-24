@@ -490,7 +490,7 @@ class Mediator(CoreMediator):
             return None
 
         inventory_roi = (0.64, 0.77, 0.74, 0.98)
-        if self.settings.auto_devour_dan and self._can_consume_inventory_swallow_pill(frame):
+        if self._can_consume_inventory_swallow_pill(frame):
             pill = self.find(
                 frame,
                 ["danGif"],
