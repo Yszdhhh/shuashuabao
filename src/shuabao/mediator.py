@@ -18702,6 +18702,19 @@ class Mediator:
                         return LoopAction.Continue
                     if now < self._merchant_discovery_deadline:
                         return LoopAction.Continue
+                else:
+                    bond_occ = self._bond_bar_occupancy(frame)
+                    if (
+                        getattr(self.settings, "merchant_enabled", True)
+                        and bond_occ is not None
+                        and bond_occ >= 8
+                        and now >= getattr(self, "_merchant_open_next_at", 0.0)
+                    ):
+                        if self.act_key("h", "OpenBlackMerchantForDevourPill"):
+                            self._merchant_open_next_at = now + 15.0
+                            self._merchant_next_at = now + 1.2
+                            print(f"[L1] 羁绊栏已占 {bond_occ}/10 格，按 [H] 打开黑商寻找吞噬丹")
+                            return LoopAction.Continue
                 print("[L1] 黑商不在，转回 G 技能")
                 self._advance_l1_cycle("merchant")
                 return LoopAction.Continue

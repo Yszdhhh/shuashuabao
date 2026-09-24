@@ -1304,7 +1304,7 @@ def _bond_capacity_candidates(
             slot.name, settings.bond_presets
         )
         if free <= 0:
-            allowed = merge or slot.zero_cost
+            allowed = merge or core or slot.zero_cost
         elif free == 1:
             allowed = merge or core or slot.name in tier_names
         else:

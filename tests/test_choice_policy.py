@@ -1982,6 +1982,25 @@ class TestLiveRegressions20260822(unittest.TestCase):
         self.assertEqual(d.action, PolicyAction.SELECT_SLOT)
         self.assertEqual(d.index, 0)
 
+    def test_bond_capacity_full_slots_allows_core_preset_for_replace(self):
+        """当卡槽全满（free_slots == 0）时，白名单核心预设卡（如法宝、大圣）仍允许抓取以触发顶替，不直接判空关闭。"""
+        ps = settings(
+            bond_presets=["法宝", "齐天大圣"],
+            bond_whitelist_mode="soft",
+        )
+        cands = bond_cands(
+            [
+                slot(0, "法宝", rarity="blue"),
+                slot(1, "无关散卡", rarity="white"),
+                slot(2, "无关散卡2", rarity="white"),
+            ],
+            settings=ps,
+            free_slots=0,
+        )
+        d = choose_action(cands, session=SessionState(refreshes=3, max_refreshes=3))
+        self.assertEqual(d.action, PolicyAction.SELECT_SLOT)
+        self.assertEqual(d.index, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
