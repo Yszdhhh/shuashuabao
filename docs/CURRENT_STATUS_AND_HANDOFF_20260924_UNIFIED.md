@@ -77,3 +77,23 @@ Owner 指出以前写好的局内规则在多轮架构收敛里被删掉。下�
 ## 分支收敛
 
 远端分支清单和删除建议见项目文件 `branch_convergence/分支收敛方案_20260924.md`。统一版本合入后，#36、#37 关闭，被吸收的分支按清单删除。
+
+## 本地 quick-test 记录（2026-09-24）
+
+本机默认工作根 `G:\刷刷宝\GameScript-Local`；分支 `local/quicktest-20260924`，源码 HEAD `bef1d3cb27b9e5fb05fc3baf2fda8fc24e471494`。`8a0266d` 是 HEAD 祖先，`config/choice_lexicon.json` 存在且工作树与统一分支版本一致。
+
+门禁命令 `python tools/release_gate.py` 退出码 1：
+- `pytest`：FAIL，2679 passed、1 failed、2 xfailed、2 skipped。门禁汇总未保留失败 node ID；本机 `.pytest_cache/v/cache/lastfailed` 在诊断前含有 34 条历史记录，不能据此确认本次用例名。
+- `frozen_replay`：PASS；6 个场景 PASS，`disconnect_modal_missing` 为 BLOCKED。`giveup_panel_not_fail` 实际 PASS。
+- `scene_templates`：FAIL；模板 ok=148、missing=0；资产文件与 allowlist 均为 405，对比快照 404。此为预期的 `select_hero.png` 资产差异。
+- `contract`：PASS，67 passed。
+
+为取得 pytest 失败详情，重跑同一子命令 `python -m pytest tests -q --tb=short -p no:faulthandler`，退出码 0：2680 passed、2 skipped、2 xfailed、389 subtests；有 2 条 `test_ocr_shadow.py::TestClientLifecycle::test_corrupt_model_is_unavailable` 的 `PytestUnhandledThreadExceptionWarning`（stderr reader 在线程读已关闭文件时抛出 `ValueError`）。重跑未复现门禁的 1 个失败，因此该失败的具体 node ID 仍未知。
+
+由于首次门禁除预期资产计数差异外还有 pytest 失败，本轮没有运行 `--update-baseline`、身份锚点刷新、第二次门禁、`build_release.ps1`、发布 harness 或真实游戏入口。门禁结果仍记 FAIL；没有构建产物 hash / `build_identity.json`，没有局内 trace/capture bundle。Owner 规则 1–19 本轮全部 `NOT_OBSERVED`（未启动实机入口，无对应 trace 行号/截图）；大圣再临与海贼王标题截图也未产生。
+
+用户指定的桌面快捷方式 `C:\Users\10639\Desktop\刷刷宝 实机测试台.lnk` 当前指向 `G:\刷刷宝\Worktrees\desktop-sync-20260923\live_scenario_launcher.ps1`，固定 `-ProductionSourceSha 1b0a1a86b76db73bd91d7963743ec4cad998891c`。快捷方式未改动。本轮结果与 pytest 诊断日志已放入测试台使用的 capture root：`G:\刷刷宝\captures\local_quicktest_20260924_20260924_185305\REPORT.md`；日志同目录 `pytest_detail.log`。
+
+本轮现场保全：起始分支 `fix/hitch-goal-archaeology-20260920` / `94f502335dd3575926fc78e853f992edbb401fab` 的未提交内容已原样提交到 `wip/local-dirty-20260924` / `71888d8bbdf3eb9d57b89fc8478d8ea025fefabe`。B 类研究差异和 A–F 分类详见 `G:\刷刷宝\handoff_prompts\backup_20260924_20260924_175833\classification.txt`。
+
+下次恢复本地实测前，先解决/复现首次 pytest 的单次失败并使完整 release gate 退出码为 0，再运行发布构建与双次冻结包 harness；确认测试台快捷方式应改指向的源码 SHA 后再从入口 12 跑两局。
