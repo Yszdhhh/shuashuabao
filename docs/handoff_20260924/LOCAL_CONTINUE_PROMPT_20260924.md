@@ -1,6 +1,8 @@
 # ShuaBao / 刷刷宝：2026-09-24 本地快速实测续跑
 
-你是本地主 Agent，接着上一轮停下的地方继续。上一轮在第一次 `release_gate.py` 看到 pytest 1 failed 后正确地停了，没有刷新快照、没有构建、没有实跑（记录见 PR #40 和 `G:\刷刷宝\captures\local_quicktest_20260924_20260924_185305\REPORT.md`）。
+你是本地主 Agent，接着上一轮停下的地方继续。前两轮都在 `release_gate.py` 的 pytest 阶段遇到 1 个失败后正确地停了，没有刷新快照、构建或实跑（记录见 PR #40 和 `G:\刷刷宝\captures\local_quicktest_20260924_20260924_185305\REPORT.md`）。
+
+第二轮定位到失败用例：`tests/test_windows_launcher_smoke.py::test_windows_launcher_shortcut_vbs_ps1_current_and_rollback`。它在门禁里失败，单独跑 3 次都通过。这个测试 09-11 之后没改过，与 main 一致，不是本轮回归。它的每一步都要冷启动 powershell/wscript，或首次运行一个刚编译的未签名 EXE（Defender 会扫描），原来的 8/12/15/20 秒上限在全量负载下不够。云端提交 `dd7d91b` 把成功路径的上限放宽到 45–60 秒：步骤跑完就立即返回，不会拖慢门禁。失败信息里现在带 rc 和耗时。
 
 先读 `docs/CURRENT_STATUS_AND_HANDOFF_20260924_UNIFIED.md` 的「本地门禁单次失败的处理（2026-09-24 晚）」一节。结论：失败只在首跑出现，最可能是 OCR 冷启动第一次推理超时，判为环境性，不是本轮回归。云端做了三件事：门禁现在会打印失败用例的 node ID 并保存完整日志；修掉了 OCR 读线程那 2 条告警；pytest 会话开始会先预热一次 OCR worker。
 
@@ -20,15 +22,18 @@
 git rev-parse --show-toplevel
 git status --short          # 必须干净；不干净就停下报告，不要清理
 git fetch origin
-git merge-base --is-ancestor 4e0b91744ed29b25c8cb46dbdbfe74f97298e06d origin/claude/project-thread-fqyf7h; $LASTEXITCODE
+git merge-base --is-ancestor dd7d91b origin/claude/project-thread-fqyf7h; $LASTEXITCODE
 ```
 
 上面最后一条返回 0，就用 `origin/claude/project-thread-fqyf7h` 作为基点。返回非 0，说明统一线程还没把修复快进进来，改用 `origin/claude/project-thread-8rydkf`，两者是同一条线。
 
 ```powershell
-git switch -c local/quicktest-20260924b <基点>
+git switch local/quicktest-20260924b      # 上一轮已建好，没有新提交
+git merge --ff-only <基点>
 git config core.hooksPath .githooks
 ```
+
+`git merge --ff-only` 失败就停下报告，不要改用别的合并方式。
 
 `local/quicktest-20260924` 是 PR #40 的头，保持原样，不要在它上面继续提交。
 
@@ -39,6 +44,7 @@ git config core.hooksPath .githooks
    - pytest 计数变化（`--update-baseline` 会记录新计数）。
 2. 如果 pytest 或 contract 有失败，现在汇总里会逐条打出 `FAILED <node id>` 和完整日志路径。遇到失败：
    - 把每个 node 单独跑 3 次：`python -m pytest "<node id>" -q -p no:cacheprovider`；
+   - 从门禁日志里把该用例的 traceback 段原样摘出来（从 `____ <用例名> ____` 到下一个分隔线），放进报告；
    - 记录 node ID、3 次结果和日志路径，然后停下报告，不要刷新快照。
    - 门禁现在会拒绝在红灯时 `--update-baseline`，这是有意的，不要绕过。
 3. 只有两类预期差异、没有失败用例时，执行：
