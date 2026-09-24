@@ -373,7 +373,8 @@ class TestBondTreasureUnknown(unittest.TestCase):
         self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 2))
         self.assertIn("差一张合成", d.reason)
 
-    def test_advanced_bond_waits_for_eighty_percent_base_progress(self):
+    def test_advanced_bond_has_no_basic_eighty_percent_gate(self):
+        """Owner 2026-09-24：高级卡组不设硬门槛，基础羁绊没拿够也照拿（单独出现时）。"""
         policy = settings(
             bond_presets=["成长", "经济", "贪婪", "挑战", "封神"],
             bond_base_presets=["成长", "经济", "贪婪", "挑战"],
@@ -383,10 +384,11 @@ class TestBondTreasureUnknown(unittest.TestCase):
             bond_cands(
                 [slot(0, "封神")], can_refresh=True, settings=policy,
                 owned_bond_cards=("成长", "经济"),
+                round_elapsed_s=10.0,
             ),
             SessionState(),
         )
-        self.assertEqual(d.action, PolicyAction.REFRESH)
+        self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 0))
 
     def test_selected_simple_ex_families_progress_before_base_eighty_percent(self):
         """Owner-selected EX families still progress before 80% when no missing
@@ -468,7 +470,8 @@ class TestBondTreasureUnknown(unittest.TestCase):
         )
         self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 0))
 
-    def test_selected_simple_ex_pack_is_not_blocked_by_other_advanced_pack(self):
+    def test_second_advanced_pack_waits_until_the_first_pack_shows_its_ex(self):
+        """Owner 2026-09-24：同一时刻只推进一组，EX 直通组也不例外。"""
         policy = settings(
             bond_presets=["成长", "经济", "贪婪", "挑战", "海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏", "封神"],
             bond_base_presets=["成长", "经济", "贪婪", "挑战"],
@@ -485,9 +488,10 @@ class TestBondTreasureUnknown(unittest.TestCase):
             ),
             SessionState(),
         )
-        self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 0))
+        self.assertEqual(d.action, PolicyAction.REFRESH)
 
-    def test_second_advanced_pack_unlocks_after_active_pack(self):
+    def test_second_advanced_pack_unlocks_after_first_pack_ex(self):
+        """Owner 2026-09-24：前一组合成出 EX（海盗为 UR）才解锁下一组；持有全部材料不算。"""
         policy = settings(
             bond_presets=["成长", "经济", "贪婪", "挑战", "海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏", "封神"],
             bond_base_presets=["成长", "经济", "贪婪", "挑战"],
@@ -497,10 +501,16 @@ class TestBondTreasureUnknown(unittest.TestCase):
                 ("封神",),
             ),
         )
+        owned = ("成长", "经济", "贪婪", "挑战", "海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏")
+        d = choose_action(
+            bond_cands([slot(0, "封神")], can_refresh=True, settings=policy, owned_bond_cards=owned),
+            SessionState(),
+        )
+        self.assertEqual(d.action, PolicyAction.REFRESH)
         d = choose_action(
             bond_cands(
-                [slot(0, "封神")], settings=policy,
-                owned_bond_cards=("成长", "经济", "贪婪", "挑战", "海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏"),
+                [slot(0, "封神")], can_refresh=True, settings=policy,
+                owned_bond_cards=owned, completed_advanced_groups=1,
             ),
             SessionState(),
         )
@@ -1498,12 +1508,14 @@ class TestAssemblePolicySettings(unittest.TestCase):
                 }
             },
         )
-        self.assertEqual(ps.bond_base_presets, ("经济", "祝福", "贪婪", "挑战", "成长"))
+        self.assertEqual(ps.bond_base_presets, ("祝福", "成长", "经济", "挑战", "贪婪"))
         self.assertEqual(ps.bond_advanced_presets, ("封神", "封神榜", "海盗"))
         self.assertEqual(ps.bond_advanced_groups[0][0], "封神")
         self.assertEqual(ps.bond_advanced_groups[1][0], "海盗")
 
-    def test_configured_simple_ex_chains_reach_final_cards(self):
+    def test_configured_simple_ex_chains_progress_but_yield_to_missing_basic(self):
+        """Owner 2026-09-24：EX 靠合成得到，不锁"从面板拿终卡"；锁的是链上成员照拿、
+        同页有还没拿到的基础羁绊时先拿基础（取代 09-24 早先的"起步后不让基础"）。"""
         policy_doc = json.loads(
             (Path(__file__).resolve().parents[1] / "config/choice_policy.json").read_text(encoding="utf-8")
         )
@@ -1515,21 +1527,26 @@ class TestAssemblePolicySettings(unittest.TestCase):
                     fetter_labels={},
                     policy_doc=policy_doc,
                 )
-                self.assertIn(final, policy.bond_advanced_presets)
-                # The final card only shows up once the chain has started; an
-                # in-progress chain is not interrupted by a missing basic card
-                # (Owner 2026-09-24 basic-first rule).
                 group = next(g for g in policy.bond_advanced_groups if final in g)
-                started = next(name for name in group if name != final)
+                started, member = (name for name in group[:2])
                 decision = choose_action(
                     bond_cands(
-                        [slot(0, "经济"), slot(1, final)],
+                        [slot(0, "三国"), slot(1, member)],
                         settings=policy,
                         owned_bond_cards=(started,),
                     ),
                     SessionState(),
                 )
                 self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))
+                decision = choose_action(
+                    bond_cands(
+                        [slot(0, "经济"), slot(1, member)],
+                        settings=policy,
+                        owned_bond_cards=(started,),
+                    ),
+                    SessionState(),
+                )
+                self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 0))
 
     def test_treasure_allow_negative_from_settings(self):
         ps = assemble_policy_settings(
