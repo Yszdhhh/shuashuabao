@@ -1963,6 +1963,25 @@ class TestLiveRegressions20260822(unittest.TestCase):
         d = choose_action(cands_4, session=SessionState())
         self.assertEqual(d.action, PolicyAction.CLOSE)
 
+    def test_bond_capacity_free_two_allows_core_preset(self):
+        """当已占8格（free_slots == 2）时，白名单核心预设卡（大圣/力量）仍允许抓取，绝不判为空直接关闭。"""
+        ps = settings(
+            bond_presets=["齐天大圣", "力量祝福"],
+            bond_whitelist_mode="soft",
+        )
+        cands = bond_cands(
+            [
+                slot(0, "齐天大圣", rarity="red"),
+                slot(1, "无关散卡", rarity="white"),
+                slot(2, "无关散卡2", rarity="white"),
+            ],
+            settings=ps,
+            free_slots=2,
+        )
+        d = choose_action(cands, session=SessionState(refreshes=3, max_refreshes=3))
+        self.assertEqual(d.action, PolicyAction.SELECT_SLOT)
+        self.assertEqual(d.index, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

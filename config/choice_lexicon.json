@@ -2103,7 +2103,9 @@
       "aliases": [
         "ONE PIECE",
         "OnePiece",
-        "onepiece"
+        "onepiece",
+        "海贼王",
+        "海贼"
       ],
       "kind": "treasure",
       "version_seen": "ex-video-20260813",
@@ -2294,7 +2296,8 @@
     },
     "齐天大圣": {
       "aliases": [
-        "大圣"
+        "大圣",
+        "大圣再临"
       ],
       "kind": "bond",
       "version_seen": "live-20260814",
@@ -4172,7 +4175,8 @@
   "aliases": {
     "齐天大圣": [
       "大圣",
-      "齐天"
+      "齐天",
+      "大圣再临"
     ],
     "大圣残躯": [
       "残躯",
