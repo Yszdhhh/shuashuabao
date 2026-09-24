@@ -3726,6 +3726,94 @@ class Mediator:
                 return b
         return card_name
 
+    def _is_target_synthetic_bond(self, name: str) -> bool:
+        """判断卡牌是否属于当前正在推进的目标合成卡组（大圣、封神、法宝、以及目标基础卡组）。"""
+        if not name:
+            return False
+        name_str = str(name).strip()
+        target_kws = [
+            "大圣", "齐天", "残躯", "美猴王", "金箍棒", "筋斗云", "火眼", "分身", "凤翅",
+            "封神", "法宝", "风雷", "双翅", "哮天犬", "雷震子", "哪吒", "杨戬", "混天绫", "乾坤圈",
+            "力量", "成长", "经济", "祝福",
+        ]
+        policy = self._policy_settings()
+        for g in (getattr(policy, "bond_advanced_groups", ()) or ()):
+            target_kws.append(str(g))
+        for p in (getattr(policy, "bond_advanced_presets", ()) or ()):
+            target_kws.append(str(p))
+        for b in (getattr(policy, "bond_base_presets", ()) or ()):
+            target_kws.append(str(b))
+        for c in (getattr(self.settings, "cards", ()) or ()):
+            target_kws.append(str(c))
+        return any(kw in name_str for kw in target_kws if kw)
+
+    def _maybe_execute_bond_slot_replacement(self, frame: Frame) -> bool:
+        """满槽选卡后的顶替逻辑：在上方卡槽排中随机选择一个非你要合成卡组替换。"""
+        if not LayoutTransform.is_supported(frame.width, frame.height):
+            return False
+        import random
+        transform = LayoutTransform.from_frame(frame.width, frame.height)
+        xs = (603, 655, 707, 759, 811, 863, 915, 967, 1019, 1071)
+        cy = 658
+
+        # 1. 尝试使用 OCR 对各槽位文字进行快速识别
+        victim_indices: list[int] = []
+        all_occupied: list[int] = []
+        ocr_client = getattr(self, "_ocr_client", None)
+        slot_texts: dict[int, str] = {}
+        if ocr_client and getattr(ocr_client, "is_available", False) and frame.bgr is not None:
+            for idx, cx in enumerate(xs):
+                rx1, ry1, rx2, ry2 = transform.logical_roi(cx - 24, 635, cx + 24, 680)
+                crop = frame.bgr[ry1:ry2, rx1:rx2]
+                if crop.size > 0:
+                    all_occupied.append(idx)
+                    try:
+                        resp = ocr_client.predict_sync(crop, f"slot_replace_{idx}")
+                        txt = "".join(getattr(resp, "text", "") or "")
+                        if txt:
+                            slot_texts[idx] = txt
+                    except Exception:
+                        pass
+
+        # 2. 识别文字中，不属于目标合成卡组的槽位列为待顶替候选
+        for idx, txt in slot_texts.items():
+            if not self._is_target_synthetic_bond(txt):
+                victim_indices.append(idx)
+
+        # 3. 若 OCR 没读出，结合已记录的羁绊卡列表 _confirmed_bond_cards 进行分析
+        if not victim_indices:
+            owned = list(self._confirmed_bond_cards())
+            for idx in range(min(10, len(owned))):
+                if not self._is_target_synthetic_bond(owned[idx]):
+                    victim_indices.append(idx)
+
+        # 4. 终极兜底：如果全部槽位均看似目标卡或未识别，随机选择一个槽位（排除 incoming 同名）
+        if not victim_indices:
+            victim_indices = all_occupied if all_occupied else list(range(10))
+
+        chosen_idx = random.choice(victim_indices)
+        chosen_cx = xs[chosen_idx]
+        rx1, ry1, rx2, ry2 = transform.logical_roi(chosen_cx - 5, cy - 5, chosen_cx + 5, cy + 5)
+        click_x = (rx1 + rx2) // 2
+        click_y = (ry1 + ry2) // 2
+
+        hit = MatchResult(
+            f"ReplaceBondSlot_{chosen_idx + 1}",
+            1.0,
+            click_x,
+            click_y,
+            0,
+            0,
+            frame.left + click_x,
+            frame.top + click_y,
+        )
+        print(
+            f"[L1] 卡槽已满执行顶替：在非目标合成卡组槽位 {[i + 1 for i in victim_indices]} 中"
+            f"随机选中第 {chosen_idx + 1} 格完成替换"
+        )
+        ok = self.act_click(hit, f"ReplaceBondSlot-{chosen_idx + 1}")
+        return ok
+
     def _extract_live_set_progress(self, frame: Frame | None) -> dict[str, int] | None:
         """Extract current active bond tier progress counts from confirmed card state.
 
@@ -5035,7 +5123,8 @@ class Mediator:
             self._evolve_feedback_pending = False
             self._evolve_baseline = None
             self._evolve_fail_count = getattr(self, "_evolve_fail_count", 0) + 1
-            print(f"[L1] 点击进化无反馈（第 {self._evolve_fail_count} 次失败），等待冷却后重试")
+            print(f"[L1] 点击进化无反馈（第 {self._evolve_fail_count} 次失败），按 F1 重新锁定英雄并等待重试")
+            self.act_key("F1", "EvolveSelectHeroRetry")
             if self._evolve_fail_count >= 3:
                 print("[L1] 进化连续 3 次无反馈，放弃本轮进化（不连续空点）")
                 self._evolve_fail_count = 0
@@ -8793,11 +8882,26 @@ class Mediator:
 
     def _maybe_ensure_hero_panel_focus(self, frame: Frame, now: float) -> LoopAction | None:
         """Only recover hero focus from two distinct, positively identified HUD frames."""
-        if self._panel_state != PanelState.CLOSED:
-            return None
         if getattr(self, "_post_game_pending", False):
             return None
         if now < getattr(self, "_hero_focus_next_check_at", 0.0):
+            return None
+
+        # 0. 优先检测中央【▲ 选择英雄】提示按钮：误触小怪或取消选择后显式弹出，必须优先点击并按 F1 恢复
+        select_hero_btn = self.find(
+            frame,
+            ["select_hero"],
+            threshold=0.75,
+            roi=(0.40, 0.55, 0.65, 0.75),
+        )
+        if select_hero_btn is not None:
+            print(f"[med] 检测到【▲ 选择英雄】悬浮按钮 @ {select_hero_btn.center}，点击并发送 F1 锁定英雄")
+            self.act_click(select_hero_btn, "ClickSelectHero")
+            self.act_key("F1", "SelectHeroHotkey")
+            self._hero_focus_next_check_at = now + 1.0
+            return LoopAction.Continue
+
+        if self._panel_state != PanelState.CLOSED:
             return None
 
         # UNKNOWN/transition/black frames have zero input authority.  This is
@@ -8841,9 +8945,9 @@ class Mediator:
             print("[med] 英雄面板缺失候选第 1 帧，等待不同 HUD 帧确认（零动作）")
             return None
 
-        print("[med] 连续两个不同 HUD 帧均缺英雄面板，发送 F2 回归阵地")
+        print("[med] 连续两个不同 HUD 帧均缺英雄面板，发送 F1 选定自身英雄")
         if not getattr(self.settings, "dry_run", False):
-            self.act_key("F2", "HeroFocusFallback")
+            self.act_key("F1", "HeroFocusSelectHero")
         self._hero_focus_lost_count = 0
         self._hero_focus_last_frame_id = None
         self._hero_focus_next_check_at = now + 1.5
@@ -16534,6 +16638,15 @@ class Mediator:
         """
         st = self._panel_state
 
+        # 满槽选卡后的顶替动作处理：点上面一排让替换中随机选择非你要合成卡组替换
+        if getattr(self, "_bond_replace_pending", False):
+            if now >= getattr(self, "_bond_replace_at", 0.0):
+                self._bond_replace_pending = False
+                print("[L1] 满槽选卡后执行顶替点击：点上面一排随机非目标合成卡组")
+                self._maybe_execute_bond_slot_replacement(frame)
+                self._panel_last_input_at = now
+                return LoopAction.Continue
+
         # S0.5 Episode Liveness & Hard Deadline 守护（非 CLOSED/COOLDOWN 状态生效）
         if st not in (PanelState.CLOSED, PanelState.COOLDOWN):
             if self._panel_episode_started is not None:
@@ -16768,6 +16881,12 @@ class Mediator:
                         self._stage_skill_card(hit.name)
                     if action_kind == "select" and kind == "羁绊":
                         self._stage_bond_card(hit.name)
+                        occupancy = self._bond_bar_occupancy(frame)
+                        if occupancy is not None and occupancy >= 10:
+                            print("[L1] 羁绊栏已满（10/10），挂起顶替操作（即将随机点击非目标合成卡槽）")
+                            self._bond_replace_pending = True
+                            self._bond_replace_incoming = hit.name
+                            self._bond_replace_at = now + 0.15
                     if action_kind == "select" and getattr(self, "_evolve_awaiting_hero_pick", False):
                         self._complete_evolve_hero_pick()
                     self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
