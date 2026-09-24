@@ -130,8 +130,14 @@ class TreasureNegativeFixturePresence(unittest.TestCase):
 
     def test_default_negative_names_subset_of_fixtures(self):
         """默认不拿名单必须有夹具证据（DESCRIPTIONS ⊇ DEFAULT_NEGATIVE_NAMES）。"""
+        from shuabao.choice_policy import RESEARCH_ONLY_NEGATIVE_NAMES
+
         desc = set(_load_descriptions()["cards"])
         for name in DEFAULT_NEGATIVE_NAMES:
+            if name in RESEARCH_ONLY_NEGATIVE_NAMES:
+                # 研究结论、尚无实机帧（fail-closed 方向）；补到夹具后必须移出。
+                self.assertNotIn(name, desc, f"{name} 已有夹具，移出 RESEARCH_ONLY_NEGATIVE_NAMES")
+                continue
             self.assertIn(name, desc, f"{name} 在 DEFAULT_NEGATIVE_NAMES 但缺夹具描述")
 
     def test_sources_sha256_present(self):
@@ -154,8 +160,12 @@ class TreasureNegativeNameAndDescription(unittest.TestCase):
 
     def test_default_negative_names_blocked_with_real_descriptions(self):
         settings = PolicySettings()
+        from shuabao.choice_policy import RESEARCH_ONLY_NEGATIVE_NAMES
+
         cards = _load_descriptions()["cards"]
         for name in DEFAULT_NEGATIVE_NAMES:
+            if name in RESEARCH_ONLY_NEGATIVE_NAMES:
+                continue  # 无真机描述；空描述路径见下一条
             with self.subTest(name=name):
                 self.assertTrue(
                     is_negative_treasure(

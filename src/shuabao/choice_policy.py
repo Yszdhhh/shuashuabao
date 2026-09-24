@@ -125,6 +125,13 @@ DEFAULT_NEGATIVE_PATTERNS = (
     "木材清0",
     "金币清0",
 )
+# Default-skip names without a live panel frame yet.  Blocking an unseen card
+# only ever costs a pick we never saw; once a frame lands in
+# fixtures/treasure_negative/ the name leaves this tuple.
+RESEARCH_ONLY_NEGATIVE_NAMES = (
+    # 立即死亡（黑市类，docs/research/TREASURE_EXTERNAL_GUIDE_REVIEW_20260923.md）。
+    "生命献祭",
+)
 DEFAULT_NEGATIVE_NAMES = (
     "透支力量",
     "贪婪献祭",
@@ -134,6 +141,7 @@ DEFAULT_NEGATIVE_NAMES = (
     "诅咒之力",
     "提高上限",
     "木材梭哈",
+    *RESEARCH_ONLY_NEGATIVE_NAMES,
 )
 DEFAULT_MAX_ATTEMPTS = 12
 DEFAULT_MAX_REFRESHES = 3
