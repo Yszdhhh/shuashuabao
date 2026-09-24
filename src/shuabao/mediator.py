@@ -3981,11 +3981,12 @@ class Mediator:
             or (self._l1_cycle_owned_panel and self._panel_kind == kind)
         )
         reason = str(decision.reason or "")
+        # 必拿/预设命中只有在 ≥0.95 的无歧义单槽读数上才免第二帧
+        # （_is_unambiguous_high_confidence_pick）；低置信的「祝福」读数照样
+        # 等第二帧，否则默认必拿的祝福系会在单帧误读上直接点。
         skip_confirm = (
-            "秒选" in reason
-            or "差一张合成" in reason
+            "差一张合成" in reason
             or "已持有合成" in reason
-            or "必拿" in reason
             or (
                 decision.action == PolicyAction.SELECT_SLOT
                 and self._is_unambiguous_high_confidence_pick(decision, slots, reason)
