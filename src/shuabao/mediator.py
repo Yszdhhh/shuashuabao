@@ -5091,9 +5091,18 @@ class Mediator:
                 & (hsv[:, :, 1] > 100)
                 & (hsv[:, :, 2] > 160)
             )
-            ys, xs = np.where(gold)
-            if xs.size >= 40 and int(xs.max() - xs.min()) >= 20:
-                return x0 + int(xs.mean()), y0 + int(ys.mean())
+            # The bar is one solid gold blob; scattered gold pixels (particles,
+            # noise, HUD texture) must not add up to a click authorization.
+            count, _labels, stats, centroids = cv2.connectedComponentsWithStats(
+                gold.astype(np.uint8), connectivity=8
+            )
+            if count > 1:
+                best = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+                area = int(stats[best, cv2.CC_STAT_AREA])
+                width = int(stats[best, cv2.CC_STAT_WIDTH])
+                if area >= 40 and width >= 20:
+                    cx, cy = centroids[best]
+                    return x0 + int(cx), y0 + int(cy)
         return None
 
     def _evolve_button_hit(self, frame: Frame) -> MatchResult | None:
