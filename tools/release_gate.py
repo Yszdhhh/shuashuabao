@@ -64,6 +64,30 @@ class StageResult:
     detail: str = ""
     duration_s: float = 0.0
     deviations: list[str] = field(default_factory=list)
+    # pytest node ids from the short summary (FAILED/ERROR lines); never
+    # written into the baseline, only printed so a red run names its tests.
+    failed_nodes: list[str] = field(default_factory=list)
+    log_path: str = ""
+
+
+_SUMMARY_NODE = re.compile(r"^(?:FAILED|ERROR) (\S+)", re.MULTILINE)
+GATE_LOG_DIR = ROOT / "logs"
+
+
+def _failed_nodes(out: str) -> list[str]:
+    """Node ids pytest lists under 'short test summary info'."""
+    return sorted(set(_SUMMARY_NODE.findall(out)))
+
+
+def _save_stage_log(name: str, out: str) -> str:
+    """Keep the full stage output (logs/ is git-ignored); return its path."""
+    try:
+        GATE_LOG_DIR.mkdir(parents=True, exist_ok=True)
+        path = GATE_LOG_DIR / f"release_gate_{name}_{time.strftime('%Y%m%d_%H%M%S')}.log"
+        path.write_text(out, encoding="utf-8")
+        return str(path.relative_to(ROOT))
+    except OSError:
+        return ""
 
 
 def _run(argv: list[str], timeout: int = 1800) -> tuple[int, str]:
@@ -102,7 +126,7 @@ def stage_pytest() -> StageResult:
     # The 2,600+ case image/OCR suite exceeded the old 30-minute subprocess
     # cap on the release workstation while still advancing through tests.
     code, out = _run(
-        [PYTHON, "-m", "pytest", "tests", "-q", "--tb=short", "-p", "no:faulthandler"],
+        [PYTHON, "-m", "pytest", "tests", "-q", "--tb=short", "-rfE", "-p", "no:faulthandler"],
         timeout=3600,
     )
     counts: dict[str, int] = {}
@@ -118,6 +142,8 @@ def stage_pytest() -> StageResult:
         observed=counts,
         detail=tail,
         duration_s=time.time() - started,
+        failed_nodes=_failed_nodes(out) if code != 0 else [],
+        log_path=_save_stage_log("pytest", out),
     )
 
 
@@ -308,7 +334,7 @@ def stage_contract() -> StageResult:
             detail="tests/contract/ 不存在",
             duration_s=time.time() - started,
         )
-    code, out = _run([PYTHON, "-m", "pytest", "tests/contract", "-q", "--tb=short"])
+    code, out = _run([PYTHON, "-m", "pytest", "tests/contract", "-q", "--tb=short", "-rfE"])
     counts: dict[str, int] = {}
     for label in ("passed", "failed", "error"):
         match = re.search(rf"(\d+) {label}", out)
@@ -323,6 +349,8 @@ def stage_contract() -> StageResult:
         observed=counts,
         detail=tail,
         duration_s=time.time() - started,
+        failed_nodes=_failed_nodes(out) if code != 0 else [],
+        log_path=_save_stage_log("contract", out),
     )
 
 
@@ -455,6 +483,16 @@ def main(argv: list[str] | None = None) -> int:
         if len(ran) != len(STAGES):
             print("[ERROR] 刷新快照必须跑全部阶段（不要配合 --skip/--only）", file=sys.stderr)
             return 2
+        # A red test run is never a baseline: fix or re-run, then refresh.
+        red = [r for r in ran if r.name in ("pytest", "contract") and r.status != "PASS"]
+        if red:
+            for r in red:
+                print(f"[ERROR] {r.name} 未通过，拒绝刷新快照", file=sys.stderr)
+                for node in r.failed_nodes:
+                    print(f"  FAILED {node}", file=sys.stderr)
+                if r.log_path:
+                    print(f"  完整输出: {r.log_path}", file=sys.stderr)
+            return 1
         doc = build_baseline(ran, args.reason.strip(), baseline)
         BASELINE_PATH.parent.mkdir(parents=True, exist_ok=True)
         BASELINE_PATH.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -472,6 +510,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{result.name:<18}{result.status:<10}{observed}")
         for deviation in result.deviations:
             print(f"  ! {deviation}")
+        for node in result.failed_nodes:
+            print(f"  FAILED {node}")
+        if result.log_path and result.status != "PASS":
+            print(f"  完整输出: {result.log_path}")
 
     failed = [r for r in results if r.status != "PASS"]
     verdict = "PASS" if not failed else "FAIL"
@@ -490,6 +532,7 @@ def main(argv: list[str] | None = None) -> int:
                         "status": r.status,
                         "observed": r.observed,
                         "deviations": r.deviations,
+                        "failed_nodes": r.failed_nodes,
                         "duration_s": round(r.duration_s, 2),
                     }
                     for r in results
