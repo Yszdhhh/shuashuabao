@@ -3723,11 +3723,19 @@ class Mediator:
         return (have, need) if 0 <= have <= need and need > 0 else None
 
     # Owner 2026-09-24：高级卡组合成出 EX 后，羁绊栏上出现一张蓝色 EX 卡（海盗为 UR），
-    # 鼠标悬停能看到羁绊详情。EX「无法吞噬」，出现后整局都在栏上。模板要从真机帧切
-    # （放 assets/Images/bond_bar/），缺模板时返回 None，调度停在当前卡组。
+    # 鼠标悬停能看到羁绊详情。EX「无法吞噬」，出现后整局都在栏上。
+    # 模板取自 Owner 的卡面截图 fixtures/ex_finals_20260814：羁绊栏卡图上半截叠着卡组名，
+    # 只切下半截画面、缩到 50px 格。243 张真机帧上非 EX 卡最高 0.64。缺模板时返回 None，
+    # 调度停在当前卡组；羁绊栏实拍 EX 帧到手后再校准。
     _BOND_BAR_CELL_XS = (603, 655, 707, 759, 811, 863, 915, 967, 1019, 1071)
-    _BOND_BAR_EX_TEMPLATES = ("bond_bar/ex_card", "bond_bar/ur_card_haidao")
+    _BOND_BAR_EX_TEMPLATES = tuple(
+        f"bond_bar/{name}" for name in (
+            "ex_daodao", "ex_xiuxian", "ex_wangling", "ex_dasheng", "ex_yihuo", "ex_fengshen",
+            "ex_sanguo", "ex_shenshou", "ex_longzu", "ex_juntuan", "ur_haidao",
+        )
+    )
     _BOND_BAR_EX_THRESHOLD = 0.80
+    _BOND_BAR_EX_SCALES = (0.85, 0.92, 1.0, 1.08, 1.15)
 
     def _bond_bar_ex_count(self, frame: Frame) -> int | None:
         """Blue EX / pirate UR cards in the bond bar; None = no template or unsupported frame."""
@@ -3741,7 +3749,7 @@ class Mediator:
         for cx in self._BOND_BAR_CELL_XS:
             rx1, ry1, rx2, ry2 = transform.logical_roi(cx - 26, 628, cx + 26, 688)
             roi = (rx1 / frame.width, ry1 / frame.height, rx2 / frame.width, ry2 / frame.height)
-            if self.find(frame, names, threshold=self._BOND_BAR_EX_THRESHOLD, scales=self._hot_scales(), roi=roi):
+            if self.find(frame, names, threshold=self._BOND_BAR_EX_THRESHOLD, scales=self._BOND_BAR_EX_SCALES, roi=roi):
                 count += 1
         return count
 

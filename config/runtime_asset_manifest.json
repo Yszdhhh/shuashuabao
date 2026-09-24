@@ -202,6 +202,94 @@
       "sha256": "e288f36c252b39f998b9ef32dc1c89df581e7b79faddd617f366541b39078c78"
     },
     {
+      "path": "assets/Images/bond_bar/ex_daodao.png",
+      "purpose": "runtime_ui",
+      "provenance": "cut from the Owner's 2026-08-14 card tooltip screenshot fixtures/ex_finals_20260814 (刀刀 解放的圣剑 (EX)): lower half of the icon, scaled to the 50px bond-bar cell; not yet checked on a live bond-bar frame",
+      "reason_required": "count finished advanced packs in the bond bar so the next selected pack unlocks (Owner 2026-09-24)",
+      "size_bytes": 2314,
+      "sha256": "fb0690b84d99d2be67663b57d85df4615c017602da907059c92c2970db19ff61"
+    },
+    {
+      "path": "assets/Images/bond_bar/ex_dasheng.png",
+      "purpose": "runtime_ui",
+      "provenance": "cut from the Owner's 2026-08-14 card tooltip screenshot fixtures/ex_finals_20260814 (神通 法天象地 (EX)): lower half of the icon, scaled to the 50px bond-bar cell; not yet checked on a live bond-bar frame",
+      "reason_required": "count finished advanced packs in the bond bar so the next selected pack unlocks (Owner 2026-09-24)",
+      "size_bytes": 2384,
+      "sha256": "8c16b89190b15e96ee62ec023a0c1bd6d4bca38c174e5eecdfcb08b63c0af5e2"
+    },
+    {
+      "path": "assets/Images/bond_bar/ex_fengshen.png",
+      "purpose": "runtime_ui",
+      "provenance": "cut from the Owner's 2026-08-14 card tooltip screenshot fixtures/ex_finals_20260814 (封神 圣人 (EX)): lower half of the icon, scaled to the 50px bond-bar cell; not yet checked on a live bond-bar frame",
+      "reason_required": "count finished advanced packs in the bond bar so the next selected pack unlocks (Owner 2026-09-24)",
+      "size_bytes": 2411,
+      "sha256": "126b90dbb6a83761956251cb2e4eed3034161508f7dd7989427d9340b225aa72"
+    },
+    {
+      "path": "assets/Images/bond_bar/ex_juntuan.png",
+      "purpose": "runtime_ui",
+      "provenance": "cut from the Owner's 2026-08-14 card tooltip screenshot fixtures/ex_finals_20260814 (军团 萨格拉斯 (EX)): lower half of the icon, scaled to the 50px bond-bar cell; not yet checked on a live bond-bar frame",
+      "reason_required": "count finished advanced packs in the bond bar so the next selected pack unlocks (Owner 2026-09-24)",
+      "size_bytes": 2148,
+      "sha256": "7ba3e0a745e94bb00cc4b10307e537f218bc97a5049aa880f256dff6030cd623"
+    },
+    {
+      "path": "assets/Images/bond_bar/ex_longzu.png",
+      "purpose": "runtime_ui",
+      "provenance": "cut from the Owner's 2026-08-14 card tooltip screenshot fixtures/ex_finals_20260814 (龙族 世界末日迦拉克隆 (EX)): lower half of the icon, scaled to the 50px bond-bar cell; not yet checked on a live bond-bar frame",
+      "reason_required": "count finished advanced packs in the bond bar so the next selected pack unlocks (Owner 2026-09-24)",
+      "size_bytes": 2412,
+      "sha256": "0f67e76634e9979c1ac6e54c9d6a20f82244d9c98cccf37869aef1a354d801de"
+    },
+    {
+      "path": "assets/Images/bond_bar/ex_sanguo.png",
+      "purpose": "runtime_ui",
+      "provenance": "cut from the Owner's 2026-08-14 card tooltip screenshot fixtures/ex_finals_20260814 (三国 吞食天地 (EX)): lower half of the icon, scaled to the 50px bond-bar cell; not yet checked on a live bond-bar frame",
+      "reason_required": "count finished advanced packs in the bond bar so the next selected pack unlocks (Owner 2026-09-24)",
+      "size_bytes": 2164,
+      "sha256": "72b15cda9843d506e1212f5d40b387af85adf995b11acac70fbca49b77c4224d"
+    },
+    {
+      "path": "assets/Images/bond_bar/ex_shenshou.png",
+      "purpose": "runtime_ui",
+      "provenance": "cut from the Owner's 2026-08-14 card tooltip screenshot fixtures/ex_finals_20260814 (神兽 祖龙 (EX)): lower half of the icon, scaled to the 50px bond-bar cell; not yet checked on a live bond-bar frame",
+      "reason_required": "count finished advanced packs in the bond bar so the next selected pack unlocks (Owner 2026-09-24)",
+      "size_bytes": 2351,
+      "sha256": "61f734f1b9d8407513ee8d45644f5a9a0e82fa0e473b13ee292d99d7d02ebb59"
+    },
+    {
+      "path": "assets/Images/bond_bar/ex_wangling.png",
+      "purpose": "runtime_ui",
+      "provenance": "cut from the Owner's 2026-08-14 card tooltip screenshot fixtures/ex_finals_20260814 (亡灵 兵主 (EX)): lower half of the icon, scaled to the 50px bond-bar cell; not yet checked on a live bond-bar frame",
+      "reason_required": "count finished advanced packs in the bond bar so the next selected pack unlocks (Owner 2026-09-24)",
+      "size_bytes": 2431,
+      "sha256": "f35055e7e56658628054ff5d35353c3dd961686a27a31135a1a4abf2e26dff1f"
+    },
+    {
+      "path": "assets/Images/bond_bar/ex_xiuxian.png",
+      "purpose": "runtime_ui",
+      "provenance": "cut from the Owner's 2026-08-14 card tooltip screenshot fixtures/ex_finals_20260814 (修仙 大乘期 (EX)): lower half of the icon, scaled to the 50px bond-bar cell; not yet checked on a live bond-bar frame",
+      "reason_required": "count finished advanced packs in the bond bar so the next selected pack unlocks (Owner 2026-09-24)",
+      "size_bytes": 2401,
+      "sha256": "3f7cba84e9cc3dfbb54aa8e249df08b6d7a5a15384a543c93bb7e823fb036ef6"
+    },
+    {
+      "path": "assets/Images/bond_bar/ex_yihuo.png",
+      "purpose": "runtime_ui",
+      "provenance": "cut from the Owner's 2026-08-14 card tooltip screenshot fixtures/ex_finals_20260814 (异火 帝炎 (EX)): lower half of the icon, scaled to the 50px bond-bar cell; not yet checked on a live bond-bar frame",
+      "reason_required": "count finished advanced packs in the bond bar so the next selected pack unlocks (Owner 2026-09-24)",
+      "size_bytes": 2273,
+      "sha256": "24b78b86c6e5864c174d97350d8c23a9b577fb1c4e845260c52604e9d37b3733"
+    },
+    {
+      "path": "assets/Images/bond_bar/ur_haidao.png",
+      "purpose": "runtime_ui",
+      "provenance": "cut from the Owner's 2026-08-14 card tooltip screenshot fixtures/ex_finals_20260814 (海盗 毁灭战舰 (UR)): lower half of the icon, scaled to the 50px bond-bar cell; not yet checked on a live bond-bar frame",
+      "reason_required": "count finished advanced packs in the bond bar so the next selected pack unlocks (Owner 2026-09-24)",
+      "size_bytes": 2369,
+      "sha256": "8865b9df3157398bb4a76b28d1c020324da1b4816bae99c6111dbd0f332600c7"
+    },
+    {
       "path": "assets/Images/bond_hide_btn.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
