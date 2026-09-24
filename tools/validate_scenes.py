@@ -112,7 +112,17 @@ def validate_card_bidirectional() -> tuple[int, int, list[str]]:
     missing_files = [c for c in shortcodes if not (templates_dir / f"{c}.png").is_file()]
     disk_stems = {p.stem for p in templates_dir.glob("*.png")}
     label_missing = sorted(set(shortcodes) - label_keys)
-    template_missing = sorted(label_keys - set(shortcodes))
+    # Families registered before their panel-title crop exists (OCR-only until
+    # captured live).  An entry must still be a label and must not have a PNG.
+    pending = {
+        k for k in (index.get("pending_live_capture") or {}) if not str(k).startswith("_")
+    }
+    template_missing = sorted(label_keys - set(shortcodes) - pending)
+    for code in sorted(pending):
+        if code not in label_keys:
+            errors.append(f"pending_live_capture {code}: not in fetter_labels")
+        if (templates_dir / f"{code}.png").is_file() or code in shortcodes:
+            errors.append(f"pending_live_capture {code}: PNG captured, move it into shortcodes")
     if missing_files:
         errors.append(f"card templates missing on disk: {missing_files}")
     if label_missing:

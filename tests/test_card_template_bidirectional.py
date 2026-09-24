@@ -37,7 +37,10 @@ class CardTemplateInventoryTests(unittest.TestCase):
 
         labels = json.loads(FETTER_LABELS.read_text(encoding="utf-8"))
         label_keys = sorted(k for k in labels if not str(k).startswith("_"))
-        self.assertEqual(label_keys, sorted(shortcodes))
+        # Registered families whose template is captured on the next live run.
+        pending = sorted(k for k in index.get("pending_live_capture", {}) if not k.startswith("_"))
+        self.assertFalse(set(pending) & set(shortcodes))
+        self.assertEqual(label_keys, sorted([*shortcodes, *pending]))
 
     def test_thresholds_present(self):
         index = json.loads(INDEX.read_text(encoding="utf-8"))
