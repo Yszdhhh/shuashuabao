@@ -602,3 +602,40 @@ def test_boss_challenge_attempt_limit_deadlock_prevention(monkeypatch):
     assert med._time_cave_boss_search_attempts == 0
     assert med._boss_anomaly_retry_attempts == 0
 
+
+def test_hitch_l0_sleep_backoff_and_modal_close(monkeypatch):
+    """验证 L0 阶段递增沉睡退避、KK 最小化唤醒与平台弹窗优先关闭按钮机制。"""
+    settings = Settings(mode_id="lobby_hitch", ocr_mode="off")
+    root = Path(__file__).resolve().parents[1]
+    med = Mediator(settings, root)
+
+    # 1. 退避序列单调递增
+    intervals = med._HITCH_L0_BACKOFF_INTERVALS
+    assert len(intervals) >= 5
+    assert all(intervals[i] <= intervals[i + 1] for i in range(len(intervals) - 1))
+    assert intervals[0] == 30
+    assert intervals[-1] == 1800
+
+    # 2. _sleep_with_stop_check 支持受急停中断
+    med._running = True
+    assert med._sleep_with_stop_check(0.05, slice_s=0.01) is True
+    med.stop_signal.trigger("test")
+    assert med._sleep_with_stop_check(10.0, slice_s=0.01) is False
+    med.stop_signal.reset()
+
+    # 3. 弹窗有 shell.close 时优先点击 close
+    from shuabao.mediator import PlatformModalShell
+
+    close_btn = MatchResult("test_close", 1.0, 100, 100, 10, 10, 100, 100)
+    shell = PlatformModalShell("main_overlay", close_btn)
+    frame = Frame(np.zeros((364, 560, 3), dtype=np.uint8), hwnd=2001)
+
+    clicked_reasons = []
+    monkeypatch.setattr(med, "act_click", lambda hit, reason: clicked_reasons.append(reason) or True)
+    monkeypatch.setattr(med, "act_key", lambda key, reason: clicked_reasons.append(reason) or True)
+
+    med._tick_hitch_platform_modal(frame, shell, 100.0)
+    assert clicked_reasons == ["HitchDismissPlatformModalClose"]
+    assert med._hitch_platform_modal_last_action == "close"
+
+

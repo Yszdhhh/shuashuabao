@@ -52,6 +52,7 @@ from shuabao.vision.capture import (
     capture_target,
     check_frame_health,
     find_window_targets,
+    is_window_minimized,
 )
 from shuabao.vision.matcher import (
     MatchResult,
@@ -713,6 +714,7 @@ class Mediator:
         self.game_platform_window_snapshot: dict[str, bool] = {}
         self._archaeology_handoff_confirmed: bool = False
         self.game_count = 0
+        self._hitch_l0_sleep_retry_count: int = 0
         self._running = False
         self._longzhu_deadline: float | None = None
         self._f1_fallback_done = False
@@ -12466,7 +12468,7 @@ class Mediator:
 
         self._hitch_popup_esc_attempts += 1
         self._hitch_popup_esc_last_at = now
-        if self._hitch_platform_modal_last_action == "esc":
+        if shell.close is not None and self._hitch_platform_modal_last_action != "close":
             accepted = self.act_click(shell.close, "HitchDismissPlatformModalClose")
             self._hitch_platform_modal_last_action = "close"
         else:
@@ -13547,6 +13549,18 @@ class Mediator:
     # Lobby/room phases whose every KK surface stays unusable this long end in
     # an explicit BLOCKED (ERROR) instead of zero-input observation forever.
     _HITCH_L0_UNHEALTHY_BLOCK_S = 120.0
+    # L0 不健康画面沉睡退避阶梯（秒）：递增间隔放大重试，加强夜间长线程守候周期
+    _HITCH_L0_BACKOFF_INTERVALS = (30, 60, 120, 300, 600, 900, 1800)
+    _HITCH_L0_MAX_SLEEP_RETRIES = 20
+
+    def _sleep_with_stop_check(self, seconds: float, slice_s: float = 0.5) -> bool:
+        """Sleep for up to `seconds`, waking early if stop_signal is set or stopped."""
+        deadline = time.time() + max(0.0, float(seconds))
+        while time.time() < deadline:
+            if self.stop_signal.is_set() or not self._running:
+                return False
+            time.sleep(min(slice_s, max(0.01, deadline - time.time())))
+        return True
     # Room exit: re-click Exit / Confirm when a fresh frame shows the click was
     # swallowed; give up with an explicit BLOCKED after the hard cap.
     _HITCH_EXIT_RETRY_S = 4.0
@@ -15761,17 +15775,56 @@ class Mediator:
                             self.set_phase(Phase.ERROR, "hitch no game/platform window")
                             self.stop()
                             return LoopAction.Break
+                        # Safe KK minimization recovery (P1-4): in L0 without running game, restore platform window
+                        if (
+                            self.phase in (Phase.LOBBY_ROOM, Phase.ROOM_WAITING)
+                            and not self.game_platform_window_snapshot.get("game")
+                            and elapsed >= 3.0
+                            and int(elapsed) % 15 == 0
+                        ):
+                            kk_targets = find_window_targets(",".join(L0_WINDOW_KEYWORDS), role="l0", allow_minimized=True)
+                            for tgt in kk_targets:
+                                if is_window_minimized(tgt.hwnd):
+                                    print(f"[med] 蹭车 L0 检测到平台窗口已最小化 (hwnd={tgt.hwnd})，执行 SW_RESTORE 恢复")
+                                    try:
+                                        import ctypes
+                                        ctypes.windll.user32.ShowWindow(tgt.hwnd, 9)  # SW_RESTORE
+                                        ctypes.windll.user32.BringWindowToTop(tgt.hwnd)
+                                    except Exception:
+                                        pass
+
                         if (
                             self.phase in (Phase.LOBBY_ROOM, Phase.ROOM_WAITING)
                             and not self.game_platform_window_snapshot.get("game")
                             and elapsed >= self._HITCH_L0_UNHEALTHY_BLOCK_S
                         ):
+                            if self._hitch_l0_sleep_retry_count < self._HITCH_L0_MAX_SLEEP_RETRIES:
+                                idx = min(self._hitch_l0_sleep_retry_count, len(self._HITCH_L0_BACKOFF_INTERVALS) - 1)
+                                sleep_s = self._HITCH_L0_BACKOFF_INTERVALS[idx]
+                                self._hitch_l0_sleep_retry_count += 1
+                                print(
+                                    f"[med] 蹭车 L0 阶段持续无可用平台画面 {elapsed:.0f}s（{health.details} hwnd={frame.hwnd}），"
+                                    f"进入第 {self._hitch_l0_sleep_retry_count}/{self._HITCH_L0_MAX_SLEEP_RETRIES} 次退避沉睡（休眠 {sleep_s}s 后重试）..."
+                                )
+                                if not self._sleep_with_stop_check(sleep_s):
+                                    return LoopAction.Break
+                                kk_targets = find_window_targets(",".join(L0_WINDOW_KEYWORDS), role="l0", allow_minimized=True)
+                                for tgt in kk_targets:
+                                    try:
+                                        import ctypes
+                                        ctypes.windll.user32.ShowWindow(tgt.hwnd, 9)  # SW_RESTORE
+                                        ctypes.windll.user32.BringWindowToTop(tgt.hwnd)
+                                    except Exception:
+                                        pass
+                                self._missing_window_since = time.time()
+                                return LoopAction.Continue
+
                             # Lobby/room phases with only unusable KK surfaces
                             # (e.g. every KK window black) for this long cannot
                             # recover on their own; end explicitly instead of
                             # observing a dead surface forever.
                             print(
-                                "[med] 蹭车 L0 阶段持续无可用平台画面 "
+                                "[med] 蹭车 L0 阶段沉睡退避重试耗尽 "
                                 f"{elapsed:.0f}s（{health.details} hwnd={frame.hwnd}），BLOCKED 停止"
                             )
                             self._record_environment_incident("hitch_l0_surface_blocked", elapsed)
@@ -15841,6 +15894,7 @@ class Mediator:
                 return LoopAction.Continue
 
         self._missing_window_since = None
+        self._hitch_l0_sleep_retry_count = 0
 
 
         # N2.2：本 tick 动作授权锚点（健康放行后才建立）。
