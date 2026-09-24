@@ -390,14 +390,23 @@ def test_skill_backlog_urgent_preempt() -> None:
         assert target == "bond"
         assert "羁绊优先" in why
 
-    # skill == 4 and wood == 500 (< 1000): skill priority
+    # Owner 2026-09-24: skill == 4 and wood == 499 (< 500): skill priority
     med2 = _med()
-    with patch.object(med2, "_hud_wood_balance", return_value=500), \
+    with patch.object(med2, "_hud_wood_balance", return_value=499), \
          patch.object(med2, "_hud_skill_points", return_value=4), \
          patch.object(med2, "_hud_treasure_pending", return_value=0), \
          patch.object(med2, "_bond_base_progress_pending", return_value=True):
         target, why = med2._solo_plan_panel(frame, now, "bond")
         assert target == "skill"
+
+    # skill == 4 and wood == 500: basic bonds come first from 500 wood on
+    med2b = _med()
+    with patch.object(med2b, "_hud_wood_balance", return_value=500), \
+         patch.object(med2b, "_hud_skill_points", return_value=4), \
+         patch.object(med2b, "_hud_treasure_pending", return_value=0), \
+         patch.object(med2b, "_bond_base_progress_pending", return_value=True):
+        target, why = med2b._solo_plan_panel(frame, now, "bond")
+        assert target == "bond"
 
     # skill == 4 and wood == 1500 (>= 1000): bond priority holds for狂暴发育
     med3 = _med()

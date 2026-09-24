@@ -612,11 +612,11 @@ class Mediator(CoreMediator):
         return self._configured_bond_presets()
 
     def _bond_presets_complete(self) -> bool:
-        configured = self._configured_bond_presets()
-        if not configured:
-            return False
-        owned = set(self._confirmed_bond_cards())
-        return all(preset in owned for preset in configured)
+        # Never "complete": repeat cards upgrade/merge (see
+        # _remaining_bond_presets) and wood >= 1000 still routes to F, so
+        # owning one copy of each preset must not skip or close the F panel.
+        # An empty preset list is not "complete" either.
+        return False
 
     def _stage_bond_card(self, name: str | None) -> None:
         canonical = self._canonical_bond_name(name)

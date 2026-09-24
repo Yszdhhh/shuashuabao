@@ -4490,6 +4490,8 @@ class Mediator:
 
     _BOND_HIGH_WOOD = 1000
     _BOND_LOW_WOOD = 300
+    # 木材低于该值且有技能积压时先点技能（Owner 2026-09-24 定 500，待实机调）。
+    _SKILL_FIRST_WOOD = 500
     _WOOD_BALANCE_ROI = (1178 / 1600, 8 / 900, 1240 / 1600, 34 / 900)
     _WOOD_READ_INTERVAL_S = 3.0
 
@@ -4660,9 +4662,11 @@ class Mediator:
         """Solo panel choice for this tick: (target, why); target None = skip step.
 
         Order of reasons:
-          1. affordable bonds with wood >= 1000 -> F until the visit cap
-          2. skill backlog -> G while bonds are blocked or visit-capped
-          3. normal cycle step:
+          1. wood < 500 with a skill backlog -> G first
+          2. wood >= 1000, or basic bonds pending with wood >= 500 -> F
+             until the visit cap
+          3. skill backlog -> G while bonds are blocked or visit-capped
+          4. normal cycle step:
              - bond: skip if blocked (wood < price) or visit capped
              - skill/treasure: skip if badge 0 or visit capped
         Unreadable badges/balances never skip a step.
@@ -4687,26 +4691,29 @@ class Mediator:
         wood = getattr(self, "_wood_balance", None)
         bond_blocked = self._bond_step_blocked(frame, now)
 
-        # 1. 基础羁绊未成型（未达 80%）：羁绊享有绝对最高优先权，绝不允许被技能抢占
-        # 只要羁绊可推进（有木材、未冷却、未达停留上限），全速推进羁绊面板
-        if (
-            self._bond_base_progress_pending()
-            and bond_blocked is None
-            and not bond_held
-        ):
-            return "bond", "基础羁绊未成型（羁绊绝对优先，先做羁绊）"
-
-        # 2. 狂暴发育期/木材充裕期：木材 >= 1000 优先消耗木材转战力（冲高级卡与合成）
+        # 1. Owner 2026-09-15/09-24：木材 < 500 时先把积压的技能点掉，再轮换
+        #    宝物/进化/物品栏/神器/黑商（实机 000229：木材耗尽后仍锁在 F，
+        #    技能 20+ 点一次没点）。500 是 Owner 给的初值，待实机调整。
         if (
             wood is not None
-            and wood >= self._BOND_HIGH_WOOD
-            and bond_blocked is None
-            and not bond_held
+            and wood < self._SKILL_FIRST_WOOD
+            and skill is not None
+            and skill >= self._skill_backlog_force()
+            and not skill_held
+            and now >= getattr(self, "_skill_idle_until", 0.0)
+            and self._panel_kind_available("skill", now)
         ):
-            return "bond", f"木材充足（{wood} ≥ {self._BOND_HIGH_WOOD}），羁绊优先转化战力"
+            return "skill", f"木材 {wood} < {self._SKILL_FIRST_WOOD} 且技能积压 {skill}，先点技能"
 
-        # 3. 技能处理窗口：在羁绊暂不推进（木材耗尽等待产出/冷却中/基础已成型且木材未溢出）时，
-        # 若技能有积压，优先开技能面板消耗技能点
+        # 2. 羁绊是主要战力来源：木材 ≥ 500 且基础羁绊未成型，或木材 ≥ 1000，
+        #    先消耗木材点羁绊。木材不可读时不阻挡基础羁绊。
+        if bond_blocked is None and not bond_held:
+            if wood is not None and wood >= self._BOND_HIGH_WOOD:
+                return "bond", f"木材充足（{wood} ≥ {self._BOND_HIGH_WOOD}），羁绊优先转化战力"
+            if self._bond_base_progress_pending() and (wood is None or wood >= self._SKILL_FIRST_WOOD):
+                return "bond", "基础羁绊未成型，羁绊优先"
+
+        # 3. 羁绊暂不推进（木材不足/冷却/本轮已拿满）时，技能积压先于普通轮换
         if (
             skill is not None
             and skill >= self._skill_backlog_force()
@@ -4714,7 +4721,7 @@ class Mediator:
             and now >= getattr(self, "_skill_idle_until", 0.0)
             and self._panel_kind_available("skill", now)
         ):
-            return "skill", f"技能积压 {skill} ≥ {self._skill_backlog_force()}，处理技能"
+            return "skill", f"技能积压 {skill} ≥ {self._skill_backlog_force()}，先点技能"
 
         # 4. 轮换到 bond 时的调度
         if step == "bond":
