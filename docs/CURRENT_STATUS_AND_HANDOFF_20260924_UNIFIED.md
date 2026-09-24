@@ -29,14 +29,22 @@ Owner 2026-09-24 三条决策加审查发现的问题，按层分成 7 个提交
 - L1 调度：木材 < 500 且有技能积压时先点技能；木材 ≥ 1000，或基础羁绊未成型且木材 ≥ 500 时先点羁绊。500 是 Owner 给的初值，要在实机上调。木材低时宝物恢复在自己那一步打开。`RuntimeMediator._bond_presets_complete` 恒为 False，拿齐预设后不再整局跳过或关闭 F。
 - L1 选卡：本页出现还没拿到的预设基础羁绊时，先拿基础羁绊，排在"差一张合成"之后；已经起步的高级卡组（持有同组卡）不受影响。80% 基础完成比例未改，待实机调。
 - L1 英雄焦点：看板丢失时按 F1。【▲选择英雄】提示改到面板已关、局内 HUD、提权和 dry_run 这几道门禁之后才处理。
-- 恢复与战后：新增战后画面飞离广场时按 F2（`_maybe_recover_post_game_view`）。触发条件是顶栏仍为「存档」广场模式、两个不同帧间隔 ≥2s 都认不出战后页面，每 8s 最多一次，每个战后事务最多 3 次。局内画面飞走还没有检测信号，需要实机帧。
+- 恢复与战后：画面飞走按 F2（游戏内「返回阵地」），局内和战后通用（Owner 09-24：自己英雄打怪/Boss、存档挑战/传家宝所在的广场就是常规战斗主画面）。证据是小地图上的白色视野框：本局从 3 个稳定帧（跨 ≥3s）学到阵地位置，视野框偏离阵地 >0.12（小地图尺度）且两个不同帧间隔 ≥2s 才按；只在面板会话之间按，每 8s 最多一次，回到阵地前最多 3 次。大秘境确认后重新学阵地；挑战路线进行中、传家宝/秘境等待、团本、背包打开时不判。实现 `_maybe_recover_battle_view`，取代原来只看战后页面的 `_maybe_recover_post_game_view`。
 - L1 满槽顶替：OCR 改用真实接口 `shadow_predict`（原来调用的 `predict_sync` 不存在）。只点 OCR 认出、且不是目标合成卡组也不是刚拿的同名卡的槽位，认不出就零输入。
 - L0 蹭车：QUIT 落到房主选难度页时，只要处于蹭车模式就发一次语义 Esc。
 
 云端门禁（Linux）：冻结回放 PASS（6 PASS、1 BLOCKED 断线素材），contract 67 PASS。scene_templates 只剩资产数量 404→405 与快照不一致，这是有意新增的 `select_hero.png`。pytest 有 8 个桌面/发布模块因缺 Qt/EGL 无法收集。快照没有在云端刷新（刷新必须跑全阶段，云端 pytest 不完整），需要在本机跑 `python tools/release_gate.py --update-baseline --reason "select_hero.png 资产 + 技能刷新真按钮期望纠正"`。
 
 需要真机验证：木材 20~1000 区间技能/宝物是否还会被饿死；基础羁绊优先后高级卡组的成型时间；【▲选择英雄】的触发场景；战后 F2 的触发与回广场效果；满槽顶替 OCR 在卡槽栏上能否读出卡名（读不出就不会顶替）；蹭车选难度页 Esc 后能否回到房间。
-仍在 main 上能过、统一分支上失败的测试（与本节修正无关，待逐条定性）：`test_b15da05_real_regressions`（5 条，蹭车平台弹窗关闭顺序）、`test_live_scenario_capture`（2 条）、`test_card_template_bidirectional`（2 条，`545b20f` 登记了 `dashengzailin`/`haizeiwang` 标签但缺 `cards/*.png`）、`test_policy_near_complete_and_treasure_safety`（满槽允许核心卡，`7751495` 的有意改动，测试期望未跟上）、`test_solo_gt_regression` 白名单外债务、`test_solo_planner` 首帧秒选、`test_solo_b2_pickup_speed`、`test_s0_safety_state_machine` 面板可见性、`test_live_run_205044` 低置信二帧、`test_solo_main_line_close_task` 5-6 关闭任务、`TestSafetySweep`（超时）。另有 3 条身份锚点断言。
+后续回归修复（叠在上面 5 个提交）：
+- L1：必拿/白名单的低置信读数恢复第二帧确认，只有"差一张合成""已持有合成"和单槽无歧义高置信才免确认（`test_solo_planner` 首帧、`test_solo_b2_pickup_speed`、`test_live_run_205044` 二帧）。
+- L1：进化金条改为要求一整块金色连通区域，散落的金色噪点不再触发 ClickEvolve（`test_s0_safety_state_machine` 面板可见性）。
+- L0：KK 平台弹窗恢复先 Esc、fresh 帧复核仍在再点叉（Owner 09-24：活动弹窗 Esc 关不掉就点叉）。`e0ad7f6` 曾改成先点叉，`test_b15da05_real_regressions` 5 条、`test_live_scenario_capture` 2 条转绿；`test_hitch_l0_and_hud_fixes` 里 e0ad7f6 的用例同步改成 Esc→X 两步。
+- 测试同步：默认必拿「祝福」与满槽核心卡的策略期望（`test_solo_gt_regression`、`test_policy_near_complete`）；`test_external_review_regressions` 的全局 find mock 排除【▲选择英雄】（Windows 提权环境下才触发）。
+
+仍未解决：`test_card_template_bidirectional`（2 条）需要 `dashengzailin`、`haizeiwang` 两张 `cards/*.png`，素材只能 Owner 截。`test_solo_main_line_close_task` 5 条、`test_live_harness_refresh` 3 条在 main 上同样失败（缺 `.venv-ocr` / 身份锚点），属环境问题。
+
+需要真机验证（新增）：F2 的触发时机和回阵地效果（尤其大秘境、传家宝 Boss 前后）；平台活动弹窗 Esc 后点叉。
 
 ## 分支收敛
 
