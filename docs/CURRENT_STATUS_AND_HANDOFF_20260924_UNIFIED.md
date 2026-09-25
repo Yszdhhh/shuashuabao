@@ -166,3 +166,8 @@ EX 模板（`a57d697`）：从 Owner 的卡面截图 `fixtures/ex_finals_2026081
 - 两包真实帧共 93 个羁绊 OCR 面板：12 个满足直判门槛，逐槽卡族/布局与 trace OCR 一致；相同策略配置下两路决策 12/12 动作类型与槽位一致，81 个走 OCR 回退。热缓存模板耗时约 50 ms 中位数（包 1 P90 96.98 ms；包 2 P90 74.98 ms）。完整数据记在 `G:\刷刷宝\nightwatch\pick_speed.md`。
 - 离线真帧核对不是实机新运行；下次真机需观察模板覆盖率、当帧输入后面板是否正常变化，识别异常仍按 fail-closed 处理。
 - 定向验证：`test_card_slot_template_matcher.py`、`test_choice_policy.py`、`test_mediator_choice_four_slot_integration.py`、第一帧高置信选卡用例及 Owner 规则锁通过；`tests/contract` 67 passed / 232 subtests passed；4 个选卡自然面板/OCR miss 用例 4 passed。组合运行整份 `test_live_run_205044_regressions.py` 时有 3 个进化弹窗用例失败（不经过羁绊模板直判路径，待单独排查）。`test_live_harness_refresh.py` 在重钉前因旧锚点报告 NOT_CLEAN；candidate 重钉到 `2b3ba108e9c653d9dc04f2a2514c65a160968cab` 后通过，23 passed。身份提交：`e2011ecf`，UTF-8 格式修复：`ab39726c`。
+
+## 2026-09-26 局内分类递归修复
+
+- Mediator._classify_choice_panel 的英雄几何候选改为显式调用 Core 检测，防止 Runtime 覆写互递归；无锚点帧保持返回 None。
+- 未启动游戏；真机局内面板及进化点击流程需所有者后续验证。

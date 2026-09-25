@@ -2667,7 +2667,7 @@ class Mediator:
         if self.find(frame, ["skill_giveup_btn"], threshold=threshold, scales=scales, roi=roi) is not None:
             return "skill"
         if (
-            (self._evolve_hero_choice_pending() or self._find_evolution_choice(frame) is not None)
+            (self._evolve_hero_choice_pending() or Mediator._find_evolution_choice(self, frame) is not None)
             and opened != "treasure"
         ):
             # 进化/英雄卡二选一会误中 treasure_lock，先交给英雄排序。
