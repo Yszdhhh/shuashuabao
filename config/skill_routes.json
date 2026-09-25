@@ -22,7 +22,7 @@
   "ur_links": {
     "zhili": "湮灭者（法术穿透/双倍施法）",
     "mingjie": "收割者（攻速上限突破/满暴击爆伤）",
-    "liliang": "不动尊（终极真伤/真免护甲）"
+    "liliang": "屠戮者（终极真伤/真免护甲）"
   },
   "families": {
     "pg": {"name": "普攻", "aff": "敏捷/力量", "routes": [{"id": "speed", "label": "优先攻速"}, {"id": "multi", "label": "优先神箭手"}, {"id": "enchant", "label": "优先附魔箭矢"}]},
