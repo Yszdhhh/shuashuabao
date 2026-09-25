@@ -26,3 +26,22 @@ def test_live_topbar_stage_label(name: str) -> None:
     bgr = cv2.imdecode(np.fromfile(str(FIXTURES / name), dtype=np.uint8), cv2.IMREAD_COLOR)
     stage = detect_ingame_stage_label(Frame(bgr), ROOT / "assets" / "Images")
     assert str(stage) == INDEX[name]["expected"]
+
+
+def test_state_snapshot_carries_the_round_stage() -> None:
+    """The per-round stage must land in the trace, not only on stdout."""
+    import sys
+
+    sys.path.insert(0, str(ROOT / "tools"))
+    from live_scenario_capture import _state_snapshot
+    from shuabao.mediator import Mediator
+    from shuabao.settings import Settings
+
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    med._hitch_stats_current_stage = "4-9"
+    med._hitch_stats_stages = {"3-9": 1, "4-9": 16}
+    med._hitch_stats_current_challenges = ["金币(确认开启)"]
+    state = _state_snapshot(med)
+    assert state["hitch_round_stage"] == "4-9"
+    assert state["hitch_stage_counts"] == {"3-9": 1, "4-9": 16}
+    assert state["hitch_round_challenges"] == ["金币(确认开启)"]

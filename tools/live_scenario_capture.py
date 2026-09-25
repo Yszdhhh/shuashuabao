@@ -1989,6 +1989,12 @@ def _state_snapshot(med: Mediator, context: str | None = None) -> dict[str, Any]
         "hitch_ready_confirmed_at": getattr(med, "_hitch_ready_confirmed_at", None),
         "hitch_re_search": getattr(med, "_hitch_re_search", False),
         "hitch_status": getattr(med, "_hitch_status", None),
+        # Per-round stage read from the in-game HUD (or the stage page as a
+        # fallback).  It used to reach stdout only, so the 2026-09-25 run's
+        # stages had to be re-read from frames afterwards.
+        "hitch_round_stage": getattr(med, "_hitch_stats_current_stage", None),
+        "hitch_stage_counts": dict(getattr(med, "_hitch_stats_stages", {}) or {}),
+        "hitch_round_challenges": list(getattr(med, "_hitch_stats_current_challenges", []) or []),
         "hitch_goal_archaeology_handoff": getattr(med, "_hitch_goal_archaeology_handoff", False),
         "archaeology_handoff_confirmed": getattr(med, "_archaeology_handoff_confirmed", False),
         "game_count": getattr(med, "game_count", None),
