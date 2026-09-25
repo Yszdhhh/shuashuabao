@@ -193,7 +193,7 @@ class HitchMidgameTakeoverTests(unittest.TestCase):
 class HitchTimeCaveBossTests(unittest.TestCase):
     def test_hitch_sgzx_boss_unseen_advances_to_archive_close(self) -> None:
         med = _hitch_mediator()
-        med.settings.sgzx_boss = "55吞咽者布鲁"
+        med.settings.sgzx_boss = "99未解锁哨兵"
         med._post_game_pending = True
         med._post_game_route = "archive"
         med._archive_challenge_index = 8  # all eight cards consumed

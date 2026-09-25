@@ -305,7 +305,7 @@ class P1B0PostGameTests(unittest.TestCase):
 
     def test_archive_panel_visits_archive_cards_before_closing(self):
         """A pending archive page starts the eight-card sequence before close."""
-        med = Mediator(Settings(cjb_boss="54莫阿姆", sgzx_boss="55吞咽者布鲁"), ROOT)
+        med = Mediator(Settings(cjb_boss="54莫阿姆", sgzx_boss="99未解锁哨兵"), ROOT)
         med.set_phase(Phase.MAIN_LINE, "archive order")
         med._post_game_pending = True
         med._post_game_route = "archive"
@@ -608,7 +608,7 @@ class P1B0PostGameTests(unittest.TestCase):
 
     def test_completed_archive_cards_try_time_cave_before_close(self):
         """Eight archive cards must not close before the time-cave handler runs."""
-        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
+        med = Mediator(Settings(sgzx_boss="99未解锁哨兵"), ROOT)
         med.set_phase(Phase.MAIN_LINE, "archive completed")
         med._post_game_pending = True
         med._post_game_route = "archive"
@@ -636,7 +636,7 @@ class P1B0PostGameTests(unittest.TestCase):
 
     def test_archive_panel_from_hub_active_triggers_time_cave_when_cards_completed(self):
         """When entering archive panel from hub (route=archive_active), if cards are completed, time cave runs."""
-        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
+        med = Mediator(Settings(sgzx_boss="99未解锁哨兵"), ROOT)
         med.set_phase(Phase.MAIN_LINE, "archive from hub")
         med._post_game_pending = True
         med._post_game_route = "archive_active"
@@ -665,7 +665,7 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual(med._boss_challenge_attempts, 1)
 
     def test_eighth_archive_click_does_not_close_same_tick(self):
-        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
+        med = Mediator(Settings(sgzx_boss="99未解锁哨兵"), ROOT)
         med._post_game_pending = True
         med._post_game_route = "archive"
         med._archive_challenge_index = 7
@@ -761,7 +761,7 @@ class P1B0PostGameTests(unittest.TestCase):
 
     def test_archive_unavailable_boss_falls_back_to_last_card_only_after_bottom(self):
         """A verified lower boundary, not a fixed scroll count, authorizes fallback."""
-        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
+        med = Mediator(Settings(sgzx_boss="99未解锁哨兵"), ROOT)
         med._post_game_pending = True
         med._boss_challenge_scroll_attempts = 1
         frame = load_fixture_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
@@ -826,7 +826,7 @@ class P1B0PostGameTests(unittest.TestCase):
 
     def test_unavailable_boss_stays_fail_closed_without_fallback_template(self):
         """An exhausted classified list still emits zero click when no card is recognized."""
-        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
+        med = Mediator(Settings(sgzx_boss="99未解锁哨兵"), ROOT)
         med._post_game_pending = True
         med._boss_challenge_scroll_attempts = 1
         frame = load_fixture_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
@@ -1480,7 +1480,7 @@ class P1B0PostGameTests(unittest.TestCase):
 
     def test_archive_chain_end_to_end_fallback_flow(self):
         """Verify the complete post-game fallback chain: archive cards -> time-cave boss -> close -> heirloom boss -> close."""
-        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁", cjb_boss="55吞咽者布鲁"), ROOT)
+        med = Mediator(Settings(sgzx_boss="99未解锁哨兵", cjb_boss="99未解锁哨兵"), ROOT)
         med.set_phase(Phase.MAIN_LINE, "e2e chain")
         med._post_game_pending = True
         med._post_game_route = "archive"

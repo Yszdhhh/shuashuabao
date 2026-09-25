@@ -87,8 +87,8 @@ def test_live_probe_uses_unavailable_bosses_to_exercise_fallback() -> None:
     with patch.object(Settings, "load_official", return_value=configured) as load:
         settings = live_capture._prepare_settings(None, "boss_challenge", live_input=True)
     load.assert_called_once_with()
-    assert settings.cjb_boss == "55吞咽者布鲁"
-    assert settings.sgzx_boss == "55吞咽者布鲁"
+    assert settings.cjb_boss == "99未解锁哨兵"
+    assert settings.sgzx_boss == "99未解锁哨兵"
     assert settings.auto_secret_realm is False
     assert settings.dry_run is False
 

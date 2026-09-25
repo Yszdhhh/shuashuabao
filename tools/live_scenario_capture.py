@@ -4666,8 +4666,8 @@ def _prepare_settings(path: Path | None, target: str, live_input: bool) -> Setti
     # Boss/时间之穴测试只在内存中使用不可用哨兵，强制验证最后可识别 Boss fallback。
     # 不修改 Settings.json。
     if target in {"boss_challenge", "time_cave"}:
-        settings.cjb_boss = "55吞咽者布鲁"
-        settings.sgzx_boss = "55吞咽者布鲁"
+        settings.cjb_boss = "99未解锁哨兵"
+        settings.sgzx_boss = "99未解锁哨兵"
         settings.auto_secret_realm = False
     if target in {
         "lobby_hitch", "lobby_search", "hitch_runtime", "hitch_lobby_chain",
