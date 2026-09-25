@@ -1102,9 +1102,10 @@ class _SoloRouteDiagnosticsMixin:
 class SoloIngameChainObserver(_SoloRouteDiagnosticsMixin):
     """Observe the production stage-to-post-game chain without adding FSM logic."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, require_secret_realm: bool = False) -> None:
         self._observation_no = 0
         self._postgame_seen = False
+        self.require_secret_realm = bool(require_secret_realm)
         self._init_route_diagnostics()
         self.failed_reason: str | None = None
         self.blocked_reason: str | None = None
@@ -1197,12 +1198,6 @@ class SoloIngameChainObserver(_SoloRouteDiagnosticsMixin):
         if postgame:
             self._postgame_seen = True
             self._pass("POSTGAME_SURFACE_CLASSIFIED", evidence={**evidence, "surface": postgame})
-        if self._postgame_seen and (
-            bool(state.get("post_game_pending"))
-            or bool(state.get("secret_realm_active"))
-            or reason in {"ContinueGame", "BossConfigured", "OpenGreatRift", "ConfirmGreatRift"}
-        ):
-            self._pass("POSTGAME_ROUTE_PROGRESS", evidence=evidence)
         reason_lower = reason.lower()
         for name, markers in (
             ("BLACK_MERCHANT", ("blackmerchant", "merchant")),
@@ -1213,6 +1208,19 @@ class SoloIngameChainObserver(_SoloRouteDiagnosticsMixin):
             if self.optional_events[name]["status"] == "NOT_OBSERVED" and any(marker in reason_lower for marker in markers):
                 self.optional_events[name] = {"status": "OBSERVED", "evidence": _jsonable(evidence)}
         self._observe_route_diagnostics(med, state, frame, surfaces, reason, action, evidence)
+        secret_realm_finished = (
+            self.route_observations["SECRET_REALM_ROUTE"]["confirmation_status"] == "PASS"
+            and not bool(state.get("secret_realm_active"))
+            and (surfaces["stage"] or surfaces["postgame"] in {"POST_VICTORY", "NPC_HUB"})
+        )
+        if self._postgame_seen and (
+            secret_realm_finished if self.require_secret_realm else (
+                bool(state.get("post_game_pending"))
+                or bool(state.get("secret_realm_active"))
+                or reason in {"ContinueGame", "BossConfigured", "OpenGreatRift", "ConfirmGreatRift"}
+            )
+        ):
+            self._pass("POSTGAME_ROUTE_PROGRESS", evidence=evidence)
         return self.is_pass
 
     @property
@@ -3222,7 +3230,9 @@ class BundleRecorder:
         self.solo_observer: SoloIngameChainObserver | HitchLobbyChainObserver | None
         if target == "solo_ingame_chain":
             self.solo_observer_key = "solo_ingame_chain"
-            self.solo_observer = SoloIngameChainObserver()
+            self.solo_observer = SoloIngameChainObserver(
+                require_secret_realm=bool(getattr(settings, "auto_secret_realm", False)),
+            )
             self.manifest[self.solo_observer_key] = self.solo_observer.payload()
         elif target == "hitch_lobby_chain":
             self.solo_observer_key = "hitch_lobby_chain"
@@ -3643,7 +3653,11 @@ class BundleRecorder:
                     "confirmed_at_s": round(at_s, 3),
                     "confirmed_by_event": f"e{self._event_number:04d}",
                 }
-                if target_observed and pending_postcondition.get("authoritative", True):
+                if (
+                    target_observed
+                    and pending_postcondition.get("authoritative", True)
+                    and str(self.manifest["target"]) != "solo_ingame_chain"
+                ):
                     self._record_authoritative_target_result(
                         event_id=pending_event.get("event_id"),
                         postcondition=pending_event["postcondition"],
@@ -3715,6 +3729,7 @@ class BundleRecorder:
         if (
             event["postcondition"].get("observed") is True
             and event["postcondition"].get("authoritative", True)
+            and str(self.manifest["target"]) != "solo_ingame_chain"
         ):
             self._record_authoritative_target_result(
                 event_id=event["event_id"],
@@ -3792,6 +3807,13 @@ class BundleRecorder:
         self.manifest["completed_at_utc"] = _utc_now()
         if self.solo_observer is not None:
             self.manifest[str(self.solo_observer_key)] = self.solo_observer.payload()
+            if self.manifest.get("target") == "solo_ingame_chain" and self.solo_observer.is_pass:
+                last_event = (self.manifest.get("events") or [{}])[-1]
+                self._record_authoritative_target_result(
+                    event_id=last_event.get("event_id"),
+                    postcondition={"kind": "solo_ingame_chain_complete"},
+                    target_stage="POSTGAME_ROUTE_COMPLETE",
+                )
             # Hitch HUD/room observations are intermediate evidence.  Promote
             # the target result only after the observer has verified every
             # required round and lobby return; this prevents a first-HUD
@@ -5383,30 +5405,40 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                 )
             if loop_action is LoopAction.Break:
                 if med.phase is not Phase.ERROR:
-                    break
-                failure_reason = (
-                    getattr(med, "_interrupt_reason", None)
-                    or getattr(med, "_tick_reason", None)
-                    or stop_signal.reason
-                    or "Mediator returned Break"
-                )
-                recorder.bookmark(
-                    "FAIL",
-                    med,
-                    current_frame["value"],
-                    note=f"automatic Mediator failure: {failure_reason}",
-                )
-                if (
-                    getattr(args, "continue_after_failure", False)
-                    and not _is_emergency_reason(stop_signal.reason)
-                ):
-                    awaiting_manual_resume = True
-                    print(
-                        "[capture] failure evidence saved; waiting for "
-                        "MANUAL_INTERVENTION bookmark to resume"
-                    )
+                    if not (
+                        target == "solo_ingame_chain"
+                        and bool(settings.auto_secret_realm)
+                        and recorder.solo_observer is not None
+                        and not recorder.solo_observer.is_pass
+                        and not recorder.solo_observer.failed_reason
+                        and not recorder.solo_observer.blocked_reason
+                        and not recorder.solo_observer.manual_intervention_seen
+                    ):
+                        break
                 else:
-                    break
+                    failure_reason = (
+                        getattr(med, "_interrupt_reason", None)
+                        or getattr(med, "_tick_reason", None)
+                        or stop_signal.reason
+                        or "Mediator returned Break"
+                    )
+                    recorder.bookmark(
+                        "FAIL",
+                        med,
+                        current_frame["value"],
+                        note=f"automatic Mediator failure: {failure_reason}",
+                    )
+                    if (
+                        getattr(args, "continue_after_failure", False)
+                        and not _is_emergency_reason(stop_signal.reason)
+                    ):
+                        awaiting_manual_resume = True
+                        print(
+                            "[capture] failure evidence saved; waiting for "
+                            "MANUAL_INTERVENTION bookmark to resume"
+                        )
+                    else:
+                        break
             process_bookmarks()
             if (
                 target == "lobby_search"
@@ -5415,6 +5447,8 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                 ticks += 1
                 break
             ticks += 1
+            if target == "solo_ingame_chain" and recorder.solo_observer is not None and recorder.solo_observer.is_pass:
+                break
             if stop_signal.is_set() and not awaiting_manual_resume:
                 break
             if args.interval > 0:

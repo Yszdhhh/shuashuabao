@@ -264,7 +264,9 @@ def test_solo_chain_preflight_accepts_production_l0_start_surface() -> None:
 def test_hitch_lobby_chain_does_not_stop_at_first_verified_hud() -> None:
     """首次进入局内只是链路中间证据，不是多局实测的终止条件。"""
     source = (ROOT / "tools" / "live_scenario_capture.py").read_text(encoding="utf-8")
-    assert "recorder.solo_observer.is_pass" not in source
+    break_handler = source.split("if loop_action is LoopAction.Break:", 1)[1].split("process_bookmarks()", 1)[0]
+    assert 'target == "solo_ingame_chain"' in break_handler
+    assert 'target == "hitch_lobby_chain"' not in break_handler
 
 
 def test_chain_13_settings_enable_production_lobby_hitch() -> None:
@@ -350,6 +352,33 @@ def test_solo_observer_does_not_pass_on_click_success() -> None:
     hitch = HitchLobbyChainObserver()
     hitch.precheck(True, {"status": "READY"})
     assert hitch.is_pass is False
+
+
+def test_solo_observer_waits_for_secret_realm_terminal_surface(monkeypatch) -> None:
+    observer = SoloIngameChainObserver(require_secret_realm=True)
+    observer._postgame_seen = True
+    for name in observer.checkpoints:
+        if name != "POSTGAME_ROUTE_PROGRESS":
+            observer.checkpoints[name] = {"status": "PASS", "evidence": {}}
+    med = SimpleNamespace()
+    state = {"phase": "MAIN_LINE", "secret_realm_active": False}
+    surfaces = {
+        "room": False, "platform": False, "stage": False, "stage_target": False,
+        "hero": False, "hud": False, "game_hwnd": False, "boss_entry": False,
+        "lobby": False, "postgame": "POST_VICTORY",
+    }
+    monkeypatch.setattr(live_capture, "_physical_surfaces", lambda *_args: surfaces)
+
+    observer.observe(med, state, _blank_frame(), {}, None)
+    assert observer.is_pass is False
+
+    observer.route_observations["SECRET_REALM_ROUTE"].update({
+        "request_status": "PASS",
+        "confirmation_status": "PASS",
+        "status": "PASS",
+    })
+    observer.observe(med, state, _blank_frame(), {}, None)
+    assert observer.is_pass is True
 
 
 def test_probe_guard_blocks_unrelated_actions() -> None:
