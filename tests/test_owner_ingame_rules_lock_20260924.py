@@ -169,6 +169,16 @@ def test_rule_evolve_before_item_bar_while_evolve_bar_is_lit(cls) -> None:
 
     med._evolve_awaiting_hero_pick = False
     med._evolve_ok_this_cycle = True
+    # 金条再次亮起：重置 _evolve_ok_this_cycle，且一律不点物品栏
     with patch.object(med, "act_click", return_value=True) as click:
-        assert med._maybe_use_inventory_slot(frame, 300.0) is LoopAction.Continue
+        assert med._maybe_use_inventory_slot(frame, 300.0) is None
+        assert med._maybe_use_inventory_item(frame) is None
+        assert med._evolve_ok_this_cycle is False
+    click.assert_not_called()
+
+    # 进化已完成且金条不再亮起：恢复逐格试用
+    med._evolve_ok_this_cycle = True
+    with patch.object(med, "_has_evolve_button", return_value=False), \
+         patch.object(med, "act_click", return_value=True) as click:
+        assert med._maybe_use_inventory_slot(frame, 400.0) is LoopAction.Continue
     assert str(click.call_args.args[1]).startswith("UseInventorySlot")

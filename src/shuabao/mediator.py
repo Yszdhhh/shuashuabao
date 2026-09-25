@@ -5176,6 +5176,7 @@ class Mediator:
                 width = int(stats[best, cv2.CC_STAT_WIDTH])
                 if area >= 40 and width >= 20:
                     cx, cy = centroids[best]
+                    self._evolve_ok_this_cycle = False
                     return x0 + int(cx), y0 + int(cy)
         return None
 
@@ -5183,12 +5184,16 @@ class Mediator:
         center = self._evolve_gold_center(frame)
         if center is None:
             return None
+        self._evolve_ok_this_cycle = False
         x, y = center
         print(f"[L1] 进化金条「点击进化」@ ({x}, {y})")
         return MatchResult("evolve_hud", 1.0, x, y, 40, 12, frame.left + x, frame.top + y)
 
     def _has_evolve_button(self, frame: Frame) -> bool:
-        return self._evolve_gold_center(frame) is not None
+        has = self._evolve_gold_center(frame) is not None
+        if has:
+            self._evolve_ok_this_cycle = False
+        return has
     def _complete_evolve_hero_pick(self) -> None:
         self._evolve_awaiting_hero_pick = False
         self._evolve_ok_this_cycle = True
@@ -5237,9 +5242,9 @@ class Mediator:
 
     def _maybe_opportunistic_evolve(self, frame: Frame, now: float) -> LoopAction | None:
         """HUD_ONLY 机会动作：当金色点击进化高亮且不在冷却中时执行快速事务。"""
-        if getattr(self, "_evolve_ok_this_cycle", False):
-            return None
         if not self._has_evolve_button(frame):
+            return None
+        if getattr(self, "_evolve_ok_this_cycle", False):
             return None
         if now < getattr(self, "_evolve_click_cooldown_until", 0.0):
             return None
@@ -5317,6 +5322,9 @@ class Mediator:
             return None
         if self._public_bag_fsm.active:
             # 公共背包流转正持有队伍资产：此刻任何左键都会当场吃掉吞噬丹。
+            return None
+        # Owner 规则：英雄卡使用前先把点击进化用完；金条亮着时一律不点物品栏
+        if self._has_evolve_button(frame):
             return None
         now = time.time()
         yinyue_res = self._maybe_opportunistic_yinyue_crystal(frame, now)
@@ -5405,7 +5413,7 @@ class Mediator:
         if (
             getattr(self, "_evolve_feedback_pending", False)
             or getattr(self, "_evolve_awaiting_hero_pick", False)
-            or (not getattr(self, "_evolve_ok_this_cycle", False) and self._has_evolve_button(frame))
+            or self._has_evolve_button(frame)
         ):
             return None
         now = time.time() if now is None else now
@@ -19011,8 +19019,8 @@ class Mediator:
             # 机会点击进化：进化的频次不高，在周期内未完成进化且有金条时穿插触发
             if (
                 self._l1_cycle_step != "evolve"
-                and not getattr(self, "_evolve_ok_this_cycle", False)
                 and now >= getattr(self, "_evolve_click_cooldown_until", 0.0)
+                and (not getattr(self, "_evolve_ok_this_cycle", False) or self._has_evolve_button(frame))
             ):
                 evolve_res = self._maybe_opportunistic_evolve(frame, now)
                 if evolve_res is not None:

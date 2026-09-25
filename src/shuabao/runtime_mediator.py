@@ -488,6 +488,9 @@ class Mediator(CoreMediator):
             return LoopAction.Continue
         if self._panel_state != PanelState.CLOSED:
             return None
+        # Owner 规则：英雄卡使用前先把点击进化用完；金条亮着时一律不点物品栏
+        if self._has_evolve_button(frame):
+            return None
 
         inventory_roi = (0.64, 0.77, 0.74, 0.98)
         if self._can_consume_inventory_swallow_pill(frame):
