@@ -158,3 +158,11 @@ EX 模板（`a57d697`）：从 Owner 的卡面截图 `fixtures/ex_finals_2026081
 还没做：物品栏满时的消耗品识别与溢出整理、单人背包放置逻辑，等 GPT 调研（`gpt/urgent-resources-20260924`）和实机 tooltip 截图。
 
 本地第三轮（`local/quicktest-20260924b`，HEAD `88eb4d2`）：门禁首跑启动器冒烟测试临时 EXE `PermissionError`，单跑 3/3 过，重跑全绿；快照已刷新（404→405）。`build_release.ps1 -NoDeploy` 因缺操作员 Ed25519 manifest 私钥 BLOCKED（第 113–121 行，所有冻结渠道都要，设计如此），冻结包 harness 未跑。云端决定继续用源码模式跑入口 1 和入口 12。
+
+## 2026-09-26 L1 选卡模板直判接线（worktree `perf/pick-speed-20260925`）
+
+- 在羁绊固定 3/4 槽面板先匹配卡族标题；只有槽数有效、索引完整且唯一、所有槽位都有名称且模板分数均 ≥0.85 时才用模板结果。模板不完整或低分时保持原 OCR 回退。
+- `choice_policy` 的排序、规则锁与输入执行路径未改；完整高置信直判沿用其策略结果，并跳过 OCR 等待和第二帧确认。冷却及面板 FSM 未调整。
+- 两包真实帧共 93 个羁绊 OCR 面板：12 个满足直判门槛，逐槽卡族/布局与 trace OCR 一致；相同策略配置下两路决策 12/12 动作类型与槽位一致，81 个走 OCR 回退。热缓存模板耗时约 50 ms 中位数（包 1 P90 96.98 ms；包 2 P90 74.98 ms）。完整数据记在 `G:\刷刷宝\nightwatch\pick_speed.md`。
+- 离线真帧核对不是实机新运行；下次真机需观察模板覆盖率、当帧输入后面板是否正常变化，识别异常仍按 fail-closed 处理。
+- 定向验证：`test_card_slot_template_matcher.py`、`test_choice_policy.py`、`test_mediator_choice_four_slot_integration.py`、第一帧高置信选卡用例及 Owner 规则锁通过；`tests/contract` 67 passed / 232 subtests passed。组合运行整份 `test_live_run_205044_regressions.py` 时有 3 个进化弹窗用例失败（不经过羁绊模板直判路径，待单独排查）。`test_live_harness_refresh.py` 需在接线提交后重跑，它会把工作树未提交差异报告为 NOT_CLEAN。
