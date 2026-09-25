@@ -789,6 +789,8 @@ class Mediator:
         self._trace_fh = None
         self._tick_no = 0
         self._trace_actions: list[dict] = []
+        # 本 tick 的决策原因（_note_decision 收集，只写 trace，不参与任何决策）。
+        self._tick_decision_reasons: list[dict] = []
         self._trace_scenes: list[dict] = []
         self._trace_controls: list[dict] = []
         # 局内观测记录器（默认关闭；SHUABAO_OBSERVE=1 打开）。
@@ -3640,6 +3642,7 @@ class Mediator:
         if decision.action == PolicyAction.WAIT:
             self._choice_policy_idle = True
             print(f"[L1] 选卡策略 WAIT：{decision.reason}")
+            self._note_decision("zero_input", "选卡策略WAIT，零输入等下一帧", panel=kind, reason=decision.reason or "")
             return None
         if decision.action == PolicyAction.NONE:
             return None
@@ -3681,6 +3684,16 @@ class Mediator:
             if hit is None:
                 return None
             label = "技能" if kind == "skill" else kind
+            _pick_conf = getattr(selected_slot, "confidence", None)
+            if _pick_conf is None:
+                try:
+                    _pick_conf = selected_slot.get("confidence")
+                except Exception:
+                    _pick_conf = None
+            self._note_decision(
+                "pick", f"选{label}卡", panel=kind, card=name or "",
+                confidence=_pick_conf, reason=decision.reason or "",
+            )
             return (label, hit)
         if decision.action == PolicyAction.REFRESH:
             self._choice_fp_before_refresh = slot_fingerprint(slots)
@@ -3700,6 +3713,7 @@ class Mediator:
                 return None
             print(f"[L1] 选卡策略 REFRESH：{decision.reason}")
             label = "技能刷新" if kind == "skill" else f"{kind}刷新"
+            self._note_decision("refresh", "选卡策略刷新", panel=kind, reason=decision.reason or "")
             return (label, refresh)
         if decision.action == PolicyAction.GIVEUP:
             give_up = self._find_panel_giveup(frame, kind)
@@ -3712,6 +3726,7 @@ class Mediator:
                 return None
             print(f"[L1] 选卡策略 GIVEUP：{decision.reason}")
             label = "技能放弃" if kind == "skill" else f"{kind}放弃"
+            self._note_decision("skip", "选卡策略放弃本面板", panel=kind, reason=decision.reason or "")
             return (label, give_up)
         if decision.action == PolicyAction.CLOSE:
             close_hit = self._close_current_panel(frame, kind)
@@ -3720,6 +3735,7 @@ class Mediator:
                 print(f"[L1] 选卡策略 CLOSE 但无关闭按钮：{decision.reason}")
                 return None
             print(f"[L1] 选卡策略 CLOSE：{decision.reason}")
+            self._note_decision("hide", "选卡策略关闭面板", panel=kind, reason=decision.reason or "")
             return (kind if kind != "skill" else "技能", close_hit)
         return None
 
@@ -4053,6 +4069,7 @@ class Mediator:
                 decision = PolicyDecision.close(
                     f"羁绊刷新需 {price} 木，当前木头 {wood if wood is not None else '未读出'}，隐藏面板"
                 )
+                self._note_decision("hide", "羁绊刷新木材不足，隐藏面板", wood=wood, price=price)
         _obs = self._observe_log()
         if _obs is not None:
             try:
@@ -4264,6 +4281,7 @@ class Mediator:
                 return ("card", rarity_hit)
             # fail-closed：无法识别英雄卡时零输入等待，严禁盲点左卡，也不反复隐藏
             print("[L1] 进化英雄面板候选识别不清，fail-closed 零输入等待下一帧")
+            self._note_decision("zero_input", "进化英雄候选识别不清，零输入等下一帧")
             return None
         kind = self._panel_kind_of(frame, anchor)
         if kind == "unknown":
@@ -16437,6 +16455,22 @@ class Mediator:
             self._trace_fh = None
         self._trace_fh = new_fh
 
+    def _note_decision(self, kind: str, rule: str, **inputs: object) -> None:
+        """记录本 tick 的一次决策原因：只追加到 trace 缓冲，不改变任何决策行为。
+
+        kind：hide / skip / refresh / merchant / zero_input / pick。
+        rule：依据哪条规则（简短中文）。inputs：读到的关键值（木材、羁绊占用、
+        候选卡名与置信度等，须 JSON 可序列化）。
+        """
+        try:
+            self._tick_decision_reasons.append({
+                "kind": str(kind),
+                "rule": str(rule),
+                "inputs": {str(key): value for key, value in inputs.items()},
+            })
+        except Exception:
+            pass
+
     def _trace_tick(self, phase_before: str, t0: float) -> None:
         if self._trace_fh is None:
             return
@@ -16453,6 +16487,7 @@ class Mediator:
             "hwnd": frame.hwnd if frame is not None else None,
             "size": [frame.width, frame.height] if frame is not None else None,
             "actions": self._trace_actions,
+            "decision_reasons": list(self._tick_decision_reasons),
             "controls": self._trace_controls,
             "scenes": self._trace_scenes,
             # N2：无法解释 tick>1s 白名单 reason + evidence generation
@@ -16602,6 +16637,7 @@ class Mediator:
 
     def _tick_impl(self) -> LoopAction:
         self._trace_actions = []
+        self._tick_decision_reasons = []
         self._trace_scenes = []
         self._trace_controls = []
         self._trace_ocr_suggestion = None
@@ -19514,6 +19550,7 @@ class Mediator:
             urgent = self._urgent_merchant_reason(frame, now)
             if urgent is not None:
                 print(f"[L1] {urgent}，插队去黑商")
+                self._note_decision("merchant", "紧急情况插队去黑商", reason=urgent)
                 self._merchant_urgent_next_at = now + self._MERCHANT_URGENT_COOLDOWN_S
                 self._detour_l1_cycle("merchant")
                 self._main_line_since = now
@@ -19686,6 +19723,7 @@ class Mediator:
                 wood = getattr(self, "_wood_balance", None)
                 bond_occ = self._bond_bar_occupancy(frame)
                 print(f"[L1] 单人模式木材充足（{wood}）且未急需吞噬丹（{bond_occ}/10），跳过黑商推进羁绊")
+                self._note_decision("skip", "单人木材充足且不缺吞噬丹，跳过黑商", wood=wood, bond_occ=bond_occ)
                 self._advance_l1_cycle("merchant")
                 return LoopAction.Continue
             if now < self._merchant_next_at:
@@ -19720,6 +19758,11 @@ class Mediator:
                                 print(f"[L1] 羁绊栏已占 {bond_occ}/10 格，按 [H] 打开黑商寻找吞噬丹")
                             else:
                                 print(f"[L1] 木材 {wood} < {self._SKILL_FIRST_WOOD}，按 [H] 打开黑商买木材")
+                            self._note_decision(
+                                "merchant", "按H打开黑商",
+                                want=("swallow_pill" if want_pill else "wood"),
+                                wood=wood, bond_occ=bond_occ,
+                            )
                             return LoopAction.Continue
                 print("[L1] 黑商不在，转回 G 技能")
                 self._advance_l1_cycle("merchant")
