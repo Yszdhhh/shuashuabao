@@ -305,7 +305,7 @@ class P1B0PostGameTests(unittest.TestCase):
 
     def test_archive_panel_visits_archive_cards_before_closing(self):
         """A pending archive page starts the eight-card sequence before close."""
-        med = Mediator(Settings(cjb_boss="54莫阿姆", sgzx_boss="55吞咽者布鲁"), ROOT)
+        med = Mediator(Settings(cjb_boss="54莫阿姆", sgzx_boss="99未解锁哨兵"), ROOT)
         med.set_phase(Phase.MAIN_LINE, "archive order")
         med._post_game_pending = True
         med._post_game_route = "archive"
@@ -608,7 +608,7 @@ class P1B0PostGameTests(unittest.TestCase):
 
     def test_completed_archive_cards_try_time_cave_before_close(self):
         """Eight archive cards must not close before the time-cave handler runs."""
-        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
+        med = Mediator(Settings(sgzx_boss="99未解锁哨兵"), ROOT)
         med.set_phase(Phase.MAIN_LINE, "archive completed")
         med._post_game_pending = True
         med._post_game_route = "archive"
@@ -636,7 +636,7 @@ class P1B0PostGameTests(unittest.TestCase):
 
     def test_archive_panel_from_hub_active_triggers_time_cave_when_cards_completed(self):
         """When entering archive panel from hub (route=archive_active), if cards are completed, time cave runs."""
-        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
+        med = Mediator(Settings(sgzx_boss="99未解锁哨兵"), ROOT)
         med.set_phase(Phase.MAIN_LINE, "archive from hub")
         med._post_game_pending = True
         med._post_game_route = "archive_active"
@@ -665,7 +665,7 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual(med._boss_challenge_attempts, 1)
 
     def test_eighth_archive_click_does_not_close_same_tick(self):
-        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
+        med = Mediator(Settings(sgzx_boss="99未解锁哨兵"), ROOT)
         med._post_game_pending = True
         med._post_game_route = "archive"
         med._archive_challenge_index = 7
@@ -761,7 +761,7 @@ class P1B0PostGameTests(unittest.TestCase):
 
     def test_archive_unavailable_boss_falls_back_to_last_card_only_after_bottom(self):
         """A verified lower boundary, not a fixed scroll count, authorizes fallback."""
-        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
+        med = Mediator(Settings(sgzx_boss="99未解锁哨兵"), ROOT)
         med._post_game_pending = True
         med._boss_challenge_scroll_attempts = 1
         frame = load_fixture_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
@@ -773,7 +773,9 @@ class P1B0PostGameTests(unittest.TestCase):
 
         self.assertEqual(action, LoopAction.Continue)
         clicked, reason = click.call_args.args
-        self.assertEqual(clicked.name, "09摩拉迪姆")
+        # Physical last card of the fixture's bottom row; the old raw-bottom key
+        # picked 09摩拉迪姆 from the same row by one pixel (fixed 2026-09-25).
+        self.assertEqual(clicked.name, "12卡尔加")
         self.assertEqual(reason, "BossNotUnlockedLast")
 
     def test_heirloom_unavailable_boss_falls_back_to_last_card_only_after_bottom(self):
@@ -826,7 +828,7 @@ class P1B0PostGameTests(unittest.TestCase):
 
     def test_unavailable_boss_stays_fail_closed_without_fallback_template(self):
         """An exhausted classified list still emits zero click when no card is recognized."""
-        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
+        med = Mediator(Settings(sgzx_boss="99未解锁哨兵"), ROOT)
         med._post_game_pending = True
         med._boss_challenge_scroll_attempts = 1
         frame = load_fixture_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
@@ -907,6 +909,7 @@ class P1B0PostGameTests(unittest.TestCase):
         med._post_game_pending = True
         med._post_game_route = "heirloom_active"
         med._boss_challenge_attempts = 1
+        med._heirloom_boss_clicked_at = time.time()
         frame = load_fixture_frame("fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png")
         close = MatchResult("close", 0.90, 990, 230, 20, 20, 1000, 240)
         with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
@@ -918,6 +921,42 @@ class P1B0PostGameTests(unittest.TestCase):
         click.assert_called_once_with(close, "DismissHeirloomDialog")
         self.assertEqual(med._post_game_route, "boss_active")
         self.assertFalse(med._post_game_pending)
+
+    def test_heirloom_boss_tags_before_any_click_do_not_close_the_list(self):
+        """2026-09-25 hitch round 2 (f0465): the bottom row's red BOSS tags sit in
+        the toast band. Before this round's own Boss click the list must go to
+        the Boss handler, never be dismissed as already challenged."""
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        med._post_game_pending = True
+        med._post_game_route = "heirloom_active"
+        frame = load_fixture_frame("fixtures/hitch_heirloom_20260925/round02_heirloom_list_before_click.png")
+        self.assertTrue(med._heirloom_boss_result_visible(frame))  # the false-positive source
+        close = MatchResult("close", 0.90, 990, 230, 20, 20, 1000, 240)
+        with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+             patch.object(med, "_maybe_challenge_configured_boss", return_value=LoopAction.Continue) as choose, \
+             patch.object(med, "_find_heirloom_close", return_value=close), \
+             patch.object(med, "act_click", return_value=True) as click:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+        choose.assert_called_once()
+        click.assert_not_called()
+        self.assertFalse(getattr(med, "_heirloom_boss_result_confirmed", False))
+
+    def test_heirloom_bottom_fallback_takes_the_physical_last_card(self):
+        """2026-09-25 hitch f1826: the list ends at the new 21界龟, and 19/20 in
+        the row above sit one pixel apart; the old max(y+h) picked 19玛洛恩."""
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        frame = load_fixture_frame("fixtures/hitch_heirloom_20260925/room5_heirloom_list_bottom_21.png")
+        hit = med._find_last_recognized_post_game_boss(frame, "HEIRLOOM_DIALOG")
+        self.assertIsNotNone(hit)
+        self.assertIn("21界龟", hit.name)
+
+    def test_heirloom_last_card_same_row_prefers_the_rightmost(self):
+        """Without the 21 template in view, 20鲁克玛 beats 19玛洛恩 in one row."""
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        frame = load_fixture_frame("fixtures/hitch_heirloom_20260925/round02_heirloom_list_before_click.png")
+        hit = med._find_last_recognized_post_game_boss(frame, "HEIRLOOM_DIALOG")
+        self.assertIsNotNone(hit)
+        self.assertIn("20鲁克玛", hit.name)
 
     def test_heirloom_without_config_delegates_to_bottom_fallback(self):
         """An empty cjb_boss must invoke the safe bottom-search handler first."""
@@ -1460,7 +1499,7 @@ class P1B0PostGameTests(unittest.TestCase):
 
     def test_archive_chain_end_to_end_fallback_flow(self):
         """Verify the complete post-game fallback chain: archive cards -> time-cave boss -> close -> heirloom boss -> close."""
-        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁", cjb_boss="55吞咽者布鲁"), ROOT)
+        med = Mediator(Settings(sgzx_boss="99未解锁哨兵", cjb_boss="99未解锁哨兵"), ROOT)
         med.set_phase(Phase.MAIN_LINE, "e2e chain")
         med._post_game_pending = True
         med._post_game_route = "archive"

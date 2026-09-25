@@ -1989,6 +1989,12 @@ def _state_snapshot(med: Mediator, context: str | None = None) -> dict[str, Any]
         "hitch_ready_confirmed_at": getattr(med, "_hitch_ready_confirmed_at", None),
         "hitch_re_search": getattr(med, "_hitch_re_search", False),
         "hitch_status": getattr(med, "_hitch_status", None),
+        # Per-round stage read from the in-game HUD (or the stage page as a
+        # fallback).  It used to reach stdout only, so the 2026-09-25 run's
+        # stages had to be re-read from frames afterwards.
+        "hitch_round_stage": getattr(med, "_hitch_stats_current_stage", None),
+        "hitch_stage_counts": dict(getattr(med, "_hitch_stats_stages", {}) or {}),
+        "hitch_round_challenges": list(getattr(med, "_hitch_stats_current_challenges", []) or []),
         "hitch_goal_archaeology_handoff": getattr(med, "_hitch_goal_archaeology_handoff", False),
         "archaeology_handoff_confirmed": getattr(med, "_archaeology_handoff_confirmed", False),
         "game_count": getattr(med, "game_count", None),
@@ -4660,8 +4666,8 @@ def _prepare_settings(path: Path | None, target: str, live_input: bool) -> Setti
     # Boss/时间之穴测试只在内存中使用不可用哨兵，强制验证最后可识别 Boss fallback。
     # 不修改 Settings.json。
     if target in {"boss_challenge", "time_cave"}:
-        settings.cjb_boss = "55吞咽者布鲁"
-        settings.sgzx_boss = "55吞咽者布鲁"
+        settings.cjb_boss = "99未解锁哨兵"
+        settings.sgzx_boss = "99未解锁哨兵"
         settings.auto_secret_realm = False
     if target in {
         "lobby_hitch", "lobby_search", "hitch_runtime", "hitch_lobby_chain",

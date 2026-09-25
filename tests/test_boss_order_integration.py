@@ -146,9 +146,9 @@ def test_archive_panel_partially_visible_predicted_target_clicks_directly(base_p
 
 
 def test_archive_panel_target_not_unlocked_bottom_fallback(base_patches):
-    """Target 55吞咽者布鲁 with at_bottom=True clicks last card with BossBottomFallback."""
+    """Target 99未解锁哨兵 with at_bottom=True clicks last card with BossBottomFallback."""
     frame = load_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
-    settings = Settings(sgzx_boss="55吞咽者布鲁", mode_id="solo", ocr_mode="off")
+    settings = Settings(sgzx_boss="99未解锁哨兵", mode_id="solo", ocr_mode="off")
     med = Mediator(settings, ROOT)
     med._post_game_pending = True
 
@@ -413,7 +413,7 @@ def test_boss_order_locate_failed_fallback_clicks_last_card(base_patches):
 def test_boss_last_visible_fallback_when_unresolved_limit_exceeded(base_patches):
     """When list is not at bottom and unresolved limit exceeded, falls back to physically last card."""
     frame = load_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
-    settings = Settings(sgzx_boss="55吞咽者布鲁", mode_id="solo", ocr_mode="off")
+    settings = Settings(sgzx_boss="99未解锁哨兵", mode_id="solo", ocr_mode="off")
     med = Mediator(settings, ROOT)
     med.set_phase(Phase.MAIN_LINE, "integration test")
     med._post_game_pending = True
@@ -435,7 +435,8 @@ def test_boss_last_visible_fallback_when_unresolved_limit_exceeded(base_patches)
     assert len(clicked) == 1
     hit, reason = clicked[0]
     assert reason == "BossLastVisibleFallback"
-    assert "09" in hit.name or "摩拉迪姆" in hit.name
+    # Rightmost card of the bottom visible row (row-clustered since 2026-09-25).
+    assert "12卡尔加" in hit.name
     assert med.phase != Phase.ERROR
     assert not med.stop_signal.is_set()
 

@@ -307,7 +307,8 @@
     "fail": {
       "templates": [
         "fail",
-        "gameFail"
+        "gameFail",
+        "fail_banner"
       ],
       "method": "MonitorGameOver",
       "action": "click",

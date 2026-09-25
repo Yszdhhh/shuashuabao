@@ -754,6 +754,46 @@
       "sha256": "7019ee4d263733d8339d1943122833a4faab125f6dcb797f06fb873a25958709"
     },
     {
+      "path": "assets/Images/boss/55吞咽者布鲁.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from live hitch frame hitch_lobby_chain_20260925_011901_450471/frames/f2336 (时光之穴 list scrolled to bottom), 57px card resized to 128px",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 39616,
+      "sha256": "85337e7c14bcce9496a713920c29ad2dbe4f61d641044d41efd24e9624c23e90"
+    },
+    {
+      "path": "assets/Images/boss/56狩猎者阿娅米斯.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from live hitch frame hitch_lobby_chain_20260925_011901_450471/frames/f2336 (时光之穴 list scrolled to bottom), 57px card resized to 128px",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 40517,
+      "sha256": "8814469a9dcd825675e27bda81717db17a3408c2a739beca9d264f4ce94051ca"
+    },
+    {
+      "path": "assets/Images/boss/57无疤者奥斯里安.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from live hitch frame hitch_lobby_chain_20260925_011901_450471/frames/f2336 (时光之穴 list scrolled to bottom), 57px card resized to 128px",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 39824,
+      "sha256": "c73d1f6efe8d534a5ee54ea6256bd9c38e4df5f5fd6ce06818abd18dea25b65b"
+    },
+    {
+      "path": "assets/Images/boss/58预言者斯克拉姆.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from live hitch frame hitch_lobby_chain_20260925_011901_450471/frames/f2336 (时光之穴 list scrolled to bottom), 57px card resized to 128px",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 40890,
+      "sha256": "f6ee794d1a558dcd98ead98d20a79ce8bc05d93c23c9e8de8341fcbafcf49798"
+    },
+    {
+      "path": "assets/Images/boss/59战争使者沙尔图拉.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from live hitch frame hitch_lobby_chain_20260925_011901_450471/frames/f2336 (时光之穴 list scrolled to bottom), 57px card resized to 128px",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 41741,
+      "sha256": "5f4515cb6519b2764d38869e5f1629672d1fa137a9b46cb0769640844e9ec83d"
+    },
+    {
       "path": "assets/Images/bpoint.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
@@ -1330,6 +1370,14 @@
       "sha256": "9e25927539e074cba43f7c8727a5851a99998f1f4527465d864f81746963799d"
     },
     {
+      "path": "assets/Images/chuanjiaobao/21界龟.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from live hitch frame hitch_lobby_chain_20260925_011901_450471/frames/f1826 (传家宝 list, room 5), 58px card resized to 128px",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 44537,
+      "sha256": "0cae7c22895695fbf187a93caa035fef84765f0c9b4e340fe6067a322a113ca1"
+    },
+    {
       "path": "assets/Images/chuanjiaobao/54莫阿姆.png",
       "purpose": "runtime_template",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
@@ -1568,6 +1616,14 @@
       "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 1195,
       "sha256": "119bb6c9daa13dfeb9346f6345b0b8a0ed6b2e65980757691c855fa293cb759b"
+    },
+    {
+      "path": "assets/Images/fail_banner.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from live hitch frame hitch_lobby_chain_20260925_011901_450471/frames/f1229 (失败 banner of the failure modal drawn over the 时光之穴 panel), native 1600x900 size",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 26912,
+      "sha256": "22934bdbd2e8d3d29a578fbf5015c4fef036f247aa96e64102b05f8c8c16c7fa"
     },
     {
       "path": "assets/Images/fashu.png",
