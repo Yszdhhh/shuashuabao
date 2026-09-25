@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "c81254b3a9a437147e7309237a3c3389198f1661",
-  "anchored_at": "2026-09-25T20:33:00+08:00",
+  "candidate_sha": "564e58be8116e51ae672e615f64184bfbddadc16",
+  "anchored_at": "2026-09-25T20:56:00+08:00",
   "branch": "fix/solo-r2-20260925",
-  "note": "09-25 单人实测第二局 6 起问题综合修复"
+  "note": "09-25 吞噬丹防超吃与特效读数修复"
 }
