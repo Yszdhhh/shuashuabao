@@ -1,7 +1,7 @@
 {
     "schema_version":  1,
-    "candidate_sha":  "46ec6a3a078aeb05595817cdc90f9e66d65be6e0",
-    "anchored_at":  "2026-09-26T01:27:11+08:00",
-    "branch":  "fix/bond-fsm-deadlock-20260926",
-    "note":  "09-26 修复单人面板关闭失败后 CLOSING/COOLDOWN 振荡：最多关闭 3 次，耗尽后零输入等待物理锚点消失"
+    "candidate_sha":  "f103014eb2136e93b6782271ec186a5f5c38a48d",
+    "anchored_at":  "2026-09-26T02:30:00+08:00",
+    "branch":  "fix/attr-lines-ur-20260926",
+    "note":  "09-26 属性线走UR断点修复：UR散件进白名单、凑满门卡让路后环、已勾选链顶替保护与吞噬丹暂停"
 }
