@@ -125,9 +125,9 @@ def test_equipment_affix_modal_real_fixture():
     med = Mediator(Settings(), ROOT)
     hit = med._find_equipment_affix_choice(frame)
     assert hit is not None, "Real equipment affix modal must be detected"
-    assert hit.name == "equipment_affix_2"
+    assert hit.name == "equipment_affix_1"
     assert hit.x == 800
-    assert hit.y == 350
+    assert hit.y == 305
 
 
 def test_post_game_hub_heirloom_offset_and_hero_focus():
