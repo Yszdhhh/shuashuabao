@@ -156,3 +156,15 @@ EX 模板（`a57d697`）：从 Owner 的卡面截图 `fixtures/ex_finals_2026081
 还没做：物品栏满时的消耗品识别与溢出整理、单人背包放置逻辑，等 GPT 调研（`gpt/urgent-resources-20260924`）和实机 tooltip 截图。
 
 本地第三轮（`local/quicktest-20260924b`，HEAD `88eb4d2`）：门禁首跑启动器冒烟测试临时 EXE `PermissionError`，单跑 3/3 过，重跑全绿；快照已刷新（404→405）。`build_release.ps1 -NoDeploy` 因缺操作员 Ed25519 manifest 私钥 BLOCKED（第 113–121 行，所有冻结渠道都要，设计如此），冻结包 harness 未跑。云端决定继续用源码模式跑入口 1 和入口 12。
+
+## 2026-09-25 背包清理两条链路实机通过
+
+测试版 5198420（单人四修 + 黑商木材 + 背包清理）。
+
+B1 局内/蹭车入口：HUD 存档 → 装备页签（若停在物品页签先点装备）→ 一键分解 → 读三个勾选框（只有 精良✓ 史诗✓ 传说☐ 才点是，否则点否）→ 是 → 返回游戏。实机结果包 `%TEMP%\shuabao-captures\backpack_clean_20260925_184140_796207`，final_status=cleaned/return_verified，Owner 确认通过。
+
+B2 单人选关页入口：顶栏存档页签 → 装备 → 一键分解 → 是 → 游戏大厅页签回选关页。结果包 `backpack_clean_20260925_183735_803399`，cleaned/return_verified，Owner 确认通过。
+
+设置：auto_clean_backpack 默认关闭、clean_backpack_every_rounds 默认 10。
+
+已知遗留：trace 只记录了部分点击（帧里有 7-9 张，trace 只有 2-3 个 intent），需补齐 harness 记录；黑商木材预算仍按 300 杀敌数判断（实际价 400/640），待改为读价签。
