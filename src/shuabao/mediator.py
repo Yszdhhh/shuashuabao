@@ -4121,7 +4121,7 @@ class Mediator:
             return None
         return mapped[1]
 
-    _SINGLE_FRAME_PICK_CONFIDENCE = 0.95
+    _SINGLE_FRAME_PICK_CONFIDENCE = 0.85
 
     def _live_ocr_miss_refresh(self, frame: Frame, kind: str) -> MatchResult | None:
         """OCR 没读到名字时禁止刷新。预选卡可能已经在画面上。"""
@@ -4131,15 +4131,15 @@ class Mediator:
     def _is_unambiguous_high_confidence_pick(
         decision: "PolicyDecision", slots: tuple, reason: str
     ) -> bool:
-        """B2 拿卡提速：卡名完整命中白名单预设、OCR>=0.95、四槽无重名歧义时免二次确认。
+        """B2 拿卡提速：卡名完整命中白名单预设、OCR>=0.85、四槽无重名歧义时免二次确认。
 
         其余情形（刷新、模糊/低置信/重名槽位、非预设兜底如品质降级/套装进度）
         仍保留 _ocr_reward_choice 现有的两帧确认。
         """
-        if "预设命中" not in reason and "严格命中" not in reason and "必拿" not in reason:
+        if "预设命中" not in reason and "严格命中" not in reason and "必拿" not in reason and "合成" not in reason:
             return False
         chosen = next((s for s in slots if s.index == decision.index), None)
-        if chosen is None or not chosen.name or float(chosen.confidence or 0.0) < 0.95:
+        if chosen is None or not chosen.name or float(chosen.confidence or 0.0) < 0.85:
             return False
         named = [str(s.name).strip() for s in slots if s.name and str(s.name).strip()]
         return len(named) == len(set(named))
@@ -4738,29 +4738,30 @@ class Mediator:
     def _stall_combat_bond_slots(
         self, slots: tuple[SlotCandidate, ...]
     ) -> tuple[SlotCandidate, ...]:
-        """Keep documented combat bonds and confirmed uncompleted owned bonds after a main-line stall."""
+        """Keep documented combat bonds, target presets, and confirmed uncompleted owned bonds after a main-line stall."""
         owned = getattr(self, "_confirmed_bond_cards", lambda: ())()
-        return tuple(
+        target_bonds = tuple(b for b in getattr(self.settings, "bonds", ()) if b)
+        filtered = tuple(
             slot for slot in slots
             if matches_bond_preset(slot.name, self._STALL_COMBAT_BOND_PRESETS)
+            or matches_bond_preset(slot.name, target_bonds)
             or (owned and _is_uncompleted_merge_upgrade(slot, owned))
         )
+        return filtered if filtered else slots
 
     def _stall_combat_bond_policy(self_or_policy: Any, policy: PolicySettings | None = None) -> PolicySettings:
-        """Remove economic/base-card gates while stalled, keeping documented combat presets only."""
+        """Keep documented combat presets and target presets while stalled, without purging base/advanced presets."""
         if policy is None:
             pol = self_or_policy
         else:
             pol = policy
-        presets = Mediator._STALL_COMBAT_BOND_PRESETS
+        presets = tuple(dict.fromkeys(
+            tuple(getattr(pol, "bond_presets", ()))
+            + Mediator._STALL_COMBAT_BOND_PRESETS
+        ))
         return replace(
             pol,
             bond_presets=presets,
-            bond_base_presets=(),
-            bond_advanced_presets=(),
-            bond_advanced_groups=(),
-            bond_chain_presets=(),
-            bond_must_take=(),
         )
 
     def _should_hold_core_development(self, frame: Frame | None = None, now: float | None = None) -> bool:
