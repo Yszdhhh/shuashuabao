@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "0a344f3f8566be30a54ad1b781ac6f055b597de3",
-  "anchored_at": "2026-09-26T00:06:00+08:00",
-  "branch": "fix/bond-panel-stuck-20260925",
-  "note": "09-26 修复羁绊面板刷新耗尽与超时死锁：以最后进展计算超时、solo有锚点转CLOSING、COOLDOWN脱节重识别纠偏"
+  "candidate_sha": "83d5814e055a7ecaa02861dc5424300c3afa129b",
+  "anchored_at": "2026-09-26T00:55:52+08:00",
+  "branch": "fix/classify-recursion-20260926",
+  "note": "09-26 修复 Runtime 进化选择分类互递归并补真实配对契约测试"
 }
