@@ -165,6 +165,26 @@ def _classify_topbar_one(glyph: np.ndarray) -> str | None:
     return None
 
 
+def _topbar_zero_is_nine(glyph: np.ndarray) -> bool:
+    """Top-bar font only: tell a "9" from the "0" the lobby-font templates pick.
+
+    The only "9" template is cut from the lobby stage list, whose font differs
+    from the in-game top bar; there a live "4-9" read as "4-0" for 16 hitch
+    rounds (2026-09-25 f1706).  A "0" keeps its left stroke all the way down,
+    a "9" leaves the left side empty between its loop and its bottom hook.
+    """
+    ys, _ = np.where(glyph)
+    if not len(ys):
+        return False
+    glyph = glyph[ys.min() : ys.max() + 1, :]
+    height, width = glyph.shape
+    if height < 12 or width < 6:
+        return False
+    left = glyph[:, : max(1, width // 4)]
+    band = left[int(height * 0.55) : int(height * 0.75)]
+    return band.size > 0 and float(band.mean()) < 0.15
+
+
 def detect_ingame_stage_label(frame: Frame, images_dir: Path) -> StageId | None:
     """Read the top-bar in-game stage label (e.g. 2-7, 3-4, 1-16) from a live frame."""
     if frame.width < 600 or frame.height < 400:
@@ -191,6 +211,8 @@ def detect_ingame_stage_label(frame: Frame, images_dir: Path) -> StageId | None:
     for c_start, c_end in columns:
         glyph = submask[:, c_start:c_end]
         char = _classify_topbar_one(glyph) or _classify_glyph(glyph, templates)
+        if char == "0" and _topbar_zero_is_nine(glyph):
+            char = "9"
         if char:
             chars.append(char)
     text = "".join(chars)

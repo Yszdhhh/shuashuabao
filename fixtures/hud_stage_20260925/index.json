@@ -1,0 +1,27 @@
+{
+  "round01_2-7.png": {
+    "expected": "2-7",
+    "source_frame": "frames/f0081_action_after.png",
+    "run": "hitch_lobby_chain_20260925_011901_450471"
+  },
+  "round02_4-3.png": {
+    "expected": "4-3",
+    "source_frame": "frames/f0308_action_after.png",
+    "run": "hitch_lobby_chain_20260925_011901_450471"
+  },
+  "round03_4-4.png": {
+    "expected": "4-4",
+    "source_frame": "frames/f0766_action_after.png",
+    "run": "hitch_lobby_chain_20260925_011901_450471"
+  },
+  "round04_3-9.png": {
+    "expected": "3-9",
+    "source_frame": "frames/f1411_state_change.png",
+    "run": "hitch_lobby_chain_20260925_011901_450471"
+  },
+  "round05_4-9.png": {
+    "expected": "4-9",
+    "source_frame": "frames/f1664_action_after.png",
+    "run": "hitch_lobby_chain_20260925_011901_450471"
+  }
+}
