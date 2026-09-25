@@ -4885,8 +4885,9 @@ class Mediator:
 
         Order of reasons:
           1. wood < 500 with a skill backlog -> G first
-          2. wood >= 1000, or basic bonds pending with wood >= 500 -> F
-             until the visit cap
+          2. on bond steps only: wood >= 1000, or basic bonds pending
+             with wood >= 500 -> F until the visit cap (never preempts
+             other steps; live 230841 starved skill G for 519s)
           3. skill backlog -> G while bonds are blocked or visit-capped
           4. normal cycle step:
              - bond: skip if blocked (wood < price) or visit capped
@@ -4927,9 +4928,11 @@ class Mediator:
         ):
             return "skill", f"木材 {wood} < {self._SKILL_FIRST_WOOD} 且技能积压 {skill}，先点技能"
 
-        # 2. 羁绊是主要战力来源：木材 ≥ 500 且基础羁绊未成型，或木材 ≥ 1000，
-        #    先消耗木材点羁绊。木材不可读时不阻挡基础羁绊。
-        if bond_blocked is None and not bond_held:
+        # 2. 羁绊是主要战力来源：轮换到 bond 步时，木材 ≥ 500 且基础羁绊未成型，
+        #    或木材 ≥ 1000，先消耗木材点羁绊。木材不可读时不阻挡基础羁绊。
+        #    非 bond 步不再被羁绊抢占（实机 230841：519 秒内技能 G 被 100% 饿死）；
+        #    技能积压走规则 1/3，轮换步走规则 4/5。
+        if step == "bond" and bond_blocked is None and not bond_held:
             if wood is not None and wood >= self._BOND_HIGH_WOOD:
                 return "bond", f"木材充足（{wood} ≥ {self._BOND_HIGH_WOOD}），羁绊优先转化战力"
             if self._bond_base_progress_pending() and (wood is None or wood >= self._SKILL_FIRST_WOOD):

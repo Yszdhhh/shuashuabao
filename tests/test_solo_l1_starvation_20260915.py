@@ -91,9 +91,10 @@ def test_low_wood_releases_the_80_percent_bond_lock_to_skills() -> None:
 def test_enough_wood_preserves_f_g_priority_without_starving_side_steps() -> None:
     med = _med()
     med._l1_cycle_step = "treasure"
-    # Spare wood should feed the selected bond pack before other panels.
-    # The bounded visit cap still releases the next cycle step afterward.
-    assert _open(med, _frame("hud_wood_1111_f0200.png"), wood=1111) == ["OpenBondPanel"]
+    # Solo-Executor B(3/3)：羁绊优先只属于 bond 轮换步；treasure 步即使木材充足
+    # 也必须到达自己的面板（实机 230841：非 bond 步被 100% 抢占，技能 G 饿死 519s）。
+    # bond 步的高木材优先由 test_solo_core_development_20260916 的 01~03 锁定。
+    assert _open(med, _frame("hud_wood_1111_f0200.png"), wood=1111) == ["OpenTreasurePanel"]
 
 
 def test_unreadable_wood_falls_back_to_the_idle_backoff() -> None:
