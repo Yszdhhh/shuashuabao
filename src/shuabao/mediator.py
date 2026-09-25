@@ -4673,6 +4673,7 @@ class Mediator:
     # 时把整环卡死在同一步，饿死其余步骤（live 000229 复盘）。
     _L1_STEP_VISIT_MAX_SUCCESSES = 3
     _L1_STEP_VISIT_MAX_SECONDS = 30.0
+    _PANEL_CLOSE_MAX_ATTEMPTS = 3
     _F_DRAW_REOPEN_LIMIT = 2
     _F_DRAW_BACKOFF_S = 30.0
     _EXIT_REARM_LIMIT = 2
@@ -17938,19 +17939,8 @@ class Mediator:
                 self._panel_closing_started_at = now
             closing_elapsed = now - self._panel_closing_started_at
             close_hit = self._close_current_panel(frame, self._panel_kind)
-            if close_hit is None:
-                if self._panel_closing_attempts >= 3 or closing_elapsed >= 3.0:
-                    print(f"[L1] CLOSING 状态无法找到关闭锚点（{self._panel_closing_attempts} 次 / "
-                          f"{closing_elapsed:.1f}s 超时），强制进入 COOLDOWN 避免活锁")
-                    self._panel_state = PanelState.COOLDOWN
-                    kind = self._panel_kind or "unknown"
-                    if kind in ("skill", "bond", "treasure"):
-                        self._panel_episode_count[kind] = self._panel_episode_count.get(kind, 0) + 1
-                    self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
-                    self._panel_opened_by_us = None
-                    return LoopAction.Continue
-                return LoopAction.Continue  # 零动作等待明确 close 锚点
-            if self.act_click(close_hit, "PanelClose"):
+            close_clicked = close_hit is not None and self.act_click(close_hit, "PanelClose")
+            if close_clicked:
                 self._panel_executed_actions += 1
                 self._panel_last_progress_at = now
                 self._stage_panel_choice_action("close", (self._panel_kind, close_hit.name))
@@ -17958,6 +17948,21 @@ class Mediator:
                 self._panel_last_input_at = now
                 self._panel_mutation_baseline = self._panel_roi_region(frame)
                 self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
+            elif (
+                self._panel_closing_attempts >= self._PANEL_CLOSE_MAX_ATTEMPTS
+                or closing_elapsed >= 3.0
+            ):
+                print(f"[L1] CLOSING 无法关闭面板（{self._panel_closing_attempts} 次 / "
+                      f"{closing_elapsed:.1f}s 超时），零输入冷却后再检查")
+                self._panel_state = PanelState.COOLDOWN
+                kind = self._panel_kind or "unknown"
+                if kind in ("skill", "bond", "treasure"):
+                    self._panel_episode_count[kind] = self._panel_episode_count.get(kind, 0) + 1
+                self._panel_closing_attempts = self._PANEL_CLOSE_MAX_ATTEMPTS
+                self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
+                self._panel_opened_by_us = None
+            else:
+                return LoopAction.Continue  # 零动作等待明确 close 锚点
             return LoopAction.Continue
 
         if st == PanelState.COOLDOWN:
@@ -17972,6 +17977,16 @@ class Mediator:
                 # 画面与状态不一致：绝不允许面板开着长时间零动作。
                 # 若已达 episode 上限或 cooldown 剩余时间较长，必须立即转 CLOSING 物理隐藏面板。
                 kind = self._panel_kind or self._panel_kind_of(frame, anchor)
+                if (
+                    self._panel_closing_started_at is not None
+                    and self._panel_closing_attempts >= self._PANEL_CLOSE_MAX_ATTEMPTS
+                ):
+                    return LoopAction.Continue  # 关闭重试预算耗尽：面板未消失前保持 fail-closed
+                if (
+                    self._panel_closing_started_at is not None
+                    and now < self._panel_cooldown_until.get(kind, 0.0)
+                ):
+                    return LoopAction.Continue  # 关面板失败后的有界退避：保留 fail-closed，期间不重复输入
                 if (
                     self._passenger_mode()
                     or self._panel_episode_count.get(kind, 0) >= self.settings.panel_episode_limit_per_kind

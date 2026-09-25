@@ -51,6 +51,48 @@ def _mediator(clock: FakeClock, *, limit: int = 2) -> tuple[Mediator, Frame]:
 
 
 class PanelLivenessHarnessTests(unittest.TestCase):
+    def test_episode_cap_advances_the_solo_cycle_once(self) -> None:
+        clock = FakeClock(start=90.0)
+        med, frame = _mediator(clock)
+        med._l1_cycle_step = "bond"
+        med._l1_cycle_index = med._l1_cycle_order().index("bond")
+        med._panel_episode_count["bond"] = med.settings.panel_episode_limit_per_kind
+
+        with clock.install(), patch.object(med, "_selection_anchor", return_value=None), \
+                patch.object(med, "_solo_plan_panel", return_value=("bond", "test")):
+            self.assertIs(med._maybe_open_choice_panel(frame), LoopAction.Continue)
+
+        self.assertNotEqual(med._l1_cycle_step, "bond")
+        self.assertEqual(med._panel_episode_count["bond"], 0)
+        self.assertEqual(med._panel_cooldown_until["bond"], 150.0)
+
+    def test_closing_failures_are_bounded_then_wait_without_input(self) -> None:
+        clock = FakeClock(start=100.0)
+        med, frame = _mediator(clock)
+        anchor = MatchResult("bond_hide_btn", 0.95, 800, 600, 20, 20, 800, 600)
+        med._panel_state = PanelState.CLOSING
+        med._panel_kind = "bond"
+        med._panel_closing_started_at = clock.now()
+
+        with clock.install(), patch.object(med, "_close_current_panel", return_value=None) as close_panel:
+            for _ in range(med._PANEL_CLOSE_MAX_ATTEMPTS):
+                self.assertIs(med._tick_panel_fsm(frame, anchor, clock.now()), LoopAction.Continue)
+                clock.advance(1.0)
+
+            self.assertIs(med._panel_state, PanelState.COOLDOWN)
+            self.assertEqual(close_panel.call_count, med._PANEL_CLOSE_MAX_ATTEMPTS)
+
+            self.assertIs(med._tick_panel_fsm(frame, anchor, clock.now()), LoopAction.Continue)
+            self.assertEqual(close_panel.call_count, med._PANEL_CLOSE_MAX_ATTEMPTS)
+
+            clock.advance(20.0)
+            self.assertIs(med._tick_panel_fsm(frame, anchor, clock.now()), LoopAction.Continue)
+            self.assertEqual(close_panel.call_count, med._PANEL_CLOSE_MAX_ATTEMPTS)
+            self.assertIsNone(med._tick_panel_fsm(frame, None, clock.now()))
+
+        self.assertIs(med._panel_state, PanelState.CLOSED)
+        self.assertEqual(close_panel.call_count, med._PANEL_CLOSE_MAX_ATTEMPTS)
+
     def test_invisible_open_timeout_is_not_an_abnormal_episode_in_solo(self) -> None:
         """Owner 2026-09-15: G/V without points and F without wood do not open.
 
@@ -83,59 +125,39 @@ class PanelLivenessHarnessTests(unittest.TestCase):
         self.assertEqual(reasons, ["OpenSkillPanel"] * 3, "no cap: the next lap may press G again")
 
     def test_persistent_natural_anchor_is_not_ignored_after_episode_cap(self) -> None:
-        """A still-visible natural panel cannot be bypassed after quarantine."""
+        """A still-visible natural panel stays fail-closed after bounded close retries."""
         clock = FakeClock(start=200.0)
         med, frame = _mediator(clock)
         anchor = MatchResult("skill_giveup_btn", 0.95, 800, 600, 20, 20, 800, 600)
 
         with clock.install(), patch.object(med, "_find_reward_choice", return_value=None), \
-                patch.object(med, "_close_current_panel", return_value=None), \
+                patch.object(med, "_close_current_panel", return_value=None) as close_panel, \
                 patch.object(med, "_record_fail_closed_incident"):
-            for expected_count in (1, 2):
-                # High-confidence anchor enters the natural episode in one
-                # frame, then the same panel reaches the hard deadline.
-                self.assertIs(
-                    med._tick_panel_fsm(frame, anchor, clock.now()),
-                    LoopAction.Continue,
-                )
-                self.assertIs(med._panel_state, PanelState.ACTIVE)
-                self.assertEqual(med._panel_episode_count.get("skill", 0), expected_count - 1)
+            self.assertIs(med._tick_panel_fsm(frame, anchor, clock.now()), LoopAction.Continue)
+            self.assertIs(med._panel_state, PanelState.ACTIVE)
 
-                clock.advance(1.1)
-                self.assertIs(
-                    med._tick_panel_fsm(frame, anchor, clock.now()),
-                    LoopAction.Continue,
-                )
-                self.assertIs(med._panel_state, PanelState.COOLDOWN)
-                self.assertEqual(med._panel_episode_count["skill"], expected_count)
-                clock.advance(0.2)
-                self.assertIsNone(med._tick_panel_fsm(frame, anchor, clock.now()))
-                self.assertIs(med._panel_state, PanelState.CLOSED)
-
-            # The anchor is deliberately still present.  Reaching the cap
-            # parks the overlay behind a long bounded cooldown (60s) while
-            # the panel FSM stays responsible for the covering UI.
+            clock.advance(1.1)
             self.assertIs(
                 med._tick_panel_fsm(frame, anchor, clock.now()),
                 LoopAction.Continue,
             )
+            self.assertIs(med._panel_state, PanelState.CLOSING)
+
+            for _ in range(med._PANEL_CLOSE_MAX_ATTEMPTS):
+                clock.advance(1.0)
+                self.assertIs(med._tick_panel_fsm(frame, anchor, clock.now()), LoopAction.Continue)
             self.assertIs(med._panel_state, PanelState.COOLDOWN)
             self.assertEqual(med._panel_kind, "skill")
             self.assertEqual(med._panel_episode_count["skill"], 2)
-            self.assertGreaterEqual(med._panel_cooldown_until["skill"], clock.now() + 59.0)
+            self.assertEqual(close_panel.call_count, med._PANEL_CLOSE_MAX_ATTEMPTS)
 
-            clock.advance(1.0)
-            self.assertIs(
-                med._tick_panel_fsm(frame, anchor, clock.now()),
-                LoopAction.Continue,
-            )
+            clock.advance(20.0)
+            self.assertIs(med._tick_panel_fsm(frame, anchor, clock.now()), LoopAction.Continue)
+            self.assertEqual(close_panel.call_count, med._PANEL_CLOSE_MAX_ATTEMPTS)
             self.assertIs(med._panel_state, PanelState.COOLDOWN)
 
-            # After the bounded cooldown expires the FSM resets instead of
-            # freezing forever; the episode-count cap still blocks reentry.
-            clock.advance(70.0)
             self.assertIsNone(
-                med._tick_panel_fsm(frame, anchor, clock.now()),
+                med._tick_panel_fsm(frame, None, clock.now()),
             )
             self.assertIs(med._panel_state, PanelState.CLOSED)
 

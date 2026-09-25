@@ -48,6 +48,14 @@ def test_single_frame_acceleration_confined_to_presets() -> None:
     d_synth = PolicyDecision(action=PolicyAction.SELECT_SLOT, index=0, reason="差一张合成：测试预设卡")
     assert Mediator._is_unambiguous_high_confidence_pick(d_synth, slots, d_synth.reason) is True
 
+    duplicate_slots = (
+        SlotCandidate(index=0, name="法术", confidence=0.94),
+        SlotCandidate(index=1, name="藏宝图", confidence=0.99),
+        SlotCandidate(index=2, name="法术", confidence=0.95),
+        SlotCandidate(index=3, name="奇技", confidence=0.91),
+    )
+    assert Mediator._is_unambiguous_high_confidence_pick(d_preset, duplicate_slots, d_preset.reason) is False
+
     # 2. Non-preset / fallback with 0.85 <= confidence < 0.95 -> does NOT accelerate
     d_fallback = PolicyDecision(action=PolicyAction.SELECT_SLOT, index=0, reason="品质降级兜底：测试预设卡")
     assert Mediator._is_unambiguous_high_confidence_pick(d_fallback, slots, d_fallback.reason) is False
