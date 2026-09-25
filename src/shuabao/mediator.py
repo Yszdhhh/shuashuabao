@@ -18464,7 +18464,11 @@ class Mediator:
                 # a short “已挑战” toast. Once visible, close the dialog once
                 # and continue the already-selected post-game route; before
                 # then the configured-Boss handler is observation-only.
-                if self._heirloom_boss_result_visible(frame):
+                # 2026-09-25 hitch rounds 2/10/15: the red "BOSS" tags on the
+                # list's bottom row sit inside the toast band, so the toast
+                # only counts after this round's own Boss click.
+                heirloom_clicked = getattr(self, "_heirloom_boss_clicked_at", None) is not None
+                if heirloom_clicked and self._heirloom_boss_result_visible(frame):
                     self._heirloom_boss_result_confirmed = True
                     print("[med] 传家宝 Boss 业务后置确认成功，关闭传家宝面板")
                 elif self._heirloom_boss_confirm_expired(now):
@@ -18489,7 +18493,10 @@ class Mediator:
             self._aux_dialog_attempts[post_game] = attempts + 1
             print(f"[med] 关闭传家宝弹窗 @ {close_hit.center} (尝试 {attempts + 1}/3)")
             confirmed_boss = bool(
-                self._heirloom_boss_result_visible(frame)
+                (
+                    getattr(self, "_heirloom_boss_clicked_at", None) is not None
+                    and self._heirloom_boss_result_visible(frame)
+                )
                 or getattr(self, "_heirloom_boss_result_confirmed", False)
             )
             if self.act_click(close_hit, "DismissHeirloomDialog"):

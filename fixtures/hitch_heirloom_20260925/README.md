@@ -1,0 +1,1 @@
+Real pixels from hitch run hitch_lobby_chain_20260925_011901_450471 frame f0465 (round 2, heirloom list open, no Boss clicked yet). Only the dialog region (x 30-72%, y 18-80%) is kept; the rest is black.

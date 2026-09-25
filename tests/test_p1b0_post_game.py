@@ -907,6 +907,7 @@ class P1B0PostGameTests(unittest.TestCase):
         med._post_game_pending = True
         med._post_game_route = "heirloom_active"
         med._boss_challenge_attempts = 1
+        med._heirloom_boss_clicked_at = time.time()
         frame = load_fixture_frame("fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png")
         close = MatchResult("close", 0.90, 990, 230, 20, 20, 1000, 240)
         with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
@@ -918,6 +919,25 @@ class P1B0PostGameTests(unittest.TestCase):
         click.assert_called_once_with(close, "DismissHeirloomDialog")
         self.assertEqual(med._post_game_route, "boss_active")
         self.assertFalse(med._post_game_pending)
+
+    def test_heirloom_boss_tags_before_any_click_do_not_close_the_list(self):
+        """2026-09-25 hitch round 2 (f0465): the bottom row's red BOSS tags sit in
+        the toast band. Before this round's own Boss click the list must go to
+        the Boss handler, never be dismissed as already challenged."""
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        med._post_game_pending = True
+        med._post_game_route = "heirloom_active"
+        frame = load_fixture_frame("fixtures/hitch_heirloom_20260925/round02_heirloom_list_before_click.png")
+        self.assertTrue(med._heirloom_boss_result_visible(frame))  # the false-positive source
+        close = MatchResult("close", 0.90, 990, 230, 20, 20, 1000, 240)
+        with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+             patch.object(med, "_maybe_challenge_configured_boss", return_value=LoopAction.Continue) as choose, \
+             patch.object(med, "_find_heirloom_close", return_value=close), \
+             patch.object(med, "act_click", return_value=True) as click:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+        choose.assert_called_once()
+        click.assert_not_called()
+        self.assertFalse(getattr(med, "_heirloom_boss_result_confirmed", False))
 
     def test_heirloom_without_config_delegates_to_bottom_fallback(self):
         """An empty cjb_boss must invoke the safe bottom-search handler first."""
