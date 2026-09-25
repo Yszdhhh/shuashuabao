@@ -2596,10 +2596,10 @@
     {
       "path": "assets/Images/merchant_wood.png",
       "purpose": "runtime_ui",
-      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "provenance": "live capture solo_ingame_chain_20260925_145724_766240 f0249_action_before.png merchant slot 2 wood icon core (44x22, excludes 8折 badge and price bar)",
       "reason_required": "runtime UI/status/icon asset",
-      "size_bytes": 6927,
-      "sha256": "1bf0ec8b49d26901cbf9f6777b372bb80f22e828ed7431ad6d5c941671325868"
+      "size_bytes": 2002,
+      "sha256": "43122c9b30fb3ddf041c383beb9d41b9336b333d7828bca06491035b9c2c7aff"
     },
     {
       "path": "assets/Images/mijingOk.png",
