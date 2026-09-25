@@ -178,3 +178,11 @@ EX 模板（`a57d697`）：从 Owner 的卡面截图 `fixtures/ex_finals_2026081
 - `_tick_panel_fsm` 的 `CLOSING` 现在最多尝试 3 次；关闭锚点缺失、点击被拒或 3s 超时后进入 `COOLDOWN` 并耗尽本次关闭预算。锚点仍在时保持零输入，直到锚点消失后再清理面板 episode。未加 Escape/盲点。
 - FakeClock 回放覆盖 episode 上限推进和关闭失败后的有界重试；定向用例 8 passed，`tests/contract` 68 passed / 232 subtests passed，候选身份锚点更新后 `tests/test_live_harness_refresh.py` 23 passed。源码提交 `46ec6a3a078aeb05595817cdc90f9e66d65be6e0`。没有启动游戏；面板物理关闭及后续主线恢复仍待真机验证。
 - OCR 的白名单目标路径已支持 ≥0.85 单帧免确认，模板完整快路已跳过 OCR 与双帧确认。本次不再调低通用 OCR 的 0.95 门槛；trace 真帧 f0352 上 ≥0.85 的「封神 / 箭术 / 三国」与卡面文字一致，f0355 上重复「法术」槽位仍被唯一性门控排除。该样本只支持维持现有门控，不代表整体误点率测量。
+## 2026-09-26 进化二选一召回修复
+
+- Perception 修复提交：`bce9c1bc941574b647b7fd2d8902ff0d70c10cfc`；身份清单独立提交：`09eef1ebb6e95e0c32343b436c7bb577ac9b6e0a`。
+- 根因定位：`4da9790e` 在 `_find_evolution_choice` 新增固定 `x=540` 左边缘硬门槛；原回归夹具左框从 `x=550` 起，该采样带落空，进化选择被识别为 None，连带三项 205044 用例失败。
+- 修复：移除过严左边缘条件；采用已有 `toHero` 专用模板与双卡边框联合确认；明确战后页优先排除。未增加局内状态字段，`INGAME_POLLUTION` 无需调整。
+- 选择性离线探针：基线英雄真帧 `0/3` 命中，修复后 `3/3`；羁绊 `0/3`、空闲 `0/3`、scene_audit 冲突样本 `0/10` 命中；探针统计 C1=`0`、C1b=`0`。其中 2 张 ARCHIVE_PANEL 战后帧修复前曾误命中，战后排除后为 0。未重跑完整 1908 帧审计。
+- 验证：`tests/contract` + `test_live_run_205044_regressions.py` 共 124 passed、234 subtests passed；`test_live_harness_refresh.py` 23 passed。未启动游戏；正式运行链路仍需真机验证。
+- 额外试跑 `tests/test_runtime_stability_hotfix_20260821.py` 时，`test_physical_panel_deadline_is_telemetry_only_never_recovers_by_input` 失败；此项与本次 Perception 差异无关，按当前任务范围未处理。

@@ -5229,6 +5229,8 @@ class Mediator:
         """Recognize the two-card hero-evolution modal and choose its best rarity."""
         if frame.bgr is None or not LayoutTransform.is_supported(frame.width, frame.height):
             return None
+        if self._post_game_state(frame) is not None:
+            return None
         # 如果当前锚点属于明确非英雄面板（如羁绊/宝物/技能放弃等），绝非英雄进化二选一
         anc = anchor if anchor is not None else self._selection_anchor(frame)
         if anc is not None and (
@@ -5241,6 +5243,12 @@ class Mediator:
         if self._find_equipment_affix_choice(frame) is not None:
             return None
         transform = LayoutTransform.from_frame(frame.width, frame.height)
+        hero_choice_anchor = self.find(
+            frame,
+            ["toHero"],
+            threshold=min(0.70, self.settings.match_threshold),
+            scales=self._hot_scales(),
+        )
         # 进化二选一面板支持底部 anchor (toHero 等) 或中央双卡边框特征
         gray = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2GRAY)
         gradient = np.abs(cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3))
@@ -5251,12 +5259,16 @@ class Mediator:
 
         scale_area = transform.scale * transform.scale
         if not (
-            edge_count(540) >= max(30, int(100 * scale_area))
-            and edge_count(816) >= max(50, int(350 * scale_area))
+            edge_count(816) >= max(50, int(350 * scale_area))
             and edge_count(1050) >= max(30, int(100 * scale_area))
-            and edge_count(370) < max(20, int(100 * scale_area))
-            and edge_count(408) < max(20, int(100 * scale_area))
-            and edge_count(1201) < max(20, int(100 * scale_area))
+            and (
+                hero_choice_anchor is not None
+                or (
+                    edge_count(370) < max(20, int(100 * scale_area))
+                    and edge_count(408) < max(20, int(100 * scale_area))
+                    and edge_count(1201) < max(20, int(100 * scale_area))
+                )
+            )
         ):
             return None
         hsv = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2HSV)
