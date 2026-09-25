@@ -43,15 +43,19 @@ def test_owner_attribute_lines_are_whitelisted_outside_the_80_percent_gate() -> 
 
 def test_whitelist_order_blessing_growth_economy_challenge_then_attribute_lines() -> None:
     """Owner 2026-09-24（取代 09-15 的"经济在祝福前"回本顺序）：
-    祝福 → 成长 → 经济 → 挑战 → 力量线 → 智力线 → 敏捷线 → 其他基础卡（贪婪在前）→ 高级卡组。"""
+    祝福 → 成长 → 经济 → 挑战 → 力量线 → 智力线 → 敏捷线 → 其他基础卡（贪婪在前）→ 高级卡组。
+    每条线是 门卡→中环→次环→UR→UR散件3张（2026-09-26：散件名视同 UR 去拿）。"""
     presets = list(_policy().bond_presets)
-    assert presets[:16] == [
+    assert presets[:25] == [
         "祝福", "成长", "经济", "挑战",
         "力量", "野蛮人", "战神", "屠戮者",
+        "战斗咆哮", "屠戮之刃", "杀戮之血",
         "智力", "秘法师", "法神", "湮灭者",
+        "聚能之虹", "洞察之眼", "奥法之辉",
         "敏捷", "猎魔人", "弓神", "收割者",
+        "亡者之轮", "多重打击", "支配死灵",
     ]
-    assert presets[16:22] == ["贪婪", "法术", "急速", "魔能", "暴击", "魔术"]
+    assert presets[25:31] == ["贪婪", "法术", "急速", "魔能", "暴击", "魔术"]
     assert presets.index("魔术") < presets.index("封神")
 
 
@@ -60,7 +64,9 @@ def test_unselected_basic_bonds_are_dropped_and_the_rest_keep_owner_order() -> N
     assert list(policy.bond_presets) == [
         "成长", "挑战",
         "力量", "野蛮人", "战神", "屠戮者",
+        "战斗咆哮", "屠戮之刃", "杀戮之血",
         "敏捷", "猎魔人", "弓神", "收割者",
+        "亡者之轮", "多重打击", "支配死灵",
         "贪婪", "魔术",
     ]
 
@@ -112,7 +118,9 @@ def test_real_frame_selects_agility_with_owner_attributes() -> None:
 
 
 def test_attribute_line_is_walked_from_gate_card_to_ur() -> None:
-    """Owner 2026-09-14：属性线 = 开启卡组到 UR；门卡之后的整条链都要拿。"""
+    """Owner 2026-09-14：属性线 = 开启卡组到 UR；门卡之后的整条链都要拿。
+    只断言名字进了白名单；真正的门卡→UR 决策序列见
+    tests/test_attribute_line_gate_to_ur_sequence_20260926.py。"""
     policy = _policy()
     for chain in (("智力", "秘法师", "法神", "湮灭者"),
                   ("力量", "野蛮人", "战神", "屠戮者"),

@@ -3875,7 +3875,8 @@ class Mediator:
         return card_name
 
     def _is_target_synthetic_bond(self, name: str) -> bool:
-        """判断卡牌是否属于当前正在推进的目标合成卡组（大圣、封神、法宝、以及目标基础卡组）。"""
+        """判断卡牌是否属于当前正在推进的目标合成卡组（大圣、封神、法宝、目标基础卡组、
+        以及已勾选属性线的链上卡）。"""
         if not name:
             return False
         name_str = str(name).strip()
@@ -3891,6 +3892,8 @@ class Mediator:
             target_kws.append(str(p))
         for b in (getattr(policy, "bond_base_presets", ()) or ()):
             target_kws.append(str(b))
+        for c in (getattr(policy, "bond_chain_presets", ()) or ()):
+            target_kws.append(str(c))
         for c in (getattr(self.settings, "cards", ()) or ()):
             target_kws.append(str(c))
         return any(kw in name_str for kw in target_kws if kw)
@@ -5807,16 +5810,36 @@ class Mediator:
     def _devour_hold_reason(self) -> str | None:
         """Owner 2026-09-24：吞噬只腾格子不影响进度，唯一例外是亡灵——提前吞掉它的
         倒计时卡会断碎片，兵主合成不了。吞噬丹吞哪张认不出，所以亡灵卡组进行中
-        （手里有亡灵卡、羁绊栏还没出现它的 EX）整段不吃丹。"""
+        （手里有亡灵卡、羁绊栏还没出现它的 EX）整段不吃丹。
+        2026-09-26：已勾选属性线同理——吞噬目标由游戏侧决定、脚本选不了受害者，
+        链上卡 0 < 已持有 < stack_need 时整段不吃丹（套用亡灵结构）；UR 散件无
+        目录张数，认得出名字、认不出进度，持有即保守暂停。"""
         policy = self._policy_settings()
         owned = self._confirmed_bond_cards()
         for index, group in enumerate(policy.bond_advanced_groups):
             if "亡灵" not in group:
                 continue
             if self._advanced_groups_completed > index:
-                return None
+                break
             if any(matches_bond_preset(name, group) for name in owned):
                 return "亡灵卡组进行中，吞噬丹可能吞掉倒计时卡"
+        chain = tuple(dict.fromkeys(
+            str(name).strip()
+            for name in (getattr(policy, "bond_chain_presets", ()) or ())
+            if str(name).strip()
+        ))
+        if chain:
+            from shuabao.bond_capacity import stack_need
+
+            for name in chain:
+                matching = [b for b in owned if b and same_bond_identity(name, b)]
+                if not matching:
+                    continue
+                need = stack_need(name)
+                if need is None:
+                    return f"属性链{name}已持有但合成张数未知，吞噬丹可能吞掉链上卡"
+                if len(matching) < need:
+                    return f"属性链{name}未完成（{len(matching)}/{need}），吞噬丹可能吞掉链上卡"
         return None
 
     def _inventory_has_swallow_pill(self, frame: Frame) -> bool:
