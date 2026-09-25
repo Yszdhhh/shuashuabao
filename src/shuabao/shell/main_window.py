@@ -2959,10 +2959,14 @@ class MainWindow(QMainWindow):
         adv_row.setSpacing(6)
         enabled = set(self._shell_extras.get("advanced_packs") or [])
         for pack_id, spec in ADVANCED_PACKS.items():
-            box = QCheckBox(str(spec.get("label") or pack_id))
+            is_exp = bool(spec.get("experimental"))
+            box = QCheckBox(str(spec.get("label") or pack_id) + ("（实验）" if is_exp else ""))
             box.setObjectName("bondChip")
             box.setChecked(pack_id in enabled)
-            box.setToolTip("、".join(str(n) for n in (spec.get("cards") or [])))
+            tooltip = "、".join(str(n) for n in (spec.get("cards") or []))
+            if is_exp and spec.get("experimental_note"):
+                tooltip = tooltip + "；" + str(spec.get("experimental_note"))
+            box.setToolTip(tooltip)
             box.toggled.connect(lambda checked, pid=pack_id: self._on_advanced_pack_toggled(pid, checked))
             self._advanced_pack_boxes[pack_id] = box
             adv_row.addWidget(box)

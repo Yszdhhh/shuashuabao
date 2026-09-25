@@ -4409,6 +4409,7 @@
     const GROWTH = ["祝福","成长","经济","贪婪","挑战"];
     const BASIC = ["法术","急速","魔能","魔术","魔法师","元素师","箭术","战术","暴击","提速","体术","固守","陷阵"];
     const ADV = [{id:"daodao",label:"刀刀"},{id:"yihuo",label:"异火"},{id:"dasheng",label:"大圣"},{id:"xiuxian",label:"修仙"},{id:"fengshen",label:"封神"},{id:"haidao",label:"海盗"},{id:"wangling",label:"亡灵"},{id:"haizeiwang",label:"海贼王"}];
+    const ADV_EXPERIMENTAL = ["wangling"];  // Owner 2026-09-26：复杂机制（符文/残骸计数、邪爆时机）需重构后才做；正式版不默认勾选，看板标实验；未勾选时零影响
     const FACTIONS = [
       { id:"heifeng", name:"黑锋骑士团", short:"黑锋", affix:["怪物强度 ×1.2","怪物血量 +30%","怪物血量、防御 +20%","怪物百分比恢复 +1%/s","怪物强度 ×1.3","玩家最终力量 -50%","玩家最终伤害 -50%，恢复 -50%","双 BOSS · 怪物强度 ×1.3","最终攻击 -25%，全伤害 -25%","怪物强度 ×1.5（极难）"] },
       { id:"yinse", name:"银色北伐军", short:"银色", affix:["怪物强度 ×1.2","怪物攻击 +40%","怪物血量、防御 +20%","怪物闪避 +25%","怪物强度 ×1.3","玩家最终敏捷 -50%","攻速 -75%，间隔 +0.25s，射程 -300","双 BOSS · 怪物强度 ×1.3","最终攻击 -25%，物理伤害 -25%","怪物强度 ×1.5（极难）"] },
@@ -5459,7 +5460,7 @@
         return `<div class="adv-empty"><div class="adv-slots" aria-hidden="true">${slots}</div><p class="adv-empty-text"><b>未启用高级卡组</b><span>勾选后按这里的顺序优先拿。</span></p><button type="button" class="text-btn" id="btnPickAdv">选择高级卡组</button></div>`;
       }
       const last = advancedOrder.length - 1;
-      const rows = advancedOrder.map((pack, index) => `<li class="adv-ord${index===0 ? " is-first" : ""}" draggable="true" data-adv-id="${pack.id}" title="拖动或用 ▲▼ 调整顺序"><span class="adv-grip" aria-hidden="true">⋮⋮</span><span class="rank-no">${index+1}</span><b>${pack.label}</b><span class="adv-step"><button type="button" data-adv-move="-1" data-adv-id="${pack.id}" ${index===0 ? "disabled" : ""} aria-label="${pack.label} 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="${pack.id}" ${index===last ? "disabled" : ""} aria-label="${pack.label} 下移">▼</button></span></li>`).join("");
+      const rows = advancedOrder.map((pack, index) => `<li class="adv-ord${index===0 ? " is-first" : ""}" draggable="true" data-adv-id="${pack.id}" title="拖动或用 ▲▼ 调整顺序"><span class="adv-grip" aria-hidden="true">⋮⋮</span><span class="rank-no">${index+1}</span><b>${pack.label}${ADV_EXPERIMENTAL.includes(pack.id) ? "·实验" : ""}</b><span class="adv-step"><button type="button" data-adv-move="-1" data-adv-id="${pack.id}" ${index===0 ? "disabled" : ""} aria-label="${pack.label} 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="${pack.id}" ${index===last ? "disabled" : ""} aria-label="${pack.label} 下移">▼</button></span></li>`).join("");
       const cols = advancedOrder.length > 3 ? " is-2col" : "";
       return `<div class="adv-priority" data-od-id="advanced-pack-priority"><ol class="adv-ord-list${cols}" style="--rows:${Math.ceil(advancedOrder.length / 2)}" aria-label="高级卡组优先级">${rows}</ol></div>`;
     }
@@ -5489,7 +5490,7 @@
       syncBondFold(packById);
       if (state.bondSaved) { renderBondSummary(packById); renderLaunchSummary(); return; }
       const advancedOrder = state.adv.map((id)=>packById[id]).filter(Boolean);
-      const advanced = `<div class="bond-block" data-od-id="advanced-pack-selector"><h4>${blockIcon("star")}高级卡组</h4><div class="chips">${ADV.map((pack)=>`<button type="button" class="chip" data-pack="${pack.id}" aria-pressed="${state.adv.includes(pack.id)}">${pack.label}</button>`).join("")}</div>${advancedOrder.length ? advPriorityMarkup(advancedOrder) : `<p class="deck-note">勾选后按勾选顺序排优先级，可拖动或 ▲▼ 调整。</p>`}</div>`;
+      const advanced = `<div class="bond-block" data-od-id="advanced-pack-selector"><h4>${blockIcon("star")}高级卡组</h4><div class="chips">${ADV.map((pack)=>{const exp=ADV_EXPERIMENTAL.includes(pack.id);return `<button type="button" class="chip${exp ? " is-exp" : ""}" data-pack="${pack.id}" aria-pressed="${state.adv.includes(pack.id)}"${exp ? ` title="实验卡组：复杂机制需重构后才做，正式版不默认勾选" ` : ""}>${pack.label}${exp ? "·实验" : ""}</button>`;}).join("")}</div>${advancedOrder.length ? advPriorityMarkup(advancedOrder) : `<p class="deck-note">勾选后按勾选顺序排优先级，可拖动或 ▲▼ 调整。</p>`}</div>`;
       const coreCards = `<div class="bond-block"><h4>${blockIcon("attr")}属性</h4><div class="chips">${ATTR.map((a)=>`<button type="button" class="chip" data-attr="${a.id}" aria-pressed="${state.attr.has(a.id)}">${a.label}</button>`).join("")}</div></div><div class="bond-block"><h4>${blockIcon("growth")}发育卡组</h4><div class="chips">${GROWTH.map((n)=>`<button type="button" class="chip" data-bond-set="growth" data-bond="${n}" aria-pressed="${state.growth.has(n)}">${n}</button>`).join("")}</div></div><div class="bond-block"><h4>${blockIcon("cards")}基础卡组</h4><div class="chips">${BASIC.map((n)=>`<button type="button" class="chip" data-bond-set="basic" data-bond="${n}" aria-pressed="${state.basic.has(n)}">${n}</button>`).join("")}</div></div>`;
       const save = `<div class="bond-actions"><p class="hint">保存后锁定卡组勾选；高级顺序仍可随时改。</p><button type="button" class="secondary" id="btnCancelBonds">取消</button><button type="button" class="gold" id="btnSaveBonds">保存羁绊</button></div>`;
       $("bonds").innerHTML = `${coreCards}${advanced}${save}`;
