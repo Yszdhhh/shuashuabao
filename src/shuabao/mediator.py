@@ -5189,6 +5189,14 @@ class Mediator:
         """Recognize the two-card hero-evolution modal and choose its best rarity."""
         if frame.bgr is None or not LayoutTransform.is_supported(frame.width, frame.height):
             return None
+        # 如果当前锚点属于明确非英雄面板（如羁绊/宝物/技能放弃等），绝非英雄进化二选一
+        anc = anchor if anchor is not None else self._selection_anchor(frame)
+        if anc is not None and (
+            anc.name.startswith("bond_")
+            or anc.name.startswith("treasure_")
+            or anc.name in ("skill_giveup_btn", "skill_hide", "giveUp")
+        ):
+            return None
         # 装备十级词缀弹窗互斥：词缀弹窗绝非英雄进化二选一
         if self._find_equipment_affix_choice(frame) is not None:
             return None
@@ -5206,8 +5214,9 @@ class Mediator:
             edge_count(540) >= max(30, int(100 * scale_area))
             and edge_count(816) >= max(50, int(350 * scale_area))
             and edge_count(1050) >= max(30, int(100 * scale_area))
-            and edge_count(408) < max(30, int(600 * scale_area))
-            and edge_count(1201) < max(30, int(600 * scale_area))
+            and edge_count(370) < max(20, int(100 * scale_area))
+            and edge_count(408) < max(20, int(100 * scale_area))
+            and edge_count(1201) < max(20, int(100 * scale_area))
         ):
             return None
         hsv = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2HSV)
@@ -7411,12 +7420,15 @@ class Mediator:
 
     def _close_current_panel(self, frame: Frame, panel_kind: str | None = None) -> MatchResult | None:
         """Resolve a verified physical hide/close affordance for a card panel."""
-        if self._evolve_hero_choice_pending() or self._find_evolution_choice(frame) is not None:
-            # 英雄选择弹窗或等待英雄选择期间严禁隐藏关闭，必须选卡或等待
+        if self._evolve_hero_choice_pending():
+            # 等待英雄选择期间严禁隐藏关闭，必须选卡或等待
             return None
         kind = panel_kind or getattr(self, "_panel_opened_by_us", None)
         if kind in ("技能", "技能刷新", "技能放弃"):
             kind = "skill"
+        if kind not in ("skill", "bond", "treasure") and self._find_evolution_choice(frame) is not None:
+            # 英雄选择弹窗严禁隐藏关闭，必须选卡或等待
+            return None
         if kind == "skill":
             names = ["skill_hide", "card_hide", "hide"]
         elif kind == "treasure":
@@ -17496,7 +17508,12 @@ class Mediator:
         # S0.5 Episode Liveness & Hard Deadline 守护（非 CLOSED/COOLDOWN 状态生效）
         if st not in (PanelState.CLOSED, PanelState.COOLDOWN):
             if self._panel_episode_started is not None:
-                episode_duration = now - self._panel_episode_started
+                last_progress = max(
+                    self._panel_last_progress_at or 0.0,
+                    self._panel_last_input_at or 0.0,
+                    self._panel_episode_started or 0.0,
+                )
+                episode_duration = now - last_progress
                 hard_deadline = self._panel_hard_deadline_s
                 if episode_duration >= hard_deadline:
                     print(f"[L1] 面板 episode {self._panel_episode_id or ''} ({self._panel_kind}) 超时 "
@@ -17511,8 +17528,8 @@ class Mediator:
                     self._panel_opened_by_us = None
                     self._skill_refresh_attempts = 0
                     self._panel_episode_started = None
-                    if self._passenger_mode() and anchor is not None:
-                        print(f"[L1] 蹭车面板超时脱困但画面仍有锚点，转 CLOSING 物理隐藏面板避免遮挡主线")
+                    if anchor is not None:
+                        print(f"[L1] 面板超时脱困但画面仍有锚点，转 CLOSING 物理隐藏面板避免遮挡主线")
                         self._panel_state = PanelState.CLOSING
                         self._panel_closing_attempts = 0
                         self._panel_closing_started_at = now
@@ -17535,13 +17552,13 @@ class Mediator:
                 >= self.settings.panel_episode_limit_per_kind
             ):
                 # 遮挡面板达到 episode 上限：不再用 float("inf") 永久冻结。
-                # 蹭车模式：放弃选择面板时必须点"暂时隐藏"并以面板消失为后置条件，绝不能直接 finish 放行主线遮挡画面；
-                # 非蹭车模式：60s 长冷却后归位。
+                # 画面有锚点时：无论单人还是蹭车，必须点"暂时隐藏"并以面板消失为后置条件，绝不能直接进 cooldown 遮挡画面；
+                # 无锚点时：60s 长冷却后归位。
                 self._panel_kind = kind
                 self._panel_opened_by_us = None
                 self._skill_refresh_attempts = 0
-                if self._passenger_mode():
-                    print(f"[L1] 蹭车 {kind} episode 上限已达 ({self._panel_episode_count.get(kind, 0)} >= {self.settings.panel_episode_limit_per_kind})，"
+                if anchor is not None:
+                    print(f"[L1] {kind} episode 上限已达 ({self._panel_episode_count.get(kind, 0)} >= {self.settings.panel_episode_limit_per_kind})，"
                           f"转 CLOSING 物理隐藏面板避免遮挡主线")
                     self._panel_state = PanelState.CLOSING
                     self._panel_closing_attempts = 0
@@ -17911,9 +17928,26 @@ class Mediator:
                 # 000229: a 60s bond cooldown froze skills/V/evolve/merchant.
                 self._finish_panel_episode()
                 return None
+            if anchor is not None:
+                # 面板状态机处于 COOLDOWN 但画面上仍有物理面板锚点！
+                # 画面与状态不一致：绝不允许面板开着长时间零动作。
+                # 若已达 episode 上限或 cooldown 剩余时间较长，必须立即转 CLOSING 物理隐藏面板。
+                kind = self._panel_kind or self._panel_kind_of(frame, anchor)
+                if (
+                    self._passenger_mode()
+                    or self._panel_episode_count.get(kind, 0) >= self.settings.panel_episode_limit_per_kind
+                    or self._panel_cooldown_until.get(kind, 0) - now > 2.0 * self.settings.ui_action_interval_s
+                ):
+                    print(f"[L1] COOLDOWN 中画面检测到物理面板锚点 {anchor.name} ({kind})，转 CLOSING 物理隐藏面板")
+                    self._panel_kind = kind
+                    self._panel_state = PanelState.CLOSING
+                    self._panel_closing_attempts = 0
+                    self._panel_closing_started_at = now
+                    return LoopAction.Continue
             if now >= self._panel_cooldown_until.get(self._panel_kind, 0):
-                if self._passenger_mode() and anchor is not None:
-                    print(f"[L1] 蹭车 COOLDOWN 到期但面板仍未消失，转 CLOSING 物理关闭避免遮挡主线")
+                if anchor is not None:
+                    print(f"[L1] COOLDOWN 到期但面板仍未消失，转 CLOSING 物理关闭避免遮挡主线")
+                    self._panel_kind = self._panel_kind or self._panel_kind_of(frame, anchor)
                     self._panel_state = PanelState.CLOSING
                     self._panel_closing_attempts = 0
                     self._panel_closing_started_at = now
