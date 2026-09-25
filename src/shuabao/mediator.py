@@ -3785,6 +3785,7 @@ class Mediator:
         transform = LayoutTransform.from_frame(frame.width, frame.height)
         occupied = 0
         min_pixels = int(250 * transform.scale * transform.scale)
+        min_cols = int(18 * transform.scale)
         for cx in (603, 655, 707, 759, 811, 863, 915, 967, 1019, 1071):
             rx1, ry1, rx2, ry2 = transform.logical_roi(cx - 20, 635, cx + 20, 680)
             roi_bgr = frame.bgr[ry1:ry2, rx1:rx2]
@@ -3792,8 +3793,23 @@ class Mediator:
                 continue
             hsv_roi = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2HSV)
             colored = (hsv_roi[:, :, 1] > 70) & (hsv_roi[:, :, 2] > 60)
-            if int(colored.sum()) >= min_pixels:
-                occupied += 1
+            cnt = int(colored.sum())
+            if cnt < min_pixels:
+                continue
+            # 必须具有一定的水平跨度，排除邻格特效边缘溢出
+            if (colored.sum(axis=0) > 0).sum() < min_cols:
+                continue
+            # 排除全格单一金色流光特效（吞噬/合成粒子动画，非实体卡牌）
+            colored_h = hsv_roi[:, :, 0][colored]
+            if (
+                len(colored_h) > 0
+                and 18 <= colored_h.mean() <= 32
+                and colored_h.std() < 5.0
+                and hsv_roi[:, :, 2][colored].mean() > 200
+                and hsv_roi[:, :, 1][colored].mean() > 180
+            ):
+                continue
+            occupied += 1
         return occupied
     def _canonical_bond_name(self, card_name: str) -> str:
         """Map a card name or bond string to canonical 5 bond categories if applicable."""
@@ -5371,6 +5387,8 @@ class Mediator:
                 scales=(0.8, 0.9, 1.0, 1.1, 1.2),
             )
             if pill:
+                if self._devour_dan_consecutive_clicks >= 5 and now >= self._devour_dan_next_at:
+                    self._devour_dan_consecutive_clicks = 0
                 if now >= self._devour_dan_next_at and self._devour_dan_consecutive_clicks < 5:
                     baseline_occ = getattr(self, "_bond_bar_occupancy", lambda f: None)(frame)
                     if self.act_click(pill, "UseInventory-swallow_pill"):
@@ -5429,11 +5447,39 @@ class Mediator:
             return LoopAction.Continue
         return self._maybe_use_inventory_slot(frame, now)
 
+    def _is_inventory_slot_swallow_pill(self, frame: Frame, index: int) -> bool:
+        """Check if HUD item bar slot contains a devour pill (danGif / swallow_pill)."""
+        rect = self._hud_item_bar_rect(frame, index)
+        if rect is None or frame.bgr is None:
+            return False
+        cx = (rect[0] + rect[2]) // 2
+        cy = (rect[1] + rect[3]) // 2
+        hw, hh = 30, 30
+        w, h = frame.width, frame.height
+        slot_roi = (max(0, cx - hw) / w, max(0, cy - hh) / h, min(w, cx + hw) / w, min(h, cy + hh) / h)
+        match = self.find(
+            frame,
+            ["danGif", "swallow_pill"],
+            threshold=0.65,
+            roi=slot_roi,
+            scales=(0.8, 0.9, 1.0, 1.1, 1.2),
+        )
+        if match is None:
+            return False
+        mx, my = getattr(match, "center", (getattr(match, "x", cx), getattr(match, "y", cy)))
+        if hasattr(frame, "left") and frame.left and mx >= frame.left:
+            mx -= frame.left
+            my -= frame.top
+        dist = ((cx - mx) ** 2 + (cy - my) ** 2) ** 0.5
+        return dist <= 35
+
     def _maybe_use_inventory_slot(self, frame: Frame, now: float | None = None) -> LoopAction | None:
         """Try one occupied solo item-bar slot 2–6, then yield to modal handling."""
         if str(getattr(self.settings, "mode_id", "normal_farm")) != "normal_farm":
             return None
         if self._panel_state != PanelState.CLOSED:
+            return None
+        if self._pending_action is not None:
             return None
         if self._public_bag_fsm.active or self._has_active_transaction(frame):
             return None
@@ -5456,6 +5502,10 @@ class Mediator:
             index = 1 + (first - 1 + offset) % 5
             rect = self._hud_item_bar_rect(frame, index)
             if rect is None or not self._bag_slot_occupied(frame, rect):
+                continue
+            if self._is_inventory_slot_swallow_pill(frame, index):
+                # 吞噬丹必须受 _can_consume_inventory_swallow_pill 严格门控，仅由 _maybe_use_inventory_item 控制，
+                # 绝不在此处盲点使用（防止在羁绊栏低于门槛或吞空时持续吃丹）
                 continue
             x0, y0, x1, y1 = rect
             patch = frame.bgr[y0:y1, x0:x1]
@@ -18158,6 +18208,12 @@ class Mediator:
         if self._pending_action is not None:
             if self._pending_action.is_confirmed(frame):
                 print(f"[med][pending] 后置动作验证成功: {self._pending_action.kind} ({self._pending_action.target_id})")
+                if (
+                    self._pending_action.target_id in ("danGif", "swallow_pill")
+                    or self._pending_action.kind in ("WAIT_DEVOUR_DAN", "WAIT_SWALLOW_PILL_CONFIRM")
+                ):
+                    self._devour_dan_next_at = now + 1.0
+                    self._devour_dan_consecutive_clicks = 0
                 self._pending_action = None
             elif self._pending_action.is_expired(now):
                 print(f"[med][pending] 后置动作验证超时: {self._pending_action.kind} ({self._pending_action.target_id})")
@@ -18168,8 +18224,12 @@ class Mediator:
                     # 20260822：验证超时必须同时清掉等待标志，否则残留的
                     # _evolve_awaiting_hero_pick 会让进化兜底在普通面板上盲点。
                     self._evolve_awaiting_hero_pick = False
-                elif self._pending_action.target_id == "danGif" or self._pending_action.kind == "WAIT_DEVOUR_DAN":
-                    self._devour_dan_next_at = now + 1.0
+                elif (
+                    self._pending_action.target_id in ("danGif", "swallow_pill")
+                    or self._pending_action.kind in ("WAIT_DEVOUR_DAN", "WAIT_SWALLOW_PILL_CONFIRM")
+                ):
+                    self._devour_dan_next_at = now + 1.5
+                    self._devour_dan_consecutive_clicks = 0
                 elif self._pending_action.target_id == "equipment_upgrade" or self._pending_action.kind == "EQUIPMENT_UPGRADE":
                     self._equipment_pending_until = now + 1.0
                 self._pending_action = None
