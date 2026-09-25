@@ -186,3 +186,8 @@ EX 模板（`a57d697`）：从 Owner 的卡面截图 `fixtures/ex_finals_2026081
 - 选择性离线探针：基线英雄真帧 `0/3` 命中，修复后 `3/3`；羁绊 `0/3`、空闲 `0/3`、scene_audit 冲突样本 `0/10` 命中；探针统计 C1=`0`、C1b=`0`。其中 2 张 ARCHIVE_PANEL 战后帧修复前曾误命中，战后排除后为 0。未重跑完整 1908 帧审计。
 - 验证：`tests/contract` + `test_live_run_205044_regressions.py` 共 124 passed、234 subtests passed；`test_live_harness_refresh.py` 23 passed。未启动游戏；正式运行链路仍需真机验证。
 - 额外试跑 `tests/test_runtime_stability_hotfix_20260821.py` 时，`test_physical_panel_deadline_is_telemetry_only_never_recovers_by_input` 失败；此项与本次 Perception 差异无关，按当前任务范围未处理。
+
+## 2026-09-26 全量门禁分诊续跑
+
+- L1 提交 `f8888272`：物理面板 watchdog 恢复为只记录遥测，关闭仍由 Core 面板 FSM 负责；旧选卡测试夹具补齐真实三槽布局，并按已验证的卡组目标保留规则校正期望。感知提交 `45890fda`：普通 HUD 上的 `toHero` 不再绕过进化弹窗几何条件，修复蹭车真帧 `f1028` 被误判、面板隐藏链无法进入 `CLOSING`；真实英雄二选一夹具继续通过。身份锚点由 `99d88cde` 单独重钉到 `45890fda`。
+- 上述验证仅为离线夹具和测试，未启动游戏。蹭车选择面板的物理隐藏与主线恢复、局内进化二选一召回、羁绊面板超时关闭仍需下一次真机复核；不要把此次离线门禁结果当作实机通过。
