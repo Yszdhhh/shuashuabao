@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "c04911976f5119879c0d6afeb11401975a24139f",
-  "anchored_at": "2026-09-26T00:06:00+08:00",
-  "branch": "fix/bond-panel-stuck-20260925",
-  "note": "09-26 修复羁绊面板刷新耗尽与超时死锁：以最后进展计算超时、solo有锚点转CLOSING、COOLDOWN脱节重识别纠偏"
+  "candidate_sha": "bce9c1bc941574b647b7fd2d8902ff0d70c10cfc",
+  "anchored_at": "2026-09-26T01:26:40+08:00",
+  "branch": "fix/evo-detect-20260926",
+  "note": "修复进化二选一召回：复用 toHero 模板，排除战后页并移除过严左边缘；未运行游戏。"
 }
