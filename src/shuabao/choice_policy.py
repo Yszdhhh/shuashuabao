@@ -237,7 +237,7 @@ class PolicySettings:
     bond_base_presets: tuple[str, ...] = ()
     bond_advanced_presets: tuple[str, ...] = ()
     bond_advanced_groups: tuple[tuple[str, ...], ...] = ()
-    # 属性线门卡之后的链路卡（秘法师→法神→湮灭者 等）：在白名单里、任何阶段都可拿，
+    # 属性线链上卡（门卡→中环→次环→UR，另含 UR 散件名）：在白名单里、任何阶段都可拿，
     # 但不计入基础卡 80% 进度，也不是高级卡组。
     bond_chain_presets: tuple[str, ...] = ()
     bond_base_completion_ratio: float = 0.80
@@ -419,6 +419,15 @@ _ATTRIBUTE_CHAINS = {
     "str": ("力量", "野蛮人", "战神", "屠戮者"),
     "agi": ("敏捷", "猎魔人", "弓神", "收割者"),
 }
+# UR 散件：卡面顶部是套名 (x/3)，图标下方红字才是散件名；标题 OCR 只读到
+# 散件名时视同该线 UR 套名去拿，而不是刷新（fixtures/ur_attr_routes 静帧 +
+# lexicon set_membership）。与 config/official_strategy_defaults.json
+# attr_routes.*.pieces 一致（tests 校验不漂移）。
+_ATTRIBUTE_PIECES = {
+    "int": ("聚能之虹", "洞察之眼", "奥法之辉"),
+    "str": ("战斗咆哮", "屠戮之刃", "杀戮之血"),
+    "agi": ("亡者之轮", "多重打击", "支配死灵"),
+}
 # Owner 2026-09-24：基础羁绊同页时的优先顺序 = 祝福 → 成长 → 经济 → 挑战 → 力量线 → 智力线
 # → 敏捷线 → 其他基础卡（贪婪归入其他基础卡，排在看板基础卡之前）。只排看板勾选的，
 # 没勾的剔除。单张出现时按预设照拿，这个顺序只决定同页多张时先拿哪张。
@@ -462,7 +471,7 @@ def assemble_policy_settings(
     # Whitelist order = pick priority (_match_bond_preset ranks by position),
     # Owner 2026-09-24:
     #   1. 祝福 / 成长 / 经济 / 挑战 (ticked ones only)
-    #   2. attribute lines 力量 → 智力 → 敏捷, each gate -> UR
+    #   2. attribute lines 力量 → 智力 → 敏捷, each gate -> UR (+ UR piece names)
     #   3. other basic bonds: 贪婪 first, then basic cards ticked on the dashboard
     #   4. advanced packs
     # Attribute-line cards never count toward the basic-formed ratio used by
@@ -493,6 +502,11 @@ def assemble_policy_settings(
         if attr_id not in selected_attrs:
             continue
         for name in _ATTRIBUTE_CHAINS[attr_id]:
+            if name not in bond_presets:
+                bond_presets.append(name)
+            if name not in chain_presets:
+                chain_presets.append(name)
+        for name in _ATTRIBUTE_PIECES[attr_id]:
             if name not in bond_presets:
                 bond_presets.append(name)
             if name not in chain_presets:
@@ -1268,6 +1282,45 @@ def _is_uncompleted_merge_upgrade(
     return True
 
 
+def _drop_completed_bond_slots(
+    slots: tuple[SlotCandidate, ...], owned_bonds: tuple[str, ...]
+) -> tuple[SlotCandidate, ...]:
+    """凑满的羁绊槽让路给下一环：已达 stack_need 的槽不参与预设匹配。
+
+    门卡 4/4 后同页再出现门卡 + 后环时选后环（游戏把凑满卡移出卡池前，
+    预设顺序会一直压住后环）。身份用 same_bond_identity，不用子串；
+    张数先信本张 OCR 的 (x/y)，再数已持有同名，最后信目录 need。
+    need 未知（UR 散件无目录条目）时保留——白名单本就允许拿，不替游戏猜。
+    """
+    from shuabao.bond_capacity import stack_need
+
+    kept: list[SlotCandidate] = []
+    for slot in slots:
+        if not slot.name:
+            kept.append(slot)
+            continue
+        progress = _slot_stack_progress(slot)
+        if progress is not None:
+            if progress[0] < progress[1]:
+                kept.append(slot)
+            continue
+        need = stack_need(slot.name)
+        if need is None:
+            kept.append(slot)
+            continue
+        have = 0
+        for item in owned_bonds:
+            if not same_bond_identity(slot.name, item):
+                continue
+            have += 1
+            hit = _BOND_PROGRESS_RE.search(str(item))
+            if hit:
+                have = max(have, int(hit.group(1)))
+        if have < need:
+            kept.append(slot)
+    return tuple(kept)
+
+
 def _bond_progress_hits(
     cands: PanelCandidates, slots: tuple[SlotCandidate, ...]
 ) -> tuple[tuple[SlotCandidate, int, int, str], ...]:
@@ -1517,6 +1570,10 @@ def _decide_collectible(
                 if pack_hit is not None:
                     name = _slot_name(cands.slots, pack_hit)
                     return PolicyDecision.select(pack_hit, f"当前高级卡组持续推进：{name} @ slot {pack_hit}")
+    if kind == PANEL_BOND:
+        # 凑满让路：已完成环不再参与预设匹配，同页后环才能排到。
+        # 必拿 / 差一张 / 已持有合成 / 高级卡组都在前面跑过，不受影响。
+        eligible = _drop_completed_bond_slots(eligible, owned_bonds)
     preset_hit = (
         _match_bond_preset(eligible, presets, settings.min_confidence, settings.quality_order)
         if kind == PANEL_BOND
