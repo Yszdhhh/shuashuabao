@@ -1618,6 +1618,14 @@
       "sha256": "119bb6c9daa13dfeb9346f6345b0b8a0ed6b2e65980757691c855fa293cb759b"
     },
     {
+      "path": "assets/Images/fail_banner.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from live hitch frame hitch_lobby_chain_20260925_011901_450471/frames/f1229 (失败 banner of the failure modal drawn over the 时光之穴 panel), native 1600x900 size",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 26912,
+      "sha256": "22934bdbd2e8d3d29a578fbf5015c4fef036f247aa96e64102b05f8c8c16c7fa"
+    },
+    {
       "path": "assets/Images/fashu.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
