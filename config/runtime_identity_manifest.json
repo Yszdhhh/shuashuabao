@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "3ed36db139b1a7428cda46b0cc3ff3c0af9c4186",
-  "anchored_at": "2026-09-25T23:10:00+08:00",
-  "branch": "feat/decision-log-20260925",
-  "note": "09-25 决策原因日志：_note_decision + trace decision_reasons（只记trace，不改决策）"
+  "candidate_sha": "0a344f3f8566be30a54ad1b781ac6f055b597de3",
+  "anchored_at": "2026-09-26T00:06:00+08:00",
+  "branch": "fix/bond-panel-stuck-20260925",
+  "note": "09-26 修复羁绊面板刷新耗尽与超时死锁：以最后进展计算超时、solo有锚点转CLOSING、COOLDOWN脱节重识别纠偏"
 }
