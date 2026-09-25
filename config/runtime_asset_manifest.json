@@ -1370,6 +1370,14 @@
       "sha256": "9e25927539e074cba43f7c8727a5851a99998f1f4527465d864f81746963799d"
     },
     {
+      "path": "assets/Images/chuanjiaobao/21界龟.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from live hitch frame hitch_lobby_chain_20260925_011901_450471/frames/f1826 (传家宝 list, room 5), 58px card resized to 128px",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 44537,
+      "sha256": "0cae7c22895695fbf187a93caa035fef84765f0c9b4e340fe6067a322a113ca1"
+    },
+    {
       "path": "assets/Images/chuanjiaobao/54莫阿姆.png",
       "purpose": "runtime_template",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
