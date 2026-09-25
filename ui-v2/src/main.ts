@@ -267,6 +267,7 @@ const ADV_PACK_CARDS: Record<string, string[]> = {
   fengshen: ["封神", "封神榜", "打神鞭", "杏黄旗", "斩仙飞刀", "肉身成圣"],
   haidao: ["海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏"],
   wangling: ["亡灵", "亡灵天灾", "白骨复生", "魂火收割", "巫妖之躯"],
+  haizeiwang: ["见习海贼", "超新星", "七武海", "凯多", "红发", "白胡子", "大妈"],
 };
 
 function pushBondsAndAttributes(): void {

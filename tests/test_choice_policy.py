@@ -1582,6 +1582,23 @@ class TestAssemblePolicySettings(unittest.TestCase):
                 )
                 self.assertEqual((decision_blessing.action, decision_blessing.index), (PolicyAction.SELECT_SLOT, 0))
 
+    def test_haizeiwang_group_recognized_from_real_config(self):
+        """海贼王高级卡组：勾选见习海贼即选中整组；EX 海贼王靠合成，不进白名单。"""
+        policy_doc = json.loads(
+            (Path(__file__).resolve().parents[1] / "config/choice_policy.json").read_text(encoding="utf-8")
+        )
+        policy = assemble_policy_settings(
+            settings=self.fake_settings(["jq"], cards=["见习海贼"], bonds=["经济", "成长", "祝福"]),
+            skill_labels=self.LABELS,
+            fetter_labels={},
+            policy_doc=policy_doc,
+        )
+        group = ("见习海贼", "超新星", "七武海", "凯多", "红发", "白胡子", "大妈")
+        self.assertIn(group, policy.bond_advanced_groups)
+        for name in group:
+            self.assertIn(name, policy.bond_advanced_presets)
+        self.assertNotIn("海贼王", policy.bond_presets)
+
     def test_treasure_allow_negative_from_settings(self):
         ps = assemble_policy_settings(
             settings=self.fake_settings(["jq"], allow_neg=["贪婪献祭"]),
