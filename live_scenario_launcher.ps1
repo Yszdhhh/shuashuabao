@@ -615,7 +615,7 @@ function Invoke-HitchLobbyChainCapture {
     $cliArgs += @(Get-LiveRuntimeArgs)
     $cliArgs += @("--settings", $settingsPath)
     Write-Host "[launcher] PRIMARY HITCH_FULL_NATURAL_E2E：production Mediator.tick() 连续大厅蹭车链；Harness 不复制 FSM" -ForegroundColor Cyan
-    Write-Host "[launcher] 试跑验收：$rounds 局蹭车退出 + fresh 考古锚点确认后退出脚本" -ForegroundColor Cyan
+    Write-Host "[launcher] 试跑验收：$rounds 局蹭车退出 + fresh 考古锚点确认后退出脚本；看到问题按 F9 标记（只记录，不发输入、不改变决策；急停仍用 Shift+F12）" -ForegroundColor Cyan
     Invoke-CaptureTool $cliArgs
 }
 
@@ -678,7 +678,7 @@ function Invoke-SoloIngameChainCapture {
     )
     $cliArgs += @(Get-LiveRuntimeArgs)
     $cliArgs += @("--settings", $settingsPath)
-    Write-Host "[launcher] 单人完整链路：沿用正式看板自动建房/局数/关卡；production 从大厅建房→选关→局内→战后" -ForegroundColor Cyan
+    Write-Host "[launcher] 单人完整链路：沿用正式看板自动建房/局数/关卡；production 从大厅建房→选关→局内→战后；看到问题按 F9 标记（只记录，不发输入、不改变决策；急停仍用 Shift+F12）" -ForegroundColor Cyan
     Invoke-CaptureTool $cliArgs
 }
 
