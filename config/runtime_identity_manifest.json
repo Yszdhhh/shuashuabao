@@ -1,7 +1,7 @@
-﻿{
-    "schema_version":  1,
-    "candidate_sha":  "2b3ba108e9c653d9dc04f2a2514c65a160968cab",
-    "anchored_at":  "2026-09-26T00:46:45+08:00",
-    "branch":  "perf/pick-speed-20260925",
-    "note":  "09-26 L1选卡固定槽模板直判接线：完整高置信结果当帧决策，其他情况回退 OCR"
+{
+  "schema_version": 1,
+  "candidate_sha": "2b3ba108e9c653d9dc04f2a2514c65a160968cab",
+  "anchored_at": "2026-09-26T00:46:45+08:00",
+  "branch": "perf/pick-speed-20260925",
+  "note": "09-26 L1选卡固定槽模板直判接线：完整高置信结果当帧决策，其他情况回退 OCR"
 }
