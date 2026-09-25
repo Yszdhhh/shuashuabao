@@ -2649,11 +2649,22 @@ class Mediator:
 
     def _classify_choice_panel(self, frame: Frame) -> str | None:
         """Distinguish skill / bond / treasure choice panels by their unique buttons."""
+        opened = getattr(self, "_panel_opened_by_us", None)
+        if opened in ("skill", "bond"):
+            return opened
+        threshold = min(0.70, self.settings.match_threshold)
+        roi = self._PANEL_BUTTONS_ROI
+        scales = self._hot_scales()
+        # 羁绊与技能有强独有按钮特征，绝不受英雄进化二选一抑制
+        bond_hide = self.find(frame, ["bond_hide_btn"], threshold=threshold, scales=scales, roi=roi)
+        bond_refresh = self.find(frame, ["bond_refresh_btn"], threshold=threshold, scales=scales, roi=roi)
+        if bond_hide is not None and bond_refresh is not None:
+            return "bond"
+        if self.find(frame, ["skill_giveup_btn"], threshold=threshold, scales=scales, roi=roi) is not None:
+            return "skill"
         if (
             (self._evolve_hero_choice_pending() or self._find_evolution_choice(frame) is not None)
-            and getattr(self, "_panel_opened_by_us", None) not in (
-                "skill", "bond", "treasure",
-            )
+            and opened != "treasure"
         ):
             # 进化/英雄卡二选一会误中 treasure_lock，先交给英雄排序。
             return None
@@ -4137,7 +4148,7 @@ class Mediator:
             return None
         return mapped[1]
 
-    _SINGLE_FRAME_PICK_CONFIDENCE = 0.85
+    _SINGLE_FRAME_PICK_CONFIDENCE = 0.95
 
     def _live_ocr_miss_refresh(self, frame: Frame, kind: str) -> MatchResult | None:
         """OCR 没读到名字时禁止刷新。预选卡可能已经在画面上。"""
@@ -4211,12 +4222,35 @@ class Mediator:
             return None
 
         # 英雄二选一/进化选择：支持由 evolve 流程触发、背包英雄卡使用后触发，或中央呈现英雄二选一特征
+        # 1. 严格互斥：绝不在羁绊/技能/宝物面板上走英雄逻辑
+        opened = getattr(self, "_panel_opened_by_us", None)
+        classified = self._classify_choice_panel(frame)
+        is_non_hero_panel = (
+            opened in ("skill", "bond", "treasure")
+            or classified in ("skill", "bond", "treasure")
+            or (anchor is not None and (
+                anchor.name.startswith("bond_")
+                or anchor.name.startswith("treasure_")
+                or anchor.name in ("skill_giveup_btn", "skill_hide", "giveUp")
+            ))
+        )
+        if self._evolve_hero_choice_pending() and is_non_hero_panel:
+            # 等待英雄选择期间出现非英雄面板（羁绊/技能等）：绝不可被误点成英雄卡，保持零输入等待
+            print(f"[L1] 等待英雄选择期间出现非英雄面板（{classified or opened or (anchor.name if anchor else 'non-hero')}），保持零输入等待")
+            return None
+
+        # 2. 确认是英雄面板（英雄面板锚点命中或进化几何检测命中）
         is_hero_choice = (
-            self._evolve_hero_choice_pending()
-            or (
-                getattr(self, "_panel_opened_by_us", None) not in ("skill", "bond", "treasure")
-                and (anchor is None or (not anchor.name.startswith("treasure_") and not anchor.name.startswith("bond_")))
-                and self._find_evolution_choice(frame, anchor) is not None
+            not is_non_hero_panel
+            and (
+                self._find_evolution_choice(frame, anchor) is not None
+                or (
+                    self._evolve_hero_choice_pending()
+                    and (
+                        (anchor is not None and anchor.name in ("toHero", "card_hide", "hide"))
+                        or (anchor is not None and self._panel_kind_of(frame, anchor) == "card")
+                    )
+                )
             )
         )
         if is_hero_choice:
@@ -4224,16 +4258,13 @@ class Mediator:
             if evo_hit is not None:
                 print(f"[L1] 进化英雄选择：{evo_hit.name} @ {evo_hit.center}")
                 return ("card", evo_hit)
-            rarity_hit = self._rarity_choice(frame, "card") or self._rarity_choice(frame, "skill") or self._rarity_choice(frame, "treasure")
+            rarity_hit = self._rarity_choice(frame, "card") or self._rarity_choice(frame, "skill")
             if rarity_hit is not None:
                 print(f"[L1] 进化英雄三选一按品质色：{rarity_hit.name} @ {rarity_hit.center}")
                 return ("card", rarity_hit)
-            if LayoutTransform.is_supported(frame.width, frame.height):
-                transform = LayoutTransform.from_frame(frame.width, frame.height)
-                x, y = transform.logical_point(666, 300)
-                fallback_hit = MatchResult("evolution_card_0_fallback", 1.0, x, y, 0, 0, frame.left + x, frame.top + y)
-                print(f"[L1] 进化英雄识别不清兜底第一张：{fallback_hit.name} @ {fallback_hit.center}")
-                return ("card", fallback_hit)
+            # fail-closed：无法识别英雄卡时零输入等待，严禁盲点左卡，也不反复隐藏
+            print("[L1] 进化英雄面板候选识别不清，fail-closed 零输入等待下一帧")
+            return None
         kind = self._panel_kind_of(frame, anchor)
         if kind == "unknown":
             self._record_selection_unknown(frame, anchor, "panel classification failed")
@@ -5140,6 +5171,9 @@ class Mediator:
         """Recognize the two-card hero-evolution modal and choose its best rarity."""
         if frame.bgr is None or not LayoutTransform.is_supported(frame.width, frame.height):
             return None
+        # 装备十级词缀弹窗互斥：词缀弹窗绝非英雄进化二选一
+        if self._find_equipment_affix_choice(frame) is not None:
+            return None
         transform = LayoutTransform.from_frame(frame.width, frame.height)
         # 进化二选一面板支持底部 anchor (toHero 等) 或中央双卡边框特征
         gray = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2GRAY)
@@ -5151,7 +5185,8 @@ class Mediator:
 
         scale_area = transform.scale * transform.scale
         if not (
-            edge_count(816) >= max(50, int(350 * scale_area))
+            edge_count(540) >= max(30, int(100 * scale_area))
+            and edge_count(816) >= max(50, int(350 * scale_area))
             and edge_count(1050) >= max(30, int(100 * scale_area))
             and edge_count(408) < max(30, int(600 * scale_area))
             and edge_count(1201) < max(30, int(600 * scale_area))
@@ -5199,6 +5234,9 @@ class Mediator:
 
     def _evolve_gold_center(self, frame: Frame) -> tuple[int, int] | None:
         """Only the inner evolve bar can authorize a click; HUD edge highlights cannot."""
+        # 装备词条弹窗互斥：词条弹窗存在时绝非战斗 HUD 进化按钮
+        if self._find_equipment_affix_choice(frame) is not None:
+            return None
         x0 = int(frame.width * 0.52)
         y0 = int(frame.height * 0.765)
         x1 = int(frame.width * 0.59)
@@ -5237,6 +5275,8 @@ class Mediator:
         return MatchResult("evolve_hud", 1.0, x, y, 40, 12, frame.left + x, frame.top + y)
 
     def _has_evolve_button(self, frame: Frame) -> bool:
+        if self._find_equipment_affix_choice(frame) is not None:
+            return False
         has = self._evolve_gold_center(frame) is not None
         if has:
             self._evolve_ok_this_cycle = False
@@ -5703,12 +5743,10 @@ class Mediator:
         ) is not None
 
     def _solo_wants_merchant(self, frame: Frame) -> bool:
-        """Solo only visits/interacts with merchant when wood < 500 or devour pill is urgently needed."""
+        """Solo only visits/interacts with merchant when wood < 500 (or unreadable) or devour pill is urgently needed."""
         if self._passenger_mode() or not getattr(self.settings, "merchant_enabled", True):
             return False
-        wood = getattr(self, "_wood_balance", None)
-        if wood is not None and wood < self._SKILL_FIRST_WOOD:
-            return True
+        # 1. 羁绊栏 >= 8/10 且背包无吞噬丹：急需前往黑商买丹（即使木材充足）
         occupied = self._bond_bar_occupancy(frame)
         if (
             occupied is not None
@@ -5716,6 +5754,11 @@ class Mediator:
             and self._devour_hold_reason() is None
             and not self._inventory_has_swallow_pill(frame)
         ):
+            return True
+        # 2. 木材判断：读数为 None 时按保守规则处理（不可假定充足，仍去黑商）；
+        #    只有明确读出木材且 >= 500 时才认定充足跳过
+        wood = getattr(self, "_wood_balance", None)
+        if wood is None or wood < self._SKILL_FIRST_WOOD:
             return True
         return False
 
@@ -7350,8 +7393,8 @@ class Mediator:
 
     def _close_current_panel(self, frame: Frame, panel_kind: str | None = None) -> MatchResult | None:
         """Resolve a verified physical hide/close affordance for a card panel."""
-        if self._find_evolution_choice(frame) is not None:
-            # 英雄选择弹窗严禁隐藏关闭，必须选卡
+        if self._evolve_hero_choice_pending() or self._find_evolution_choice(frame) is not None:
+            # 英雄选择弹窗或等待英雄选择期间严禁隐藏关闭，必须选卡或等待
             return None
         kind = panel_kind or getattr(self, "_panel_opened_by_us", None)
         if kind in ("技能", "技能刷新", "技能放弃"):

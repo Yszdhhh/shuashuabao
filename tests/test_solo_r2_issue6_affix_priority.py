@@ -70,3 +70,25 @@ def test_equipment_affix_color_hierarchy(
     hit = med._find_equipment_affix_choice(Frame(image, hwnd=1, window_title="英雄三国KK"))
     assert hit is not None
     assert hit.name == expected_name
+
+
+def test_equipment_affix_does_not_trigger_false_evolution_detection() -> None:
+    """Real fixture f0357: affix modal must NOT be recognized as hero evolution choice or evolve button."""
+    assert FIXTURE_PATH.is_file(), f"Fixture missing: {FIXTURE_PATH}"
+    img = cv2.imdecode(np.fromfile(str(FIXTURE_PATH), dtype=np.uint8), cv2.IMREAD_COLOR)
+    assert img is not None
+    frame = Frame(img, hwnd=1, window_title="英雄三国KK")
+
+    med = Mediator(Settings(dry_run=True), ROOT)
+
+    # 1. Evolve button detection must NOT hit on affix modal
+    assert med._evolve_gold_center(frame) is None
+    assert med._has_evolve_button(frame) is False
+
+    # 2. Hero evolution choice detection must NOT hit on affix modal
+    assert med._find_evolution_choice(frame) is None
+
+    # 3. Affix choice is correctly detected
+    hit = med._find_equipment_affix_choice(frame)
+    assert hit is not None
+    assert hit.name == "equipment_affix_0"

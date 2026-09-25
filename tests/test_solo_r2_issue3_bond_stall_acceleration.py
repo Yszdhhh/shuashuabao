@@ -28,3 +28,29 @@ def test_stalled_bond_choice_selects_target_greed_without_hiding() -> None:
     # Must select greed on first frame
     assert "贪婪" in choice.name
     assert choice.x == 1152 and choice.y == 396
+
+
+def test_single_frame_acceleration_confined_to_presets() -> None:
+    """0.85 single-frame pick acceleration only applies to presets, not generic choices."""
+    from shuabao.mediator import PolicyDecision, PolicyAction, SlotCandidate
+
+    slots = (
+        SlotCandidate(index=0, name="测试预设卡", confidence=0.88),
+        SlotCandidate(index=1, name="其它卡1", confidence=0.80),
+        SlotCandidate(index=2, name="其它卡2", confidence=0.80),
+        SlotCandidate(index=3, name="其它卡3", confidence=0.80),
+    )
+
+    # 1. Preset / target / synthesis matches with 0.85 <= confidence < 0.95 -> accelerates (skips 2nd frame)
+    d_preset = PolicyDecision(action=PolicyAction.SELECT_SLOT, index=0, reason="bond 预设命中：测试预设卡")
+    assert Mediator._is_unambiguous_high_confidence_pick(d_preset, slots, d_preset.reason) is True
+
+    d_synth = PolicyDecision(action=PolicyAction.SELECT_SLOT, index=0, reason="差一张合成：测试预设卡")
+    assert Mediator._is_unambiguous_high_confidence_pick(d_synth, slots, d_synth.reason) is True
+
+    # 2. Non-preset / fallback with 0.85 <= confidence < 0.95 -> does NOT accelerate
+    d_fallback = PolicyDecision(action=PolicyAction.SELECT_SLOT, index=0, reason="品质降级兜底：测试预设卡")
+    assert Mediator._is_unambiguous_high_confidence_pick(d_fallback, slots, d_fallback.reason) is False
+
+    # 3. Generic threshold remains strictly at 0.95
+    assert Mediator._SINGLE_FRAME_PICK_CONFIDENCE == 0.95

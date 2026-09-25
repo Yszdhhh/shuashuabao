@@ -53,6 +53,19 @@ def test_solo_wants_merchant_only_when_wood_low_or_pill_needed():
          patch.object(med, "_devour_hold_reason", return_value=None):
         assert not med._solo_wants_merchant(frame)
 
+    # 4. Wood is None (unreadable) -> conservative rule: does NOT assume abundant, still wants merchant
+    med._wood_balance = None
+    with patch.object(med, "_bond_bar_occupancy", return_value=3), \
+         patch.object(med, "_inventory_has_swallow_pill", return_value=False):
+        assert med._solo_wants_merchant(frame)
+
+    # 5. Wood is None and bond >= 8 without pill -> wants merchant for swallow pill
+    med._wood_balance = None
+    with patch.object(med, "_bond_bar_occupancy", return_value=8), \
+         patch.object(med, "_inventory_has_swallow_pill", return_value=False), \
+         patch.object(med, "_devour_hold_reason", return_value=None):
+        assert med._solo_wants_merchant(frame)
+
 
 HUD = ROOT / "tests" / "fixtures" / "solo_live_20260914" / "hud_wood_1111_f0200.png"
 
