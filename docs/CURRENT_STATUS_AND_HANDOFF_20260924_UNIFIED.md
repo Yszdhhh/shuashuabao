@@ -158,3 +158,9 @@ EX 模板（`a57d697`）：从 Owner 的卡面截图 `fixtures/ex_finals_2026081
 还没做：物品栏满时的消耗品识别与溢出整理、单人背包放置逻辑，等 GPT 调研（`gpt/urgent-resources-20260924`）和实机 tooltip 截图。
 
 本地第三轮（`local/quicktest-20260924b`，HEAD `88eb4d2`）：门禁首跑启动器冒烟测试临时 EXE `PermissionError`，单跑 3/3 过，重跑全绿；快照已刷新（404→405）。`build_release.ps1 -NoDeploy` 因缺操作员 Ed25519 manifest 私钥 BLOCKED（第 113–121 行，所有冻结渠道都要，设计如此），冻结包 harness 未跑。云端决定继续用源码模式跑入口 1 和入口 12。
+
+
+## 2026-09-26 局内分类递归修复
+
+- Mediator._classify_choice_panel 的英雄几何候选改为显式调用 Core 检测，防止 Runtime 覆写互递归；无锚点帧保持返回 None。
+- 未启动游戏；真机局内面板及进化点击流程需所有者后续验证。
