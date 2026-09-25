@@ -28,7 +28,7 @@ describe("haizeiwang advanced pack", () => {
 
   it("勾选海贼王后展开的 cards 包含其成员", () => {
     expect(advPackCards()["haizeiwang"]).toEqual(
-      ["见习海贼", "四皇", "凯多", "红发", "白胡子", "大妈"],
+      ["见习海贼", "超新星", "七武海", "凯多", "红发", "白胡子", "大妈"],
     );
   });
 
