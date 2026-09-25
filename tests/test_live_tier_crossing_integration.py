@@ -31,6 +31,7 @@ class TestLiveMediatorIntegration(unittest.TestCase):
         fake_slots_raw = [
             {"index": 0, "name": "成长之树", "rarity": "white", "confidence": 0.95, "rect": (10, 10, 50, 50), "description": ""},
             {"index": 1, "name": "散卡之王", "rarity": "purple", "confidence": 0.95, "rect": (60, 10, 100, 50), "description": ""},
+            {"index": 2, "name": None, "confidence": 0.0},
         ]
 
         with patch.object(self.mediator, "_ocr_panel_slots", return_value=fake_slots_raw), \

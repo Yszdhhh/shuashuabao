@@ -399,7 +399,7 @@ class Mediator(CoreMediator):
         if stagnant_for < self._physical_panel_deadline_s:
             return None
 
-        # S0 收敛：物理面板停滞超过 deadline，强制转 CLOSING 物理收敛脱困
+        # S0 收敛：物理面板停滞只记录遥测；关闭动作由 Core 面板 FSM 负责。
         note = (
             "physical_panel_stagnation_observed: "
             f"kind={signature[0]} hwnd={signature[1]} "
@@ -410,12 +410,9 @@ class Mediator(CoreMediator):
         self._physical_panel_last_progress_at = now
         print(
             f"[L1] 同一物理选择面板无确认进展 {stagnant_for:.1f}s，"
-            f"记录第 {self._physical_panel_recoveries} 次遥测，转 CLOSING 物理收敛脱困"
+            f"记录第 {self._physical_panel_recoveries} 次遥测"
         )
-        self._panel_state = PanelState.CLOSING
-        self._panel_closing_attempts = 0
-        self._panel_closing_started_at = now
-        return LoopAction.Continue
+        return None
 
     def _tick_panel_fsm(self, frame, anchor, now: float):
         guard = self._physical_panel_watchdog(frame, anchor, now)
