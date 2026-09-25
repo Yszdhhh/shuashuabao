@@ -33,7 +33,11 @@ class StageId:
         match = re.fullmatch(r"(\d+)-(\d+)", str(label).strip())
         if not match:
             return None
-        return cls(int(match.group(1)), int(match.group(2)))
+        chapter, index = int(match.group(1)), int(match.group(2))
+        # Every chapter starts at x-1 (Owner 2026-09-25): x-0 / 0-x is always a misread.
+        if chapter < 1 or index < 1:
+            return None
+        return cls(chapter, index)
 
     def __lt__(self, other: object) -> bool:
         if not isinstance(other, StageId):

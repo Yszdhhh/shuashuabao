@@ -28,6 +28,15 @@ def test_live_topbar_stage_label(name: str) -> None:
     assert str(stage) == INDEX[name]["expected"]
 
 
+def test_stage_zero_is_never_a_real_stage() -> None:
+    from shuabao.vision.stage_selector import StageId
+
+    assert StageId.parse("4-0") is None
+    assert StageId.parse("0-3") is None
+    assert str(StageId.parse("4-10")) == "4-10"
+    assert str(StageId.parse("1-1")) == "1-1"
+
+
 def test_state_snapshot_carries_the_round_stage() -> None:
     """The per-round stage must land in the trace, not only on stdout."""
     import sys
