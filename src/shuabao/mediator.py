@@ -5651,6 +5651,23 @@ class Mediator:
             frame, ["danGif"], threshold=0.55, scales=self._hot_scales(), roi=(0.64, 0.77, 0.74, 0.98),
         ) is not None
 
+    def _solo_wants_merchant(self, frame: Frame) -> bool:
+        """Solo only visits/interacts with merchant when wood < 500 or devour pill is urgently needed."""
+        if self._passenger_mode() or not getattr(self.settings, "merchant_enabled", True):
+            return False
+        wood = getattr(self, "_wood_balance", None)
+        if wood is not None and wood < self._SKILL_FIRST_WOOD:
+            return True
+        occupied = self._bond_bar_occupancy(frame)
+        if (
+            occupied is not None
+            and occupied >= self._DEVOUR_BOND_OCCUPANCY
+            and self._devour_hold_reason() is None
+            and not self._inventory_has_swallow_pill(frame)
+        ):
+            return True
+        return False
+
     def _urgent_merchant_reason(self, frame: Frame, now: float) -> str | None:
         """Why solo should jump the L1 cycle to the black merchant now, if at all."""
         if self._passenger_mode() or not getattr(self.settings, "merchant_enabled", True):
@@ -7045,7 +7062,8 @@ class Mediator:
         # _maybe_use_inventory_item; do not hide merchant recognition behind it.
         ranked = scanner.rank_purchases(detected_slots, solo=not self._passenger_mode())
         # 0 means no script cap: keep refreshing while the recycle control is up.
-        reroll_cap = int(getattr(self.settings, "merchant_max_rerolls", 0)) or 20
+        default_reroll_cap = 2 if not self._passenger_mode() else 20
+        reroll_cap = int(getattr(self.settings, "merchant_max_rerolls", 0)) or default_reroll_cap
 
         if ranked and self._merchant_fsm.can_purchase(5):
             target_item = ranked[0]
@@ -7127,6 +7145,8 @@ class Mediator:
     def _maybe_opportunistic_merchant(self, frame: Frame, now: float) -> LoopAction | None:
         """HUD_ONLY opportunistic single high-value merchant buy without rerolls."""
         if getattr(self.settings, "merchant_enabled", True) is False:
+            return None
+        if not self._passenger_mode() and not self._solo_wants_merchant(frame):
             return None
         if now < getattr(self, "_opportunistic_merchant_next_at", 0.0):
             return None
@@ -19029,6 +19049,7 @@ class Mediator:
             or has_affix
             or mainline_proactive_active
             or hitch_bootstrap_pending
+            or (not self._passenger_mode() and not self._solo_wants_merchant(frame))
         ) else self._black_merchant_present(frame)
 
         surface = resolve_interaction_surface(
@@ -19552,6 +19573,12 @@ class Mediator:
             if now < getattr(self, "_merchant_budget_retry_at", 0.0):
                 # 余额不足/不可读时让循环继续做宝物、拾取和公共背包，等下一
                 # 个预算观察窗口再回来，而不是把整局卡在黑商步骤。
+                self._advance_l1_cycle("merchant")
+                return LoopAction.Continue
+            if not self._passenger_mode() and not self._solo_wants_merchant(frame):
+                wood = getattr(self, "_wood_balance", None)
+                bond_occ = self._bond_bar_occupancy(frame)
+                print(f"[L1] 单人模式木材充足（{wood}）且未急需吞噬丹（{bond_occ}/10），跳过黑商推进羁绊")
                 self._advance_l1_cycle("merchant")
                 return LoopAction.Continue
             if now < self._merchant_next_at:
