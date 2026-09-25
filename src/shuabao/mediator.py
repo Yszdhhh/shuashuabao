@@ -5103,13 +5103,12 @@ class Mediator:
             if roi.size == 0:
                 return 1
             hue, sat, val = roi[:, :, 0], roi[:, :, 1], roi[:, :, 2]
-            # 积极属性多为绿字；优先于红/橙品质色，避免永远点第一行 equipment_affix_0。
+            # Owner 2026-09-25: 装备词条按颜色 橙/红 > 紫 > 蓝 > 绿 > 白 选择
             masks = (
-                (6, (hue >= 35) & (hue < 90) & (sat > 60) & (val > 80)),
-                (5, ((hue <= 10) | (hue >= 170)) & (sat > 80) & (val > 90)),
-                (4, (hue > 10) & (hue <= 30) & (sat > 80) & (val > 90)),
-                (3, (hue >= 125) & (hue < 170) & (sat > 60) & (val > 80)),
-                (2, (hue >= 90) & (hue < 125) & (sat > 60) & (val > 80)),
+                (5, ((hue <= 30) | (hue >= 170)) & (sat > 80) & (val > 90)),
+                (4, (hue >= 125) & (hue < 170) & (sat > 60) & (val > 80)),
+                (3, (hue >= 90) & (hue < 125) & (sat > 60) & (val > 80)),
+                (2, (hue >= 35) & (hue < 90) & (sat > 60) & (val > 80)),
             )
             for rank, mask in masks:
                 if mask.sum() >= 30:

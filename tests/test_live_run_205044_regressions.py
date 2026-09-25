@@ -330,17 +330,16 @@ class LiveRun205044Tests(unittest.TestCase):
         click.assert_called_once_with(hero, "UseInventory-hero-card")
 
     def test_affix_prefers_green_positive_row(self) -> None:
-        """装备十级词缀优先绿字「积极属性」，而非永远点第一行。"""
+        """Owner 2026-09-25: 装备十级词缀按颜色 橙/红 > 紫 > 蓝 > 绿 > 白 选择（蓝 > 绿）。"""
         med = Mediator(Settings(), ROOT)
         image = np.zeros((900, 1600, 3), dtype=np.uint8)
         cv2.rectangle(image, (560, 215), (1039, 219), (0, 170, 230), -1)
         cv2.rectangle(image, (560, 430), (1039, 434), (0, 170, 230), -1)
         for y in (240, 285, 330, 375):
             cv2.rectangle(image, (735, y + 10), (865, y + 18), (230, 230, 230), -1)
-        # 小色块即可触发 HSV 排名；大色块会破坏 body 暗底门闩（需 ≥85% gray<80）。
-        # BGR：第 0 行红、第 2 行绿（积极属性）→ 应选 equipment_affix_2。
-        cv2.rectangle(image, (700, 250), (760, 268), (40, 40, 220), -1)
-        cv2.rectangle(image, (700, 340), (760, 358), (40, 200, 40), -1)
+        # BGR：第 0 行绿、第 2 行蓝（蓝 > 绿）→ 应选 equipment_affix_2。
+        cv2.rectangle(image, (700, 250), (760, 268), (40, 200, 40), -1)
+        cv2.rectangle(image, (700, 340), (760, 358), (220, 100, 40), -1)
         hit = med._find_equipment_affix_choice(Frame(image))
         self.assertIsNotNone(hit)
         self.assertEqual(hit.name, "equipment_affix_2")
