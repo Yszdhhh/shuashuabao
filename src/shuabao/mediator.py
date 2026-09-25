@@ -3607,6 +3607,7 @@ class Mediator:
         kind: str,
         decision: PolicyDecision,
         slots: tuple[SlotCandidate, ...],
+        slot_count: int | None = None,
     ) -> tuple[str, MatchResult] | None:
         """Map PolicyDecision → (label, MatchResult). WAIT/NONE → idle (None)."""
         self._choice_policy_last_reason = decision.reason or ""
@@ -3648,7 +3649,12 @@ class Mediator:
                 hit_name = f"ocr_{kind}:slot{decision.index}"
             if decision.reason:
                 print(f"[L1] 选卡策略：{decision.reason}")
-            hit = self._choice_slot_hit(frame, kind, int(decision.index), hit_name, slot_count=len(slots))
+            hit = self._choice_slot_hit(
+                frame, kind, int(decision.index), hit_name,
+                slot_count=slot_count if slot_count is not None else len(slots),
+            )
+            if hit is None:
+                return None
             label = "技能" if kind == "skill" else kind
             return (label, hit)
         if decision.action == PolicyAction.REFRESH:
@@ -3703,15 +3709,18 @@ class Mediator:
             return (kind if kind != "skill" else "技能", hit)
         return ("技能" if kind == "skill" else kind, hit)
 
-    def _choice_slot_hit(self, frame: Frame, kind: str, index: int, name: str, slot_count: int = 3) -> MatchResult:
+    def _choice_slot_hit(self, frame: Frame, kind: str, index: int, name: str, slot_count: int = 3) -> MatchResult | None:
+        if slot_count not in (3, 4):
+            print(f"[L1] 选卡布局无效，零输入：{kind} layout={slot_count}")
+            return None
         if slot_count == 4:
             centers = self._CHOICE_SLOT_CENTERS_4.get(kind) or self._CHOICE_SLOT_CENTERS.get(kind, ())
         else:
             centers = self._CHOICE_SLOT_CENTERS.get(kind, ())
         if index < 0 or index >= len(centers):
-            x_ratio, y_ratio = (0.5, 0.5)
-        else:
-            x_ratio, y_ratio = centers[index]
+            print(f"[L1] 选卡槽位越界，零输入：{kind} index={index}, layout={slot_count}, centers={len(centers)}")
+            return None
+        x_ratio, y_ratio = centers[index]
         x, y = int(frame.width * x_ratio), int(frame.height * y_ratio)
         return MatchResult(name, 1.0, x, y, 0, 0, frame.left + x, frame.top + y)
 
@@ -4093,7 +4102,7 @@ class Mediator:
                     "context": self._context_cache_value,
                 }
             )
-        mapped = self._policy_decision_to_hit(frame, kind, decision, slots)
+        mapped = self._policy_decision_to_hit(frame, kind, decision, slots, slot_count=len(slots_raw))
         if mapped is None:
             return None
         return mapped[1]
@@ -5027,6 +5036,8 @@ class Mediator:
     def _find_equipment_affix_choice(self, frame: Frame) -> MatchResult | None:
         """Detect the four-row level-10 affix modal and pick color priority."""
         if frame.bgr is None or not LayoutTransform.is_supported(frame.width, frame.height):
+            return None
+        if self._selection_anchor(frame) is not None:
             return None
         transform = LayoutTransform.from_frame(frame.width, frame.height)
         hsv = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2HSV)

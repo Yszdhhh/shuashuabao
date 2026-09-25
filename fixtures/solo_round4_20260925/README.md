@@ -1,0 +1,1 @@
+Real pixels from solo_ingame_chain_20260925_145724_766240. f0307/f0308/f0350 retain only the choice-panel region (x=250..1359, y=135..614); all other pixels are black. f0308 contains the erroneous yellow selected border after the center fallback click.
