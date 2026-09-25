@@ -1534,6 +1534,14 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertIn("齐天大圣", cards)
         self.assertNotIn("法天象地", cards)
 
+    def test_haizeiwang_pack_checkbox_expands_to_members(self):
+        self.assertIn("海贼王", self._panel_text())
+        self.window._advanced_pack_boxes["haizeiwang"].setChecked(True)
+        cards = self.window.collect_settings_from_ui().cards
+        for name in ("见习海贼", "四皇", "凯多", "红发", "白胡子", "大妈"):
+            self.assertIn(name, cards)
+        self.assertNotIn("海贼王", cards)
+
     def test_basic_pack_invert_toggles_whitelist(self):
         before = list(self.window.assemble_whitelist_cards())
         self.assertIn("zhufu", before)
