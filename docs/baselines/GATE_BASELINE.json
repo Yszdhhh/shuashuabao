@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-23 22:26:13",
-  "reason": "Three verified silver crystal runtime assets; updated solo scheduling and real-frame replay; source identity anchor refreshed after hitch fix; full gate verification",
+  "updated_at": "2026-09-25 12:53:48",
+  "reason": "09-25 单人第四轮前置：PR #46 合并；空闲机门禁验证场景 149、运行资产 423 项无缺失和哈希错误；修复 Windows 启动器 smoke 清理临时 EXE 的退出竞态，单节点三次通过",
   "note": "发版门禁快照。任何偏离都会让 tools/release_gate.py 失败。known_failures 里的每一项必须写明原因；修好后请重新 --update-baseline。",
   "stages": {
     "pytest": {
       "title": "单元/回归测试（tests/）",
       "observed": {
-        "passed": 2606,
+        "passed": 2728,
         "xfailed": 2,
-        "skipped": 14
+        "skipped": 2
       }
     },
     "frozen_replay": {
@@ -30,13 +30,13 @@
     "scene_templates": {
       "title": "scenes.json 模板完整性",
       "observed": {
-        "ok": 148,
+        "ok": 149,
         "missing": 0,
         "asset_spec_assets_root": 1,
         "asset_manifest_schema": 1,
         "asset_package_root_whole_tree": 1,
-        "asset_files": 404,
-        "asset_allowlisted": 404,
+        "asset_files": 423,
+        "asset_allowlisted": 423,
         "asset_missing_allowlist": 0,
         "asset_stale_manifest": 0,
         "asset_forbidden_paths": 0,
@@ -47,7 +47,7 @@
     "contract": {
       "title": "L0 大厅全链契约回放（tests/contract/）",
       "observed": {
-        "passed": 66,
+        "passed": 67,
         "present": 1
       }
     }
