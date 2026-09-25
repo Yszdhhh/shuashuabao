@@ -18,6 +18,7 @@ import cv2
 import numpy as np
 
 from shuabao.mediator import Mediator
+from shuabao.merchant_scanner import DISCOUNT_KEYWORDS, MerchantScanner, MerchantSlotItem
 from shuabao.vision.capture import Frame
 from shuabao.vision.matcher import match_any_with_margin
 
@@ -90,3 +91,22 @@ def test_wood_template_does_not_match_fist_slot():
         assert slot0_peak < WOOD_THRESHOLD - 0.05, f"{name}: 拳套槽位灰度峰 {slot0_peak} 过高"
         _, slot = _frame_hit_slot(frame, name)
         assert slot != 0, f"{name}: 木材命中落入拳套槽位"
+
+
+def test_discount_keywords_cover_live_8fold():
+    """f0249/f0296 真木材均带 8折角标；DISCOUNT_KEYWORDS 缺 8折曾致 detected_slots 为空。"""
+    assert "8折" in DISCOUNT_KEYWORDS
+    assert "八折" in DISCOUNT_KEYWORDS
+    # 未在实机见过的 7折/9折保持 fail-closed，不授权购买。
+    assert "7折" not in DISCOUNT_KEYWORDS
+    assert "9折" not in DISCOUNT_KEYWORDS
+
+
+def test_solo_authorizes_8fold_discount_behind_wood():
+    scanner = MerchantScanner()
+    items = [
+        MerchantSlotItem(slot_index=2, center_ratio=(0.78, 0.72), item_type="wood", label="merchant_wood"),
+        MerchantSlotItem(slot_index=3, center_ratio=(0.80, 0.72), item_type="discount", label="8折"),
+    ]
+    ranked = scanner.rank_purchases(items, bond_bar_nonempty=True, solo=True)
+    assert [item.item_type for item in ranked] == ["wood", "discount"]
