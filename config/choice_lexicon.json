@@ -1344,6 +1344,14 @@
       "set_membership": "海盗",
       "_note": "实机 ocr_choices；bond_stack need=3。攻略：毁灭战舰无限产出。战舰卡面写每击杀300置入随机海盗，未写只出白赚。"
     },
+    "海盗宝藏": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "海盗",
+      "_note": "海盗推进组成员。卡顶标题未经实机确认（CARD_FAMILY_PICKUP_AUDIT_20260924 第二节第2条），不锁 need。"
+    },
     "神秘戒指": {
       "aliases": [],
       "kind": "bond",
@@ -2718,6 +2726,62 @@
       "set_membership": "海盗",
       "_note": "毁灭战舰开池 SSR。攻略简称重拳：吞一张SSR海盗木材+30；立刻得（吞海盗数×2000）金+（×10）木。无独立帧。"
     },
+    "见习海贼": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260923",
+      "confusions": [],
+      "set_membership": "海贼王",
+      "_note": "用户转发攻略 GUIDE_PIRATE_AND_HAIZEIWANG_20260923：N 开池卡，三属性+50。EX 海贼王靠合成，不进面板。未上帧，不写 need。"
+    },
+    "超新星": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260923",
+      "confusions": [],
+      "set_membership": "海贼王",
+      "_note": "用户转发攻略：SR，累吞4后入池，初级霸气。未上帧。"
+    },
+    "七武海": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260923",
+      "confusions": [],
+      "set_membership": "海贼王",
+      "_note": "用户转发攻略：SSR，累吞9后入池，中级霸气。未上帧。"
+    },
+    "凯多": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260923",
+      "confusions": [],
+      "set_membership": "海贼王",
+      "_note": "用户转发攻略：四皇之一，累吞14后入四皇池，四皇4合EX。未上帧。"
+    },
+    "红发": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260923",
+      "confusions": [],
+      "set_membership": "海贼王",
+      "_note": "用户转发攻略：四皇之一，累吞14后入四皇池，四皇4合EX。未上帧。"
+    },
+    "白胡子": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260923",
+      "confusions": [],
+      "set_membership": "海贼王",
+      "_note": "用户转发攻略：四皇之一，累吞14后入四皇池，四皇4合EX。未上帧。"
+    },
+    "大妈": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260923",
+      "confusions": [],
+      "set_membership": "海贼王",
+      "_note": "用户转发攻略：四皇之一，累吞14后入四皇池，四皇4合EX。未上帧。"
+    },
     "圣剑": {
       "aliases": [],
       "kind": "bond",
@@ -3059,6 +3123,22 @@
       "confusions": [],
       "set_membership": "封神",
       "_note": "攻略：3张一组，可直接吞加速封神榜。未上帧。"
+    },
+    "打神鞭": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "封神",
+      "_note": "攻略：金仙期核心必拿（百分比无视护甲），封神推进组成员。未上帧。"
+    },
+    "杏黄旗": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "封神",
+      "_note": "攻略：封神推进组成员。未上帧。"
     },
     "天庭": {
       "aliases": [],
