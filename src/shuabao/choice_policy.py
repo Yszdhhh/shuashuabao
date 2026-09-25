@@ -459,6 +459,11 @@ def assemble_policy_settings(
     advanced_names = tuple(
         str(item).strip() for item in (bond_cfg.get("advanced_names") or ()) if str(item).strip()
     )
+    # Owner 2026-09-24：终卡（海盗为 UR）靠合成得到，不从面板拿。
+    # advanced_groups 保留终卡只为链路归属；白名单预设在这里统一剥离。
+    ex_final_names = frozenset(
+        str(item).strip() for item in (bond_cfg.get("ex_final_names") or ()) if str(item).strip()
+    )
     # Whitelist order = pick priority (_match_bond_preset ranks by position),
     # Owner 2026-09-24:
     #   1. 祝福 / 成长 / 经济 / 挑战 (ticked ones only)
@@ -524,6 +529,8 @@ def assemble_policy_settings(
                     if name not in bond_presets:
                         bond_presets.append(name)
                 break
+    if ex_final_names:
+        bond_presets = [name for name in bond_presets if name not in ex_final_names]
 
     selected_group_names = tuple(name for group in selected_groups for name in group)
     advanced_presets = tuple(
