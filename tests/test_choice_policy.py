@@ -1593,7 +1593,7 @@ class TestAssemblePolicySettings(unittest.TestCase):
             fetter_labels={},
             policy_doc=policy_doc,
         )
-        group = ("见习海贼", "四皇", "凯多", "红发", "白胡子", "大妈")
+        group = ("见习海贼", "超新星", "七武海", "凯多", "红发", "白胡子", "大妈")
         self.assertIn(group, policy.bond_advanced_groups)
         for name in group:
             self.assertIn(name, policy.bond_advanced_presets)
