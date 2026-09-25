@@ -171,3 +171,10 @@ EX 模板（`a57d697`）：从 Owner 的卡面截图 `fixtures/ex_finals_2026081
 
 - Mediator._classify_choice_panel 的英雄几何候选改为显式调用 Core 检测，防止 Runtime 覆写互递归；无锚点帧保持返回 None。
 - 未启动游戏；真机局内面板及进化点击流程需所有者后续验证。
+
+## 2026-09-26 羁绊面板关闭失败 fail-closed
+
+- Trace `solo_ingame_chain_20260925_230841_870781` 的 tick 291 显示 hard-deadline 后转 `CLOSING`；后续锚点持续存在而决策无输入。指定基线的单人 episode 上限分支已经会推进 `_L1_CYCLE_ORDER`，因此方案文档所述漏 advance 不是这次 trace 的直接根因。
+- `_tick_panel_fsm` 的 `CLOSING` 现在最多尝试 3 次；关闭锚点缺失、点击被拒或 3s 超时后进入 `COOLDOWN` 并耗尽本次关闭预算。锚点仍在时保持零输入，直到锚点消失后再清理面板 episode。未加 Escape/盲点。
+- FakeClock 回放覆盖 episode 上限推进和关闭失败后的有界重试；定向用例 8 passed，`tests/contract` 68 passed / 232 subtests passed，候选身份锚点更新后 `tests/test_live_harness_refresh.py` 23 passed。源码提交 `46ec6a3a078aeb05595817cdc90f9e66d65be6e0`。没有启动游戏；面板物理关闭及后续主线恢复仍待真机验证。
+- OCR 的白名单目标路径已支持 ≥0.85 单帧免确认，模板完整快路已跳过 OCR 与双帧确认。本次不再调低通用 OCR 的 0.95 门槛；trace 真帧 f0352 上 ≥0.85 的「封神 / 箭术 / 三国」与卡面文字一致，f0355 上重复「法术」槽位仍被唯一性门控排除。该样本只支持维持现有门控，不代表整体误点率测量。
