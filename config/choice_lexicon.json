@@ -4255,62 +4255,6 @@
       "version_seen": "live-20260923",
       "confusions": [],
       "set_membership": "大圣"
-    },
-    "见习海贼": {
-      "aliases": [],
-      "kind": "bond",
-      "version_seen": "guide-20260923",
-      "confusions": [],
-      "set_membership": "海贼王",
-      "_note": "海贼王链启动卡。名出自 choice_policy advanced group + official_strategy_defaults haizeiwang pack + 看板高级包；7 短名见 nightwatch 王令海道录像分析（t≈505s 候选出现凯多/红发 UR）。"
-    },
-    "超新星": {
-      "aliases": [],
-      "kind": "bond",
-      "version_seen": "guide-20260923",
-      "confusions": [],
-      "set_membership": "海贼王",
-      "_note": "海贼王链第二阶。来源同见习海贼。分阶张数（4/9/14/4）仅外部攻略口径，未实机证实，不写 need。"
-    },
-    "七武海": {
-      "aliases": [],
-      "kind": "bond",
-      "version_seen": "guide-20260923",
-      "confusions": [],
-      "set_membership": "海贼王",
-      "_note": "海贼王链第三阶。来源同见习海贼。"
-    },
-    "凯多": {
-      "aliases": [],
-      "kind": "bond",
-      "version_seen": "guide-20260923",
-      "confusions": [],
-      "set_membership": "海贼王",
-      "_note": "四皇之一。nightwatch 王令海道录像 t≈505s 候选页出现 UR 凯多。长写法（百兽凯多等）零实机观测，不收 alias。"
-    },
-    "红发": {
-      "aliases": [],
-      "kind": "bond",
-      "version_seen": "guide-20260923",
-      "confusions": [],
-      "set_membership": "海贼王",
-      "_note": "四皇之一。nightwatch 王令海道录像 t≈505s 候选页出现 UR 红发。长写法（红发香克斯）零实机观测，不收 alias。"
-    },
-    "白胡子": {
-      "aliases": [],
-      "kind": "bond",
-      "version_seen": "guide-20260923",
-      "confusions": [],
-      "set_membership": "海贼王",
-      "_note": "四皇之一。来源同见习海贼。长写法（爱德华）零实机观测，不收 alias。"
-    },
-    "大妈": {
-      "aliases": [],
-      "kind": "bond",
-      "version_seen": "guide-20260923",
-      "confusions": [],
-      "set_membership": "海贼王",
-      "_note": "四皇之一。来源同见习海贼。长写法（夏洛特玲玲/夏洛特）零实机观测，不收 alias。"
     }
   },
   "aliases": {
