@@ -5620,11 +5620,12 @@ class Mediator:
 
     # Owner 2026-09-24：单人默认吃吞噬丹（看板不加开关），羁绊栏超过一半就吃。
     # 吞噬只提前腾出格子，不影响合成进度：凑齐后同组剩下的卡照样一起合成。
-    _DEVOUR_BOND_OCCUPANCY = 6
+    # Owner 2026-09-25 改为 ≥8/10（空位 ≤ 2 才吃吞噬丹，亡灵例外规则不变）
+    _DEVOUR_BOND_OCCUPANCY = 8
     _MERCHANT_URGENT_COOLDOWN_S = 45.0
 
     def _can_consume_inventory_swallow_pill(self, frame: Frame) -> bool:
-        """Solo eats devour pills once more than half of the ten-cell bond bar is used."""
+        """Solo eats devour pills once bond bar has <= 2 empty slots (occupied >= 8/10)."""
         return (
             str(getattr(self.settings, "mode_id", "normal_farm")) == "normal_farm"
             and self._devour_hold_reason() is None
