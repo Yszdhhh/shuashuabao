@@ -3607,6 +3607,7 @@ class Mediator:
         kind: str,
         decision: PolicyDecision,
         slots: tuple[SlotCandidate, ...],
+        slot_count: int | None = None,
     ) -> tuple[str, MatchResult] | None:
         """Map PolicyDecision → (label, MatchResult). WAIT/NONE → idle (None)."""
         self._choice_policy_last_reason = decision.reason or ""
@@ -3648,7 +3649,12 @@ class Mediator:
                 hit_name = f"ocr_{kind}:slot{decision.index}"
             if decision.reason:
                 print(f"[L1] 选卡策略：{decision.reason}")
-            hit = self._choice_slot_hit(frame, kind, int(decision.index), hit_name, slot_count=len(slots))
+            hit = self._choice_slot_hit(
+                frame, kind, int(decision.index), hit_name,
+                slot_count=slot_count if slot_count is not None else len(slots),
+            )
+            if hit is None:
+                return None
             label = "技能" if kind == "skill" else kind
             return (label, hit)
         if decision.action == PolicyAction.REFRESH:
@@ -3703,15 +3709,18 @@ class Mediator:
             return (kind if kind != "skill" else "技能", hit)
         return ("技能" if kind == "skill" else kind, hit)
 
-    def _choice_slot_hit(self, frame: Frame, kind: str, index: int, name: str, slot_count: int = 3) -> MatchResult:
+    def _choice_slot_hit(self, frame: Frame, kind: str, index: int, name: str, slot_count: int = 3) -> MatchResult | None:
+        if slot_count not in (3, 4):
+            print(f"[L1] 选卡布局无效，零输入：{kind} layout={slot_count}")
+            return None
         if slot_count == 4:
             centers = self._CHOICE_SLOT_CENTERS_4.get(kind) or self._CHOICE_SLOT_CENTERS.get(kind, ())
         else:
             centers = self._CHOICE_SLOT_CENTERS.get(kind, ())
         if index < 0 or index >= len(centers):
-            x_ratio, y_ratio = (0.5, 0.5)
-        else:
-            x_ratio, y_ratio = centers[index]
+            print(f"[L1] 选卡槽位越界，零输入：{kind} index={index}, layout={slot_count}, centers={len(centers)}")
+            return None
+        x_ratio, y_ratio = centers[index]
         x, y = int(frame.width * x_ratio), int(frame.height * y_ratio)
         return MatchResult(name, 1.0, x, y, 0, 0, frame.left + x, frame.top + y)
 
@@ -4093,7 +4102,7 @@ class Mediator:
                     "context": self._context_cache_value,
                 }
             )
-        mapped = self._policy_decision_to_hit(frame, kind, decision, slots)
+        mapped = self._policy_decision_to_hit(frame, kind, decision, slots, slot_count=len(slots_raw))
         if mapped is None:
             return None
         return mapped[1]
@@ -5028,6 +5037,8 @@ class Mediator:
         """Detect the four-row level-10 affix modal and pick color priority."""
         if frame.bgr is None or not LayoutTransform.is_supported(frame.width, frame.height):
             return None
+        if self._selection_anchor(frame) is not None:
+            return None
         transform = LayoutTransform.from_frame(frame.width, frame.height)
         hsv = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2HSV)
         gray = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2GRAY)
@@ -5165,6 +5176,7 @@ class Mediator:
                 width = int(stats[best, cv2.CC_STAT_WIDTH])
                 if area >= 40 and width >= 20:
                     cx, cy = centroids[best]
+                    self._evolve_ok_this_cycle = False
                     return x0 + int(cx), y0 + int(cy)
         return None
 
@@ -5172,12 +5184,16 @@ class Mediator:
         center = self._evolve_gold_center(frame)
         if center is None:
             return None
+        self._evolve_ok_this_cycle = False
         x, y = center
         print(f"[L1] 进化金条「点击进化」@ ({x}, {y})")
         return MatchResult("evolve_hud", 1.0, x, y, 40, 12, frame.left + x, frame.top + y)
 
     def _has_evolve_button(self, frame: Frame) -> bool:
-        return self._evolve_gold_center(frame) is not None
+        has = self._evolve_gold_center(frame) is not None
+        if has:
+            self._evolve_ok_this_cycle = False
+        return has
     def _complete_evolve_hero_pick(self) -> None:
         self._evolve_awaiting_hero_pick = False
         self._evolve_ok_this_cycle = True
@@ -5226,9 +5242,9 @@ class Mediator:
 
     def _maybe_opportunistic_evolve(self, frame: Frame, now: float) -> LoopAction | None:
         """HUD_ONLY 机会动作：当金色点击进化高亮且不在冷却中时执行快速事务。"""
-        if getattr(self, "_evolve_ok_this_cycle", False):
-            return None
         if not self._has_evolve_button(frame):
+            return None
+        if getattr(self, "_evolve_ok_this_cycle", False):
             return None
         if now < getattr(self, "_evolve_click_cooldown_until", 0.0):
             return None
@@ -5306,6 +5322,9 @@ class Mediator:
             return None
         if self._public_bag_fsm.active:
             # 公共背包流转正持有队伍资产：此刻任何左键都会当场吃掉吞噬丹。
+            return None
+        # Owner 规则：英雄卡使用前先把点击进化用完；金条亮着时一律不点物品栏
+        if self._has_evolve_button(frame):
             return None
         now = time.time()
         yinyue_res = self._maybe_opportunistic_yinyue_crystal(frame, now)
@@ -5394,7 +5413,7 @@ class Mediator:
         if (
             getattr(self, "_evolve_feedback_pending", False)
             or getattr(self, "_evolve_awaiting_hero_pick", False)
-            or (not getattr(self, "_evolve_ok_this_cycle", False) and self._has_evolve_button(frame))
+            or self._has_evolve_button(frame)
         ):
             return None
         now = time.time() if now is None else now
@@ -19000,8 +19019,8 @@ class Mediator:
             # 机会点击进化：进化的频次不高，在周期内未完成进化且有金条时穿插触发
             if (
                 self._l1_cycle_step != "evolve"
-                and not getattr(self, "_evolve_ok_this_cycle", False)
                 and now >= getattr(self, "_evolve_click_cooldown_until", 0.0)
+                and (not getattr(self, "_evolve_ok_this_cycle", False) or self._has_evolve_button(frame))
             ):
                 evolve_res = self._maybe_opportunistic_evolve(frame, now)
                 if evolve_res is not None:
