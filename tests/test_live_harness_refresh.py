@@ -196,6 +196,7 @@ def test_solo_chain_keeps_dashboard_room_creation_and_run_settings(monkeypatch) 
 
 def test_12_launcher_requires_current_dashboard_settings_by_default() -> None:
     script = (ROOT / "live_scenario_launcher.ps1").read_text(encoding="utf-8")
+    assert "SHUABAO_SOLO_CLEAN_BACKPACK" not in script
     start = script.index("function Invoke-SoloIngameChainCapture")
     end = script.index("function Invoke-SoloDirectArchaeologyCapture", start)
     case_12 = script[start:end]
@@ -204,6 +205,21 @@ def test_12_launcher_requires_current_dashboard_settings_by_default() -> None:
     assert "$script:HarnessSettingsPath = $null" in case_12
     assert "Resolve-OperatorSettingsPath" in script
     assert "user_settings.json" in script
+
+
+def test_backpack_buttons_use_isolated_settings_and_live_gate() -> None:
+    script = (ROOT / "live_scenario_launcher.ps1").read_text(encoding="utf-8")
+    capture = script.split("function Invoke-BackpackCleanCapture {", 1)[1].split("\nfunction ", 1)[0]
+    for expected in (
+        "Assert-ReadyForGt", "New-DashboardSettingsSnapshot", "Get-LiveRuntimeArgs",
+        '"--target", "backpack_clean"', '"--backpack-entry", $Entry',
+        "auto_clean_backpack", "clean_backpack_every_rounds",
+    ):
+        assert expected in capture
+    assert "B1 局内清理背包（蹭车/局内）" in script
+    assert "B2 选关页清理背包（单人）" in script
+    assert "Invoke-BackpackCleanCapture -Entry ingame" in script
+    assert "Invoke-BackpackCleanCapture -Entry stage" in script
 
 
 def test_solo_chain_loads_saved_dashboard_snapshot_without_replacing_policy(tmp_path: Path) -> None:

@@ -56,7 +56,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.med._finish_panel_episode()
         self.assertEqual(self.med._l1_cycle_step, "skill")
 
-    def test_hitch_round_cycles_merchant_treasure_pickup_public_bag(self):
+    def test_hitch_round_cycles_through_backpack_clean(self):
         """蹭车环整局滚动，不再停在 hitch_idle。
 
         停车位存在时公共背包只有一次机会，而队伍资产是整局陆续掉的：录像
@@ -67,12 +67,12 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.assertEqual(med._l1_cycle_step, "merchant")
 
         seen = []
-        for _ in range(8):
+        for _ in range(10):
             med._advance_l1_cycle()
             seen.append(med._l1_cycle_step)
         self.assertEqual(
             seen,
-            ["treasure", "pickup", "public_bag", "merchant"] * 2,
+            ["treasure", "pickup", "public_bag", "backpack_clean", "merchant"] * 2,
         )
         self.assertNotIn("bond", seen, "蹭车不拿羁绊：那是发育自己")
         self.assertNotIn("skill", seen, "蹭车不拿技能：那是发育自己")

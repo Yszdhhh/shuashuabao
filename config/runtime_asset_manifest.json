@@ -114,6 +114,62 @@
       "sha256": "e04db1ec8713e55ecf2ecdd07de8e481a26c5b72ddec78a3c89bfe9899bb9c4d"
     },
     {
+      "path": "assets/Images/backpack/hud_cundang.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from live read-only capture backpack_clean_gt_20260925 g0001",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 4278,
+      "sha256": "e98b4a43250dfece042fed51e5cade2c605c7d1b842fd3ff89dce22243342587"
+    },
+    {
+      "path": "assets/Images/backpack/quality_no.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from live read-only capture backpack_clean_gt_20260925 g0004",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 4043,
+      "sha256": "afd6c4e468aadea6f363f296202b06bdb37e49a916956b0861b7f5aaa27c0e8d"
+    },
+    {
+      "path": "assets/Images/backpack/quality_title.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from live read-only capture backpack_clean_gt_20260925 g0004",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 6332,
+      "sha256": "df3fee05d1d551a3886d96c979ea482518829b8e3f60bbbde3d467be151cd8c7"
+    },
+    {
+      "path": "assets/Images/backpack/quality_yes.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from live read-only capture backpack_clean_gt_20260925 g0004",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 3965,
+      "sha256": "49c4fb2d0da2c423c61c80ca19936ca0dc8225b2660e09c9f8892ac9179925e1"
+    },
+    {
+      "path": "assets/Images/backpack/return_game.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from live read-only capture backpack_clean_gt_20260925 g0002",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 3833,
+      "sha256": "4d72990c4b6d5cfed661a3a7c0d189791d92fc9119de02454958f478bb68a8af"
+    },
+    {
+      "path": "assets/Images/backpack/tab_cundang.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from real stage-select frame highlight_on_1_1_client_1600x900",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 2131,
+      "sha256": "8a710c5f1eb1862f4a859b1ca05d5b5cb33b0e1763b41cd4fd8d695f7a18450f"
+    },
+    {
+      "path": "assets/Images/backpack/tab_lobby.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from live read-only capture backpack_clean_gt_20260925 g0002",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 3926,
+      "sha256": "4fdbd311b0c4e7652d8f5f520a3421ffbfd1d8a8757ae965be2aa0c27366c411"
+    },
+    {
       "path": "assets/Images/bag/bag_sell_equipment.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",

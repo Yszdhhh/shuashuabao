@@ -4120,6 +4120,7 @@
           <div class="switch-row"><span id="lblSecret">自动秘境</span><button type="button" class="switch" id="swSecret" role="switch" aria-checked="true" aria-pressed="true" aria-labelledby="lblSecret"></button></div>
           <div class="switch-row"><span id="lblCloseML">5-5 后取消自动主线</span><button type="button" class="switch" id="swCloseML" role="switch" aria-checked="true" aria-pressed="true" aria-labelledby="lblCloseML"></button></div>
           <div class="switch-row"><span id="lblAutoArch">票刷完自动考古</span><button type="button" class="switch" id="swAutoArch" role="switch" aria-checked="true" aria-pressed="true" aria-labelledby="lblAutoArch"></button></div>
+          <div class="switch-row"><span id="lblBackpackClean">自动清理背包</span><button type="button" class="switch" id="swBackpackClean" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblBackpackClean"></button></div>
         </section>
         <section class="panel lead-box" id="leadBox">
           <h3 data-od-id="lead-room-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M232,212H212V40a20,20,0,0,0-20-20H64A20,20,0,0,0,44,40V212H24a12,12,0,0,0,0,24H232a12,12,0,0,0,0-24Zm-44,0H172V44h16ZM68,44h80V212H68Zm68,84a16,16,0,1,1-16-16A16,16,0,0,1,136,128Z"/></svg></span>带车房间</h3>
@@ -4222,6 +4223,7 @@
               </div>
             </div>
           </div>
+          <div class="switch-row"><span id="lblHitchBackpackClean">自动清理背包</span><button type="button" class="switch" id="swHitchBackpackClean" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblHitchBackpackClean"></button></div>
         </section>
         <ol class="hitch-path" data-od-id="hitch-route" aria-label="蹭车运行路径">
           <li><i>01</i><span class="ph" aria-hidden="true"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M232.49,215.51,185,168a92.12,92.12,0,1,0-17,17l47.53,47.54a12,12,0,0,0,17-17ZM44,112a68,68,0,1,1,68,68A68.07,68.07,0,0,1,44,112Z"></path></svg></span><b>自动找房</b></li>
@@ -4307,6 +4309,9 @@
     <div class="drawer-backdrop" id="drawerBackdrop"></div>
     <aside class="drawer" id="drawer" role="dialog" aria-labelledby="drawerTitle" aria-modal="false" aria-hidden="true">
       <div class="drawer-head"><h3 id="drawerTitle">高级设置</h3><button type="button" class="drawer-close" id="btnDrawerClose" aria-label="关闭高级设置">✕</button></div>
+      <h4>背包清理</h4>
+      <div class="fail-down"><span>每</span><input id="cleanBackpackEveryRounds" type="number" inputmode="numeric" min="1" max="100" step="1" value="10" aria-label="每几局清理一次背包" /><span>局清理一次</span></div>
+      <p class="fail-hint">仅分解精良及以下和史诗，保留传说</p>
       <h4>关卡难度<small>连败时自动降档</small></h4><div class="fail-down"><span>失败</span><input id="downgradeAfterFailures" type="number" inputmode="numeric" min="0" max="20" step="1" value="2" aria-label="连续失败几局" /><span>局，降低</span><input id="downgradeSteps" type="number" inputmode="numeric" min="1" max="10" step="1" value="1" aria-label="降低几级关卡难度" /><span>级关卡难度</span></div><p class="fail-hint">局数填 0 即关闭</p>
       <h4>特殊宝物<small>默认不拿，勾选即放行</small></h4>
       <div class="neg" id="negatives"></div>
@@ -4500,7 +4505,7 @@
     const state = {
       scene:"farm", mode:"solo", wizKind:"solo", wizTeam:"lead", wizardReturnScene:"farm",
       running:false, hudPhase:"IDLE",
-      theme:"dark", hero:false, cycle:2, played:0, autoSecret:true, autoArch:true, closeMainline:true, newRoom:false, chapter:2, stage:1, dragonPrefer:false,
+      theme:"dark", hero:false, cycle:2, played:0, autoSecret:true, autoArch:true, closeMainline:true, backpackClean:false, newRoom:false, chapter:2, stage:1, dragonPrefer:false,
       teamRules:{follow:{cycle:100,afterRoom:"solo",recoveryHours:1,pairCode:""},hitch:{cycle:100,afterGoal:"solo",recoveryHours:1}},
       selected:"arcane_open", presets:JSON.parse(JSON.stringify(DEFAULT_PRESETS)),
       custom:[{id:"custom:1", name:"自定义策略", skills:["asj","asjg","assx","jq"], priority:["asj","asjg","assx","jq"], routes:{}, attr:["intelligence"], growth:["祝福","成长","经济","贪婪","挑战"], basic:["法术","急速","魔能","暴击"], adv:["haidao","fengshen"], isCustom:true}],
@@ -6130,7 +6135,7 @@
         }
       }
     });
-    ["swSecret","swCloseML","swAutoArch","swNewRoom","swDragon"].forEach((id)=>{
+    ["swSecret","swCloseML","swAutoArch","swBackpackClean","swHitchBackpackClean","swNewRoom","swDragon"].forEach((id)=>{
       const el=$(id); if (!el) return;
       el.addEventListener("click",(e)=>{
         const pressed = e.currentTarget.getAttribute("aria-pressed")!=="true";
@@ -6139,6 +6144,11 @@
         if (id==="swDragon") state.dragonPrefer = pressed;
         if (id==="swAutoArch") state.autoArch = pressed;
         if (id==="swCloseML") state.closeMainline = pressed;
+        if (id==="swBackpackClean" || id==="swHitchBackpackClean") {
+          state.backpackClean = pressed;
+          setSwitch($("swBackpackClean"), pressed);
+          setSwitch($("swHitchBackpackClean"), pressed);
+        }
         if (id==="swNewRoom") state.newRoom = pressed;
         renderLaunchSummary();
       });
@@ -6422,6 +6432,8 @@
       setSwitch($("swSecret"), state.autoSecret);
       setSwitch($("swCloseML"), state.closeMainline);
       setSwitch($("swAutoArch"), state.autoArch);
+      setSwitch($("swBackpackClean"), state.backpackClean);
+      setSwitch($("swHitchBackpackClean"), state.backpackClean);
       setSwitch($("swDragon"), state.dragonPrefer);
       renderChapterStage(); renderNames(); renderBuilds(); renderBonds(); renderNegatives(); renderPrestige(); renderTeamRules();
       setScene("farm");
@@ -7064,7 +7076,7 @@
           const neg = document.getElementById("negatives");
           if (neg) neg.dispatchEvent(new Event("change", { bubbles: true }));
 
-          [["swSecret", "autoSecret"], ["swAutoArch", "autoArch"], ["swCloseML", "closeMainline"], ["swDragon", "dragonPrefer"], ["swNewRoom", "newRoom"]].forEach(([id, key]) => {
+          [["swSecret", "autoSecret"], ["swAutoArch", "autoArch"], ["swCloseML", "closeMainline"], ["swBackpackClean", "backpackClean"], ["swDragon", "dragonPrefer"], ["swNewRoom", "newRoom"]].forEach(([id, key]) => {
             const el = document.getElementById(id); const want = !!(p.sw && p.sw[key]);
             if (el && !!state[key] !== want) el.click();
           });

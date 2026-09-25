@@ -1236,6 +1236,14 @@ class Mediator:
         # 搬不动的格子（装备栏里的在装武器等）：连续失败两次就本局跳过，
         # 否则冷却到期后会一直回来重试同一格。
         self._public_bag_failed_sources: dict[str, int] = {}
+        # 蹭车背包自动清理状态机 (2026-09-25)
+        self._backpack_clean_phase: str = "idle"
+        self._backpack_clean_phase_since: float = 0.0
+        self._backpack_clean_started_at: float = 0.0
+        self._backpack_clean_deadline: float = 0.0
+        self._backpack_clean_last_round: int = -1
+        self._backpack_clean_abort_reason: str | None = None
+        self._backpack_clean_solo: bool = False
         self._pickup_next_at = 0.0
         self._equipment_round_next_at = 0.0
         self._equipment_round_current_slot = 2
@@ -1417,6 +1425,9 @@ class Mediator:
             if self.find(frame, ["zidong"], threshold=th, scales=self._hot_scales(), roi=self._ENV_ZIDONG_ROI):
                 return True
             if self.find(frame, ["shortKey"], threshold=th, scales=self._hot_scales(), roi=self._ENV_SHORTKEY_ROI):
+                return True
+            arch = self._archaeology_mode_anchor(frame)
+            if arch and arch.name == "kaoguMode":
                 return True
             # mainIdentifier is the "等待玩家1选择难度" banner of the in-game
             # stage lobby (see _host_choosing_difficulty), never HUD evidence:
@@ -4462,9 +4473,11 @@ class Mediator:
     # 20260910 实机复盘：LIVE 走的是 RuntimeMediator，它此前写死 solo 顺序，
     # 于是蹭车局照样点了进化和 1 号装备升级，而 hitch_idle 一次都没到——
     # 公共背包挂在 hitch_idle 上就永远不会被调用。修复见 runtime_mediator。
-    # 这里不再留终点停车位：merchant→treasure→pickup→public_bag 循环滚动，
-    # 整局持续捡东西、持续往公共背包丢。
-    _HITCH_L1_CYCLE_ORDER = ("merchant", "treasure", "pickup", "public_bag")
+    # 这里不再留终点停车位：merchant→treasure→pickup→public_bag→backpack_clean 循环滚动，
+    # 整局持续捡东西、持续往公共背包丢、定期清理背包。
+    _HITCH_L1_CYCLE_ORDER = ("merchant", "treasure", "pickup", "public_bag", "backpack_clean")
+    _BACKPACK_CLEAN_HARD_CAP_S = 45.0
+    _BACKPACK_CLEAN_STEP_TIMEOUT_S = 8.0
     # 宝物次数与黑商杀敌货币不是同一个量；V 空开后短暂退避即可，不能用
     # 会被黑商消耗的余额长期阻止后续宝物领取。
     _HITCH_TREASURE_RETRY_S = 8.0
@@ -6365,6 +6378,257 @@ class Mediator:
         result["observed"] = True
         result["state"] = "confirmed"
         return result
+
+    # ---------- 蹭车背包自动清理 (2026-09-25) ----------
+
+    def _backpack_read_quality_checkboxes(
+        self, frame: Frame, title_hit: MatchResult
+    ) -> tuple[bool | None, bool | None, bool | None]:
+        hsv = frame.hsv()
+        if hsv is None:
+            return None, None, None
+        tx, ty = title_hit.x, title_hit.y
+        ranges = [
+            (tx + 138, tx + 157, ty + 44, ty + 64),
+            (tx + 199, tx + 218, ty + 44, ty + 64),
+            (tx + 260, tx + 279, ty + 44, ty + 64),
+        ]
+        results: list[bool | None] = []
+        for x1, x2, y1, y2 in ranges:
+            if y2 > hsv.shape[0] or x2 > hsv.shape[1] or x1 < 0 or y1 < 0:
+                results.append(None)
+                continue
+            crop = hsv[y1:y2, x1:x2]
+            mask = (
+                (crop[:, :, 0] >= 35)
+                & (crop[:, :, 0] <= 85)
+                & (crop[:, :, 1] >= 90)
+                & (crop[:, :, 2] >= 120)
+            )
+            count = int(np.count_nonzero(mask))
+            if count >= 20:
+                results.append(True)
+            elif count <= 3:
+                results.append(False)
+            else:
+                results.append(None)
+        return results[0], results[1], results[2]
+
+    def _tick_backpack_clean(self, frame: Frame, now: float) -> LoopAction:
+        exit_name = "backpack/tab_lobby" if self._backpack_clean_solo else "backpack/return_game"
+        exit_threshold = 0.95 if self._backpack_clean_solo else 0.85
+        if self._backpack_clean_deadline > 0.0 and now >= self._backpack_clean_deadline:
+            print(
+                f"[L1] 背包清理：达到 45 秒硬上限，退出清理（当前阶段: {self._backpack_clean_phase}，"
+                f"原因: {self._backpack_clean_abort_reason or '事务超时'}），本轮不再重试"
+            )
+            unfinished = self._backpack_clean_phase != "wait_cundang"
+            self._backpack_clean_abort_reason = self._backpack_clean_abort_reason or "事务超时"
+            self._backpack_clean_last_round = self.game_count
+            self._backpack_clean_phase = "idle"
+            if unfinished:
+                self.set_phase(Phase.ERROR, "backpack clean timed out before return was verified")
+                self.stop()
+                return LoopAction.Break
+            if not self._backpack_clean_solo:
+                self._advance_l1_cycle("backpack_clean")
+            self._backpack_clean_solo = False
+            return LoopAction.Continue
+
+        phase = self._backpack_clean_phase
+
+        if phase == "wait_deadline":
+            returned = self._find_stage_page(frame) if self._backpack_clean_solo else self.find(
+                frame, ["backpack/hud_cundang"], threshold=0.85
+            )
+            if returned:
+                self._backpack_clean_last_round = self.game_count
+                self._backpack_clean_phase = "idle"
+                if not self._backpack_clean_solo:
+                    self._advance_l1_cycle("backpack_clean")
+                self._backpack_clean_solo = False
+                return LoopAction.Continue
+            if self.find(frame, ["backpack/quality_title"], threshold=0.85) is None:
+                exit_hit = self.find(frame, [exit_name], threshold=exit_threshold)
+                if exit_hit and (not self._backpack_clean_solo or not self._find_stage_page(frame)):
+                    self._backpack_clean_phase = "wait_hud_return"
+                    self._backpack_clean_phase_since = now
+                    self.act_click(exit_hit, "backpack_clean:abort_exit")
+            return LoopAction.Continue
+
+        if phase == "wait_cundang":
+            entry_name = "backpack/tab_cundang" if self._backpack_clean_solo else "backpack/hud_cundang"
+            cundang_hit = self.find(frame, [entry_name], threshold=0.95 if self._backpack_clean_solo else 0.85)
+            if cundang_hit:
+                print(f"[L1] 背包清理：存档入口可见 @ {cundang_hit.center}，点击打开存档页")
+                self._backpack_clean_phase = "wait_archive"
+                self._backpack_clean_phase_since = now
+                reason = "backpack_clean:tab_cundang" if self._backpack_clean_solo else "backpack_clean:hud_cundang"
+                self.act_click(cundang_hit, reason)
+                return LoopAction.Continue
+            return_hit = self.find(frame, [exit_name], threshold=exit_threshold)
+            if return_hit and (not self._backpack_clean_solo or not self._find_stage_page(frame)):
+                print("[L1] 背包清理：存档页已处于打开状态")
+                self._backpack_clean_phase = "wait_archive"
+                self._backpack_clean_phase_since = now
+                return LoopAction.Continue
+            if now - self._backpack_clean_phase_since > self._BACKPACK_CLEAN_STEP_TIMEOUT_S:
+                print("[L1] 背包清理：等待 HUD 存档超时且未见返回游戏，零输入等待硬上限，本轮不再重试")
+                self._backpack_clean_phase = "wait_deadline"
+                self._backpack_clean_abort_reason = "wait_cundang_timeout"
+            return LoopAction.Continue
+
+        if phase == "wait_archive":
+            return_hit = self.find(frame, [exit_name], threshold=exit_threshold)
+            if return_hit:
+                decompose_hit = self.find(frame, ["decompose"], threshold=0.85)
+                if decompose_hit:
+                    print(f"[L1] 背包清理：一键分解可见 @ {decompose_hit.center}，点击一键分解")
+                    self._backpack_clean_phase = "wait_quality_dialog"
+                    self._backpack_clean_phase_since = now
+                    self.act_click(decompose_hit, "backpack_clean:decompose")
+                    return LoopAction.Continue
+                zhuangbei_hit = self.find(frame, ["zhuangbei"], threshold=0.85)
+                if zhuangbei_hit:
+                    print(f"[L1] 背包清理：一键分解不可见，点击装备页签 @ {zhuangbei_hit.center}")
+                    self._backpack_clean_phase = "wait_decompose"
+                    self._backpack_clean_phase_since = now
+                    self.act_click(zhuangbei_hit, "backpack_clean:zhuangbei")
+                    return LoopAction.Continue
+                print("[L1] 背包清理：存档页未找到装备页签或分解按钮，点击返回游戏退出")
+                self._backpack_clean_abort_reason = "archive_controls_missing"
+                self._backpack_clean_last_round = self.game_count
+                self._backpack_clean_phase = "wait_hud_return"
+                self._backpack_clean_phase_since = now
+                self.act_click(return_hit, "backpack_clean:exit_unknown_archive")
+                return LoopAction.Continue
+            if now - self._backpack_clean_phase_since > self._BACKPACK_CLEAN_STEP_TIMEOUT_S:
+                print("[L1] 背包清理：等待存档页超时，零输入等待硬上限，本轮不再重试")
+                self._backpack_clean_phase = "wait_deadline"
+                self._backpack_clean_abort_reason = "wait_archive_timeout"
+            return LoopAction.Continue
+
+        if phase == "wait_decompose":
+            decompose_hit = self.find(frame, ["decompose"], threshold=0.85)
+            if decompose_hit:
+                print(f"[L1] 背包清理：一键分解可见 @ {decompose_hit.center}，点击一键分解")
+                self._backpack_clean_phase = "wait_quality_dialog"
+                self._backpack_clean_phase_since = now
+                self.act_click(decompose_hit, "backpack_clean:decompose")
+                return LoopAction.Continue
+            if now - self._backpack_clean_phase_since > self._BACKPACK_CLEAN_STEP_TIMEOUT_S:
+                return_hit = self.find(frame, [exit_name], threshold=exit_threshold)
+                if return_hit:
+                    print("[L1] 背包清理：等待一键分解超时，点击返回游戏退出，本轮不再重试")
+                    self._backpack_clean_abort_reason = "wait_decompose_timeout"
+                    self._backpack_clean_last_round = self.game_count
+                    self._backpack_clean_phase = "wait_hud_return"
+                    self._backpack_clean_phase_since = now
+                    self.act_click(return_hit, "backpack_clean:abort_wait_decompose")
+                    return LoopAction.Continue
+                print("[L1] 背包清理：等待一键分解超时且未见返回游戏，零输入等待硬上限，本轮不再重试")
+                self._backpack_clean_phase = "wait_deadline"
+                self._backpack_clean_abort_reason = "wait_decompose_timeout"
+            return LoopAction.Continue
+
+        if phase == "wait_quality_dialog":
+            title_hit = self.find(frame, ["backpack/quality_title"], threshold=0.85)
+            if title_hit:
+                yes_hit = self.find(frame, ["backpack/quality_yes"], threshold=0.85)
+                if yes_hit:
+                    jl, ss, cs = self._backpack_read_quality_checkboxes(frame, title_hit)
+                    if jl is True and ss is True and cs is False:
+                        print(f"[L1] 背包清理：勾选框符合预期（精良=True, 史诗=True, 传说=False），点击「是」@ {yes_hit.center}")
+                        self._backpack_clean_phase = "wait_quality_disappear"
+                        self._backpack_clean_phase_since = now
+                        self.act_click(yes_hit, "backpack_clean:quality_yes")
+                        return LoopAction.Continue
+                    else:
+                        no_hit = self.find(frame, ["backpack/quality_no"], threshold=0.85)
+                        if no_hit is None:
+                            print("[L1] 背包清理：品质异常但未识别到「否」，零输入等待")
+                            return LoopAction.Continue
+                        print(
+                            f"[L1] 背包清理：勾选框异常（精良={jl}, 史诗={ss}, 传说={cs}），绝不点「是」，点击「否」@ {no_hit.center}"
+                        )
+                        self._backpack_clean_abort_reason = "quality_check_failed"
+                        self._backpack_clean_last_round = self.game_count
+                        self._backpack_clean_phase = "wait_quality_disappear"
+                        self._backpack_clean_phase_since = now
+                        self.act_click(no_hit, "backpack_clean:quality_no")
+                        return LoopAction.Continue
+            if now - self._backpack_clean_phase_since > self._BACKPACK_CLEAN_STEP_TIMEOUT_S:
+                return_hit = self.find(frame, [exit_name], threshold=exit_threshold)
+                if return_hit and title_hit is None:
+                    print("[L1] 背包清理：等待品质弹窗超时，点击返回游戏退出，本轮不再重试")
+                    self._backpack_clean_abort_reason = "wait_quality_timeout"
+                    self._backpack_clean_last_round = self.game_count
+                    self._backpack_clean_phase = "wait_hud_return"
+                    self._backpack_clean_phase_since = now
+                    self.act_click(return_hit, "backpack_clean:abort_wait_quality")
+                    return LoopAction.Continue
+                print("[L1] 背包清理：等待品质弹窗超时且未见返回游戏，零输入等待硬上限，本轮不再重试")
+                self._backpack_clean_phase = "wait_deadline"
+                self._backpack_clean_abort_reason = "wait_quality_timeout"
+            return LoopAction.Continue
+
+        if phase == "wait_quality_disappear":
+            title_hit = self.find(frame, ["backpack/quality_title"], threshold=0.85)
+            if title_hit is None:
+                return_hit = self.find(frame, [exit_name], threshold=exit_threshold)
+                if return_hit:
+                    print(f"[L1] 背包清理：弹窗已关闭，点击返回游戏 @ {return_hit.center}")
+                    self._backpack_clean_phase = "wait_hud_return"
+                    self._backpack_clean_phase_since = now
+                    reason = "backpack_clean:tab_lobby" if self._backpack_clean_solo else "backpack_clean:return_game"
+                    self.act_click(return_hit, reason)
+                    return LoopAction.Continue
+            if now - self._backpack_clean_phase_since > self._BACKPACK_CLEAN_STEP_TIMEOUT_S:
+                return_hit = self.find(frame, [exit_name], threshold=exit_threshold)
+                if return_hit and title_hit is None:
+                    print("[L1] 背包清理：等待弹窗关闭超时，点击返回游戏退出，本轮不再重试")
+                    self._backpack_clean_abort_reason = "wait_quality_disappear_timeout"
+                    self._backpack_clean_last_round = self.game_count
+                    self._backpack_clean_phase = "wait_hud_return"
+                    self._backpack_clean_phase_since = now
+                    self.act_click(return_hit, "backpack_clean:abort_wait_quality_disappear")
+                    return LoopAction.Continue
+                print("[L1] 背包清理：等待弹窗关闭超时且未见返回游戏，零输入等待硬上限，本轮不再重试")
+                self._backpack_clean_phase = "wait_deadline"
+                self._backpack_clean_abort_reason = "wait_quality_disappear_timeout"
+            return LoopAction.Continue
+
+        if phase == "wait_hud_return":
+            returned = self._find_stage_page(frame) if self._backpack_clean_solo else self.find(
+                frame, ["backpack/hud_cundang"], threshold=0.85
+            )
+            if returned:
+                print("[L1] 背包清理：HUD 重新可见，本轮背包清理完成")
+                self._backpack_clean_last_round = self.game_count
+                self._backpack_clean_phase = "idle"
+                if not self._backpack_clean_solo:
+                    self._advance_l1_cycle("backpack_clean")
+                self._backpack_clean_solo = False
+                return LoopAction.Continue
+            if now - self._backpack_clean_phase_since > self._BACKPACK_CLEAN_STEP_TIMEOUT_S:
+                print("[L1] 背包清理：返回游戏未验证，停止运行")
+                self._backpack_clean_abort_reason = "return_not_verified"
+                self._backpack_clean_last_round = self.game_count
+                self._backpack_clean_phase = "idle"
+                self.set_phase(Phase.ERROR, "backpack clean return was not verified")
+                self.stop()
+                return LoopAction.Break
+            return LoopAction.Continue
+
+        # 未知阶段兜底
+        print(f"[L1] 背包清理：未知阶段 {phase}，重置回 idle")
+        self._backpack_clean_abort_reason = f"unknown_phase:{phase}"
+        self._backpack_clean_last_round = self.game_count
+        self._backpack_clean_phase = "idle"
+        if not self._backpack_clean_solo:
+            self._advance_l1_cycle("backpack_clean")
+        self._backpack_clean_solo = False
+        return LoopAction.Continue
 
     @staticmethod
     def _merchant_refresh_hit(frame: Frame) -> MatchResult:
@@ -10938,6 +11202,12 @@ class Mediator:
             self._public_bag_fsm = PublicBagFSM()
             self._public_bag_failed_sources = {}
             self._public_bag_personal_leftover = False
+            self._backpack_clean_phase = "idle"
+            self._backpack_clean_phase_since = 0.0
+            self._backpack_clean_started_at = 0.0
+            self._backpack_clean_deadline = 0.0
+            self._backpack_clean_abort_reason = None
+            self._backpack_clean_solo = False
             self._l1_cycle_last_advance_at = time.time()
             self._l1_cycle_step_successes = 0
             self._panel_visit_force_advance = False
@@ -11161,6 +11431,11 @@ class Mediator:
             self._public_bag_fsm = PublicBagFSM()
             self._public_bag_empty_since = None
             self._public_bag_failed_sources = {}
+            self._backpack_clean_phase = "idle"
+            self._backpack_clean_phase_since = 0.0
+            self._backpack_clean_started_at = 0.0
+            self._backpack_clean_deadline = 0.0
+            self._backpack_clean_abort_reason = None
             self._l1_cycle_owned_panel = False
             self._l1_cycle_selected = False
             self._merchant_next_at = 0.0
@@ -15294,6 +15569,8 @@ class Mediator:
 
     def _tick_l0(self, frame: Frame) -> LoopAction:
         """Handle map → create dialog → room → stage without guessing clicks."""
+        if self.phase == Phase.STAGE_SELECT and self._backpack_clean_solo and self._backpack_clean_phase != "idle":
+            return self._tick_backpack_clean(frame, time.time())
         # 机会性校正挑战券读数：只有选关页/游戏大厅看得见这个计数，蹭车大部分
         # 时间待在 KK 房间列表里，所以读不到是常态，由死算兜着（见
         # _observe_ticket_balance）。内部有 5s 间隔闸，不会每 tick 都 OCR。
@@ -15649,6 +15926,22 @@ class Mediator:
 
         if self.phase == Phase.STAGE_SELECT:
             now = time.time()
+            if (
+                stage_page
+                and not self._passenger_mode()
+                and self.settings.auto_clean_backpack
+                and (
+                    self._backpack_clean_last_round < 0
+                    or self.game_count - self._backpack_clean_last_round >= self.settings.clean_backpack_every_rounds
+                )
+            ):
+                self._backpack_clean_solo = True
+                self._backpack_clean_started_at = now
+                self._backpack_clean_deadline = now + self._BACKPACK_CLEAN_HARD_CAP_S
+                self._backpack_clean_phase = "wait_cundang"
+                self._backpack_clean_phase_since = now
+                self._backpack_clean_abort_reason = None
+                return self._tick_backpack_clean(frame, now)
             budget_result = self._stage_budget_guard(now)
             if budget_result is not None:
                 return budget_result
@@ -17717,6 +18010,8 @@ class Mediator:
 
     def _tick_main_line(self, frame: Frame) -> LoopAction:
         now = time.time()
+        if self._backpack_clean_phase != "idle":
+            return self._tick_backpack_clean(frame, now)
         if self._reject_hitch_archaeology_room(frame, now):
             return LoopAction.Continue
         self._observe_tick()
@@ -19168,6 +19463,25 @@ class Mediator:
                 return LoopAction.Continue
             self._advance_l1_cycle("public_bag")
             return LoopAction.Continue
+
+        if self._l1_cycle_step == "backpack_clean":
+            if not self._passenger_mode() or not self.settings.auto_clean_backpack:
+                self._advance_l1_cycle("backpack_clean")
+                return LoopAction.Continue
+            rounds_elapsed = self.game_count - self._backpack_clean_last_round
+            if self._backpack_clean_last_round >= 0 and rounds_elapsed < self.settings.clean_backpack_every_rounds:
+                self._advance_l1_cycle("backpack_clean")
+                return LoopAction.Continue
+            if self._backpack_clean_phase == "idle":
+                self._backpack_clean_solo = False
+                self._backpack_clean_started_at = now
+                self._backpack_clean_deadline = now + self._BACKPACK_CLEAN_HARD_CAP_S
+                self._backpack_clean_phase = "wait_cundang"
+                self._backpack_clean_phase_since = now
+                self._backpack_clean_abort_reason = None
+            res = self._tick_backpack_clean(frame, now)
+            self._main_line_since = now
+            return res
 
         if self._l1_cycle_step == "pickup":
             occupied = self._hud_item_bar_occupied_count(frame)

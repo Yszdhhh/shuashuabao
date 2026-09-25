@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "candidate_sha": "0d72607f5173bbdd60e53741ff7dca1f300fb316",
+  "candidate_sha": "b74a6a51b6552a4e43bd4b480583ab623c9dc569",
   "anchored_at": "2026-09-25T11:30:00+08:00",
   "branch": "claude/project-thread-fqyf7h",
   "note": "Hitch live 09-25 fixes via #46 (stage misread guard, 失败 overlay anchor, heirloom/时光之穴 list bounds, Boss bottom fallback) on top of Owner 09-24 late rules"

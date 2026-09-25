@@ -217,6 +217,12 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_bond_replace_incoming": "polluted",
         "_bond_replace_at": 1.0e9,
         "_merchant_open_next_at": 1.0e9,
+        "_backpack_clean_phase": "wait_archive",
+        "_backpack_clean_phase_since": 1.0e9,
+        "_backpack_clean_started_at": 1.0e9,
+        "_backpack_clean_deadline": 1.0e9,
+        "_backpack_clean_last_round": 99,
+        "_backpack_clean_abort_reason": "polluted",
     }
 
     def _pollute(self, med: Mediator) -> None:
