@@ -56,7 +56,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.med._finish_panel_episode()
         self.assertEqual(self.med._l1_cycle_step, "skill")
 
-    def test_hitch_round_cycles_merchant_treasure_pickup_public_bag(self):
+    def test_hitch_round_cycles_through_backpack_clean(self):
         """蹭车环整局滚动，不再停在 hitch_idle。
 
         停车位存在时公共背包只有一次机会，而队伍资产是整局陆续掉的：录像
@@ -67,12 +67,12 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.assertEqual(med._l1_cycle_step, "merchant")
 
         seen = []
-        for _ in range(8):
+        for _ in range(10):
             med._advance_l1_cycle()
             seen.append(med._l1_cycle_step)
         self.assertEqual(
             seen,
-            ["treasure", "pickup", "public_bag", "merchant"] * 2,
+            ["treasure", "pickup", "public_bag", "backpack_clean", "merchant"] * 2,
         )
         self.assertNotIn("bond", seen, "蹭车不拿羁绊：那是发育自己")
         self.assertNotIn("skill", seen, "蹭车不拿技能：那是发育自己")
@@ -330,8 +330,9 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
             scales=(0.75, 0.9, 1.0, 1.1, 1.25),
             roi=(0.70, 0.67, 0.90, 0.79),
         )
-        self.assertIsNotNone(wood)
-        self.assertEqual(wood.name, "merchant_wood")
+        # 2026-09-25 P2：该 strip 无真木材（slot 1/2 为拳套）。旧模板本身即拳套图，
+        # 故曾在此误命中；新模板下拳套不得再被认成木材。
+        self.assertIsNone(wood)
 
     def test_merchant_fingerprint_uses_slot_identity_not_whole_strip_pixels(self):
         x0, y0, x1, y1 = (

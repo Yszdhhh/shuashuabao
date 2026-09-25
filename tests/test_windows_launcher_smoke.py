@@ -115,6 +115,19 @@ def _wait_marker(path: Path, timeout_s: float = MARKER_TIMEOUT_S) -> dict:
     raise AssertionError(f"launcher did not write marker within {timeout_s:.0f}s: {path}")
 
 
+def _restore_exe(path: Path, original: bytes, timeout_s: float = 10.0) -> None:
+    """Wait briefly for the launched smoke PE to release its Windows file lock."""
+    deadline = time.monotonic() + timeout_s
+    while True:
+        try:
+            path.write_bytes(original)
+            return
+        except PermissionError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.1)
+
+
 def _run_vbs(vbs: Path, timeout_s: float) -> int:
     proc = subprocess.Popen(
         ["wscript.exe", "//nologo", str(vbs)],
@@ -384,7 +397,7 @@ def test_windows_launcher_shortcut_vbs_ps1_current_and_rollback(tmp_path: Path, 
         assert Path(marker["exe"]).resolve() == (n1_dir / "ShuaBao.exe").resolve()
         assert marker["admin"] is False
     finally:
-        (n1_dir / "ShuaBao.exe").write_bytes(original_n1)
+        _restore_exe(n1_dir / "ShuaBao.exe", original_n1)
         if lnk.exists():
             lnk.unlink()
 
@@ -404,7 +417,7 @@ def test_windows_launcher_shortcut_vbs_ps1_current_and_rollback(tmp_path: Path, 
         assert "aaaaaaaaaaaa" in marker["exe"]
         assert marker["admin"] is False
     finally:
-        (n_dir / "ShuaBao.exe").write_bytes(original_n)
+        _restore_exe(n_dir / "ShuaBao.exe", original_n)
 
     (n_dir / "launched.json").unlink(missing_ok=True)
     (n1_dir / "launched.json").unlink(missing_ok=True)

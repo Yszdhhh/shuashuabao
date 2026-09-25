@@ -53,6 +53,8 @@ const SWITCHES = [
   { el: "swSecret", stateKey: "autoSecret", field: "auto_secret_realm" },
   { el: "swCloseML", stateKey: "closeMainline", field: "auto_close_main_line" },
   { el: "swAutoArch", stateKey: "autoArch", field: "auto_archaeology" },
+  { el: "swBackpackClean", stateKey: "backpackClean", field: "auto_clean_backpack" },
+  { el: "swHitchBackpackClean", stateKey: "backpackClean", field: "auto_clean_backpack" },
   { el: "swNewRoom", stateKey: "newRoom", field: "new_room_every_times" },
   { el: "swDragon", stateKey: "dragonPrefer", field: "find_longzhu_where_multi_game" },
 ] as const;
@@ -488,6 +490,12 @@ function applyDowngradeFailures(v: unknown): void {
   if (input) input.value = String(Math.max(0, Math.min(20, Math.trunc(v))));
 }
 
+function applyBackpackCleanInterval(v: unknown): void {
+  if (typeof v !== "number" || !Number.isFinite(v)) return;
+  const input = document.getElementById("cleanBackpackEveryRounds") as HTMLInputElement | null;
+  if (input) input.value = String(Math.max(1, Math.min(100, Math.trunc(v))));
+}
+
 function applyBuildAndSkills(settings: SettingsDTO): void {
   const skills = asStringList(settings.skills).slice(0, 4);
   if (!skills.length) return; // 空技能保持壳内现状，交给 preflight 报错
@@ -719,6 +727,7 @@ export function applySnapshot(snap: SnapshotDTO): void {
     applyPrestige(settings);
     applyStageTargets(settings);
     applyDowngradeFailures(settings.downgrade_after_failures);
+    applyBackpackCleanInterval(settings.clean_backpack_every_rounds);
     applyBuildAndSkills(settings);
     applyVisibleSettings();
     const roomName = asString(settings.room_name);
@@ -881,6 +890,12 @@ function wireIntents(): void {
     const value = Math.max(0, Math.min(20, Math.trunc(Number(downgrade.value) || 0)));
     downgrade.value = String(value);
     pushConfig({ downgrade_after_failures: value });
+  });
+  const cleanEvery = document.getElementById("cleanBackpackEveryRounds") as HTMLInputElement | null;
+  cleanEvery?.addEventListener("change", () => {
+    const value = Math.max(1, Math.min(100, Math.trunc(Number(cleanEvery.value) || 10)));
+    cleanEvery.value = String(value);
+    pushConfig({ clean_backpack_every_rounds: value });
   });
   afterGlobalCall("renderSkillRank", () => {
     if (state.collapsed) pushSkills();

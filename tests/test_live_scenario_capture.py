@@ -472,6 +472,7 @@ def test_generated_click_rejected_branch_reuses_real_mediator_action_path(tmp_pa
 
 def test_all_target_contracts_have_a_structural_readiness_result() -> None:
     assert SUPPORTED_TARGETS == (
+        "backpack_clean",
         "black_merchant",
         "inventory_item",
         "boss_challenge",
@@ -506,6 +507,7 @@ def test_all_target_contracts_have_a_structural_readiness_result() -> None:
     assert "status" not in report["targets"][0]
     assert all(item["harness_readiness"] == "READY" for item in report["targets"])
     by_target = {item["target"]: item for item in report["targets"]}
+    assert by_target["backpack_clean"]["production_readiness"] == "CONDITIONAL"
     assert by_target["inventory_item"]["production_readiness"] == "CONDITIONAL"
     assert by_target["black_merchant"]["production_readiness"] == "CONDITIONAL"
     assert by_target["boss_challenge"]["production_readiness"] == "CONDITIONAL"
@@ -524,11 +526,16 @@ def test_all_target_contracts_have_a_structural_readiness_result() -> None:
     assert by_target["inventory_hero_card"]["production_readiness"] == "CONDITIONAL"
     assert by_target["archive_challenge"]["production_readiness"] == "CONDITIONAL"
     assert TARGET_CONTRACTS["lobby_search"]["max_probe_time_s"] == 90.0
+    assert by_target["backpack_clean"]["ground_truth_only"] is False
     assert by_target["time_cave"]["ground_truth_only"] is False
     assert by_target["heirloom"]["ground_truth_only"] is False
     assert by_target["lobby_hitch"]["ground_truth_only"] is False
     assert by_target["lobby_search"]["ground_truth_only"] is False
     assert by_target["hitch_runtime"]["ground_truth_only"] is False
+    assert any(
+        route["route"] == "backpack_clean_once" and route["readiness"] == "CONDITIONAL"
+        for route in by_target["backpack_clean"]["production_routes"]
+    )
     assert any(
         route["route"] == "black_merchant_wood" and route["readiness"] == "CONDITIONAL"
         for route in by_target["black_merchant"]["production_routes"]

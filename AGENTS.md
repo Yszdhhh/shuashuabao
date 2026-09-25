@@ -16,7 +16,7 @@
 - 发现本地 main 有未推送的提交：先把它们挪到 topic 分支（`git branch <topic> main`），
   再把 main 对齐 `origin/main`，然后才能继续。2026-09-14 的 4ed44d4/45c3520/b66f1ce 就是这样补的 PR #21。
 
-### 1. 提交前必须过门禁
+### 1. 合并与发版前必须过门禁（实测快速档见 1.2）
 
 ```powershell
 python tools/release_gate.py
@@ -44,6 +44,10 @@ python tools/check_material_commit.py        # 退出码 0 才能提交；已提
 
 素材要变成运行时模板（`assets/`）或被测试引用的夹具时，就不再是纯资料：由改代码的一方切图、
 登记 `config/runtime_asset_manifest.json`、写测试，按第 1 条过门禁。
+
+### 1.2 实测快速档与合并档（Owner 2026-09-25）
+
+实测快速档——为实机测试出版本时，只跑与改动相关的测试 + `tests/contract` + `tests/test_live_harness_refresh.py`，提交后重钉身份锚点、更新测试台 `-ProductionSourceSha`、用 `identity --json` 确认 `ready_for_gt: true` 即可交付实测，不跑全量门禁、不刷新快照；合并档——合入 `claude/project-thread-fqyf7h` 或 `main`、发版构建前，必须跑完整 `python tools/release_gate.py` 退出码 0，快照只能在此档按原规则刷新；纯资料仍走 1.1。
 
 ### 2. 一个 commit 只动一层
 

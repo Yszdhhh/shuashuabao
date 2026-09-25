@@ -2,7 +2,7 @@
 
 规则体系:
 1. 固定 5 槽 ROI 扫描。
-2. 蹭车只买吞噬丹；单人依次购买吞噬丹、木材礼包、已识别的 2/5 折。
+2. 蹭车只买吞噬丹；单人依次购买吞噬丹、木材礼包、已识别的 2/5/8 折。
 3. 商店指纹用槽位占用 + 已识别目标，不用整条商品 ROI 逐像素哈希。
    倒计时、图标动画和局部 HUD 变化不得打断 CONFIRMING→READY。
 """
@@ -25,7 +25,7 @@ MERCHANT_SLOT_CENTER_X0 = 1172 / 1600
 MERCHANT_SLOT_STEP_X = 55 / 1600
 MERCHANT_SLOT_CENTER_Y = 640 / 900
 
-DISCOUNT_KEYWORDS = ("2折", "5折", "二折", "五折")
+DISCOUNT_KEYWORDS = ("2折", "5折", "8折", "二折", "五折", "八折")
 NEGATIVE_ITEM_NAMES = ("贪欲之刃", "贪婪献祭", "杀敌流失", "扣除金币", "生命削减")
 
 
