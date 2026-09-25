@@ -15,11 +15,14 @@ import cv2
 import numpy as np
 
 from shuabao.settings import Settings
+from shuabao.mediator import Mediator
+from shuabao.stop_signal import StopSignal
 from shuabao.vision.capture import Frame
 from tools import live_scenario_capture as lsc
 
 ROOT = Path(__file__).resolve().parents[1]
 KK_ROOM = ROOT / "tests" / "fixtures" / "real_kk_room_window.png"
+STAGE_PAGE = ROOT / "tests" / "fixtures" / "hitch_postgame_20260914" / "real_stage_page_f0034.png"
 
 
 def _kk_frame(title: str = "KK官方对战平台") -> Frame:
@@ -78,3 +81,17 @@ def test_other_in_game_targets_keep_requiring_the_game_window() -> None:
     _, record, calls = _preflight("hitch_runtime", _missing(), _kk_frame())
     assert calls == [("英雄三国", "l1")]
     assert record["status"] == "BLOCKED"
+
+
+def test_stage_archaeology_button_matches_real_stage_page() -> None:
+    image = cv2.imdecode(np.fromfile(str(STAGE_PAGE), dtype=np.uint8), cv2.IMREAD_COLOR)
+    assert image is not None
+    med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT, stop_signal=StopSignal())
+    hit = med.find(
+        Frame(image, window_title="英雄三国KK", hwnd=20003, role="l1"),
+        ["lobby/stage_archaeology_btn"],
+        threshold=0.70,
+    )
+    assert hit is not None
+    assert hit.score >= 0.95
+    assert hit.center == (1363, 822)

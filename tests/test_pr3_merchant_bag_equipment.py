@@ -91,31 +91,37 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
         self.frame = make_test_frame()
 
     @patch("shuabao.mediator.time.time", return_value=100.0)
-    def test_devour_pill_consumed_when_more_than_three_bonds(self, mock_time):
-        """Swallow pill is clicked only after the live bond bar exceeds three cards."""
-        with patch.object(self.med, "_black_merchant_present", return_value=False), \
-             patch.object(self.med, "_can_consume_inventory_swallow_pill", return_value=True), \
-             patch.object(self.med, "find") as mock_find, \
-             patch.object(self.med, "act_click", return_value=True) as mock_click:
-            pill_match = MatchResult("danGif", 0.9, 1100, 750, 20, 20, 1100, 750)
-            mock_find.return_value = pill_match
-
-            action = self.med._maybe_use_inventory_item(self.frame)
-            self.assertEqual(action, LoopAction.Continue)
-            mock_click.assert_called_once_with(pill_match, "UseInventory-swallow_pill")
-            self.assertGreater(self.med._inventory_next_at, 100.0)
+    def test_devour_pill_fail_closed_with_saved_opt_in_and_visible_pill(self, mock_time):
+        # Owner 2026-09-24: solo eats pills from 6/10; below that the gate stays closed.
+        self.med.settings = Settings(auto_devour_dan=True)
+        pill_match = MatchResult("danGif", 0.9, 1100, 750, 20, 20, 1100, 750)
+        for occupancy in (4, 5):
+            with self.subTest(occupancy=occupancy), \
+                 patch.object(self.med, "_bond_bar_occupancy", return_value=occupancy), \
+                 patch.object(self.med, "find", return_value=pill_match), \
+                 patch.object(self.med, "act_click", return_value=True) as mock_click:
+                self.assertFalse(self.med._can_consume_inventory_swallow_pill(self.frame))
+                self.assertIsNone(self.med._maybe_use_inventory_item(self.frame))
+                mock_click.assert_not_called()
+                self.assertIsNone(self.med._pending_action)
 
     def test_devour_pill_waits_at_three_bonds(self):
         with patch.object(self.med, "_bond_bar_occupancy", return_value=3), \
+             patch.object(self.med, "_maybe_opportunistic_yinyue_crystal", return_value=None), \
+             patch.object(self.med, "_maybe_use_inventory_slot", return_value=None), \
              patch.object(self.med, "find") as mock_find, \
              patch.object(self.med, "act_click") as mock_click:
             self.assertIsNone(self.med._maybe_use_inventory_item(self.frame))
         mock_find.assert_not_called()
         mock_click.assert_not_called()
 
-    def test_devour_pill_gate_opens_at_four_bonds(self):
-        with patch.object(self.med, "_bond_bar_occupancy", return_value=4):
-            self.assertTrue(self.med._can_consume_inventory_swallow_pill(self.frame))
+    def test_devour_pill_gate_stays_closed_at_four_and_five_bonds(self):
+        # Owner 2026-09-24: the gate opens at 6/10 (test_p0_devour_failclosed_20260917).
+        self.med.settings = Settings(auto_devour_dan=True)
+        for occupancy in (4, 5):
+            with self.subTest(occupancy=occupancy), \
+                 patch.object(self.med, "_bond_bar_occupancy", return_value=occupancy):
+                self.assertFalse(self.med._can_consume_inventory_swallow_pill(self.frame))
 
     @patch("shuabao.mediator.time.time", return_value=100.0)
     def test_hero_card_triggers_evolution_flow_with_pending_action(self, mock_time):
@@ -158,33 +164,28 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
 
 
     @patch("shuabao.mediator.time.time", return_value=100.0)
-    def test_devour_pill_episode_limit_and_reset(self, mock_time):
-        """D2 invariant: Devour pill clicks cap at 5, reset when pill disappears or cycle resets."""
-        with patch.object(self.med, "_black_merchant_present", return_value=False), \
-             patch.object(self.med, "_can_consume_inventory_swallow_pill", return_value=True), \
+    def test_devour_pill_fail_closed_below_episode_limit_and_after_cycle_reset(self, mock_time):
+        # P0-2 supersedes mock-open episode clicks: no reliable per-slot identity.
+        self.med.settings = Settings(auto_devour_dan=True)
+        with patch.object(self.med, "_bond_bar_occupancy", return_value=4), \
              patch.object(self.med, "find") as mock_find, \
              patch.object(self.med, "act_click", return_value=True) as mock_click:
             pill_match = MatchResult("danGif", 0.9, 1100, 750, 20, 20, 1100, 750)
-            def find_side_effect(f, names, **kwargs):
-                if "danGif" in names:
-                    return pill_match
-                return None
-            mock_find.side_effect = find_side_effect
+            mock_find.return_value = pill_match
+            for consecutive_clicks in (5, 4):
+                with self.subTest(consecutive_clicks=consecutive_clicks):
+                    self.med._devour_dan_consecutive_clicks = consecutive_clicks
+                    self.assertFalse(self.med._can_consume_inventory_swallow_pill(self.frame))
+                    self.assertIsNone(self.med._maybe_use_inventory_item(self.frame))
+                    mock_click.assert_not_called()
+                    self.assertIsNone(self.med._pending_action)
 
-            self.med._devour_dan_consecutive_clicks = 5
-            action = self.med._maybe_use_inventory_item(self.frame)
-            self.assertIsNone(action)
-            mock_click.assert_not_called()
-
-            # Pill disappears -> resets consecutive clicks
-            mock_find.side_effect = None
-            mock_find.return_value = None
-            self.med._maybe_use_inventory_item(self.frame)
-            self.assertEqual(self.med._devour_dan_consecutive_clicks, 0)
-            # Advance l1 cycle to equipment resets consecutive clicks
-            self.med._devour_dan_consecutive_clicks = 4
+            # Independent cycle reset remains valid; it does not grant click authority.
             self.med._advance_l1_cycle("evolve")
             self.assertEqual(self.med._devour_dan_consecutive_clicks, 0)
+            self.assertIsNone(self.med._maybe_use_inventory_item(self.frame))
+            mock_click.assert_not_called()
+            self.assertIsNone(self.med._pending_action)
 
     @patch("shuabao.mediator.time.time", return_value=100.0)
     def test_merchant_refreshes_when_kill_count_allows(self, mock_time):
@@ -220,8 +221,8 @@ class TestEquipmentPeriodicInspection(unittest.TestCase):
             mock_rclick.assert_called_once()
 
     @patch("shuabao.mediator.time.time", return_value=100.0)
-    def test_equipment_slots_2_to_6_sequential_inspection(self, mock_time):
-        """Slots 2 through 6 are sequentially clicked per tick every 30s."""
+    def test_equipment_slots_2_to_6_blind_inspection_disabled(self, mock_time):
+        """P0-02 invariant: slots 2 through 6 blind inspection is disabled, producing 0 click input."""
         self.med._equipment_next_at = 200.0  # Slot 1 on cooldown
         self.med._equipment_round_next_at = 0.0
         self.med._equipment_round_current_slot = 2
@@ -230,34 +231,9 @@ class TestEquipmentPeriodicInspection(unittest.TestCase):
              patch.object(self.med, "_maybe_use_inventory_item", return_value=None), \
              patch.object(self.med, "act_click", return_value=True) as mock_click:
             
-            # Tick 1: slot 2
-            action1 = self.med._maybe_upgrade_equipment(self.frame)
-            self.assertEqual(action1, LoopAction.Continue)
-            self.assertEqual(self.med._equipment_round_current_slot, 3)
-
-            # Advance time for next slot tick
-            self.med._equipment_pending_until = 0.0
-            
-            # Tick 2: slot 3
-            action2 = self.med._maybe_upgrade_equipment(self.frame)
-            self.assertEqual(action2, LoopAction.Continue)
-            self.assertEqual(self.med._equipment_round_current_slot, 4)
-
-    @patch("shuabao.mediator.time.time", return_value=100.0)
-    def test_equipment_slot_advances_only_if_click_succeeds(self, mock_time):
-        """B6 invariant: advance _equipment_round_current_slot ONLY if self.act_click(...) succeeds."""
-        self.med._equipment_next_at = 200.0
-        self.med._equipment_round_next_at = 0.0
-        self.med._equipment_round_current_slot = 2
-
-        with patch.object(self.med, "_black_merchant_present", return_value=False), \
-             patch.object(self.med, "_maybe_use_inventory_item", return_value=None), \
-             patch.object(self.med, "act_click", return_value=False) as mock_click:
-            
-            # act_click fails -> slot does not advance
             action = self.med._maybe_upgrade_equipment(self.frame)
             self.assertEqual(action, LoopAction.Continue)
-            self.assertEqual(self.med._equipment_round_current_slot, 2)
+            mock_click.assert_not_called()
 
 
 class TestPendingActionAndSurfaceMediatorIntegration(unittest.TestCase):

@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 开发预览沙盒：npm run dev 后打开 http://127.0.0.1:5187/_verify/preview_sandbox.html
+     场景动作的实现在 ../src/dev/previewScenes.ts（window.__sbPreview），本页只负责外框、尺寸与按钮。 -->
+<title>刷刷宝看板预览</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --ground: #101215;
+    --bar: #17191d;
+    --ink: #edf0f4;
+    --muted: #a7afb9;
+    --line: rgba(225, 233, 243, 0.10);
+    --chip: #23272d;
+    --accent: #b9c0c9;
+    --warn: #e1c582;
+  }
+  body {
+    background: var(--ground); color: var(--ink);
+    font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+    font-size: 13px; padding-inline: 16px; padding-block: 12px 24px; box-sizing: border-box;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; max-width: 1080px; width: 100%; margin: 0 auto; }
+  .bar h1 { margin: 0; font-size: 14px; font-weight: 700; }
+  .tag { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; background: var(--chip); border: 1px solid var(--line); color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .tag.warn { color: var(--warn); }
+  .tag.warn::before { content: ""; width: 6px; height: 6px; border-radius: 3px; background: currentColor; }
+  .mono { font-family: "Cascadia Mono", Consolas, ui-monospace, monospace; }
+  .spacer { flex: 1; }
+  .seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: var(--chip); border: 1px solid var(--line); }
+  .seg button { height: 28px; padding: 0 12px; border: 0; border-radius: 999px; background: none; color: var(--muted); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: #121418; }
+  .seg button:focus-visible { outline: 2px solid #0a84ff; outline-offset: 2px; }
+  /* 预览框按窗口比例固定高度，不参与 flex 压缩，否则矮屏幕会把看板下半部分裁掉 */
+  .bar, .stage, .scenes { flex: 0 0 auto; }
+  .stage { width: 100%; max-width: 1080px; margin: 0 auto; overflow: hidden; }
+  .stage.native { overflow-x: auto; max-width: none; }
+  .frame-box { position: relative; transform-origin: 0 0; width: 1080px; height: 820px; }
+  .scenes { max-width: 1080px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; padding: 12px; box-sizing: border-box; border-radius: 12px; background: var(--bar); border: 1px solid var(--line); }
+  .scenes-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .scenes-row > span { flex: 0 0 44px; font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--muted); }
+  .scenes button { height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--chip); color: var(--ink); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .scenes button:hover { border-color: rgba(225, 233, 243, 0.24); }
+  .scenes button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #121418; }
+  .scenes button:focus-visible { outline: 2px solid #0a84ff; outline-offset: 2px; }
+  .scenes .note { font-size: 11px; color: var(--muted); }
+  iframe { display: block; width: 100%; height: 100%; border: 0; border-radius: 12px; background: #17191d; box-shadow: 0 0 0 1px var(--line), 0 24px 60px rgba(0, 0, 0, 0.45); }
+  body { margin: 0; }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <h1>刷刷宝看板</h1>
+  <span class="tag warn">模拟数据 · 不连接游戏</span>
+  <span class="tag mono" id="sizeTag">看板 960×820</span>
+  <span class="tag mono">ui-run-summary · 本轮升级（未发布）</span>
+  <span class="spacer"></span>
+  <div class="seg" role="group" aria-label="看板宽度">
+    <button type="button" data-w="960" aria-pressed="true">960（新）</button>
+    <button type="button" data-w="1080" aria-pressed="false">1080（旧）</button>
+  </div>
+  <div class="seg" role="group" aria-label="缩放">
+    <button type="button" id="fit" aria-pressed="true">适应宽度</button>
+    <button type="button" id="native" aria-pressed="false">100%</button>
+  </div>
+  <div class="seg" role="group" aria-label="主题">
+    <button type="button" id="th-dark" aria-pressed="false">深色</button>
+    <button type="button" id="th-light" aria-pressed="false">浅色</button>
+  </div>
+</div>
+
+<div class="stage" id="stage">
+  <div class="frame-box" id="box">
+    <iframe id="app" src="../index.html" title="刷刷宝看板（模拟）"></iframe>
+  </div>
+</div>
+
+<div class="scenes" id="scenes" aria-label="场景预览">
+  <div class="scenes-row"><span>模式</span>
+    <button type="button" data-act="farm">单刷</button><button type="button" data-act="hitch">蹭车 · 小窗</button><button type="button" data-act="lead">带车</button><button type="button" data-act="follow">跟车 · 小窗</button>
+  </div>
+  <div class="scenes-row"><span>流程</span>
+    <button type="button" data-act="boot">启动过场</button><button type="button" data-act="preflight">预检中</button><button type="button" data-act="preflightFail">预检失败</button><button type="button" data-act="running">运行中</button><button type="button" data-act="doneHitch">完成 · 蹭车统计</button><button type="button" data-act="doneSolo">完成 · 单刷</button><button type="button" data-act="interrupted">中断</button>
+  </div>
+  <div class="scenes-row"><span>弹层</span>
+    <button type="button" data-act="subscription">订阅激活</button><button type="button" data-act="activated">激活成功</button><button type="button" data-act="rep">声望挑战</button><button type="button" data-act="cjb">传家宝</button><button type="button" data-act="boss">Boss</button><button type="button" data-act="drawer">高级设置</button><button type="button" data-act="log">运行日志</button><button type="button" data-act="bondEdit">编辑羁绊</button>
+  </div>
+  <div class="scenes-row"><span>数据</span>
+    <button type="button" data-act="adv0">高级卡组 0 个</button><button type="button" data-act="adv2">2 个</button><button type="button" data-act="adv5">5 个</button><button type="button" data-act="reset">重置预览</button>
+    <span class="note">全部是模拟数据；「运行中」会在预览里启动模拟运行，点「停止」或重置即可。</span>
+  </div>
+</div>
+
+<script>
+  const stage = document.getElementById('stage');
+  const box = document.getElementById('box');
+  const app = document.getElementById('app');
+  const sizeTag = document.getElementById('sizeTag');
+  let mode = 'fit';
+  // 与正式宿主 web_config_shell.py 一致：看板 960×820（本轮由 1080 收窄）；蹭车/跟车小窗宽 360、高按页面实测（最小 400）；向导 560×300 / 560×560。
+  let boardW = 960;
+  let lastLayout = 'dashboard', lastHeight;
+  let win = { w: 960, h: 820, name: '看板' };
+  function applyLayout(layout, height) {
+    lastLayout = layout; lastHeight = height;
+    if (layout === 'compact') win = { w: 360, h: Math.max(400, Math.round(height || 640)), name: '小窗' };
+    else if (layout === 'chooser-solo') win = { w: 560, h: 300, name: '向导' };
+    else if (layout === 'chooser' || layout === 'chooser-team') win = { w: 560, h: 560, name: '向导' };
+    else win = { w: boardW, h: 820, name: '看板' };
+    box.style.width = win.w + 'px';
+    box.style.height = win.h + 'px';
+    sizeTag.textContent = win.name + ' ' + win.w + '×' + win.h;
+    layout_();
+  }
+  function layout_() {
+    const avail = stage.clientWidth;
+    if (mode === 'fit') {
+      const s = Math.min(1, avail / win.w);
+      box.style.transform = 'scale(' + s + ')';
+      box.style.marginLeft = Math.max(0, (avail - win.w * s) / 2) + 'px';
+      stage.style.height = Math.round(win.h * s) + 'px';
+    } else {
+      box.style.transform = 'none';
+      box.style.marginLeft = Math.max(0, (avail - win.w) / 2) + 'px';
+      stage.style.height = win.h + 'px';
+    }
+  }
+  function setMode(m) {
+    mode = m;
+    stage.classList.toggle('native', m === 'native');
+    document.getElementById('fit').setAttribute('aria-pressed', String(m === 'fit'));
+    document.getElementById('native').setAttribute('aria-pressed', String(m === 'native'));
+    layout_();
+  }
+  document.getElementById('fit').addEventListener('click', () => setMode('fit'));
+  document.getElementById('native').addEventListener('click', () => setMode('native'));
+  new ResizeObserver(layout_).observe(stage);
+  window.addEventListener('resize', layout_);
+  applyLayout('dashboard');
+
+  document.querySelectorAll('[data-w]').forEach((b) => b.addEventListener('click', () => {
+    boardW = Number(b.dataset.w);
+    document.querySelectorAll('[data-w]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    if (lastLayout === 'dashboard' || !lastLayout) applyLayout('dashboard');
+  }));
+
+  // ---- 场景预览条：直接调用看板页面里现成的函数，不改业务逻辑 ----
+  const W = () => app.contentWindow;
+  const ST = () => (W().__sbPreviewState ? W().__sbPreviewState() : {});
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  function cleanup() {
+    const w = W(), d = w.document;
+    try { if (ST().modal) w.closeModal(); } catch (e) {}
+    try { w.setDrawer && w.setDrawer(false); } catch (e) {}
+    d.querySelectorAll('.sb-done-veil, .sb-pre-veil, .sb-act, .sb-boot').forEach((n) => n.remove());
+    try { const st = ST(); if (st.bondSaved === false) { st.bondSaved = true; w.renderBonds(); } } catch (e) {}
+    const strip = d.getElementById('sbLogStrip');
+    if (strip && strip.classList.contains('open')) d.getElementById('sbLogToggle').click();
+  }
+  async function toFarm() {
+    const w = W();
+    if (ST().running) { w.document.getElementById('btnStart').click(); await wait(900); }
+    if (ST().scene !== 'farm') { w.setScene('farm'); await wait(250); }
+  }
+  function ensureSubscription() {
+    const w = W();
+    if (!w.isSubscriptionOk()) w.applySubscription({ active: true, status: '正常', expires_at: '2026-10-23', live_authorized: true, live_status: 'LIVE 已授权' });
+  }
+  const HITCH_SUMMARY = { available: true, duration_seconds: 2 * 3600 + 14 * 60, hitch: { started: 21, completed: 20, success: 18, failure: 2, stages: { '2-7': 12, '1-21': 8 } }, solo: { completed: 3, success: 3, failure: 0 } };
+  // 场景动作的唯一实现在看板源码 ui-v2/src/dev/previewScenes.ts（window.__sbPreview），桌面 Qt 预览窗口也用同一份
+  const ACTIONS = { reset: async () => { W().location.reload(); } };
+  document.getElementById('scenes').addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-act]');
+    if (!b) return;
+    document.querySelectorAll('#scenes button[data-act]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    try { if (ACTIONS[b.dataset.act]) await ACTIONS[b.dataset.act](); else await W().__sbPreview.run(b.dataset.act); }
+    catch (err) { console.error('[preview]', b.dataset.act, err); }
+  });
+
+  function currentTheme() {
+    try { return app.contentDocument.body.dataset.theme || 'dark'; } catch (e) { return 'dark'; }
+  }
+  function syncThemeButtons() {
+    const t = currentTheme();
+    document.getElementById('th-dark').setAttribute('aria-pressed', String(t === 'dark'));
+    document.getElementById('th-light').setAttribute('aria-pressed', String(t === 'light'));
+  }
+  function setTheme(t) {
+    try {
+      const d = app.contentDocument;
+      d.body.dataset.theme = t;
+      d.querySelectorAll('.win').forEach(w => { w.dataset.theme = t; });
+    } catch (e) {}
+    syncThemeButtons();
+  }
+  document.getElementById('th-dark').addEventListener('click', () => setTheme('dark'));
+  document.getElementById('th-light').addEventListener('click', () => setTheme('light'));
+  app.addEventListener('load', () => {
+    try {
+      app.contentWindow.addEventListener('sb:window-layout', (e) => applyLayout(e.detail && e.detail.layout, e.detail && e.detail.height));
+    } catch (e) {}
+    syncThemeButtons();
+    try {
+      new MutationObserver(syncThemeButtons).observe(app.contentDocument.body, { attributes: true, attributeFilter: ['data-theme'] });
+    } catch (e) {}
+  });
+</script>
+</body>
+</html>

@@ -314,6 +314,10 @@ class ShadowClient:
         try:
             for line in stream:
                 read_queue.put(line.rstrip("\r\n"))
+        except (OSError, ValueError):
+            # _terminate() closes the pipe under this thread after a timeout;
+            # that is the expected end of the stream, not a crash.
+            pass
         finally:
             read_queue.put("")
 
@@ -331,7 +335,8 @@ class ShadowClient:
                     stderr_chunks.append(text)
                     if len(stderr_chunks) > 40:
                         del stderr_chunks[:-40]
-        except OSError:
+        except (OSError, ValueError):
+            # Closed by _terminate() while iterating (ValueError on a closed file).
             return
 
     def _stderr_text(self) -> str:

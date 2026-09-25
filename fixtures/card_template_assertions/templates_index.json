@@ -44,6 +44,11 @@
   ],
   "label_missing_for_template": [],
   "template_missing_for_label": [],
+  "pending_live_capture": {
+    "_comment": "已登记卡族、模板待实机补图（Owner 2026-09-24）。补图后从这里删除并加入 shortcodes；在此之前该卡族只走 OCR 标题识别。",
+    "dashengzailin": "大圣再临：羁绊选卡面板卡顶卡族标题",
+    "haizeiwang": "海贼王：羁绊选卡面板卡顶卡族标题"
+  },
   "positive_frames": [
     "fixtures/card_template_assertions/positives/bond_choice_3.png",
     "fixtures/card_template_assertions/positives/bond_panel.png",

@@ -1,0 +1,875 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-24",
+  "scope": {
+    "value": "research_only",
+    "source_level": "inferred",
+    "source": "Owner task 2026-09-24",
+    "note": "No production defaults are changed."
+  },
+  "evidence_scale": {
+    "live": "实机截图/录像/trace/真实夹具可证",
+    "guide": "公开攻略或官方说明/仓库中明确标 guide 的整理",
+    "inferred": "基于多条已列证据的推断；不能当游戏事实",
+    "none": "当前资料未找到可靠依据"
+  },
+  "global_rules": {
+    "final_card_acquisition": {
+      "value": "七组最终 EX/UR 都应视为合成/进化终点，不应从普通三选面板直接等待终卡。",
+      "source_level": "inferred",
+      "source": "Owner 2026-09-24 rule + config/game_mechanics_kb.json:ex_synthesis_matrix",
+      "note": "这是本轮调度设计约束；单组的具体触发仍按下表证据等级。"
+    },
+    "set_complete_auto_devour": {
+      "value": true,
+      "source_level": "guide",
+      "source": "config/game_mechanics_kb.json:card_pool_rules.bond_auto_devour (official_help)",
+      "note": "官方说明：集齐羁绊后自动吞噬；具体特殊链另有独立触发。"
+    },
+    "finals_cannot_devour": {
+      "value": true,
+      "source_level": "live",
+      "source": "config/game_mechanics_kb.json:card_pool_rules.ex_capstones; fixtures/ex_finals_20260814",
+      "note": "普通最终形态卡面/仓库证据标记 cannot_devour；公开攻略中的“神赐吞噬丹吞EX”应视为特殊道具，不可外推普通丹。"
+    },
+    "synthesis_animation_or_banner": {
+      "value": null,
+      "source_level": "none",
+      "source": "未找到统一保留的实机合成动画/横幅证据",
+      "note": "识别“终点已完成”不要依赖未证实特效。"
+    }
+  },
+  "chains": {
+    "daodao": {
+      "family": {
+        "value": "刀刀",
+        "source_level": "live",
+        "source": "config/choice_lexicon.json + config/game_mechanics_kb.json:daodao_chain"
+      },
+      "opener": {
+        "trigger": {
+          "value": "刀刀/三件基础件阶段，实机已见刀刀(0/3)；已确认三件为幽灵系带、护腕、空灵挂坠，三件齐后自动合成刀刀萌新。",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:daodao_chain.live_verified; config/choice_lexicon.json"
+        },
+        "pieces": [
+          {
+            "value": "幽灵系带",
+            "source_level": "live",
+            "source": "config/game_mechanics_kb.json:daodao_chain.live_verified"
+          },
+          {
+            "value": "护腕",
+            "source_level": "live",
+            "source": "config/game_mechanics_kb.json:daodao_chain.live_verified"
+          },
+          {
+            "value": "空灵挂坠",
+            "source_level": "live",
+            "source": "config/game_mechanics_kb.json:daodao_chain.live_verified"
+          }
+        ],
+        "count": {
+          "value": 3,
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:daodao_chain.live_verified.need"
+        }
+      },
+      "progression": [
+        {
+          "stage": {
+            "value": "刀刀萌新→刀刀入门→刀刀小成→刀刀大成",
+            "source_level": "guide",
+            "source": "config/game_mechanics_kb.json:daodao_chain.stage_evolution",
+            "note": "中间精确阶段未全部上帧。"
+          },
+          "rule": {
+            "value": "7 种 SR 图纸中合成任意 3 件成品，依次推进到刀刀大成并解锁高阶 UR 图纸池。",
+            "source_level": "guide",
+            "source": "config/game_mechanics_kb.json:daodao_chain.stage_evolution.sr_phase"
+          },
+          "blueprints": [
+            {
+              "value": "深渊之刃",
+              "source_level": "guide",
+              "source": "config/game_mechanics_kb.json:daodao_chain.guide"
+            },
+            {
+              "value": "决刃",
+              "source_level": "guide",
+              "source": "config/game_mechanics_kb.json:daodao_chain.guide"
+            },
+            {
+              "value": "雷神之锤",
+              "source_level": "guide",
+              "source": "config/game_mechanics_kb.json:daodao_chain.guide"
+            },
+            {
+              "value": "破碎锤",
+              "source_level": "guide",
+              "source": "config/game_mechanics_kb.json:daodao_chain.guide"
+            },
+            {
+              "value": "西瓦的守护",
+              "source_level": "guide",
+              "source": "config/game_mechanics_kb.json:daodao_chain.guide"
+            },
+            {
+              "value": "恐鳌之心",
+              "source_level": "guide",
+              "source": "config/game_mechanics_kb.json:daodao_chain.guide"
+            },
+            {
+              "value": "点金手",
+              "source_level": "guide",
+              "source": "config/game_mechanics_kb.json:daodao_chain.guide"
+            }
+          ]
+        },
+        {
+          "stage": {
+            "value": "刀刀大成→解放的圣剑",
+            "source_level": "guide",
+            "source": "config/game_mechanics_kb.json:daodao_chain.stage_evolution.ur_phase"
+          },
+          "rule": {
+            "value": "6 种高阶 UR 图纸中合成任意 5 件成品后自动得到 EX。",
+            "source_level": "guide",
+            "source": "config/game_mechanics_kb.json:daodao_chain.stage_evolution.ex_evolution"
+          },
+          "blueprints": [
+            {
+              "value": "圣剑",
+              "source_level": "guide",
+              "source": "config/game_mechanics_kb.json:daodao_chain.guide"
+            },
+            {
+              "value": "三元重戟",
+              "source_level": "guide",
+              "source": "config/game_mechanics_kb.json:daodao_chain.guide"
+            },
+            {
+              "value": "三眼圣戟",
+              "source_level": "guide",
+              "source": "config/game_mechanics_kb.json:daodao_chain.guide"
+            },
+            {
+              "value": "阿哈利姆神杖",
+              "source_level": "guide",
+              "source": "config/game_mechanics_kb.json:daodao_chain.guide"
+            },
+            {
+              "value": "时间宝石",
+              "source_level": "guide",
+              "source": "config/game_mechanics_kb.json:daodao_chain.guide"
+            },
+            {
+              "value": "暗夜猎手",
+              "source_level": "guide",
+              "source": "config/game_mechanics_kb.json:daodao_chain.guide"
+            }
+          ]
+        }
+      ],
+      "final": {
+        "name": {
+          "value": "解放的圣剑",
+          "source_level": "live",
+          "source": "fixtures/ex_finals_20260814/06 + config/game_mechanics_kb.json:ex_capstones"
+        },
+        "rarity": {
+          "value": "EX",
+          "source_level": "live",
+          "source": "fixtures/ex_finals_20260814/06"
+        },
+        "obtain_trigger": {
+          "value": "5 件 UR 成品后自动合成",
+          "source_level": "guide",
+          "source": "config/game_mechanics_kb.json:daodao_chain.stage_evolution.ex_evolution"
+        },
+        "removes_pool": {
+          "value": "刀刀",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:ex_capstones (user_card_screenshot)"
+        },
+        "dice_devour": {
+          "value": true,
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:devour_kinds.capstone_die; user_card_screenshot"
+        },
+        "dice_amount": {
+          "value": null,
+          "source_level": "none",
+          "source": "config/game_mechanics_kb.json:unknown",
+          "note": "掷骰吞噬数量未测。"
+        },
+        "detection_signal": {
+          "value": "确认羁绊栏/卡面出现规范名“解放的圣剑”且稀有度 EX；可把随后刀刀池移除作为辅助后置证据。",
+          "source_level": "inferred",
+          "source": "live final-card screenshot + remove_pool 机制",
+          "note": "没有统一合成特效证据。"
+        }
+      },
+      "material_removal": {
+        "value": "完成基础套装会自动吞噬/合成；EX 获取时还会移除刀刀卡池并掷骰吞噬刀刀牌。",
+        "source_level": "live",
+        "source": "config/game_mechanics_kb.json:devour_kinds + ex_capstones"
+      }
+    },
+    "xiuxian": {
+      "family": {
+        "value": "修仙",
+        "source_level": "live",
+        "source": "config/choice_lexicon.json:set_membership + bond_knowledge.json"
+      },
+      "opener": {
+        "trigger": {
+          "value": "修仙基础羁绊 need=3；现有 OCR/实验室资料支持修仙(0..3/3)，集齐后进入修仙成员池。",
+          "source_level": "live",
+          "source": "config/bond_knowledge.json:needs.修仙 + config/choice_lexicon.json"
+        },
+        "first_observed_member": {
+          "value": "练气期",
+          "source_level": "live",
+          "source": "config/choice_lexicon.json（练气期 t=198 / set_membership=修仙）"
+        }
+      },
+      "progression_labels": [
+        {
+          "value": "练气期",
+          "source_level": "live",
+          "source": "config/choice_lexicon.json"
+        },
+        {
+          "value": "筑基丹/筑基期",
+          "source_level": "guide",
+          "source": "config/choice_lexicon.json:set_membership"
+        },
+        {
+          "value": "金丹大道/金丹期",
+          "source_level": "guide",
+          "source": "config/choice_lexicon.json:set_membership"
+        },
+        {
+          "value": "元婴期",
+          "source_level": "guide",
+          "source": "config/choice_lexicon.json:set_membership"
+        },
+        {
+          "value": "化神期",
+          "source_level": "guide",
+          "source": "config/choice_lexicon.json:set_membership"
+        },
+        {
+          "value": "合体期",
+          "source_level": "guide",
+          "source": "config/choice_lexicon.json:set_membership"
+        },
+        {
+          "value": "五行山/五级山等高阶修仙节点",
+          "source_level": "guide",
+          "source": "KK 攻略：https://www.kkdzpt.com/fab/204521/69fd6cd62ed08d3135990932"
+        },
+        {
+          "value": "大乘期",
+          "source_level": "live",
+          "source": "fixtures/ex_finals_20260814 + config/game_mechanics_kb.json:ex_capstones"
+        }
+      ],
+      "exact_recipe": {
+        "value": null,
+        "source_level": "none",
+        "source": "config/game_mechanics_kb.json:ex_synthesis_matrix.chains.xiuxian.stage_need=null",
+        "note": "仓库明确把修仙 stage_need 留空；旧 guide 中“元神出窍=EX”与规范终点“大乘期”冲突，不能拼成伪完整配方。"
+      },
+      "final": {
+        "name": {
+          "value": "大乘期",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:ex_capstones; user_card_screenshot"
+        },
+        "rarity": {
+          "value": "EX",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:ex_capstones"
+        },
+        "removes_pool": {
+          "value": "修仙",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:ex_capstones"
+        },
+        "detection_signal": {
+          "value": "确认规范名“大乘期”EX 卡面/栏位出现，并可把修仙池移除作为辅助证据。",
+          "source_level": "inferred",
+          "source": "live final-card screenshot + remove_pool"
+        },
+        "synthesis_animation": {
+          "value": null,
+          "source_level": "none",
+          "source": "未找到 retained live evidence"
+        }
+      },
+      "title_semantics": {
+        "value": "至少已观察到成员标题“练气期”，因此不能要求卡顶必须写“修仙”；从练气到大乘的每个阶段是否都显示成员名尚未逐张实机覆盖。",
+        "source_level": "live",
+        "source": "docs/handoff_20260924/CARD_FAMILY_PICKUP_AUDIT_20260924.md + config/choice_lexicon.json",
+        "note": "全链泛化部分仍需实机截图。"
+      }
+    },
+    "haidao": {
+      "family": {
+        "value": "海盗",
+        "source_level": "live",
+        "source": "config/choice_lexicon.json:set_membership"
+      },
+      "opener": {
+        "card": {
+          "value": "藏宝图(三) / OCR 常见标题“藏宝图”",
+          "source_level": "live",
+          "source": "config/choice_lexicon.json + docs/handoff_20260924/CARD_FAMILY_PICKUP_AUDIT_20260924.md"
+        },
+        "count": {
+          "value": 3,
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:haidao_chain.live_verified.map_need"
+        },
+        "opens_pool": {
+          "value": true,
+          "source_level": "live",
+          "source": "config/choice_lexicon.json",
+          "note": "实机见藏宝图(0/3)，标题不含“海盗”。"
+        }
+      },
+      "known_members": [
+        {
+          "value": "白赚海盗",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:haidao_chain.live_verified"
+        },
+        {
+          "value": "海盗劫掠者",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:haidao_chain.live_verified"
+        },
+        {
+          "value": "利刃海盗",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:haidao_chain.live_verified"
+        },
+        {
+          "value": "掘金者、顶尖大盗、空降海盗、海盗帕奇斯、沙迪、天空舰长、开进码头、制造混乱、罗杰斯上将、霍格船长、洛卡拉舰长、猴子、奎尔德拉等",
+          "source_level": "guide",
+          "source": "config/game_mechanics_kb.json:haidao_chain.guide + config/choice_lexicon.json:set_membership"
+        }
+      ],
+      "progression": {
+        "route_a": {
+          "value": "累计吞噬 6 → 制造混乱/罗杰斯；9 → 霍格；12 → 洛卡拉并出毁灭战舰。",
+          "source_level": "guide",
+          "source": "config/game_mechanics_kb.json:haidao_chain.guide.paths.swallow_12 + KK攻略：https://www.kkdzpt.com/fab/204521/69cef3e764ecf0fbd77f0ab0"
+        },
+        "route_b": {
+          "value": "另有攻略称橙色悬赏令路线可直接导向毁灭战舰。",
+          "source_level": "guide",
+          "source": "config/game_mechanics_kb.json:haidao_chain.guide.paths.bounty_to_ship"
+        },
+        "conflict": {
+          "value": true,
+          "source_level": "guide",
+          "source": "config/game_mechanics_kb.json:haidao_chain.conflicts",
+          "note": "两条终点触发未被 live 闭环，不能选择其中一条作为唯一生产事实。"
+        }
+      },
+      "final": {
+        "name": {
+          "value": "毁灭战舰",
+          "source_level": "live",
+          "source": "fixtures/ex_finals_20260814/11 + config/game_mechanics_kb.json:haidao_chain.live_verified"
+        },
+        "rarity": {
+          "value": "UR",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:ex_capstones"
+        },
+        "is_ex": {
+          "value": false,
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:ex_capstones",
+          "note": "海盗明确无 EX。"
+        },
+        "cannot_devour": {
+          "value": true,
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:haidao_chain.live_verified"
+        },
+        "opens": {
+          "value": [
+            "利刃海盗",
+            "战斗海盗",
+            "冲浪海盗",
+            "重拳先生"
+          ],
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:haidao_chain.live_verified.ur_opens"
+        },
+        "detection_signal": {
+          "value": "确认羁绊栏/卡面出现规范名“毁灭战舰”UR；其“每300杀置入海盗/开启新海盗池”可作后续辅助迹象。",
+          "source_level": "inferred",
+          "source": "live UR card screenshot and tooltip"
+        },
+        "synthesis_animation": {
+          "value": null,
+          "source_level": "none",
+          "source": "未找到 retained live evidence"
+        }
+      },
+      "title_semantics": {
+        "value": "藏宝图阶段的卡顶实机标题是成员名“藏宝图”，不是卡组名“海盗”。其他海盗成员应按各自规范名识别，不应用 family 名替代。",
+        "source_level": "live",
+        "source": "docs/handoff_20260924/CARD_FAMILY_PICKUP_AUDIT_20260924.md"
+      }
+    },
+    "wangling": {
+      "family": {
+        "value": "亡灵",
+        "source_level": "live",
+        "source": "config/choice_lexicon.json:set_membership"
+      },
+      "opener": {
+        "card": {
+          "value": "亡灵天灾",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:wangling_chain.live_verified"
+        },
+        "count": {
+          "value": 3,
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:wangling_chain.live_verified.need"
+        }
+      },
+      "resources": {
+        "remnants_for_lich_king": {
+          "value": 100,
+          "source_level": "guide",
+          "source": "KK攻略：https://www.kkdzpt.com/fab/204521/69b557ea9ab23092898e1939"
+        },
+        "runes_each_for_bingzhu": {
+          "value": 10,
+          "source_level": "guide",
+          "source": "同上；config/game_mechanics_kb.json:wangling_chain.guide"
+        },
+        "rune_types": {
+          "value": [
+            "鲜血符文",
+            "冰霜符文",
+            "邪恶符文"
+          ],
+          "source_level": "live",
+          "source": "fixtures/ex_finals_20260814/08 tooltip + config/game_mechanics_kb.json"
+        },
+        "extra_remnants_for_bingzhu": {
+          "value": 25,
+          "source_level": "guide",
+          "source": "KK攻略：https://www.kkdzpt.com/fab/204521/69b557ea9ab23092898e1939",
+          "note": "同页前文也写“消耗100残骸+三符文≥10”，口径存在 100 vs 100+25 的描述张力；不要当 live。"
+        },
+        "producer_cycle": {
+          "value": "三类主卡攻略建议各5张；基础生产约120s，加速卡后约60s。",
+          "source_level": "guide",
+          "source": "KK攻略：https://www.kkdzpt.com/fab/204521/69b557ea9ab23092898e1939"
+        }
+      },
+      "trigger": {
+        "value": "通过邪爆/最终引爆动作结算；符文不足时可能只出巫妖王，满足三符文条件才可出兵主。",
+        "source_level": "guide",
+        "source": "config/game_mechanics_kb.json:wangling_chain.guide + KK攻略亡灵羁绊"
+      },
+      "final": {
+        "name": {
+          "value": "兵主",
+          "source_level": "live",
+          "source": "fixtures/ex_finals_20260814/08"
+        },
+        "rarity": {
+          "value": "EX",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:ex_capstones"
+        },
+        "detection_signal": {
+          "value": "确认规范名“兵主”EX 卡面；tooltip 实机能看到鲜血/冰霜/邪恶符文轴。",
+          "source_level": "live",
+          "source": "fixtures/ex_finals_20260814/08"
+        },
+        "synthesis_animation": {
+          "value": null,
+          "source_level": "none",
+          "source": "未找到 retained live evidence"
+        }
+      },
+      "material_removal": {
+        "value": "邪爆会消耗残骸属于攻略级；是否一次清空、精确额外残骸口径仍未 live 闭环。",
+        "source_level": "guide",
+        "source": "config/game_mechanics_kb.json:devour_kinds.guide_remnant_detonate"
+      }
+    },
+    "dasheng": {
+      "family": {
+        "value": "齐天大圣 / 大圣 / 神通（同一高级体系的阶段标签）",
+        "source_level": "guide",
+        "source": "config/game_mechanics_kb.json:dasheng_chain.relationship_clarification"
+      },
+      "opener": {
+        "card": {
+          "value": "齐天大圣",
+          "source_level": "live",
+          "source": "config/choice_lexicon.json"
+        },
+        "observed_progress": {
+          "value": "0/3",
+          "source_level": "live",
+          "source": "config/choice_lexicon.json note + bond_stack_catalog",
+          "note": "与攻略“抽到即解锁”表述存在冲突，需实机确认解锁究竟在首张还是 3/3。"
+        }
+      },
+      "stages": [
+        {
+          "name": {
+            "value": "六根阶段→大圣残躯",
+            "source_level": "guide",
+            "source": "config/game_mechanics_kb.json:dasheng_chain"
+          },
+          "pieces": {
+            "value": [
+              "眼看喜",
+              "耳听怒",
+              "鼻嗅爱",
+              "舌尝思",
+              "意见欲",
+              "身本忧"
+            ],
+            "source_level": "guide",
+            "source": "config/game_mechanics_kb.json:dasheng_chain"
+          },
+          "count": {
+            "value": 6,
+            "source_level": "guide",
+            "source": "config/game_mechanics_kb.json:dasheng_chain"
+          }
+        },
+        {
+          "name": {
+            "value": "五件专属套装→二阶齐天大圣",
+            "source_level": "guide",
+            "source": "config/game_mechanics_kb.json:dasheng_chain"
+          },
+          "pieces": {
+            "value": [
+              "如意金箍棒",
+              "锁子黄金甲",
+              "凤翅紫金冠",
+              "藕丝步云履",
+              "点翠飞龙臂"
+            ],
+            "source_level": "guide",
+            "source": "config/game_mechanics_kb.json:dasheng_chain"
+          },
+          "count": {
+            "value": 5,
+            "source_level": "guide",
+            "source": "config/game_mechanics_kb.json:dasheng_chain"
+          }
+        },
+        {
+          "name": {
+            "value": "五大神通大成→法天象地",
+            "source_level": "guide",
+            "source": "config/game_mechanics_kb.json:dasheng_chain"
+          },
+          "groups": {
+            "value": [
+              "棍法大成",
+              "身法大成",
+              "术法大成",
+              "根系/根基大成",
+              "奇技/骑技大成"
+            ],
+            "source_level": "guide",
+            "source": "config/game_mechanics_kb.json:dasheng_chain + config/choice_lexicon.json",
+            "note": "仓库存在“根系/根基”“奇技/骑技”命名差异，需用当前卡顶截图定 canonical。"
+          },
+          "materials_per_group": {
+            "value": 3,
+            "source_level": "guide",
+            "source": "config/game_mechanics_kb.json:dasheng_chain"
+          },
+          "total_material_cards": {
+            "value": 15,
+            "source_level": "guide",
+            "source": "config/game_mechanics_kb.json:dasheng_chain"
+          }
+        }
+      ],
+      "final": {
+        "name": {
+          "value": "法天象地",
+          "source_level": "live",
+          "source": "fixtures/ex_finals_20260814 + config/game_mechanics_kb.json:ex_capstones"
+        },
+        "rarity": {
+          "value": "EX",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:ex_capstones"
+        },
+        "card_label_family": {
+          "value": "神通",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:ex_capstones.note",
+          "note": "攻略/实验室把它视为大圣终点。"
+        },
+        "detection_signal": {
+          "value": "确认“法天象地”EX 卡面；family 标签可能显示“神通”，因此不可只搜“大圣”二字。",
+          "source_level": "inferred",
+          "source": "live final screenshot + label conflict"
+        },
+        "synthesis_animation": {
+          "value": null,
+          "source_level": "none",
+          "source": "未找到 retained live evidence"
+        }
+      },
+      "exact_full_chain_live_status": {
+        "value": false,
+        "source_level": "none",
+        "source": "config/game_mechanics_kb.json:unknown",
+        "note": "六根、五件套、五组大成的完整链尚未实机跑通。"
+      }
+    },
+    "yihuo": {
+      "family": {
+        "value": "异火 / 焚诀",
+        "source_level": "live",
+        "source": "config/game_mechanics_kb.json:yihuo_fenjue_pool"
+      },
+      "opener": {
+        "card": {
+          "value": "焚诀·黄阶",
+          "source_level": "live",
+          "source": "fixtures/cards_174547_evidence + config/game_mechanics_kb.json"
+        },
+        "opens": {
+          "value": "N 级异火池",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:yihuo_fenjue_pool.live_verified"
+        }
+      },
+      "live_progression": {
+        "devour_every_kills": {
+          "value": 200,
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:yihuo_fenjue_pool.live_verified"
+        },
+        "target": {
+          "value": "随机吞噬 1 张异火",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:yihuo_fenjue_pool.live_verified"
+        },
+        "yellow_to_xuan_after": {
+          "value": 3,
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:yihuo_fenjue_pool.live_verified"
+        },
+        "trigger": {
+          "value": "击杀计数达到条件后自动吞噬/进阶，不需要手动点合成。",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:yihuo_fenjue_pool.live_verified"
+        }
+      },
+      "guide_progression": {
+        "cumulative_devours": {
+          "value": {
+            "玄阶": 3,
+            "地阶": 6,
+            "天阶": 9,
+            "天阶大圆满": 12,
+            "帝炎": 22
+          },
+          "source_level": "guide",
+          "source": "config/game_mechanics_kb.json:yihuo_fenjue_pool.guide",
+          "note": "除黄→玄=3外，其余 6/9/12/22 未上帧。"
+        },
+        "wood_claimed": {
+          "value": 2300,
+          "source_level": "guide",
+          "source": "config/game_mechanics_kb.json:yihuo_fenjue_pool.guide",
+          "note": "攻略按 22 异火+1焚诀估算，不可用作当前 F 单价证据。"
+        }
+      },
+      "final": {
+        "name": {
+          "value": "帝炎",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:yihuo_fenjue_pool.live_verified.live_20260815.diyan_ex_live"
+        },
+        "rarity": {
+          "value": "EX",
+          "source_level": "live",
+          "source": "同上"
+        },
+        "detection_signal": {
+          "value": "确认规范名“帝炎”与 EX 红金边框/tooltip；底栏“异火(n)”是吞噬计数，绝不能当成合成 x/y。",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:yihuo_fenjue_pool"
+        },
+        "synthesis_animation": {
+          "value": null,
+          "source_level": "none",
+          "source": "未找到 retained live evidence"
+        }
+      }
+    },
+    "fengshen": {
+      "family": {
+        "value": "封神",
+        "source_level": "live",
+        "source": "config/choice_lexicon.json:set_membership"
+      },
+      "opener": {
+        "card": {
+          "value": "姜子牙",
+          "source_level": "live",
+          "source": "fixtures/cards_174547_evidence t=765 + config/game_mechanics_kb.json:fengshen_chain.live_verified"
+        },
+        "effect": {
+          "value": "开启封神卡池；攻略称自身算 1 张神将。",
+          "source_level": "guide",
+          "source": "config/game_mechanics_kb.json:fengshen_chain.official_verified_details"
+        }
+      },
+      "stage1": {
+        "board_trigger": {
+          "value": "累计 6 张封神神将→封神榜",
+          "source_level": "guide",
+          "source": "config/game_mechanics_kb.json:fengshen_chain.official_verified_details（2026-08-19 KK Official）"
+        },
+        "board": {
+          "value": "封神榜",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:fengshen_chain.live_verified.live_20260815"
+        },
+        "board_devour_to_tianxian": {
+          "value": 9,
+          "source_level": "guide",
+          "source": "config/game_mechanics_kb.json:fengshen_chain.official_verified_details"
+        },
+        "auto_devour_timer_s": {
+          "value": null,
+          "source_level": "none",
+          "source": "仓库 official_verified_details 写 70s；公开 KK《新手智力教程篇》写 90s，冲突未实机复核",
+          "note": "不能选一个硬编码。"
+        },
+        "acceleration": {
+          "value": "吞噬丹/三国吞噬/肉身成圣可加快神将吞噬进度。",
+          "source_level": "guide",
+          "source": "config/game_mechanics_kb.json:fengshen_chain.official_verified_details"
+        }
+      },
+      "stage2": {
+        "jumps": {
+          "value": [
+            "天仙吞 5 张蓝/紫法宝→金仙",
+            "金仙吞 5 张橙色 SSR 法宝→大罗金仙",
+            "大罗金仙吞 5 张 UR 法宝→圣人"
+          ],
+          "source_level": "guide",
+          "source": "config/game_mechanics_kb.json:fengshen_chain.official_verified_details"
+        },
+        "total_fabao": {
+          "value": 15,
+          "source_level": "guide",
+          "source": "同上"
+        }
+      },
+      "final": {
+        "name": {
+          "value": "圣人",
+          "source_level": "live",
+          "source": "fixtures/ex_finals_20260814/01 + config/game_mechanics_kb.json:fengshen_chain.live_verified"
+        },
+        "rarity": {
+          "value": "EX",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:ex_capstones"
+        },
+        "removes_pool": {
+          "value": "法宝",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json:ex_capstones"
+        },
+        "detection_signal": {
+          "value": "确认“圣人”EX 卡面；其后法宝池移除可作辅助后置证据。",
+          "source_level": "inferred",
+          "source": "live final screenshot + remove_pool"
+        },
+        "synthesis_animation": {
+          "value": null,
+          "source_level": "none",
+          "source": "未找到 retained live evidence"
+        }
+      },
+      "material_removal": {
+        "value": "封神榜/阶段进化以吞噬神将和法宝累计推进；被吞材料离开栏位。",
+        "source_level": "guide",
+        "source": "config/game_mechanics_kb.json:fengshen_chain.official_verified_details"
+      }
+    }
+  },
+  "title_semantics_summary": {
+    "pirate": {
+      "value": "成员名：已实机看到“藏宝图”，不是“海盗”。",
+      "source_level": "live",
+      "source": "docs/handoff_20260924/CARD_FAMILY_PICKUP_AUDIT_20260924.md"
+    },
+    "xiuxian": {
+      "value": "已有“练气期”成员 OCR/词典实证；不能假设全程标题为“修仙”。",
+      "source_level": "live",
+      "source": "config/choice_lexicon.json + CARD_FAMILY_PICKUP_AUDIT"
+    },
+    "general_rule": {
+      "value": "识别应以规范成员名→set_membership 映射 family；family 名只能是分类结果，不应替代实际卡顶标题。",
+      "source_level": "inferred",
+      "source": "CARD_FAMILY_PICKUP_AUDIT + choice_lexicon set_membership"
+    }
+  },
+  "unresolved_high_priority": [
+    {
+      "value": "修仙从练气期到大乘期的逐阶段精确配方/数量/触发。",
+      "source_level": "none",
+      "source": "ex_synthesis_matrix.xiuxian.stage_need=null"
+    },
+    {
+      "value": "海盗最终到底由吞噬12还是橙悬赏触发毁灭战舰，或二者是否为不同版本/路径。",
+      "source_level": "none",
+      "source": "haidao_chain.conflicts"
+    },
+    {
+      "value": "大圣齐天大圣到底首张即开池还是需要 3/3 后开池。",
+      "source_level": "none",
+      "source": "live progress 0/3 vs guide '抽到即解锁' conflict"
+    },
+    {
+      "value": "封神榜自动吞噬周期 70s 还是 90s。",
+      "source_level": "none",
+      "source": "仓库官方整理 vs KK公开攻略冲突"
+    },
+    {
+      "value": "解放的圣剑掷骰具体吞几张。",
+      "source_level": "none",
+      "source": "game_mechanics_kb.json:unknown"
+    },
+    {
+      "value": "统一合成动画/提示是否存在以及可否作为稳定机器信号。",
+      "source_level": "none",
+      "source": "无 retained live evidence"
+    }
+  ]
+}

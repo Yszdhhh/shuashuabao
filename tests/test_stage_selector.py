@@ -12,6 +12,8 @@ from shuabao.vision.capture import Frame
 from shuabao.vision.matcher import MatchResult, _load_template
 from shuabao.vision.stage_selector import (
     StageId,
+    _classify_glyph,
+    _classify_topbar_one,
     find_stage_in_range,
     find_stage_labels,
     selected_stage_row,
@@ -204,6 +206,17 @@ class StageSelectorTests(unittest.TestCase):
         self.assertIsNone(StageId.parse("invalid"))
         self.assertIsNone(StageId.parse("-1"))
         self.assertIsNone(StageId.parse("1-"))
+
+    @staticmethod
+    def _thin_one_glyph() -> np.ndarray:
+        # 高>=12、宽/高<0.38 的细长竖笔，旧共享分类会直接当成 "1"。
+        return np.ones((16, 5), dtype=np.uint8)
+
+    def test_topbar_thin_stroke_still_reads_as_one(self):
+        self.assertEqual(_classify_topbar_one(self._thin_one_glyph()), "1")
+
+    def test_shared_glyph_classifier_does_not_promote_thin_noise_to_one(self):
+        self.assertIsNone(_classify_glyph(self._thin_one_glyph(), {}))
 
 
 if __name__ == "__main__":

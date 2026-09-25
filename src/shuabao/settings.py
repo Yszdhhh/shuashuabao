@@ -123,7 +123,7 @@ class Settings:
     follow_cycle_num: int = 100  # 跟车目标局数；启动时投影到 cycle_num
     hitch_cycle_num: int = 100  # 蹭车目标局数；启动时投影到 cycle_num
     follow_after_room: str = "solo"  # 房间解散/被踢后预案：solo / arch / hitch
-    hitch_after_goal: str = "solo"  # 达到蹭车目标后预案：solo / arch
+    hitch_after_goal: str = "solo"  # 达到蹭车目标后预案：solo / arch / end
     follow_pair_code: str = ""  # 带车端配对信息；当前只持久化，运行同步待接线
     dragon_ball_count: int = 7
     find_longzhu_where_multi_game: bool = False
@@ -184,7 +184,9 @@ class Settings:
     auto_bond: bool = True       # 主动按 F 开羁绊面板（低频，防烧木材）
     auto_treasure: bool = True   # 主动按 V 开宝物面板（低频，防烧刷新次数）
     choice_interval: int = 120   # 主动开面板的最小间隔（秒）
-    auto_devour_dan: bool = True # 自动使用吞噬丹（实机羁绊数 > 3）
+    # 默认关闭：羁绊栏只有"数量"没有逐格身份，随机吞掉一张卡不可授权。
+    # 存档里的显式 true 照旧读回（_from_dict 透传），但缺字段=不授权。
+    auto_devour_dan: bool = False # 羁绊栏接近满格时自动使用吞噬丹，默认关闭
     evolve_mystic_priority: bool = False  # 未知/神秘进化优先（True=排最前，False=默认排在 SSR 之后、SR 之前）
     auto_artifact: bool = True   # 神器 Q/W/E 槽定时释放
     artifact_cd: int = 120       # 神器冷却秒数
@@ -459,7 +461,7 @@ class Settings:
             clean["hitch_stage_prefix"] = search_text or "4,3,速"
         for key, allowed, default in (
             ("follow_after_room", {"solo", "arch", "hitch"}, "solo"),
-            ("hitch_after_goal", {"solo", "arch"}, "solo"),
+            ("hitch_after_goal", {"solo", "arch", "end"}, "solo"),
         ):
             if key not in clean:
                 continue
@@ -634,7 +636,7 @@ class Settings:
                     errors.append("hitch_stage_prefix 必须为 1-64 个非空字符")
                 elif key == "follow_after_room" and value not in {"solo", "arch", "hitch"}:
                     errors.append("follow_after_room 取值非法")
-                elif key == "hitch_after_goal" and value not in {"solo", "arch"}:
+                elif key == "hitch_after_goal" and value not in {"solo", "arch", "end"}:
                     errors.append("hitch_after_goal 取值非法")
                 elif key == "ocr_mode" and value not in {"off", "shadow", "live"}:
                     errors.append("ocr_mode 取值非法")

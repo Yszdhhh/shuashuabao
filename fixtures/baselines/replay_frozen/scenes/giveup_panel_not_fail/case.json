@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "case": "giveup_panel_not_fail",
-  "description": "R0.1-#2 giveUp+panel 独立场景：真实帧 idx_b/000105（giveup_panel.jpg，giveUp 模板 0.926 命中 + 技能面板锚点并存）。S0 ① 语义：giveUp 独立场景 → AMBIGUOUS_GIVEUP，非失败、不进恢复、不变 QUIT；面板 FSM 正常继续。\n帧序：f0/f1 同一技能面板帧（双帧确认），f2 面板已关闭（idle_hud.png）。生产语义：f0 锚点首见 → 零输入待确认；f1 双帧确认成立 → 点击『刷新(3)』（技能刷新选择 skill_refresh_btn @ (1020,654)）；f2 面板消失 → panel episode 干净结束，零输入（不得立刻重开面板）。\n\n【2026-08-12 期望修订·含纠错】原夹具为两帧，期望 f0 立即点击『bond选择 rarity_red @ (864,359)』。经查该帧实为**技能选择面板**（三张技能卡 调焦/爆炎箭/天雷 + 刷新(3) + 放弃 + 技能免费刷新次数 -1），原期望把技能面板误判为羁绊面板并按品质色选卡——是被焊进基线的错误期望。现行为（识别 skill_refresh_btn 并点刷新）才与画面一致。\n同时补入第二帧同图：e997b39 引入面板双帧确认（防误点空面板/误分类面板），两帧夹具已无法走完确认流程，原意『giveUp 不算失败且面板照常动作』会被悄悄丢失；补帧后该断言重新生效。帧来源：tests/performance/fixtures/giveup_panel.jpg（idx_b 000105，N0 giveup_panel 同源）+ tests/performance/fixtures/idle_hud.png（= fixtures/replay/main_line_auto_on.png）。",
+  "description": "R0.1-#2 giveUp+panel 独立场景：真实帧 idx_b/000105（giveup_panel.jpg，giveUp 模板 0.926 命中 + 技能面板锚点并存）。S0 ① 语义：giveUp 独立场景 → AMBIGUOUS_GIVEUP，非失败、不进恢复、不变 QUIT；面板 FSM 正常继续。\n帧序：f0/f1 同一技能面板帧（双帧确认），f2 面板已关闭（idle_hud.png）。生产语义：f0 锚点首见 → 零输入待确认；f1 双帧确认成立 → 点击『刷新(3)』（技能刷新选择 refresh @ (1171,677)，即【刷新(3)】按钮）；f2 面板消失 → panel episode 干净结束，零输入（不得立刻重开面板）。\n\n【2026-08-12 期望修订·含纠错】原夹具为两帧，期望 f0 立即点击『bond选择 rarity_red @ (864,359)』。经查该帧实为**技能选择面板**（三张技能卡 调焦/爆炎箭/天雷 + 刷新(3) + 放弃 + 技能免费刷新次数 -1），原期望把技能面板误判为羁绊面板并按品质色选卡——是被焊进基线的错误期望。现行为（识别 skill_refresh_btn 并点刷新）才与画面一致。\n同时补入第二帧同图：e997b39 引入面板双帧确认（防误点空面板/误分类面板），两帧夹具已无法走完确认流程，原意『giveUp 不算失败且面板照常动作』会被悄悄丢失；补帧后该断言重新生效。【2026-09-24 期望修订】skill_refresh_btn 模板实为「技能免费刷新次数+1」文字截图，(1020,654) 压在【放弃】上沿；Owner 实机确认点它会空点/误点，真按钮是通用 refresh 命中的 (1171,677)。\n帧来源：tests/performance/fixtures/giveup_panel.jpg（idx_b 000105，N0 giveup_panel 同源）+ tests/performance/fixtures/idle_hud.png（= fixtures/replay/main_line_auto_on.png）。",
   "phase": "MAIN_LINE",
   "settings_overrides": {
     "dry_run": true
@@ -67,7 +67,7 @@
       "action": {
         "kind": "click",
         "reason": "技能刷新选择",
-        "target": "skill_refresh_btn",
+        "target": "refresh",
         "input_kind": "left_click"
       },
       "action_result": {

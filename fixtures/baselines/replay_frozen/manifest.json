@@ -32,7 +32,7 @@
       "missing_resource": false,
       "ledger_expectation": [
         {"frame_index": 0, "frame_id": "giveup_panel_f1", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "none", "action_kind": "none", "click_point": null},
-        {"frame_index": 1, "frame_id": "giveup_panel_f2", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "技能刷新选择", "action_kind": "left_click", "click_point": [1020, 654]},
+        {"frame_index": 1, "frame_id": "giveup_panel_f2", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "技能刷新选择", "action_kind": "left_click", "click_point": [1171, 677]},
         {"frame_index": 2, "frame_id": "hud_panel_closed_f3", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "none", "action_kind": "none", "click_point": null}
       ]
     },
@@ -61,7 +61,7 @@
       "required": true,
       "missing_resource": false,
       "ledger_expectation": [
-        {"frame_index": 0, "frame_id": "hud_f1", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "OpenBondPanel", "action_kind": "left_click", "click_point": [1390, 808]},
+        {"frame_index": 0, "frame_id": "hud_f1", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "UseInventory-yinyue_crystal", "action_kind": "left_click", "click_point": [1147, 831]},
         {"frame_index": 1, "frame_id": "hud_f2", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "none", "action_kind": "none", "click_point": null}
       ]
     },

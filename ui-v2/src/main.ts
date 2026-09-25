@@ -138,7 +138,10 @@ function afterGlobalCall(name: string, hook: () => void): void {
 
 // ---------------------------------------------------------------- intent 出口
 
-function pushConfig(patch: Partial<SettingsDTO> & { strategy?: Partial<StrategyDTO> }): void {
+function pushConfig(
+  patch: Partial<SettingsDTO> & { strategy?: Partial<StrategyDTO> },
+  onAck?: (ok: boolean) => void,
+): void {
   if (!bridge || applying) return;
   // Any settings mutation invalidates the previous backend preflight.  The
   // launch indicator must not keep advertising a result for stale settings.
@@ -148,9 +151,15 @@ function pushConfig(patch: Partial<SettingsDTO> & { strategy?: Partial<StrategyD
     .then((res) => {
       if (!res.ok) {
         toast("保存被拒绝: " + (res.errors[0] || "未知原因"));
+        onAck?.(false);
+        return;
       }
+      onAck?.(true);
     })
-    .catch((err) => toast(bridgeErrorText(err)));
+    .catch((err) => {
+      toast(bridgeErrorText(err));
+      onAck?.(false);
+    });
 }
 
 function pushShell(patch: { theme?: "light" | "dark"; selected_mode_id?: string }): void {
@@ -213,24 +222,39 @@ function showStartErr(msg: string): void {
   el.classList.toggle("show", Boolean(msg));
 }
 
+// pending = request in flight / not yet backend-ACKed; confirmed = last ACKed key.
+// Failure clears only pending so the same value can be retried.
+let confirmedSkillsKey = "";
+let pendingSkillsKey: string | null = null;
 function pushSkills(): void {
-  pushConfig({
-    strategy: {
-      skills: currentSkills().filter(Boolean),
+  const skills = currentSkills().filter(Boolean);
+  const priority = state.priority ? state.priority.slice() : [];
+  const routes = state.routes ? { ...state.routes } : {};
+  const key = JSON.stringify({ skills, priority, routes });
+  if (key === confirmedSkillsKey || key === pendingSkillsKey) return;
+  pendingSkillsKey = key;
+  pushConfig(
+    {
+      strategy: {
+        skills,
+      },
+      skill_priority: priority,
+      skill_custom_routes: routes,
     },
-    skill_priority: state.priority.slice(),
-  });
+    (ok) => {
+      if (pendingSkillsKey === key) pendingSkillsKey = null;
+      if (ok) confirmedSkillsKey = key;
+    },
+  );
 }
 
 function pushReputation(): void {
   const allocations: Record<string, number> = {};
-  let maxPoints = 0;
   for (const faction of FACTIONS) {
     const points = Number(state.alloc[faction.id]) || 0;
     if (points > 0) allocations[String(FACTION_NUMBERS[faction.id as keyof typeof FACTION_NUMBERS])] = points;
-    maxPoints = Math.max(maxPoints, points);
   }
-  pushConfig({ reputation_allocations: allocations, auto_reputation: Boolean(state.hero) || maxPoints > 0 });
+  pushConfig({ reputation_allocations: allocations, auto_reputation: Boolean(state.hero) });
 }
 
 const ADV_PACK_CARDS: Record<string, string[]> = {
@@ -340,15 +364,16 @@ function applyLaunchability(): void {
       identityPill.dataset.status = buildCheck?.ok === false ? "FAIL" : (identityDetail ? "READY" : "PENDING");
       const versionLabel = $("versionLabel");
       if (versionLabel) {
-        versionLabel.textContent = sourceShort
-          ? `v${version || "0.3"} · ${channel || "source"} · ${sourceShort}`
-          : (version ? `v${version}` : "v0.3");
+        const verStr = version ? (version.startsWith("v") ? version : `v${version}`) : "v0.3";
+        versionLabel.textContent = `${verStr} · UI-23`;
         versionLabel.title = [
           version ? `version=${version}` : "",
           channel ? `release_channel=${channel}` : "",
-          sourceShort ? `source_sha=${sourceShort}` : "",
-          manifestShort ? `manifest_sha=${manifestShort}` : "",
-          modelShort ? `ocr_model_sha=${modelShort}` : "",
+          identity?.source_sha ? `source_sha=${identity.source_sha}` : (sourceShort ? `source_sha=${sourceShort}` : ""),
+          identity?.release_manifest_sha256 ? `manifest_sha256=${identity.release_manifest_sha256}` : (manifestShort ? `manifest_sha=${manifestShort}` : ""),
+          identity?.exe_sha256 ? `exe_sha256=${identity.exe_sha256}` : "",
+          identity?.ocr_model_sha256 ? `ocr_model_sha256=${identity.ocr_model_sha256}` : (modelShort ? `ocr_model_sha=${modelShort}` : ""),
+          "ui_build=UI-23",
         ].filter(Boolean).join(" · ") || "构建身份：待预检";
       }
     }
@@ -476,7 +501,9 @@ function applyBuildAndSkills(settings: SettingsDTO): void {
     row.skills = skills.slice();
     state.selected = row.id;
   }
-  state.collapsed = true;
+  if (typeof state.collapsed !== "boolean") {
+    state.collapsed = true;
+  }
   const priority = asStringList(settings.skill_priority).filter((c) => currentSkills().includes(c));
   state.priority = [...priority, ...currentSkills().filter((c) => !priority.includes(c))].slice(0, 4);
   if (settings.skill_custom_routes && typeof settings.skill_custom_routes === "object") {
@@ -674,9 +701,10 @@ export function applySnapshot(snap: SnapshotDTO): void {
       if (snap.strategy.merchant) {
         settings.merchant_enabled = snap.strategy.merchant.enabled;
       }
-      if (snap.strategy.treasure?.negative_allowlist) {
-        settings.treasure_allow_negative = snap.strategy.treasure.negative_allowlist;
-        state.negative = new Set(snap.strategy.treasure.negative_allowlist);
+      const negAllow = snap.strategy?.treasure?.negative_allowlist ?? (snap.settings?.treasure_allow_negative as string[] | undefined);
+      if (Array.isArray(negAllow)) {
+        settings.treasure_allow_negative = negAllow;
+        state.negative = new Set(negAllow);
         const win = window as unknown as Record<string, unknown>;
         if (typeof win.renderNegatives === "function") {
           (win.renderNegatives as () => void)();
@@ -757,6 +785,9 @@ function applyRunStatus(run: RunStatusDTO): void {
   if (ctrlRunning) ctrlRunning.checked = runActive;
   document.body.dataset.running = runActive ? "true" : "false";
   state.running = runActive;
+  state.runState = run.state;
+  state.runModeId = run.mode_id;
+  state.runSummary = run.summary ?? null;
   state.hudPhase = run.phase;
   state.played = Math.max(0, Number(run.game_count) || 0);
   if (run.cycle_num !== undefined) state.cycle = run.cycle_num;
@@ -851,7 +882,17 @@ function wireIntents(): void {
     downgrade.value = String(value);
     pushConfig({ downgrade_after_failures: value });
   });
-  afterGlobalCall("renderSkillRank", pushSkills);
+  afterGlobalCall("renderSkillRank", () => {
+    if (state.collapsed) pushSkills();
+  });
+  afterGlobalCall("selectBuild", () => {
+    pushSkills();
+    pushBondsAndAttributes();
+  });
+  afterGlobalCall("restorePresets", () => {
+    pushSkills();
+    pushBondsAndAttributes();
+  });
   // 羁绊配置按用户显式点击“保存羁绊”落盘，避免每次重绘都产生一次配置请求。
   afterGlobalCall("renderNegatives", pushNegatives);
   afterGlobalCall("renderWizard", () => {
@@ -867,6 +908,20 @@ function wireIntents(): void {
     }
     applyVisibleSettings();
   });
+
+  // 常规开关与英雄挑战开关落盘接线
+  for (const sw of SWITCHES) {
+    const el = document.getElementById(sw.el);
+    if (el) {
+      el.addEventListener("click", () => {
+        defer(() => pushConfig({ [sw.field]: Boolean(state[sw.stateKey]) }));
+      });
+    }
+  }
+  const heroEl = document.getElementById("swHero");
+  if (heroEl) {
+    heroEl.addEventListener("click", () => defer(pushReputation));
+  }
 
   // 负面效果勾选变化事件
   const negEl = $("negatives");
@@ -1087,6 +1142,9 @@ function showFatal(err: unknown): void {
 async function boot(): Promise<void> {
   if (import.meta.env.MODE !== "production") {
     // dev/浏览器测试：诚实 mock，形状与 types.ts 一致；生产构建不打包此分支。
+    // 预览场景条（桌面 Qt 预览窗口 / 在线预览沙盒共用）；同样只存在于非 production 构建。
+    const { installPreviewScenes } = await import("./dev/previewScenes");
+    installPreviewScenes();
     const { createMockBridgeConnection } = await import("./bridge/mockBridge");
     const conn = createMockBridgeConnection();
     bridge = conn.bridge;

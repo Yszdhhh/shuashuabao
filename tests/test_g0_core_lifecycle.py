@@ -328,6 +328,53 @@ class G0LeaveOldRoomTests(unittest.TestCase):
         self.assertFalse(med._room_leave_pending)
         self.assertIs(med.phase, Phase.LOBBY_ROOM, "超时保持手动房等待语义")
 
+    def test_room_exit_fallback_uses_semantic_room_exit_geometry(self) -> None:
+        clock = FakeClock(start=100.0)
+        med = self._farm_mediator(clock)
+        med._room_leave_pending = True
+        med.set_phase(Phase.PREPARE, "leaving old room")
+        frame = _noise_frame(seed=74)
+        exit_hit = _hit("room_exit", 1100, 700)
+        clicks: list[str] = []
+        with patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+                patch.object(med, "_hitch_action_hit", return_value=None), \
+                patch.object(med, "_find_hitch_exit_button", return_value=exit_hit) as find_exit, \
+                patch.object(med, "act_click", side_effect=lambda _h, reason="": clicks.append(reason) or True):
+            self.assertIs(med._tick_leave_old_room(frame, _hit("room_start"), now=100.0), LoopAction.Continue)
+        find_exit.assert_called_once_with(frame)
+        self.assertEqual(clicks, ["LeaveOldRoom"])
+
+    def test_room_exit_fallback_works_when_room_start_is_disabled(self) -> None:
+        """结束态房间显示“游戏中”时仍必须点击右侧退出。"""
+        med = self._farm_mediator(FakeClock(start=100.0))
+        med._room_leave_pending = True
+        med.set_phase(Phase.ROOM_WAITING, "leaving completed room")
+        frame = _noise_frame(seed=75)
+        exit_hit = _hit("room_exit", 1100, 700)
+        clicks: list[str] = []
+        with patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+                patch.object(med, "_find_room_start", return_value=None), \
+                patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+                patch.object(med, "_hitch_action_hit", return_value=None), \
+                patch.object(med, "_find_hitch_exit_button", return_value=exit_hit) as find_exit, \
+                patch.object(med, "act_click", side_effect=lambda _h, reason="": clicks.append(reason) or True):
+            self.assertIs(med._tick_leave_old_room(frame, None, now=100.0), LoopAction.Continue)
+        find_exit.assert_called_once_with(frame)
+        self.assertEqual(clicks, ["LeaveOldRoom"])
+
+    def test_room_leave_confirms_kk_exit_child_before_waiting_for_lobby(self) -> None:
+        """KK 把退房二次确认放在独立 440x260 同标题窗口。"""
+        med = self._farm_mediator(FakeClock(start=100.0))
+        med._room_leave_pending = True
+        confirm = _hit("hitch_exit_confirm", 120, 170)
+        clicks: list[str] = []
+        with patch.object(med, "_hitch_exit_modal_visible", return_value=True), \
+                patch.object(med, "_find_hitch_exit_confirm_button", return_value=confirm), \
+                patch.object(med, "act_click", side_effect=lambda _h, reason="": clicks.append(reason) or True):
+            self.assertIs(med._tick_leave_old_room(_noise_frame(seed=76), None, now=100.0), LoopAction.Continue)
+        self.assertEqual(clicks, ["LeaveOldRoom-confirm"])
+        self.assertTrue(med._room_leave_pending, "确认点击不是离房成功；仍须等待 fresh 大厅证据")
+
 
 class G0ArchaeologyHandoffTests(unittest.TestCase):
     """契约 #6：click 仅 request；fresh generation kaogu 锚点才 COMPLETE。"""

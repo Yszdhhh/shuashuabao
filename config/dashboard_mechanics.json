@@ -11,27 +11,61 @@
         {
           "id": "explosion",
           "label": "爆炸流",
-          "order": ["箭矢增幅", "爆炸箭矢", "爆炸增伤", "爆炸扩散", "爆破箭矢", "火焰射击(可选)"],
-          "exclude": ["急速抽箭"],
+          "order": [
+            "箭矢增幅",
+            "爆炸箭矢",
+            "爆炸增伤",
+            "爆炸扩散",
+            "爆破箭矢",
+            "火焰射击(可选)"
+          ],
+          "exclude": [
+            "急速抽箭"
+          ],
           "never_pick": [],
-          "requires_main_skills": ["爆炎箭"],
-          "requires_cards": ["爆炸箭矢(前置:奥术箭+爆炎箭)"],
+          "requires_main_skills": [
+            "爆炎箭"
+          ],
+          "requires_cards": [
+            "爆炸箭矢(前置:奥术箭+爆炎箭)"
+          ],
           "archive_waive": "asj 存档36级已验证豁免爆炸箭矢的爆炎箭前置(skill_archive_unlocks.json, 引擎choice_policy.py已接线)——Lv36+存档本路线无需爆炎箭"
         },
         {
           "id": "haste",
           "label": "急速流",
-          "order": ["箭矢增幅", "强化箭矢", "急速抽箭", "强力箭矢", "强化飞箭"],
-          "exclude": ["爆炸箭矢"],
-          "never_pick": ["蓄力射击"],
-          "requires_main_skills": ["普攻"],
-          "requires_cards": ["强化箭矢(普攻族)"]
+          "order": [
+            "箭矢增幅",
+            "强化箭矢",
+            "急速抽箭",
+            "强力箭矢",
+            "强化飞箭"
+          ],
+          "exclude": [
+            "爆炸箭矢"
+          ],
+          "never_pick": [
+            "蓄力射击"
+          ],
+          "requires_main_skills": [
+            "普攻"
+          ],
+          "requires_cards": [
+            "强化箭矢(普攻族)"
+          ]
         },
         {
           "id": "split",
           "label": "次级分裂",
-          "order": ["箭矢增幅", "次级箭", "次级增伤", "次级扩散"],
-          "exclude": ["火焰射击(单向被排斥)"],
+          "order": [
+            "箭矢增幅",
+            "次级箭",
+            "次级增伤",
+            "次级扩散"
+          ],
+          "exclude": [
+            "火焰射击(单向被排斥)"
+          ],
           "never_pick": [],
           "requires_main_skills": [],
           "requires_cards": []
@@ -39,256 +73,1273 @@
       ],
       "default_route": "haste",
       "default_note": "开荒急速流(S3序前半); 与次级分裂可叠加。官方arcane_open预设(asj,asjg,assx,jq): 急速流不可达(缺普攻,无豁免); 爆炸流低存档不可达(缺爆炎箭), asj存档36级豁免后可达——过滤必须带存档等级条件。",
-      "dashboard_current": {"damage": "作废", "split": "保留", "cooldown": "保留+加前置标注"},
+      "dashboard_current": {
+        "damage": "作废",
+        "split": "保留",
+        "cooldown": "保留+加前置标注"
+      },
       "evidence": "repo(skill_card_knowledge 220卡) + guide(S3)"
     },
     "asjg": {
       "name": "奥术激光",
       "affinity": "智力/法系",
       "routes": [
-        {"id": "flood", "label": "奥能洪流", "order": ["激光增幅", "激光超载", "高能脉冲", "奥能洪流", "奥能天球(50级)"], "exclude": ["奥能扫射"], "never_pick": [], "requires_main_skills": []},
-        {"id": "sweep", "label": "奥能扫射", "order": ["激光增幅", "激光超载", "衰弱光线", "高能脉冲", "奥能扫射"], "exclude": ["奥能洪流"], "never_pick": [], "requires_main_skills": []}
+        {
+          "id": "flood",
+          "label": "奥能洪流",
+          "order": [
+            "激光增幅",
+            "激光超载",
+            "高能脉冲",
+            "奥能洪流",
+            "奥能天球(50级)"
+          ],
+          "exclude": [
+            "奥能扫射"
+          ],
+          "never_pick": [],
+          "requires_main_skills": []
+        },
+        {
+          "id": "sweep",
+          "label": "奥能扫射",
+          "order": [
+            "激光增幅",
+            "激光超载",
+            "衰弱光线",
+            "高能脉冲",
+            "奥能扫射"
+          ],
+          "exclude": [
+            "奥能洪流"
+          ],
+          "never_pick": [],
+          "requires_main_skills": []
+        }
       ],
       "default_route": "flood",
-      "dashboard_current": {"flood": "保留", "sweep": "保留", "uptime": "作废(稳定/衰弱/瓦解光线是散件)"},
+      "dashboard_current": {
+        "flood": "保留",
+        "sweep": "保留",
+        "uptime": "作废(稳定/衰弱/瓦解光线是散件)"
+      },
       "evidence": "repo"
     },
     "assx": {
       "name": "奥术射线",
       "affinity": "智力/法系",
       "routes": [
-        {"id": "guide_arrow", "label": "制导线", "order": ["射线增幅", "焦点", "制导箭失", "永恒箭矢(50级)"], "exclude": [], "never_pick": [], "requires_main_skills": ["奥术箭"]},
-        {"id": "blast", "label": "爆破线", "order": ["射线增幅", "焦点", "焦点爆破", "调焦"], "exclude": [], "never_pick": [], "requires_main_skills": []},
-        {"id": "multi", "label": "多重线", "order": ["射线增幅", "射线延续", "多重射线", "调焦"], "exclude": [], "never_pick": [], "requires_main_skills": []}
+        {
+          "id": "guide_arrow",
+          "label": "制导线",
+          "order": [
+            "射线增幅",
+            "焦点",
+            "制导箭失",
+            "永恒箭矢(50级)"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": [
+            "奥术箭"
+          ]
+        },
+        {
+          "id": "blast",
+          "label": "爆破线",
+          "order": [
+            "射线增幅",
+            "焦点",
+            "焦点爆破",
+            "调焦"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": []
+        },
+        {
+          "id": "multi",
+          "label": "多重线",
+          "order": [
+            "射线增幅",
+            "射线延续",
+            "多重射线",
+            "调焦"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": []
+        }
       ],
       "default_route": "blast",
       "default_note": "开荒爆破线; 长局制导线(50级永恒箭矢)",
-      "dashboard_current": {"damage": "作废(焦点是散件)", "guide": "保留", "uptime": "改名多重射线"},
+      "dashboard_current": {
+        "damage": "作废(焦点是散件)",
+        "guide": "保留",
+        "uptime": "改名多重射线"
+      },
       "evidence": "repo"
     },
     "jq": {
       "name": "剑气",
       "affinity": "力量/物理",
       "routes": [
-        {"id": "ice", "label": "碎冰线", "order": ["剑气增幅", "巨型剑气", "碎冰"], "exclude": ["烈焰斩"], "never_pick": [], "requires_main_skills": ["冰霜新星"]},
-        {"id": "flame", "label": "烈焰斩线", "order": ["剑气增幅", "巨型剑气", "烈焰斩"], "exclude": ["碎冰"], "never_pick": [], "requires_main_skills": ["爆炎箭"]},
-        {"id": "annihilate", "label": "湮灭进化", "order": ["剑气增幅", "巨型剑气", "疾行剑气", "剑气冲击", "湮灭斩"], "exclude": [], "never_pick": [], "requires_main_skills": []}
+        {
+          "id": "ice",
+          "label": "碎冰线",
+          "order": [
+            "剑气增幅",
+            "巨型剑气",
+            "碎冰"
+          ],
+          "exclude": [
+            "烈焰斩"
+          ],
+          "never_pick": [],
+          "requires_main_skills": [
+            "冰霜新星"
+          ]
+        },
+        {
+          "id": "flame",
+          "label": "烈焰斩线",
+          "order": [
+            "剑气增幅",
+            "巨型剑气",
+            "烈焰斩"
+          ],
+          "exclude": [
+            "碎冰"
+          ],
+          "never_pick": [],
+          "requires_main_skills": [
+            "爆炎箭"
+          ]
+        },
+        {
+          "id": "annihilate",
+          "label": "湮灭进化",
+          "order": [
+            "剑气增幅",
+            "巨型剑气",
+            "疾行剑气",
+            "剑气冲击",
+            "湮灭斩"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": []
+        }
       ],
       "default_route": "annihilate",
-      "dashboard_current": {"ice": "保留+标副技能", "flame": "保留+标副技能", "projectile": "改名湮灭斩"},
+      "dashboard_current": {
+        "ice": "保留+标副技能",
+        "flame": "保留+标副技能",
+        "projectile": "改名湮灭斩"
+      },
       "evidence": "repo"
     },
     "byj": {
       "name": "爆炎箭",
       "affinity": "敏捷/智力",
       "routes": [
-        {"id": "yanbao", "label": "炎爆进化", "order": ["火箭增幅", "(奥术箭侧:爆炸箭矢→爆炸扩散)", "炎爆术(13级)", "渗透火焰"], "exclude": ["连珠火箭"], "never_pick": [], "requires_main_skills": ["奥术箭"], "requires_cards": ["爆炸扩散(奥术箭族卡,是炎爆术前置)"], "archive_waive": "byj 存档30级已验证豁免炎爆术的爆炸扩散前置(skill_archive_unlocks.json)——Lv30+存档无需奥术箭也可拿炎爆术"},
-        {"id": "volley", "label": "连珠线", "order": ["连珠火箭", "超连珠火箭(10级)"], "exclude": ["炎爆术"], "never_pick": [], "requires_main_skills": []},
-        {"id": "burn", "label": "燃烧爆发", "order": ["火箭爆破", "爆燃火箭", "猛烈燃烧", "传火", "火花内爆(36级)"], "exclude": [], "never_pick": [], "requires_main_skills": []}
+        {
+          "id": "yanbao",
+          "label": "炎爆进化",
+          "order": [
+            "火箭增幅",
+            "(奥术箭侧:爆炸箭矢→爆炸扩散)",
+            "炎爆术(13级)",
+            "渗透火焰"
+          ],
+          "exclude": [
+            "连珠火箭"
+          ],
+          "never_pick": [],
+          "requires_main_skills": [
+            "奥术箭"
+          ],
+          "requires_cards": [
+            "爆炸扩散(奥术箭族卡,是炎爆术前置)"
+          ],
+          "archive_waive": "byj 存档30级已验证豁免炎爆术的爆炸扩散前置(skill_archive_unlocks.json)——Lv30+存档无需奥术箭也可拿炎爆术"
+        },
+        {
+          "id": "volley",
+          "label": "连珠线",
+          "order": [
+            "连珠火箭",
+            "超连珠火箭(10级)"
+          ],
+          "exclude": [
+            "炎爆术"
+          ],
+          "never_pick": [],
+          "requires_main_skills": []
+        },
+        {
+          "id": "burn",
+          "label": "燃烧爆发",
+          "order": [
+            "火箭爆破",
+            "爆燃火箭",
+            "猛烈燃烧",
+            "传火",
+            "火花内爆(36级)"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": []
+        }
       ],
       "default_route": "burn",
       "default_note": "无跨系依赖成型快; 4技能含奥术箭时升炎爆进化",
-      "dashboard_current": {"meteor": "保留+标跨系前置", "volley": "保留", "burn": "保留"},
+      "dashboard_current": {
+        "meteor": "保留+标跨系前置",
+        "volley": "保留",
+        "burn": "保留"
+      },
       "evidence": "repo + live(炎爆术exclude截图 user 20260814)"
     },
     "hbj": {
       "name": "寒冰箭",
       "affinity": "智力/控场",
       "routes": [
-        {"id": "prism", "label": "三棱进化", "order": ["冰箭增幅", "极寒冰箭", "冰箭贯穿", "三棱冰箭"], "exclude": ["蚀骨之寒"], "never_pick": [], "requires_main_skills": []},
-        {"id": "frostbite", "label": "蚀骨永冻", "order": ["极寒冰箭", "冰箭贯穿", "蚀骨之寒", "强化冰箭(43级)", "永冻天球(50级)"], "exclude": ["三棱冰箭"], "never_pick": [], "requires_main_skills": []},
-        {"id": "shard", "label": "小冰箭分裂", "order": ["冰箭增幅", "小冰箭", "冰片增伤", "蚀骨冰棱", "冰晶爆裂(36级)"], "exclude": [], "never_pick": [], "requires_main_skills": []}
+        {
+          "id": "prism",
+          "label": "三棱进化",
+          "order": [
+            "冰箭增幅",
+            "极寒冰箭",
+            "冰箭贯穿",
+            "三棱冰箭"
+          ],
+          "exclude": [
+            "蚀骨之寒"
+          ],
+          "never_pick": [],
+          "requires_main_skills": []
+        },
+        {
+          "id": "frostbite",
+          "label": "蚀骨永冻",
+          "order": [
+            "极寒冰箭",
+            "冰箭贯穿",
+            "蚀骨之寒",
+            "强化冰箭(43级)",
+            "永冻天球(50级)"
+          ],
+          "exclude": [
+            "三棱冰箭"
+          ],
+          "never_pick": [],
+          "requires_main_skills": []
+        },
+        {
+          "id": "shard",
+          "label": "小冰箭分裂",
+          "order": [
+            "冰箭增幅",
+            "小冰箭",
+            "冰片增伤",
+            "蚀骨冰棱",
+            "冰晶爆裂(36级)"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": []
+        }
       ],
       "default_route": "shard",
       "default_note": "开荒小冰箭; 长局蚀骨永冻。散件互斥对: 冰箭连发↔冰箭齐射",
-      "dashboard_current": {"freeze": "保留", "volley": "保留+注明与齐射互斥", "split": "保留+注明与蚀骨互斥"},
+      "dashboard_current": {
+        "freeze": "保留",
+        "volley": "保留+注明与齐射互斥",
+        "split": "保留+注明与蚀骨互斥"
+      },
       "evidence": "repo"
     },
     "tl": {
       "name": "天雷",
       "affinity": "智力/元素",
       "routes": [
-        {"id": "judgment", "label": "审判线", "order": ["雷击增幅", "雷电制裁", "审判之雷(20级)"], "exclude": [], "never_pick": [], "requires_main_skills": [], "order_trap": "先拿磁暴则审判之雷不进池(单向排斥); 先审判后磁暴可两全"},
-        {"id": "storm", "label": "磁暴线", "order": ["磁暴", "磁暴增幅", "磁暴扩张", "电磁场", "高压电场"], "exclude": ["审判之雷(锁死)"], "never_pick": [], "requires_main_skills": []},
-        {"id": "orb", "label": "电球线", "order": ["雷击增幅", "高压雷击", "闪电球", "高压电球", "电球爆裂(36级)"], "exclude": [], "never_pick": [], "requires_main_skills": []}
+        {
+          "id": "judgment",
+          "label": "审判线",
+          "order": [
+            "雷击增幅",
+            "雷电制裁",
+            "审判之雷(20级)"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": [],
+          "order_trap": "先拿磁暴则审判之雷不进池(单向排斥); 先审判后磁暴可两全"
+        },
+        {
+          "id": "storm",
+          "label": "磁暴线",
+          "order": [
+            "磁暴",
+            "磁暴增幅",
+            "磁暴扩张",
+            "电磁场",
+            "高压电场"
+          ],
+          "exclude": [
+            "审判之雷(锁死)"
+          ],
+          "never_pick": [],
+          "requires_main_skills": []
+        },
+        {
+          "id": "orb",
+          "label": "电球线",
+          "order": [
+            "雷击增幅",
+            "高压雷击",
+            "闪电球",
+            "高压电球",
+            "电球爆裂(36级)"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": []
+        }
       ],
       "default_route": "judgment",
-      "dashboard_current": {"judgment": "保留+顺序提示", "storm": "保留", "damage": "改名雷电制裁"},
+      "dashboard_current": {
+        "judgment": "保留+顺序提示",
+        "storm": "保留",
+        "damage": "改名雷电制裁"
+      },
       "evidence": "repo + official(单向排斥 official_help)"
     },
     "sdl": {
       "name": "闪电链",
       "affinity": "智力/元素",
       "routes": [
-        {"id": "perpetual", "label": "永动电流", "order": ["高压闪电", "闪电增幅", "闪电延续", "永动电流(20级)"], "exclude": [], "never_pick": [], "requires_main_skills": []},
-        {"id": "ion", "label": "离子爆破", "order": ["高压闪电", "离子爆破", "离子电压", "离子扩散"], "exclude": [], "never_pick": [], "requires_main_skills": []},
-        {"id": "sympathy", "label": "交感麻痹", "order": ["高压闪电", "交感电击", "霹雳闪电(40级)"], "exclude": [], "never_pick": [], "requires_main_skills": []}
+        {
+          "id": "perpetual",
+          "label": "永动电流",
+          "order": [
+            "高压闪电",
+            "闪电增幅",
+            "闪电延续",
+            "永动电流(20级)"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": []
+        },
+        {
+          "id": "ion",
+          "label": "离子爆破",
+          "order": [
+            "高压闪电",
+            "离子爆破",
+            "离子电压",
+            "离子扩散"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": []
+        },
+        {
+          "id": "sympathy",
+          "label": "交感麻痹",
+          "order": [
+            "高压闪电",
+            "交感电击",
+            "霹雳闪电(40级)"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": []
+        }
       ],
       "default_route": "perpetual",
       "default_note": "全族无互斥, 路线=优先级",
-      "dashboard_current": {"bounce": "改名永动电流", "paralysis": "改名交感电击", "ion": "保留"},
+      "dashboard_current": {
+        "bounce": "改名永动电流",
+        "paralysis": "改名交感电击",
+        "ion": "保留"
+      },
       "evidence": "repo"
     },
     "dcw": {
       "name": "电磁网",
       "affinity": "智力/控场",
       "routes": [
-        {"id": "overload", "label": "过载连发", "order": ["高频电网", "电网过载", "超过载(23级)"], "exclude": [], "never_pick": [], "requires_main_skills": []},
-        {"id": "jump", "label": "跃迁电流", "order": ["电磁增幅", "跃迁电流", "电能激荡"], "exclude": [], "never_pick": [], "requires_main_skills": ["闪电链"]},
-        {"id": "sense", "label": "感电终极", "order": ["电磁增幅", "电网扩张", "高压电网", "感电(50级)"], "exclude": [], "never_pick": [], "requires_main_skills": []}
+        {
+          "id": "overload",
+          "label": "过载连发",
+          "order": [
+            "高频电网",
+            "电网过载",
+            "超过载(23级)"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": []
+        },
+        {
+          "id": "jump",
+          "label": "跃迁电流",
+          "order": [
+            "电磁增幅",
+            "跃迁电流",
+            "电能激荡"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": [
+            "闪电链"
+          ]
+        },
+        {
+          "id": "sense",
+          "label": "感电终极",
+          "order": [
+            "电磁增幅",
+            "电网扩张",
+            "高压电网",
+            "感电(50级)"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": []
+        }
       ],
       "default_route": "overload",
-      "dashboard_current": {"shock": "保留(标50级)", "zone": "改名跃迁电流+标副技能", "damage": "改名过载连发"},
+      "dashboard_current": {
+        "shock": "保留(标50级)",
+        "zone": "改名跃迁电流+标副技能",
+        "damage": "改名过载连发"
+      },
       "evidence": "repo"
     },
     "bsxx": {
       "name": "冰霜新星",
       "affinity": "智力/防御",
       "routes": [
-        {"id": "field", "label": "冷冻场", "order": ["新星增幅", "极寒新星", "寒霜之心", "冷冻场(20级)", "绝对零度"], "exclude": [], "never_pick": [], "requires_main_skills": []},
-        {"id": "shard", "label": "冰片分裂", "order": ["小冰片", "冰片飞溅", "冰片爆裂(40级)"], "exclude": [], "never_pick": [], "requires_main_skills": ["寒冰箭"]},
-        {"id": "chain", "label": "连环扩张", "order": ["连环霜爆", "新星扩张", "刺骨寒霜(13级)"], "exclude": [], "never_pick": [], "requires_main_skills": []}
+        {
+          "id": "field",
+          "label": "冷冻场",
+          "order": [
+            "新星增幅",
+            "极寒新星",
+            "寒霜之心",
+            "冷冻场(20级)",
+            "绝对零度"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": []
+        },
+        {
+          "id": "shard",
+          "label": "冰片分裂",
+          "order": [
+            "小冰片",
+            "冰片飞溅",
+            "冰片爆裂(40级)"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": [
+            "寒冰箭"
+          ]
+        },
+        {
+          "id": "chain",
+          "label": "连环扩张",
+          "order": [
+            "连环霜爆",
+            "新星扩张",
+            "刺骨寒霜(13级)"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": []
+        }
       ],
       "default_route": "field",
-      "dashboard_current": {"freeze": "改名冷冻场", "shatter": "保留+标副技能", "damage": "改名刺骨寒霜"},
+      "dashboard_current": {
+        "freeze": "改名冷冻场",
+        "shatter": "保留+标副技能",
+        "damage": "改名刺骨寒霜"
+      },
       "evidence": "repo"
     },
     "dz": {
       "name": "地震",
       "affinity": "力量/控场",
       "routes": [
-        {"id": "ember", "label": "爆燃余烬", "order": ["地震增幅", "精准打击", "爆燃地震", "余烬延续", "高温余烬"], "exclude": [], "never_pick": [], "requires_main_skills": ["爆炎箭"]},
-        {"id": "barrage", "label": "连击狂轰", "order": ["地震连击", "地震狂轰", "末日地震"], "exclude": [], "never_pick": [], "requires_main_skills": []},
-        {"id": "control", "label": "控场浩劫", "order": ["地震重击", "强震", "浩劫(40级)"], "exclude": [], "never_pick": [], "requires_main_skills": ["陨石"]}
+        {
+          "id": "ember",
+          "label": "爆燃余烬",
+          "order": [
+            "地震增幅",
+            "精准打击",
+            "爆燃地震",
+            "余烬延续",
+            "高温余烬"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": [
+            "爆炎箭"
+          ]
+        },
+        {
+          "id": "barrage",
+          "label": "连击狂轰",
+          "order": [
+            "地震连击",
+            "地震狂轰",
+            "末日地震"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": []
+        },
+        {
+          "id": "control",
+          "label": "控场浩劫",
+          "order": [
+            "地震重击",
+            "强震",
+            "浩劫(40级)"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": [
+            "陨石"
+          ]
+        }
       ],
       "default_route": "ember",
       "default_note": "无爆炎箭则连击狂轰",
-      "dashboard_current": {"stun": "作废(散件)", "ember": "保留+标副技能", "damage": "改名连击狂轰"},
+      "dashboard_current": {
+        "stun": "作废(散件)",
+        "ember": "保留+标副技能",
+        "damage": "改名连击狂轰"
+      },
       "evidence": "repo"
     },
     "ljf": {
       "name": "龙卷风",
       "affinity": "敏捷/智力",
       "routes": [
-        {"id": "lightning", "label": "闪电龙卷", "order": ["龙卷延续", "龙卷扩张", "闪电龙卷"], "exclude": ["双重龙卷"], "never_pick": [], "requires_main_skills": ["闪电链"]},
-        {"id": "double", "label": "双重龙卷", "order": ["龙卷延续", "龙卷扩张", "双重龙卷", "龙卷风暴(50级)"], "exclude": ["闪电龙卷"], "never_pick": [], "requires_main_skills": []},
-        {"id": "pull", "label": "牵引汇聚", "order": ["龙卷延续", "强袭龙卷", "风暴汇聚", "强力龙卷"], "exclude": [], "never_pick": [], "requires_main_skills": []}
+        {
+          "id": "lightning",
+          "label": "闪电龙卷",
+          "order": [
+            "龙卷延续",
+            "龙卷扩张",
+            "闪电龙卷"
+          ],
+          "exclude": [
+            "双重龙卷"
+          ],
+          "never_pick": [],
+          "requires_main_skills": [
+            "闪电链"
+          ]
+        },
+        {
+          "id": "double",
+          "label": "双重龙卷",
+          "order": [
+            "龙卷延续",
+            "龙卷扩张",
+            "双重龙卷",
+            "龙卷风暴(50级)"
+          ],
+          "exclude": [
+            "闪电龙卷"
+          ],
+          "never_pick": [],
+          "requires_main_skills": []
+        },
+        {
+          "id": "pull",
+          "label": "牵引汇聚",
+          "order": [
+            "龙卷延续",
+            "强袭龙卷",
+            "风暴汇聚",
+            "强力龙卷"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": []
+        }
       ],
       "default_route": "double",
-      "dashboard_current": {"lightning": "保留+标副技能", "double": "保留", "pull": "保留"},
+      "dashboard_current": {
+        "lightning": "保留+标副技能",
+        "double": "保留",
+        "pull": "保留"
+      },
       "evidence": "repo"
     },
     "jf": {
       "name": "飓风",
       "affinity": "敏捷/控场",
       "routes": [
-        {"id": "vacuum", "label": "真空牵引", "order": ["飓风增幅", "真空", "真空塌陷"], "exclude": ["强袭飓风"], "never_pick": [], "requires_main_skills": []},
-        {"id": "strike", "label": "强袭多旋", "order": ["强袭飓风", "多重飓风", "多重风暴", "风力回旋(40级)"], "exclude": ["真空"], "never_pick": [], "requires_main_skills": []},
-        {"id": "spawn", "label": "小飓风分裂", "order": ["飓风增幅", "小飓风", "风暴加剧", "乱流(36级)"], "exclude": [], "never_pick": [], "requires_main_skills": []}
+        {
+          "id": "vacuum",
+          "label": "真空牵引",
+          "order": [
+            "飓风增幅",
+            "真空",
+            "真空塌陷"
+          ],
+          "exclude": [
+            "强袭飓风"
+          ],
+          "never_pick": [],
+          "requires_main_skills": []
+        },
+        {
+          "id": "strike",
+          "label": "强袭多旋",
+          "order": [
+            "强袭飓风",
+            "多重飓风",
+            "多重风暴",
+            "风力回旋(40级)"
+          ],
+          "exclude": [
+            "真空"
+          ],
+          "never_pick": [],
+          "requires_main_skills": []
+        },
+        {
+          "id": "spawn",
+          "label": "小飓风分裂",
+          "order": [
+            "飓风增幅",
+            "小飓风",
+            "风暴加剧",
+            "乱流(36级)"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": []
+        }
       ],
       "default_route": "spawn",
-      "dashboard_current": {"strike": "保留", "vacuum": "保留", "pierce": "改名小飓风分裂(贯通之风是散件)"},
+      "dashboard_current": {
+        "strike": "保留",
+        "vacuum": "保留",
+        "pierce": "改名小飓风分裂(贯通之风是散件)"
+      },
       "evidence": "repo"
     },
     "hq": {
       "name": "火球",
       "affinity": "智力/火系",
       "routes": [
-        {"id": "tempo", "label": "高频火球", "order": ["火球延续", "巨化火球", "火球增幅", "高频火球"], "exclude": ["火球加速", "疾行火球"], "never_pick": [], "requires_main_skills": []},
-        {"id": "swift", "label": "疾行火球", "order": ["火球延续", "火球增幅", "火球加速", "疾行火球"], "exclude": ["高频火球"], "never_pick": [], "requires_main_skills": []},
-        {"id": "frostflame", "label": "乾蓝冰焰", "order": ["烈焰火球", "乾蓝冰焰(23级)"], "exclude": [], "never_pick": [], "requires_main_skills": ["爆炎箭", "寒冰箭"]},
-        {"id": "lucky", "label": "多重幸运", "order": ["多重火球", "多重火球", "幸运火球(40级)"], "exclude": [], "never_pick": [], "requires_main_skills": []}
+        {
+          "id": "tempo",
+          "label": "高频火球",
+          "order": [
+            "火球延续",
+            "巨化火球",
+            "火球增幅",
+            "高频火球"
+          ],
+          "exclude": [
+            "火球加速",
+            "疾行火球"
+          ],
+          "never_pick": [],
+          "requires_main_skills": []
+        },
+        {
+          "id": "swift",
+          "label": "疾行火球",
+          "order": [
+            "火球延续",
+            "火球增幅",
+            "火球加速",
+            "疾行火球"
+          ],
+          "exclude": [
+            "高频火球"
+          ],
+          "never_pick": [],
+          "requires_main_skills": []
+        },
+        {
+          "id": "frostflame",
+          "label": "乾蓝冰焰",
+          "order": [
+            "烈焰火球",
+            "乾蓝冰焰(23级)"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": [
+            "爆炎箭",
+            "寒冰箭"
+          ]
+        },
+        {
+          "id": "lucky",
+          "label": "多重幸运",
+          "order": [
+            "多重火球",
+            "多重火球",
+            "幸运火球(40级)"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": []
+        }
       ],
       "default_route": "tempo",
-      "dashboard_current": {"burn": "作废(烈焰火球是冰焰前置)", "tempo": "保留", "volume": "改名多重幸运"},
+      "dashboard_current": {
+        "burn": "作废(烈焰火球是冰焰前置)",
+        "tempo": "保留",
+        "volume": "改名多重幸运"
+      },
       "evidence": "repo"
     },
     "ys": {
       "name": "陨石",
       "affinity": "力量/智力",
       "routes": [
-        {"id": "doom", "label": "毁灭星落", "order": ["陨石增幅", "陨石增幅", "毁灭陨石", "星落"], "exclude": [], "never_pick": [], "requires_main_skills": []},
-        {"id": "shrapnel", "label": "碎片迸射", "order": ["陨石增幅", "陨石碎片", "多重迸射", "爆破碎片(36级)"], "exclude": [], "never_pick": [], "requires_main_skills": []},
-        {"id": "multi", "label": "多重控场", "order": ["多重陨石", "震撼陨石", "陨石连击", "浩劫(40级)"], "exclude": [], "never_pick": [], "requires_main_skills": ["地震"]}
+        {
+          "id": "doom",
+          "label": "毁灭星落",
+          "order": [
+            "陨石增幅",
+            "陨石增幅",
+            "毁灭陨石",
+            "星落"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": []
+        },
+        {
+          "id": "shrapnel",
+          "label": "碎片迸射",
+          "order": [
+            "陨石增幅",
+            "陨石碎片",
+            "多重迸射",
+            "爆破碎片(36级)"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": []
+        },
+        {
+          "id": "multi",
+          "label": "多重控场",
+          "order": [
+            "多重陨石",
+            "震撼陨石",
+            "陨石连击",
+            "浩劫(40级)"
+          ],
+          "exclude": [],
+          "never_pick": [],
+          "requires_main_skills": [
+            "地震"
+          ]
+        }
       ],
       "default_route": "doom",
-      "dashboard_current": {"stun": "并入多重控场", "damage": "改名毁灭星落", "area": "改名碎片迸射"},
+      "dashboard_current": {
+        "stun": "并入多重控场",
+        "damage": "改名毁灭星落",
+        "area": "改名碎片迸射"
+      },
       "evidence": "repo"
     },
     "pg": {
       "name": "普攻",
       "affinity": "敏捷/力量",
       "routes": [
-        {"id": "marksman", "label": "神箭手", "order": ["多重箭", "攻速提升", "神箭手", "急速射击", "超速射击"], "exclude": ["奥术箭矢", "火焰箭矢", "冰霜箭矢", "闪电箭矢", "疾风箭矢"], "never_pick": [], "requires_main_skills": []},
-        {"id": "fire_enchant", "label": "火附魔", "order": ["火焰箭矢", "火焰爆炸"], "exclude": ["神箭手", "冰霜箭矢", "闪电箭矢", "疾风箭矢", "奥术箭矢"], "never_pick": [], "requires_main_skills": ["爆炎箭"]},
-        {"id": "ice_enchant", "label": "冰附魔", "order": ["冰霜箭矢", "贯穿冰箭"], "exclude": ["神箭手", "火焰箭矢", "闪电箭矢", "疾风箭矢", "奥术箭矢"], "never_pick": [], "requires_main_skills": ["寒冰箭"]},
-        {"id": "bolt_enchant", "label": "电附魔", "order": ["闪电箭矢", "连环闪电"], "exclude": ["神箭手", "火焰箭矢", "冰霜箭矢", "疾风箭矢", "奥术箭矢"], "never_pick": [], "requires_main_skills": ["天雷"]},
-        {"id": "wind_enchant", "label": "风附魔", "order": ["疾风箭矢", "狂风之力"], "exclude": ["神箭手", "火焰箭矢", "冰霜箭矢", "闪电箭矢", "奥术箭矢"], "never_pick": [], "requires_main_skills": ["飓风"]},
-        {"id": "arcane_enchant", "label": "奥术附魔", "order": ["奥术箭矢", "奥能喷发"], "exclude": ["神箭手", "火焰箭矢", "冰霜箭矢", "闪电箭矢", "疾风箭矢"], "never_pick": [], "requires_main_skills": ["奥术箭"]}
+        {
+          "id": "marksman",
+          "label": "神箭手",
+          "order": [
+            "多重箭",
+            "攻速提升",
+            "神箭手",
+            "急速射击",
+            "超速射击"
+          ],
+          "exclude": [
+            "奥术箭矢",
+            "火焰箭矢",
+            "冰霜箭矢",
+            "闪电箭矢",
+            "疾风箭矢"
+          ],
+          "never_pick": [],
+          "requires_main_skills": []
+        },
+        {
+          "id": "fire_enchant",
+          "label": "火附魔",
+          "order": [
+            "火焰箭矢",
+            "火焰爆炸"
+          ],
+          "exclude": [
+            "神箭手",
+            "冰霜箭矢",
+            "闪电箭矢",
+            "疾风箭矢",
+            "奥术箭矢"
+          ],
+          "never_pick": [],
+          "requires_main_skills": [
+            "爆炎箭"
+          ]
+        },
+        {
+          "id": "ice_enchant",
+          "label": "冰附魔",
+          "order": [
+            "冰霜箭矢",
+            "贯穿冰箭"
+          ],
+          "exclude": [
+            "神箭手",
+            "火焰箭矢",
+            "闪电箭矢",
+            "疾风箭矢",
+            "奥术箭矢"
+          ],
+          "never_pick": [],
+          "requires_main_skills": [
+            "寒冰箭"
+          ]
+        },
+        {
+          "id": "bolt_enchant",
+          "label": "电附魔",
+          "order": [
+            "闪电箭矢",
+            "连环闪电"
+          ],
+          "exclude": [
+            "神箭手",
+            "火焰箭矢",
+            "冰霜箭矢",
+            "疾风箭矢",
+            "奥术箭矢"
+          ],
+          "never_pick": [],
+          "requires_main_skills": [
+            "天雷"
+          ]
+        },
+        {
+          "id": "wind_enchant",
+          "label": "风附魔",
+          "order": [
+            "疾风箭矢",
+            "狂风之力"
+          ],
+          "exclude": [
+            "神箭手",
+            "火焰箭矢",
+            "冰霜箭矢",
+            "闪电箭矢",
+            "奥术箭矢"
+          ],
+          "never_pick": [],
+          "requires_main_skills": [
+            "飓风"
+          ]
+        },
+        {
+          "id": "arcane_enchant",
+          "label": "奥术附魔",
+          "order": [
+            "奥术箭矢",
+            "奥能喷发"
+          ],
+          "exclude": [
+            "神箭手",
+            "火焰箭矢",
+            "冰霜箭矢",
+            "闪电箭矢",
+            "疾风箭矢"
+          ],
+          "never_pick": [],
+          "requires_main_skills": [
+            "奥术箭"
+          ]
+        }
       ],
       "default_route": "marksman",
       "default_note": "附魔六选一互斥组(五附魔与神箭手互为排除,互斥边已按T2表A编码;上游catalog仅部分登记); on-hit只吃主弹(多重/弹射不触发普攻特效, official_help)",
-      "dashboard_current": {"speed": "保留", "multi": "保留", "enchant": "保留+标六选一/元素前置"},
+      "dashboard_current": {
+        "speed": "保留",
+        "multi": "保留",
+        "enchant": "保留+标六选一/元素前置"
+      },
       "evidence": "repo + official"
     }
   },
-  "never_pick_cards": ["蓄力射击"],
+  "never_pick_cards": [
+    "蓄力射击"
+  ],
   "bond_buckets": {
     "attr": {
-      "zhili": {"label": "智力", "need": 4, "chain": ["智力", "秘法师", "法神", "湮灭者"], "ur": "湮灭者", "support": ["法术", "魔能", "魔术", "魔法师", "元素师"], "default_checked": null, "evidence": "live"},
-      "liliang": {"label": "力量", "need": 4, "chain": ["力量", "野蛮人", "战神", "屠戮者"], "ur": "屠戮者", "support": ["血誓"], "default_checked": null, "evidence": "live(lab152022实测推进,UR本体帧待补)", "old_repo_error": "skill_routes.json写不动尊,无证据,应为屠戮者"},
-      "mingjie": {"label": "敏捷", "need": 4, "chain": ["敏捷", "猎魔人", "弓神", "收割者"], "ur": "收割者", "support": ["箭术", "战术"], "default_checked": null, "evidence": "live(lab152437实测推进,UR本体帧待补)"}
+      "zhili": {
+        "label": "智力",
+        "need": 4,
+        "chain": [
+          "智力",
+          "秘法师",
+          "法神",
+          "湮灭者"
+        ],
+        "ur": "湮灭者",
+        "support": [
+          "法术",
+          "魔能",
+          "魔术",
+          "魔法师",
+          "元素师"
+        ],
+        "default_checked": null,
+        "evidence": "live"
+      },
+      "liliang": {
+        "label": "力量",
+        "need": 4,
+        "chain": [
+          "力量",
+          "野蛮人",
+          "战神",
+          "屠戮者"
+        ],
+        "ur": "屠戮者",
+        "support": [
+          "血誓"
+        ],
+        "default_checked": null,
+        "evidence": "live(lab152022实测推进,UR本体帧待补)",
+        "old_repo_error": "skill_routes.json写不动尊,无证据,应为屠戮者"
+      },
+      "mingjie": {
+        "label": "敏捷",
+        "need": 4,
+        "chain": [
+          "敏捷",
+          "猎魔人",
+          "弓神",
+          "收割者"
+        ],
+        "ur": "收割者",
+        "support": [
+          "箭术",
+          "战术"
+        ],
+        "default_checked": null,
+        "evidence": "live(lab152437实测推进,UR本体帧待补)"
+      }
     },
     "_attr_note": "三门 default_checked 置null待Owner定(审计20260824: 原true/false取值无出处; 看板现状为'只勾门卡一行')",
     "growth": {
       "cards": [
-        {"name": "成长", "need": 4, "prereq": [], "default_checked": true, "evidence": "live"},
-        {"name": "经济", "need": 3, "prereq": [], "default_checked": true, "evidence": "user"},
-        {"name": "贪婪", "need": 3, "prereq": ["经济"], "default_checked": true, "evidence": "live(need)/吞 targets unknown"},
-        {"name": "挑战", "need": 3, "prereq": ["经济"], "default_checked": true, "evidence": "live"}
+        {
+          "name": "成长",
+          "need": 4,
+          "prereq": [],
+          "default_checked": true,
+          "evidence": "live"
+        },
+        {
+          "name": "经济",
+          "need": 3,
+          "prereq": [],
+          "default_checked": true,
+          "evidence": "user"
+        },
+        {
+          "name": "贪婪",
+          "need": 3,
+          "prereq": [
+            "经济"
+          ],
+          "default_checked": true,
+          "evidence": "live(need)/吞 targets unknown"
+        },
+        {
+          "name": "挑战",
+          "need": 3,
+          "prereq": [
+            "经济"
+          ],
+          "default_checked": true,
+          "evidence": "live"
+        }
       ],
-      "move_out": ["体术(→basic生存)"],
-      "do_not_show": ["提速(guide-only;多轮lab见体术进度而未见提速,前置未获实机支持——按无前置处理)"]
+      "move_out": [
+        "体术(→basic生存)"
+      ],
+      "do_not_show": [
+        "提速(guide-only;多轮lab见体术进度而未见提速,前置未获实机支持——按无前置处理)"
+      ]
     },
     "basic_gates_only": {
       "cards": [
-        {"name": "法术", "need": 3, "unlocks": ["急速", "魔能", "魔术"], "default_checked": true, "evidence": "live"},
-        {"name": "体术", "need": 3, "prereq": ["提速(未证实)"], "default_checked": false, "note": "破甲10%,生存向", "evidence": "live"},
-        {"name": "固守", "need": 2, "unlocks": ["陷阵"], "default_checked": false, "evidence": "guide+user"},
-        {"name": "暴击", "need": 2, "unlocks": ["致命", "大炮"], "default_checked": false, "warning": "暴击率<50%为负收益", "evidence": "live"}
+        {
+          "name": "法术",
+          "need": 3,
+          "unlocks": [
+            "急速",
+            "魔能",
+            "魔术"
+          ],
+          "default_checked": true,
+          "evidence": "live"
+        },
+        {
+          "name": "体术",
+          "need": 3,
+          "prereq": [
+            "提速(未证实)"
+          ],
+          "default_checked": false,
+          "note": "破甲10%,生存向",
+          "evidence": "live"
+        },
+        {
+          "name": "固守",
+          "need": 2,
+          "unlocks": [
+            "陷阵"
+          ],
+          "default_checked": false,
+          "evidence": "guide+user"
+        },
+        {
+          "name": "暴击",
+          "need": 2,
+          "unlocks": [
+            "致命",
+            "大炮"
+          ],
+          "default_checked": false,
+          "warning": "暴击率<50%为负收益",
+          "evidence": "live"
+        }
       ],
-      "remove_individual_checks": ["急速", "魔能", "魔术", "陷阵(升级卡,由gate展开)"],
-      "reclassify": ["箭术/战术→敏捷系辅助(非门卡)"]
+      "remove_individual_checks": [
+        "急速",
+        "魔能",
+        "魔术",
+        "陷阵(升级卡,由gate展开)"
+      ],
+      "reclassify": [
+        "箭术/战术→敏捷系辅助(非门卡)"
+      ]
     },
     "advanced": {
-      "daodao": {"gate": "基础卡3(幽灵系带+护腕+空灵挂坠)", "final": "EX解放的圣剑", "ban": ["聊天切形态禁止自动键入(-永恒/-岚/-终焉)"], "evidence": "live"},
-      "yihuo": {"gate": "焚诀·黄阶", "final": "EX帝炎", "note": "吞3异火进化玄阶; 玄以上未上帧", "evidence": "live(黄阶)"},
-      "dasheng": {"gate": "齐天大圣", "final": "EX法天象地", "note": "26张到EX; 残躯链未上帧", "evidence": "live+guide"},
-      "xiuxian": {"gate": "纳气诀", "final": "EX大乘期", "note": "终名两说(元神出窍/大乘期)", "evidence": "live+guide"},
-      "fengshen": {"gate": "姜子牙", "final": "EX圣人", "note": "封神榜SSR橙框/天庭UR金橙框已实测", "evidence": "live(0815拆解 CARDS_BREAKDOWN_20260815_LIVE.md 'SSR橙框'/'UR金橙边框'; 非174547 t=765——该帧仅姜子牙卡面)"},
-      "haidao": {"gate": "藏宝图(三)", "final": "UR毁灭战舰(无EX)", "ban": ["黄金猿装备栏禁止自动点"], "evidence": "live"},
-      "wangling": {"gate": "亡灵天灾", "final": "EX兵主", "warning": "每种符文>15自动引爆致兵主失败", "evidence": "live(need)+guide"}
+      "daodao": {
+        "gate": "基础卡3(幽灵系带+护腕+空灵挂坠)",
+        "final": "EX解放的圣剑",
+        "ban": [
+          "聊天切形态禁止自动键入(-永恒/-岚/-终焉)"
+        ],
+        "evidence": "live"
+      },
+      "yihuo": {
+        "gate": "焚诀·黄阶",
+        "final": "EX帝炎",
+        "note": "吞3异火进化玄阶; 玄以上未上帧",
+        "evidence": "live(黄阶)"
+      },
+      "dasheng": {
+        "gate": "齐天大圣",
+        "final": "EX法天象地",
+        "note": "26张到EX; 残躯链未上帧",
+        "evidence": "live+guide"
+      },
+      "xiuxian": {
+        "gate": "纳气诀",
+        "final": "EX大乘期",
+        "note": "终名两说(元神出窍/大乘期)",
+        "evidence": "live+guide"
+      },
+      "fengshen": {
+        "gate": "姜子牙",
+        "final": "EX圣人",
+        "note": "封神榜SSR橙框/天庭UR金橙框已实测",
+        "evidence": "live(0815拆解 CARDS_BREAKDOWN_20260815_LIVE.md 'SSR橙框'/'UR金橙边框'; 非174547 t=765——该帧仅姜子牙卡面)"
+      },
+      "haidao": {
+        "gate": "藏宝图(三)",
+        "final": "UR毁灭战舰(无EX)",
+        "ban": [
+          "黄金猿装备栏禁止自动点"
+        ],
+        "evidence": "live"
+      },
+      "wangling": {
+        "gate": "亡灵天灾",
+        "final": "EX兵主",
+        "warning": "每种符文>15自动引爆致兵主失败",
+        "evidence": "live(need)+guide"
+      }
     },
     "must_take_no_checkbox": {
-      "bonds": ["祝福"],
-      "treasures": ["ONEPIECE", "至高进化", "一身神装", "满级大佬", "全都要", "卡牌大师"],
+      "bonds": [
+        "祝福"
+      ],
+      "treasures": [
+        "ONEPIECE",
+        "至高进化",
+        "一身神装",
+        "满级大佬",
+        "全都要",
+        "卡牌大师"
+      ],
       "dragonballs": "集齐7颗召唤神龙(界面未达成); 散件即拿"
     },
-    "do_not_show": ["剑术(普攻剑气流专属)", "生命", "血势", "血魔(round4可选)", "魔法师", "元素师(智力辅助自动收)", "血誓(不在力量UR链)"]
+    "do_not_show": [
+      "剑术(普攻剑气流专属)",
+      "生命",
+      "血势",
+      "血魔(round4可选)",
+      "魔法师",
+      "元素师(智力辅助自动收)",
+      "血誓(不在力量UR链)"
+    ]
   },
   "treasures": {
-    "透支力量": {"verdict": "skip", "block": "special_default_skip", "text": "全属性增幅+120%，本局每获得一个宝物效果-10%（之前获得的也计算在内）", "side_effect": "累积,持续", "evidence": "live"},
-    "贪婪献祭": {"verdict": "situational", "block": "special_default_skip_文案改待证", "text": "每消耗500金币，获得1点随机属性", "side_effect": "卡面无负面句; 金币机会成本未测", "user_hypothesis": "成立(卡面无负面句); 好宝物未证", "evidence": "live"},
-    "金转木": {"verdict": "situational", "block": "special_default_skip", "text": "消耗全部金币，以0.5%的比例转化为木材；最低获得100木材，最高消耗200000金币获得1000木材", "side_effect": "即时清空金币(一次性)", "evidence": "live"},
-    "杀敌梭哈": {"verdict": "skip", "block": "special_default_skip", "text": "55%的概率杀敌数翻倍；45%的概率杀敌数清0；梭哈成功奖励倍率提高至2.5", "side_effect": "赌博清零杀敌", "evidence": "live"},
-    "伐木契约": {"verdict": "skip", "block": "special_default_skip", "text": "立即获得3000木材，3分钟后，本局木材将恒定", "side_effect": "3分钟后锁死木材收入; 裁剪末尾疑有隐藏段", "evidence": "live"},
-    "等级优势": {"verdict": "situational_lean_take", "block": "special_default_skip_文案改正面待证", "text": "立即获得当前等级*10的全属性", "side_effect": "三帧卡面均无'不再升级'句; 隐藏段未排除", "user_hypothesis": "成立(纯正面,卡面); '升到25级不再升级'是另一张未识别卡", "evidence": "live(3帧)"},
-    "压制": {"verdict": "situational", "block": "special_default_skip", "text": "基础攻击间隔大幅度增加，造成极高倍率伤害", "side_effect": "攻击变慢换高倍伤害(即用户记忆的攻击间隔卡,方向=变慢)", "evidence": "live"},
-    "木材梭哈": {"verdict": "skip", "block": "新增special_default_skip(P0)", "text": "55%的概率木材翻倍；45%的概率木材清0", "side_effect": "赌博清零木材,F经济停摆", "evidence": "live(013304 t=957.5)"},
-    "玻璃大炮": {"verdict": "situational", "block": "候选", "text": "造成的所有伤害提高25%；受到的所有伤害提高50%", "evidence": "live"},
-    "贪欲之刃": {"verdict": "situational", "block": "建议special_default_skip", "text": "杀敌数+888；智力+111(+16)；激活[贪婪]套装效果：随机吞噬4张可吞噬的卡牌；红字:该卡牌放弃后直接除外，不会返回卡池", "evidence": "live(yihuo t=518.99)"},
-    "登神长阶": {"verdict": "take_lean", "block": "普通好宝物", "text": "接下来8分钟内，最终全属性+35%；结束后立即提高30%的全属性；造成的所有伤害提高30%；受到的所有伤害降低30%；最终全属性减少值降低为25%（末句审计20260824补录，多处[待补]）", "evidence": "live(013304 t=1245.5)"},
-    "_pattern_warning": "choice_policy.negative_patterns 含'攻击间隔/基础攻击间隔'子串会双向拦截(未来降间隔正面宝物会被误杀); 建议改方向性短语或名单制(P0)"
+    "透支力量": {
+      "verdict": "skip",
+      "block": "special_default_skip",
+      "text": "全属性增幅+120%，本局每获得一个宝物效果-10%（之前获得的也计算在内）",
+      "side_effect": "累积,持续",
+      "evidence": "live"
+    },
+    "贪婪献祭": {
+      "verdict": "situational",
+      "block": "special_default_skip_文案改待证",
+      "text": "每消耗500金币，获得1点随机属性",
+      "side_effect": "卡面无负面句; 金币机会成本未测",
+      "user_hypothesis": "成立(卡面无负面句); 好宝物未证",
+      "evidence": "live"
+    },
+    "金转木": {
+      "verdict": "situational",
+      "block": "special_default_skip",
+      "text": "消耗全部金币，以0.5%的比例转化为木材；最低获得100木材，最高消耗200000金币获得1000木材",
+      "side_effect": "即时清空金币(一次性)",
+      "evidence": "live"
+    },
+    "杀敌梭哈": {
+      "verdict": "skip",
+      "block": "special_default_skip",
+      "text": "55%的概率杀敌数翻倍；45%的概率杀敌数清0；梭哈成功奖励倍率提高至2.5",
+      "side_effect": "赌博清零杀敌",
+      "evidence": "live"
+    },
+    "伐木契约": {
+      "verdict": "skip",
+      "block": "special_default_skip",
+      "text": "立即获得3000木材，3分钟后，本局木材将恒定",
+      "side_effect": "3分钟后锁死木材收入; 裁剪末尾疑有隐藏段",
+      "evidence": "live"
+    },
+    "等级优势": {
+      "verdict": "take",
+      "block": "owner_removed_from_default_skip_20260922",
+      "text": "立即获得当前等级*10的全属性",
+      "side_effect": "三帧卡面均无'不再升级'句; 隐藏段未排除",
+      "user_hypothesis": "成立(纯正面,卡面); '升到25级不再升级'是另一张未识别卡",
+      "evidence": "live(3帧)"
+    },
+    "诅咒之力": {
+      "verdict": "skip",
+      "block": "special_default_skip",
+      "text": "造成的所有伤害×1.75，自身受到诅咒，恢复效果-99%，护甲-10000",
+      "side_effect": "恢复-99%+护甲-10000，生存崩坏换输出",
+      "evidence": "live(fixtures/treasure_negative/诅咒之力/panel_img_v3_0215p_31b47da6.png)"
+    },
+    "提高上限": {
+      "verdict": "skip",
+      "block": "special_default_skip",
+      "text": "攻击间隔-0.2，攻速-200%。[1星效果]普攻伤害+5%",
+      "side_effect": "攻速-200% 几乎停手，仅换少量普攻伤害",
+      "evidence": "live(fixtures/treasure_negative/提高上限/panel_185040_112_8b9790d7.png)"
+    },
+    "压制": {
+      "verdict": "situational",
+      "block": "special_default_skip",
+      "text": "基础攻击间隔大幅度增加，造成极高倍率伤害",
+      "side_effect": "攻击变慢换高倍伤害(即用户记忆的攻击间隔卡,方向=变慢)",
+      "evidence": "live"
+    },
+    "木材梭哈": {
+      "verdict": "skip",
+      "block": "新增special_default_skip(P0)",
+      "text": "55%的概率木材翻倍；45%的概率木材清0",
+      "side_effect": "赌博清零木材,F经济停摆",
+      "evidence": "live(013304 t=957.5)"
+    },
+    "玻璃大炮": {
+      "verdict": "situational",
+      "block": "候选",
+      "text": "造成的所有伤害提高25%；受到的所有伤害提高50%",
+      "evidence": "live"
+    },
+    "贪欲之刃": {
+      "verdict": "situational",
+      "block": "建议special_default_skip",
+      "text": "杀敌数+888；智力+111(+16)；激活[贪婪]套装效果：随机吞噬4张可吞噬的卡牌；红字:该卡牌放弃后直接除外，不会返回卡池",
+      "evidence": "live(yihuo t=518.99)"
+    },
+    "登神长阶": {
+      "verdict": "take_lean",
+      "block": "普通好宝物",
+      "text": "接下来8分钟内，最终全属性+35%；结束后立即提高30%的全属性；造成的所有伤害提高30%；受到的所有伤害降低30%；最终全属性减少值降低为25%（末句审计20260824补录，多处[待补]）",
+      "evidence": "live(013304 t=1245.5)"
+    },
+    "_pattern_warning": "choice_policy.negative_patterns 含'攻击间隔/基础攻击间隔'子串会双向拦截(未来降间隔正面宝物会被误杀); 建议改方向性短语或名单制(P0)",
+    "_external_guide_review_20260923": {
+      "doc": "docs/research/TREASURE_EXTERNAL_GUIDE_REVIEW_20260923.md",
+      "principle": "live_card_over_guide; reject_absolute_tips",
+      "conflicts": {
+        "木材梭哈": "external_50pct_no_bonus vs live_45pct_wood_clear",
+        "杀敌梭哈": "external_50pct_no_bonus vs live_45pct_kill_clear",
+        "诅咒之力": "external_ban_heal vs live_dmg_x1.75_recover_-99pct_armor_-10000",
+        "提高上限": "external_cap_buff vs live_negative_aspd_-200pct_same_name"
+      },
+      "guide_only_unverified": [
+        "命运骰子成功率+20",
+        "金币梭哈50/50",
+        "混乱洗牌",
+        "混乱转换50pct_double",
+        "混乱重置100_130",
+        "混乱分配",
+        "五星传说宝藏",
+        "声名鹊起",
+        "恶魔契约锁25级",
+        "力之极20pct_convert",
+        "超级水桶腰"
+      ],
+      "do_not_wire_absolute_tips": true
+    }
   },
   "dashboard_change_list": {
     "P0": [

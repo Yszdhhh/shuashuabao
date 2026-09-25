@@ -202,6 +202,30 @@ class LobbyDetectorTests(unittest.TestCase):
         self.assertTrue(kwargs["early_stop"])
         self.assertNotEqual(kwargs["scales"], med._hot_scales())
 
+    def test_stage_page_one_or_two_rows_are_not_authority(self):
+        # 背景杂读最多两行（加载图 1-1、考古地图 1-17/1-18），真实选关页 12 行。
+        root = Path(__file__).resolve().parents[1]
+        for hwnd, rows in ((10002, [object()]), (10004, [object(), object()])):
+            med = Mediator(Settings(), root)
+            fr = Frame(
+                np.zeros((900, 1600, 3), dtype=np.uint8),
+                window_title="英雄三国KK", hwnd=hwnd,
+            )
+            with patch.object(med, "_visible_stage_rows", return_value=rows), \
+                    patch.object(med, "find_scene", return_value=None), \
+                    patch.object(med, "find", return_value=None):
+                self.assertFalse(med._find_stage_page(fr), f"{len(rows)} 行不得获得选关页 authority")
+
+    def test_stage_page_three_rows_keep_authority(self):
+        root = Path(__file__).resolve().parents[1]
+        med = Mediator(Settings(), root)
+        fr = Frame(
+            np.zeros((900, 1600, 3), dtype=np.uint8),
+            window_title="英雄三国KK", hwnd=10003,
+        )
+        with patch.object(med, "_visible_stage_rows", return_value=[object(), object(), object()]):
+            self.assertTrue(med._find_stage_page(fr))
+
     @staticmethod
     def images_dir():
         from pathlib import Path

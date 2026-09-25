@@ -33,7 +33,11 @@ class StageId:
         match = re.fullmatch(r"(\d+)-(\d+)", str(label).strip())
         if not match:
             return None
-        return cls(int(match.group(1)), int(match.group(2)))
+        chapter, index = int(match.group(1)), int(match.group(2))
+        # Every chapter starts at x-1 (Owner 2026-09-25): x-0 / 0-x is always a misread.
+        if chapter < 1 or index < 1:
+            return None
+        return cls(chapter, index)
 
     def __lt__(self, other: object) -> bool:
         if not isinstance(other, StageId):
@@ -147,6 +151,77 @@ def _classify_glyph(glyph: np.ndarray, templates: dict[str, list[np.ndarray]]) -
                 best = (score, char)
     # A bad crop should not turn into a random stage number.
     return best[1] if best is not None and best[0] <= 0.45 else None
+
+
+def _classify_topbar_one(glyph: np.ndarray) -> str | None:
+    """Top-bar font only: a thin, tall stroke is "1".
+
+    Kept out of ``_classify_glyph`` on purpose: the stage-list parser shares
+    that classifier, and there loading-screen streaks became "1-1" rows that
+    faked a stage page and quit the hitch round (20260921 f0150).
+    """
+    ys, _ = np.where(glyph)
+    if not len(ys):
+        return None
+    height = int(ys.max() - ys.min() + 1)
+    if height >= 12 and glyph.shape[1] / height < 0.38:
+        return "1"
+    return None
+
+
+def _topbar_zero_is_nine(glyph: np.ndarray) -> bool:
+    """Top-bar font only: tell a "9" from the "0" the lobby-font templates pick.
+
+    The only "9" template is cut from the lobby stage list, whose font differs
+    from the in-game top bar; there a live "4-9" read as "4-0" for 16 hitch
+    rounds (2026-09-25 f1706).  A "0" keeps its left stroke all the way down,
+    a "9" leaves the left side empty between its loop and its bottom hook.
+    """
+    ys, _ = np.where(glyph)
+    if not len(ys):
+        return False
+    glyph = glyph[ys.min() : ys.max() + 1, :]
+    height, width = glyph.shape
+    if height < 12 or width < 6:
+        return False
+    left = glyph[:, : max(1, width // 4)]
+    band = left[int(height * 0.55) : int(height * 0.75)]
+    return band.size > 0 and float(band.mean()) < 0.15
+
+
+def detect_ingame_stage_label(frame: Frame, images_dir: Path) -> StageId | None:
+    """Read the top-bar in-game stage label (e.g. 2-7, 3-4, 1-16) from a live frame."""
+    if frame.width < 600 or frame.height < 400:
+        return None
+    x0 = int(frame.width * 0.550)
+    x1 = int(frame.width * 0.600)
+    y0 = int(frame.height * 0.018)
+    y1 = int(frame.height * 0.055)
+
+    gray = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2GRAY)
+    crop = gray[y0:y1, x0:x1]
+    mask = (crop > 170).astype(np.uint8)
+
+    y_sums = mask.sum(axis=1) > 0
+    y_runs = _runs(y_sums, minimum=10)
+    if not y_runs:
+        return None
+    gy0, gy1 = y_runs[0]
+    submask = mask[gy0:gy1, :]
+
+    columns = _runs(submask.sum(axis=0) > 0, minimum=2)
+    templates = _glyph_templates(images_dir)
+    chars: list[str] = []
+    for c_start, c_end in columns:
+        glyph = submask[:, c_start:c_end]
+        char = _classify_topbar_one(glyph) or _classify_glyph(glyph, templates)
+        if char == "0" and _topbar_zero_is_nine(glyph):
+            char = "9"
+        if char:
+            chars.append(char)
+    text = "".join(chars)
+    return StageId.parse(text)
+
 
 
 def _read_row(mask: np.ndarray, x_offset: int, y_offset: int, templates: dict[str, list[np.ndarray]]) -> StageRow | None:

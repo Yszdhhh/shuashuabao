@@ -155,3 +155,36 @@ def pytest_collection_modifyitems(config, items):  # noqa: ANN001
             or "test_replay_fixtures_and_negative_samples" in node
         ):
             item.add_marker(skip_raw)
+
+
+def _prime_ocr_worker() -> None:
+    """Warm the real OCR worker once per session when this host has one.
+
+    The per-request budget is 1.5s.  On a cold disk cache the first inference
+    of a freshly spawned worker can overrun it: the request times out, the
+    worker is killed and a live-OCR assertion fails on the first gate run only
+    (local 2026-09-24: 1 failure on the first run, 2680 passed on the rerun).
+    Priming loads the model files into the OS cache before any test runs.
+    """
+    try:
+        from shuabao.vision.ocr_shadow.production import ProductionShadowClient
+
+        client = ProductionShadowClient(repo_root=ROOT)
+    except Exception:
+        return  # no OCR runtime on this host (cloud/Linux): nothing to prime
+    try:
+        if client.start():
+            client.warmup(timeout_ms=60000)
+    except Exception:
+        pass
+    finally:
+        try:
+            client.close()
+        except Exception:
+            pass
+
+
+def pytest_sessionstart(session):  # noqa: ANN001
+    if os.environ.get("SHUABAO_SKIP_OCR_PRIME") != "1":
+        _prime_ocr_worker()
+

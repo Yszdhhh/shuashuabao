@@ -260,7 +260,7 @@ def test_hitch_failure_exit_counts_round_and_rearms_next_round_deadline() -> Non
 
 def test_hitch_cycle_target_stops_only_after_verified_exit() -> None:
     med = Mediator(
-        Settings(dry_run=True, ocr_mode="off", mode_id="lobby_hitch", cycle_num=1),
+        Settings(dry_run=True, ocr_mode="off", mode_id="lobby_hitch", cycle_num=1, hitch_after_goal="end"),
         ROOT,
     )
     med._begin_recovery(RecoveryKind.FAIL)
@@ -270,6 +270,94 @@ def test_hitch_cycle_target_stops_only_after_verified_exit() -> None:
     assert med.game_count == 1
     assert med.phase == Phase.COMPLETE
     assert med.stop_signal.is_set()
+
+
+def test_hitch_cycle_target_solo_handoff_leaves_guest_room_before_create() -> None:
+    med = Mediator(
+        Settings(
+            dry_run=True,
+            ocr_mode="off",
+            mode_id="lobby_hitch",
+            cycle_num=1,
+            hitch_after_goal="solo",
+            auto_create_room=False,
+        ),
+        ROOT,
+    )
+
+    assert med._finish_hitch_round(100.0, "verified hitch exit") == LoopAction.Continue
+    assert med.game_count == 1
+    assert med.settings.mode_id == "normal_farm"
+    assert med.settings.auto_create_room is True
+    assert med.phase == Phase.ROOM_WAITING
+    assert med._room_leave_pending is True
+    assert not med.stop_signal.is_set()
+
+
+def test_hitch_cycle_target_arch_handoff_leaves_guest_room_before_existing_archaeology_route() -> None:
+    med = Mediator(
+        Settings(
+            dry_run=True,
+            ocr_mode="off",
+            mode_id="lobby_hitch",
+            cycle_num=5,
+            hitch_after_goal="arch",
+            auto_archaeology=False,
+        ),
+        ROOT,
+    )
+    med.game_count = 4
+
+    assert med._finish_hitch_round(100.0, "verified fifth hitch exit") == LoopAction.Continue
+    assert med.game_count == 5
+    assert med.settings.mode_id == "normal_farm"
+    assert med.settings.auto_create_room is True
+    assert med.phase == Phase.ROOM_WAITING
+    assert med._room_leave_pending is True
+    assert med._archaeology_handoff_pending is True
+    assert med._hitch_goal_archaeology_handoff is True
+    assert not med.stop_signal.is_set()
+
+    # An explicit "结束后去考古" route is allowed even when the separate
+    # ticket-exhaustion automation switch is off; the existing fresh-anchor
+    # confirmation remains mandatory.
+    frame = _lobby_frame()
+    with patch.object(med, "find", return_value=_hit("lobby/stage_archaeology_btn")), \
+         patch.object(med, "act_click", return_value=True) as click:
+        assert med._maybe_switch_to_archaeology(frame) == LoopAction.Continue
+    click.assert_called_once()
+
+
+def test_hitch_cycle_target_reached_through_room_return_arms_archaeology() -> None:
+    """The disappear-first exit path must use the same final-round handoff."""
+    med = Mediator(
+        Settings(
+            dry_run=True,
+            ocr_mode="off",
+            mode_id="lobby_hitch",
+            cycle_num=5,
+            hitch_after_goal="arch",
+        ),
+        ROOT,
+    )
+    # The disappear-first exit path has already recorded this round before
+    # the room window is reacquired.
+    med.game_count = 5
+    med._awaiting_room_return = True
+    med.set_phase(Phase.PREPARE, "exit confirmed; verify same room")
+
+    with patch.object(med, "_startup_state", return_value="UNKNOWN"), \
+         patch.object(med, "_detect_context", return_value="ROOM_WAITING"), \
+         patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+         patch.object(med, "_find_hitch_room_list_tab", return_value=None), \
+         patch.object(med, "_find_room_start", return_value=_hit("room_start")):
+        assert med._tick_l0(_lobby_frame()) == LoopAction.Continue
+
+    assert med.game_count == 5
+    assert med._room_leave_pending is True
+    assert med._archaeology_handoff_pending is True
+    assert med._hitch_goal_archaeology_handoff is True
+    assert med.phase is Phase.ROOM_WAITING
 
 
 def test_hitch_lobby_reset_does_not_count_as_completed_round() -> None:
@@ -286,24 +374,15 @@ def test_hitch_kick_reset_blacklists_recorded_room() -> None:
     assert med._hitch_pending_room_key is None
 
 
-def test_hitch_quit_and_confirm_timeouts_rearm_without_stopping() -> None:
+def test_hitch_exit_timeout_with_unknown_surface_fails_closed() -> None:
     med = _hitch_mediator()
     med.set_phase(Phase.QUIT, "timeout exit")
     med._exit_button_attempts = 3
     with patch.object(med, "_find_exit_confirm", return_value=None), \
             patch.object(med, "stop") as stop:
-        assert med._tick_l1_tail(_lobby_frame()) == LoopAction.Continue
-    assert med._exit_button_attempts == 0
-    assert med.phase == Phase.QUIT
-    stop.assert_not_called()
-
-    med.set_phase(Phase.NEXT, "timeout confirm")
-    med._exit_confirm_attempts = 3
-    with patch.object(med, "stop") as stop2:
-        assert med._tick_l1_tail(_lobby_frame()) == LoopAction.Continue
-    assert med._exit_confirm_attempts == 0
-    assert med.phase == Phase.NEXT
-    stop2.assert_not_called()
+        assert med._tick_l1_tail(_lobby_frame()) == LoopAction.Break
+    assert med.phase == Phase.ERROR
+    stop.assert_called_once()
 
 
 def test_hitch_unhealthy_frame_never_ends_long_running_loop() -> None:

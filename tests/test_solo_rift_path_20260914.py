@@ -45,18 +45,18 @@ def _tick(med: Mediator, frame: Frame) -> list[str]:
     return clicks
 
 
-def test_heirloom_window_then_rift_npc_right_click_on_real_plaza() -> None:
+def test_confirmed_solo_boss_clear_then_rift_npc_right_click_on_real_plaza() -> None:
     med = _med()
-    med._hitch_heirloom_exit_since = time.time() - 121
+    med._post_game_pending = True
+    med._post_game_route = "secret"
     frame = _frame("plaza_after_heirloom_boss_f0578.png")
-    assert _tick(med, frame) == []
-    assert med._post_game_route == "secret" and med._post_game_pending
     assert _tick(med, frame) == ["OpenGreatRift"]
 
 
 def test_rift_dialog_during_heirloom_wait_is_accepted() -> None:
     med = _med()
-    med._hitch_heirloom_exit_since = time.time() - 37
+    med._post_game_pending = True
+    med._post_game_route = "secret"
     assert _tick(med, _frame("great_rift_confirm_f0584.png")) == ["ConfirmGreatRift"]
 
 
@@ -69,9 +69,9 @@ def test_rift_dialog_without_auto_secret_is_still_cancelled() -> None:
 def test_rift_right_click_hits_the_npc_body_under_the_caption() -> None:
     """实机 225835：三次右键都点在「大秘境」文字 (1183,213) 上，确认框没开。"""
     med = _med()
-    med._hitch_heirloom_exit_since = time.time() - 121
+    med._post_game_pending = True
+    med._post_game_route = "secret"
     frame = _frame("plaza_after_heirloom_boss_f0578.png")
-    _tick(med, frame)
     targets = []
     rec = lambda hit, reason, *a, **k: targets.append((reason, hit.center)) or True  # noqa: E731
     with patch.object(med, "act_click", side_effect=rec), \
@@ -83,7 +83,7 @@ def test_rift_right_click_hits_the_npc_body_under_the_caption() -> None:
     assert 1145 <= x <= 1180 and 245 <= y <= 290, targets
 
 
-def test_third_rift_click_still_gets_its_walk_window_before_giving_up() -> None:
+def test_third_rift_click_rearms_quiet_retry_instead_of_quitting() -> None:
     med = _med()
     med._post_game_pending = True
     med._post_game_route = "secret"
@@ -101,3 +101,6 @@ def test_third_rift_click_still_gets_its_walk_window_before_giving_up() -> None:
                 assert reasons.count("OpenGreatRift") == 3
                 assert med._post_game_route == "secret", "must still be waiting for the third walk"
     assert reasons.count("OpenGreatRift") == 3, reasons
+    assert med.phase is Phase.MAIN_LINE
+    assert med._secret_realm_request_attempts == 0
+    assert med._secret_realm_next_observe_at >= t0 + 30

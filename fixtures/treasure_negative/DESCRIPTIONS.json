@@ -1,5 +1,5 @@
 {
-  "_comment": "真机面板读图整理（2026-08-12）。description 以整帧可见原文为准；name 判定已由 choice_policy 锁定。pattern_hints 供 D 组核对 negative_patterns（只补不删）。",
+  "_comment": "真机面板读图整理（2026-08-12 六张 + 2026-09-22 十四张）。description 以整帧可见原文为准；name 判定已由 choice_policy 锁定。pattern_hints 供 D 组核对 negative_patterns（只补不删；本轮不改 patterns）。",
   "cards": {
     "透支力量": {
       "description": "全属性增幅+120%，本局每获得一个宝物效果-10%（之前获得的也计算在内）",
@@ -27,7 +27,9 @@
         "fixtures/treasure_negative/金转木/desc2_d0_b_001266_slot1.png",
         "fixtures/treasure_negative/金转木/desc_d0_b_001266_slot1.png"
       ],
-      "pattern_hints": ["消耗全部金币"],
+      "pattern_hints": [
+        "消耗全部金币"
+      ],
       "notes": "清空金币类；现有 DEFAULT_NEGATIVE_PATTERNS 未必覆盖，建议主 agent 评估是否追加 pattern。"
     },
     "杀敌梭哈": {
@@ -37,7 +39,9 @@
         "fixtures/treasure_negative/杀敌梭哈/desc_d0_b_001818_slot0.png",
         "fixtures/treasure_negative/杀敌梭哈/desc2_d0_b_001818_slot0.png"
       ],
-      "pattern_hints": ["杀敌数清0"],
+      "pattern_hints": [
+        "杀敌数清0"
+      ],
       "notes": "赌博清零杀敌数；靠名字名单为主。"
     },
     "伐木契约": {
@@ -46,7 +50,10 @@
         "fixtures/treasure_negative/伐木契约/panel_d0_a_000756.png",
         "fixtures/treasure_negative/伐木契约/desc2_d0_a_000756_slot1.png"
       ],
-      "pattern_hints": ["将恒定", "木材将恒定"],
+      "pattern_hints": [
+        "将恒定",
+        "木材将恒定"
+      ],
       "notes": "裁剪末尾可能还有「为0/为某值」；整帧可见「恒定」。与口述样例「不再获得木材」同类但措辞不同。"
     },
     "等级优势": {
@@ -57,6 +64,173 @@
       ],
       "pattern_hints": [],
       "notes": "可见区未出现「之后不再升级」。契约口述样例仍保留作 pattern 回归；本卡目前主要靠名字名单。"
+    },
+    "力之极": {
+      "description": "立即扣除当前20%的敏捷与智力，将其转为力量。[1星效果]力量增幅+3%。",
+      "evidence": [
+        "fixtures/treasure_negative/力之极/panel_010357_352_f63f4ba1.png",
+        "fixtures/treasure_negative/力之极/name_010357_352_f63f4ba1_slot2_name.png",
+        "fixtures/treasure_negative/力之极/desc2_010357_352_f63f4ba1_slot2.png"
+      ],
+      "pattern_hints": [
+        "扣除"
+      ],
+      "notes": "三极家族：属性互转有明确代价；当前 DEFAULT_NEGATIVE_PATTERNS 无「扣除」命中，默认不改名单，待 Owner 裁决。"
+    },
+    "命运骰子": {
+      "description": "50%的概率全属性增幅+25%，50%的概率全属性增幅-15%。",
+      "evidence": [
+        "fixtures/treasure_negative/命运骰子/panel_010952_626_abdd003a.png",
+        "fixtures/treasure_negative/命运骰子/name_010952_626_abdd003a_slot1_name.png",
+        "fixtures/treasure_negative/命运骰子/desc2_010952_626_abdd003a_slot1.png"
+      ],
+      "pattern_hints": [
+        "增幅-15%"
+      ],
+      "notes": "赌博型；report.md 判负面。patterns 无「增幅-」命中；默认不改名单。"
+    },
+    "恶魔契约": {
+      "description": "立即升至25级，在本局游戏中无法再升级。",
+      "evidence": [
+        "fixtures/treasure_negative/恶魔契约/panel_224832_196_1a8248a7.png",
+        "fixtures/treasure_negative/恶魔契约/name_224832_196_1a8248a7_slot2_name.png",
+        "fixtures/treasure_negative/恶魔契约/desc2_224832_196_1a8248a7_slot2.png"
+      ],
+      "pattern_hints": [
+        "无法再升级"
+      ],
+      "notes": "「无法再升级」不连续命中「无法升级」；patterns 缺口，待 Owner 裁决。"
+    },
+    "提高上限": {
+      "description": "攻击间隔-0.2，攻速-200%。[1星效果]普攻伤害+5%。",
+      "evidence": [
+        "fixtures/treasure_negative/提高上限/panel_185040_112_8b9790d7.png",
+        "fixtures/treasure_negative/提高上限/name_185040_112_8b9790d7_slot1_name.png",
+        "fixtures/treasure_negative/提高上限/desc2_185040_112_8b9790d7_slot1.png"
+      ],
+      "pattern_hints": [
+        "攻击间隔"
+      ],
+      "notes": "命中现有 pattern「攻击间隔」。Owner 已批准默认不拿（Commit B）。"
+    },
+    "敏之极": {
+      "description": "立即扣除当前20%的力量与智力，将其转为敏捷。[1星效果]敏捷增幅+3%。[2星效果]敏捷增幅+5%。",
+      "evidence": [
+        "fixtures/treasure_negative/敏之极/panel_024047_510_2a1de354.png",
+        "fixtures/treasure_negative/敏之极/name_024047_510_2a1de354_slot2_name.png",
+        "fixtures/treasure_negative/敏之极/desc2_024047_510_2a1de354_slot2.png"
+      ],
+      "pattern_hints": [
+        "扣除"
+      ],
+      "notes": "三极家族；patterns 无「扣除」命中，默认不改名单。"
+    },
+    "智之极": {
+      "description": "立即扣除当前20%的敏捷与力量，将其转为智力。[1星效果]智力增幅+3%。",
+      "evidence": [
+        "fixtures/treasure_negative/智之极/panel_020043_011_4900b098.png",
+        "fixtures/treasure_negative/智之极/name_020043_011_4900b098_slot0_name.png",
+        "fixtures/treasure_negative/智之极/desc2_020043_011_4900b098_slot0.png"
+      ],
+      "pattern_hints": [
+        "扣除"
+      ],
+      "notes": "三极家族；patterns 无「扣除」命中，默认不改名单。"
+    },
+    "木材梭哈": {
+      "description": "55%的概率木材翻倍，45%的概率木材清0。[1星效果]梭哈成功奖励倍率提高至2.5。",
+      "evidence": [
+        "fixtures/treasure_negative/木材梭哈/panel_010322_206_257a6635.png",
+        "fixtures/treasure_negative/木材梭哈/name_010322_206_257a6635_slot1_name.png",
+        "fixtures/treasure_negative/木材梭哈/desc2_010322_206_257a6635_slot1.png"
+      ],
+      "pattern_hints": [
+        "木材清0"
+      ],
+      "notes": "赌博清零木材；现有 pattern 仅「杀敌数清0」，不命中；默认不改名单。"
+    },
+    "混乱转换": {
+      "description": "基础全属性在90%~120%随机一次。",
+      "evidence": [
+        "fixtures/treasure_negative/混乱转换/panel_030308_666_6e5a9909.png",
+        "fixtures/treasure_negative/混乱转换/name_030308_666_6e5a9909_slot1_name.png",
+        "fixtures/treasure_negative/混乱转换/desc2_030308_666_6e5a9909_slot1.png"
+      ],
+      "pattern_hints": [],
+      "notes": "存疑（report.md JEV uncertain）；已入库夹具，默认不改名单。"
+    },
+    "玻璃大炮": {
+      "description": "造成的所有伤害提高25%，受到的所有伤害提高50%。",
+      "evidence": [
+        "fixtures/treasure_negative/玻璃大炮/panel_011316_987_f55eed81.png",
+        "fixtures/treasure_negative/玻璃大炮/name_011316_987_f55eed81_slot0_name.png",
+        "fixtures/treasure_negative/玻璃大炮/desc2_011316_987_f55eed81_slot0.png"
+      ],
+      "pattern_hints": [
+        "受到的所有伤害提高"
+      ],
+      "notes": "glass cannon；patterns 无命中；默认不改名单，待 Owner 裁决。"
+    },
+    "登神长阶": {
+      "description": "接下来8分钟内，最终全属性-35%。结束后：立即提高30%的全属性，造成的所有伤害提高30%，受到的所有伤害降低30%。[1星效果]最终全属性减少值降低为25%。",
+      "evidence": [
+        "fixtures/treasure_negative/登神长阶/panel_013909_223_2f68ed51.png",
+        "fixtures/treasure_negative/登神长阶/name_013909_223_2f68ed51_slot2_name.png",
+        "fixtures/treasure_negative/登神长阶/desc2_013909_223_2f68ed51_slot2.png"
+      ],
+      "pattern_hints": [
+        "全属性-35%"
+      ],
+      "notes": "先减后增；patterns 无「全属性-」命中；默认不改名单，待 Owner 裁决。"
+    },
+    "经验压制": {
+      "description": "接下来3分钟内，杀敌经验-70%。结束后：等级立即提升3级。[1星效果]杀敌经验+3%。",
+      "evidence": [
+        "fixtures/treasure_negative/经验压制/panel_185040_112_8b9790d7.png",
+        "fixtures/treasure_negative/经验压制/name_185040_112_8b9790d7_slot0_name.png",
+        "fixtures/treasure_negative/经验压制/desc2_185040_112_8b9790d7_slot0.png"
+      ],
+      "pattern_hints": [
+        "经验-70%"
+      ],
+      "notes": "2星尾行被卡框遮挡（report.md 标 [?]），description 取整帧可见核心句；patterns 无命中；默认不改名单。"
+    },
+    "贪婪契约": {
+      "description": "立即获得100w金币，3分钟后，本局金币将恒定为0。",
+      "evidence": [
+        "fixtures/treasure_negative/贪婪契约/panel_183207_476_61758acc.png",
+        "fixtures/treasure_negative/贪婪契约/name_183207_476_61758acc_slot0_name.png",
+        "fixtures/treasure_negative/贪婪契约/desc2_183207_476_61758acc_slot0.png"
+      ],
+      "pattern_hints": [
+        "将恒定"
+      ],
+      "notes": "命中现有 pattern「将恒定」。默认不改名单（Owner 只批了诅咒之力/提高上限）。"
+    },
+    "金币梭哈": {
+      "description": "55%的概率金币翻倍，45%的概率金币清0。[1星效果]梭哈成功奖励倍率提高至2.5。",
+      "evidence": [
+        "fixtures/treasure_negative/金币梭哈/panel_015322_653_7c66d569.png",
+        "fixtures/treasure_negative/金币梭哈/name_015322_653_7c66d569_slot1_name.png",
+        "fixtures/treasure_negative/金币梭哈/desc2_015322_653_7c66d569_slot1.png"
+      ],
+      "pattern_hints": [
+        "金币清0"
+      ],
+      "notes": "赌博清零金币；现有 pattern 仅「杀敌数清0」，不命中；默认不改名单。"
+    },
+    "诅咒之力": {
+      "description": "造成的所有伤害×1.75，自身受到诅咒，恢复效果-99%，护甲-10000。",
+      "evidence": [
+        "fixtures/treasure_negative/诅咒之力/panel_img_v3_0215p_31b47da6.png",
+        "fixtures/treasure_negative/诅咒之力/name_img_v3_0215p_31b47da6_slot0_name.png",
+        "fixtures/treasure_negative/诅咒之力/desc2_img_v3_0215p_31b47da6_slot0.png"
+      ],
+      "pattern_hints": [
+        "恢复效果-",
+        "护甲-"
+      ],
+      "notes": "真机卡面（Lark 图，2026-09-22）。目视确认槽位 slot0（左）；已按 1600x900 ROI 裁 name/desc2/desc。Owner 已批准默认不拿（Commit B）。"
     }
   },
   "contract_oral_negative_samples_keep": [
@@ -70,5 +244,16 @@
     "杀敌数清0",
     "宝物效果-"
   ],
-  "_suggested_status_20260812": "已写入 config/choice_policy.json 与 choice_policy.DEFAULT_NEGATIVE_PATTERNS；契约 test_document_real_description_pattern_gaps 已收紧为仅贪婪献祭/等级优势仍靠名字。"
+  "_suggested_status_20260812": "已写入 config/choice_policy.json 与 choice_policy.DEFAULT_NEGATIVE_PATTERNS；契约 test_document_real_description_pattern_gaps 已收紧为仅贪婪献祭/等级优势仍靠名字。",
+  "suggested_pattern_appends_for_owner": [
+    "无法再升级",
+    "增幅-",
+    "全属性-",
+    "受到的所有伤害提高",
+    "扣除",
+    "清0",
+    "经验-",
+    "恢复效果-",
+    "护甲-"
+  ]
 }

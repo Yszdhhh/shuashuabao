@@ -124,13 +124,17 @@ class A3TreasureNegativeByName(unittest.TestCase):
         self.assertLessEqual(spec["half_w"], 0.070)
         self.assertEqual(spec["centers_x"], (0.352, 0.500, 0.648))
 
-    def test_descriptions_json_names_match_policy_defaults(self):
+    def test_descriptions_json_covers_policy_defaults(self):
         import json
-        from shuabao.choice_policy import DEFAULT_NEGATIVE_NAMES
+        from shuabao.choice_policy import DEFAULT_NEGATIVE_NAMES, RESEARCH_ONLY_NEGATIVE_NAMES
 
         data = json.loads((ROOT / "fixtures/treasure_negative/DESCRIPTIONS.json").read_text(encoding="utf-8"))
         names = set(data["cards"])
-        self.assertTrue(names <= set(DEFAULT_NEGATIVE_NAMES))
+        # DESCRIPTIONS 是夹具目录（可含仅入库、待 Owner 裁决的卡）；
+        # 默认不拿名单必须是其子集——每张默认不拿都要有真机描述证据，
+        # 仅研究结论的致死卡（fail-closed 方向）单列，补到帧后移出。
+        self.assertTrue(set(DEFAULT_NEGATIVE_NAMES) - set(RESEARCH_ONLY_NEGATIVE_NAMES) <= names)
+        self.assertFalse(set(RESEARCH_ONLY_NEGATIVE_NAMES) & names)
 
 
 class A3FallbackDisabled(unittest.TestCase):

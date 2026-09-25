@@ -88,6 +88,19 @@ def test_normal_mode_orange_beats_green_talisman():
     _select(dec, 1)
 
 
+def test_normal_mode_skips_talismans_even_when_they_have_higher_rarity():
+    dec = _decide((
+        SlotCandidate(index=0, name="全能神符", rarity="red", confidence=0.99),
+        SlotCandidate(index=1, name="普通宝物", rarity="blue", confidence=0.90),
+    ))
+    _select(dec, 1)
+
+
+def test_normal_mode_only_talismans_takes_no_card():
+    dec = _decide((SlotCandidate(index=0, name="恢复神符", rarity="green", confidence=0.99),))
+    assert dec.action != PolicyAction.SELECT_SLOT
+
+
 def test_normal_mode_same_quality_must_take_beats_preset():
     """同品质平级：必拿 > 预设。"""
     dec = _decide(

@@ -1,0 +1,584 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-24",
+  "scope": {
+    "value": "research_only",
+    "source_level": "inferred",
+    "source": "Owner task 2026-09-24",
+    "note": "No production behavior/defaults changed."
+  },
+  "merchant": {
+    "interface": {
+      "visible_slots": {
+        "value": 5,
+        "source_level": "live",
+        "source": "tests/fixtures/hitch_live_20260911/game_hud_merchant_devour_pill_visible.png + src/shuabao/merchant_scanner.py",
+        "note": "固定五槽布局已有真实 HUD 夹具。"
+      },
+      "hotkey": {
+        "value": "H",
+        "source_level": "live",
+        "source": "config/game_mechanics_kb.json:refresh_ledgers.black_merchant note（013304 live recording）"
+      },
+      "can_open_anytime": {
+        "value": null,
+        "source_level": "none",
+        "source": "未找到“任意局内状态/任意模态下 H 都能打开”的证据",
+        "note": "安全设计只能把 H 限于已确认局内 HUD、无阻塞面板/事务的窗口，不能把“快捷键=随时可开”当事实。"
+      },
+      "refresh_free_interval_sec": {
+        "value": 180,
+        "source_level": "live",
+        "source": "config/game_mechanics_kb.json:refresh_ledgers.black_merchant.free",
+        "note": "2026-08-14 更正旧 120s；013304 实机原文支持 180s。"
+      },
+      "free_refresh_count_per_interval": {
+        "value": 1,
+        "source_level": "live",
+        "source": "config/game_mechanics_kb.json:refresh_ledgers.black_merchant.free"
+      },
+      "paid_refresh_price": {
+        "value": null,
+        "source_level": "none",
+        "source": "config/game_mechanics_kb.json:refresh_ledgers.black_merchant.cost_amount=null + PR #41",
+        "note": "旧 runtime 曾使用 350 作为实现预算，但最新 KB 明确禁止把实现常量倒灌成游戏事实。"
+      },
+      "refresh_currency": {
+        "value": "杀敌数为主要已确认账本；部分旧记录提到刷新可能扣杀敌数或木材，需同帧实测定币种。",
+        "source_level": "live",
+        "source": "config/game_mechanics_kb.json:resources.kill_count + refresh_ledgers.black_merchant",
+        "note": "存在旧资料口径差异，消费前必须读货币/余额。"
+      },
+      "item_appearance_probability": {
+        "value": null,
+        "source_level": "none",
+        "source": "PR #41 + 当前公开攻略",
+        "note": "吞噬丹或任一商品每次刷新的出现概率未找到公开/实机统计。"
+      },
+      "merchant_level_rule": {
+        "value": "黑市每秒自动获得 1 点经验；用杀敌数购买商品也会获得经验；经验满升级并可刷新更高级商品。",
+        "source_level": "live",
+        "source": "config/game_mechanics_kb.json:refresh_ledgers.black_merchant note（013304 t=1463.5 等）"
+      },
+      "level5_timing_claim": {
+        "value": "约 20 分钟升 5 级（部分攻略配合商店升级/经验商品）",
+        "source_level": "guide",
+        "source": "KK：https://www.kkdzpt.com/fab/204521/69de95043c522b3e9735ac2d",
+        "note": "账号/购买行为不同会改变时间，不能作为硬计时器。"
+      }
+    },
+    "discounts": {
+      "rule": {
+        "value": "折扣角标按商品原价乘数计价：2折/5折/8折，不是某类商品固定价格。",
+        "source_level": "live",
+        "source": "config/game_mechanics_kb.json:refresh_ledgers.black_merchant.discount_tiers"
+      },
+      "observed_examples": [
+        {
+          "value": "2折→60",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json（013304 t=1463.5）"
+        },
+        {
+          "value": "2折→400",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json（yihuo t=208）",
+          "note": "说明商品原价不同。"
+        },
+        {
+          "value": "5折→150",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json（yihuo t=208）"
+        },
+        {
+          "value": "8折→320",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json（yihuo t=208）"
+        },
+        {
+          "value": "原价 300/500/400/60/300 等组合曾同屏",
+          "source_level": "live",
+          "source": "config/game_mechanics_kb.json（013304 t=1463.5）"
+        }
+      ]
+    },
+    "products": [
+      {
+        "category": {
+          "value": "吞噬丹",
+          "source_level": "live",
+          "source": "tests/fixtures/hitch_live_20260911/game_hud_merchant_devour_pill_visible.png + config/game_mechanics_kb.json"
+        },
+        "kill_price": {
+          "value": null,
+          "source_level": "none",
+          "source": "latest KB + PR #41",
+          "note": "旧 09-12 runtime handoff 用 400 预算，但未保留可把“400”钉成当前游戏机制的商品价证据。"
+        },
+        "effect": {
+          "value": "用于吞噬羁绊卡、释放卡槽/加速部分合成链。",
+          "source_level": "guide",
+          "source": "KK：https://www.kkdzpt.com/fab/204521/69f589e63c522b029da0c359"
+        }
+      },
+      {
+        "category": {
+          "value": "木材/伐木类商品",
+          "source_level": "guide",
+          "source": "KK：https://www.kkdzpt.com/fab/204521/69f610a4b3dc890808b48859 + merchant_wood runtime asset"
+        },
+        "kill_price": {
+          "value": null,
+          "source_level": "none",
+          "source": "未找到商品名→杀敌价的可靠映射"
+        },
+        "wood_gain": {
+          "value": null,
+          "source_level": "none",
+          "source": "公开“荒野遗物大概率英雄卡、250木头”是宝箱结果，不等同固定木材礼包；不能外推 merchant_wood 数量。"
+        }
+      },
+      {
+        "category": {
+          "value": "英雄卡/英雄刷新",
+          "source_level": "guide",
+          "source": "KK：https://www.kkdzpt.com/fab/204521/6a6c7ff3b3dc893eb4c2bd85 + 69de95043c522b3e9735ac2d"
+        },
+        "kill_price": {
+          "value": null,
+          "source_level": "none",
+          "source": "未找到稳定固定价"
+        }
+      },
+      {
+        "category": {
+          "value": "宝物/宝物刷新",
+          "source_level": "guide",
+          "source": "KK：https://www.kkdzpt.com/fab/204521/69f610a4b3dc890808b48859"
+        },
+        "kill_price": {
+          "value": null,
+          "source_level": "none",
+          "source": "未找到稳定固定价"
+        }
+      },
+      {
+        "category": {
+          "value": "属性类：每秒智力/攻击、杀敌智力/攻击、固定属性、属性/攻击增幅",
+          "source_level": "guide",
+          "source": "KK：https://www.kkdzpt.com/fab/204521/69f610a4b3dc890808b48859"
+        },
+        "kill_price": {
+          "value": null,
+          "source_level": "none",
+          "source": "未找到完整逐商品价格表"
+        }
+      },
+      {
+        "category": {
+          "value": "装备/无名剑/高阶装备",
+          "source_level": "guide",
+          "source": "KK：https://www.kkdzpt.com/fab/204521/69f610a4b3dc890808b48859 + https://www.kkdzpt.com/fab/204521/69972bbc2ed08dfe0eef933e"
+        },
+        "examples": [
+          {
+            "value": "无名之剑 3级黑市可出现",
+            "source_level": "guide",
+            "source": "KK黑市高阶物品攻略"
+          },
+          {
+            "value": "极寒碎片 5级黑市；攻略备注 4000 杀敌",
+            "source_level": "guide",
+            "source": "KK：https://www.kkdzpt.com/fab/204521/69972bbc2ed08dfe0eef933e"
+          }
+        ]
+      },
+      {
+        "category": {
+          "value": "黑市等级提升类商品",
+          "source_level": "guide",
+          "source": "KK：https://www.kkdzpt.com/fab/204521/69f610a4b3dc890808b48859 + 6a6c7ff3b3dc893eb4c2bd85"
+        },
+        "observed_guide_price": {
+          "value": 2000,
+          "source_level": "guide",
+          "source": "KK天雷攻略",
+          "note": "攻略称“2000杀敌的提升黑市等级对应商品”；不是全部升级商品统一价格。"
+        }
+      },
+      {
+        "category": {
+          "value": "1500杀敌兑换的杀敌加成/木材加成商品",
+          "source_level": "guide",
+          "source": "KK：https://www.kkdzpt.com/fab/204521/6a6c7ff3b3dc893eb4c2bd85"
+        },
+        "kill_price": {
+          "value": 1500,
+          "source_level": "guide",
+          "source": "同上"
+        }
+      },
+      {
+        "category": {
+          "value": "投资类（杀敌投资等）",
+          "source_level": "guide",
+          "source": "KK：https://www.kkdzpt.com/fab/204521/69f610a4b3dc890808b48859"
+        },
+        "risk": {
+          "value": "橙色攻略口径：扣100%，每分钟返25%；紫色：扣50%，每分钟返15%，且有时间窗口。晚买可能负收益。",
+          "source_level": "guide",
+          "source": "同上",
+          "note": "属于时间敏感商品，不能当无条件正收益。"
+        }
+      },
+      {
+        "category": {
+          "value": "宝箱/礼物：黄金宝箱、荒野遗物、虚空之球、奶牛赠礼",
+          "source_level": "guide",
+          "source": "KK：https://www.kkdzpt.com/fab/204521/69972bbc2ed08dfe0eef933e"
+        },
+        "contents": {
+          "value": "黄金宝箱常见约50000金币；荒野遗物常见英雄卡/250木；奶牛赠礼常见吞噬丹；另有低概率装备。",
+          "source_level": "guide",
+          "source": "同上",
+          "note": "攻略作者个人统计，不是官方概率表。"
+        }
+      }
+    ],
+    "negative_or_risky_products": {
+      "complete_negative_list": {
+        "value": null,
+        "source_level": "none",
+        "source": "没有找到当前版本官方“负面黑商商品”完整表"
+      },
+      "time_sensitive_risk": {
+        "value": "杀敌投资类具有前期回本、后期可能亏损的时间风险。",
+        "source_level": "guide",
+        "source": "KK天雷攻略"
+      },
+      "runtime_exclusion_names": {
+        "value": [
+          "贪欲之刃",
+          "贪婪献祭",
+          "杀敌流失",
+          "扣除金币",
+          "生命削减"
+        ],
+        "source_level": "inferred",
+        "source": "src/shuabao/merchant_scanner.py",
+        "note": "这是脚本防护名单，不是游戏机制证据，不能反向声明这些一定是当前黑市商品。"
+      }
+    }
+  },
+  "devour_pill": {
+    "target_selection": {
+      "exact_rule": {
+        "value": null,
+        "source_level": "none",
+        "source": "未找到 retained live video 能证明普通吞噬丹到底随机/最早/最低品质/点选哪一张"
+      },
+      "guide_evidence": {
+        "value": "攻略反复使用“用丹吞掉罗杰斯/多余海盗/UR亡灵/三国指定卡”等定向措辞，说明玩家可以有目的地让某张卡被吞，但不能据此确定 UI 是点选、当前选中还是通过卡池时机控制。",
+        "source_level": "guide",
+        "source": "KK：https://www.kkdzpt.com/fab/204521/69f610a4b3dc890808b48859 ; 69e076579ab2305889a2e1ac ; 69de95043c522b3e9735ac2d"
+      },
+      "current_automation_gap": {
+        "value": "当前代码曾因“no reliable per-slot identity”把普通丹 fail-closed；后续 Owner 授权 8/10 起使用，但验证只看羁绊占用下降，没有确认被吞的卡身份。",
+        "source_level": "live",
+        "source": "tests/test_pr3_merchant_bag_equipment.py + tests/test_p0_devour_failclosed_20260917.py",
+        "note": "这是自动化证据缺口，不是游戏目标选择规则。"
+      }
+    },
+    "one_pill_slot_effect": {
+      "value": "攻略语义通常是一颗丹吞掉一张目标羁绊卡，因此预期至少释放 1 个栏位；尚无 retained live before/after 证明始终恰好减少 1 格。",
+      "source_level": "guide",
+      "source": "KK多篇攻略“多余一张用吞噬丹/用丹吞掉” + tests verifier 5→4 仅为实现契约"
+    },
+    "cooldown_s": {
+      "value": null,
+      "source_level": "none",
+      "source": "未找到游戏机制冷却证据",
+      "note": "代码里的 cooldown 是自动化保护，不能当游戏冷却。"
+    },
+    "can_destroy_valuable_materials": {
+      "value": true,
+      "source_level": "guide",
+      "source": "KK攻略明确警告封神等提前吞会损失属性，并要求在特定节点才用丹",
+      "note": "普通丹的精确目标规则虽未钉，但策略上显然存在吞错关键材料的真实风险。"
+    },
+    "special_god_given_pill": {
+      "value": "“神赐吞噬丹”在攻略中作为特殊道具出现；有攻略声称曾用神赐丹吞掉 EX 神兽。不能把它与普通吞噬丹的能力混为一谈。",
+      "source_level": "guide",
+      "source": "KK：https://www.kkdzpt.com/fab/204521/698ee14764ecf0639c8cee10 + 69f610a4b3dc890808b48859"
+    },
+    "safe_condition_research_recommendation": {
+      "value": [
+        "“羁绊栏≥6/10”只应触发检查/排程，不应单独授权吞丹。",
+        "若普通丹允许明确选目标：必须先识别目标槽位规范卡名，并证明它不属于当前 active advanced group、不是差一张合成、不是 Owner 基础优先卡的未完成材料、不是带倒计时/残骸/符文/吞噬进度的承重卡。",
+        "若普通丹目标不可选或规则仍未知：只有当所有可能被吞的可吞卡都被证明为安全弃牌时才可自动使用；否则零输入等待/取证。",
+        "吞后至少要确认：羁绊栏占用下降 + 被选目标（若可识别）消失；只看到丹图标消失不算成功。"
+      ],
+      "source_level": "inferred",
+      "source": "Owner 2026-09-24 rule + current fail-closed tests + public guide examples",
+      "note": "这是风险控制建议，不是生产默认值。"
+    }
+  },
+  "inventory_and_bag": {
+    "item_bar": {
+      "visible_slots": {
+        "value": 6,
+        "source_level": "live",
+        "source": "docs/CURRENT_STATUS_AND_HANDOFF_20260910_PUBLIC_BAG.md + policy/public_bag.py live geometry"
+      },
+      "slot_1": {
+        "value": "装备/武器位",
+        "source_level": "live",
+        "source": "tests/test_pr3_merchant_bag_equipment.py + Owner rule lock"
+      },
+      "slots_2_to_6": {
+        "value": "5 个可放道具/消耗品的物品栏格",
+        "source_level": "live",
+        "source": "tests/test_live_run_205044_regressions.py referenced by Owner rule lock + PUBLIC_BAG live geometry"
+      },
+      "full_definition": {
+        "value": "2–6 五格均占用即单人可移动物品栏满；第1格武器单独管理。",
+        "source_level": "live",
+        "source": "tests/test_owner_ingame_rules_lock_20260924.py"
+      }
+    },
+    "personal_bag": {
+      "visible_grid": {
+        "value": "7列×8行=56个可见格几何",
+        "source_level": "live",
+        "source": "docs/CURRENT_STATUS_AND_HANDOFF_20260910_PUBLIC_BAG.md + src/shuabao/policy/public_bag.py"
+      },
+      "usable_unlocked_slots": {
+        "value": null,
+        "source_level": "none",
+        "source": "GT spec 明确存在 DARK_UNUSABLE_SLOT 类；未统计当前账号实际解锁格数"
+      }
+    },
+    "public_bag": {
+      "visible_grid": {
+        "value": "7列×8行=56个可见格几何",
+        "source_level": "live",
+        "source": "docs/CURRENT_STATUS_AND_HANDOFF_20260910_PUBLIC_BAG.md"
+      },
+      "relevance_to_solo": {
+        "value": "单人局公共背包网络同步不能用现有 solo 录像宣称 PASS。",
+        "source_level": "live",
+        "source": "docs/gt_lab/PUBLIC_BAG_GT_SPEC_20260909.md"
+      }
+    },
+    "overflow_behavior": {
+      "item_bar_full_new_item_destination": {
+        "value": null,
+        "source_level": "none",
+        "source": "未找到能证明新道具在 2–6 满时自动掉地、自动进个人背包或拒绝拾取的 retained live sequence"
+      },
+      "research_implication": {
+        "value": "Owner 的“满时先用消耗品+溢出整理”在落生产前必须补一组 5/5→获得新道具→观察物品去向的真机录像。",
+        "source_level": "inferred",
+        "source": "Owner 2026-09-24 rule + missing GT"
+      }
+    },
+    "movement": {
+      "item_bar_to_public_bag": {
+        "value": "先打开 B 背包页；在背包页物品栏对源道具右键，使其附着/选中；再左键已验证的公共背包空格。",
+        "source_level": "live",
+        "source": "2026-09-09 gesture capture documented in CURRENT_STATUS_AND_HANDOFF_20260910_PUBLIC_BAG.md"
+      },
+      "personal_bag_to_item_bar": {
+        "value": null,
+        "source_level": "none",
+        "source": "没有 retained live evidence 证明私有背包↔物品栏使用拖拽、右键还是其他快捷键"
+      },
+      "item_bar_right_click_warning": {
+        "value": "HUD 常驻物品栏右键可能是“右击十连”使用动作；不能把公共背包页里的右键搬回 HUD 当移动手势。",
+        "source_level": "live",
+        "source": "CURRENT_STATUS_AND_HANDOFF_20260910_PUBLIC_BAG.md"
+      }
+    }
+  },
+  "consumables": [
+    {
+      "name": {
+        "value": "吞噬丹",
+        "source_level": "live",
+        "source": "real merchant HUD fixture + danGif asset"
+      },
+      "effect": {
+        "value": "吞噬羁绊卡、释放栏位/推进部分需要吞噬的体系。",
+        "source_level": "guide",
+        "source": "KK：https://www.kkdzpt.com/fab/204521/69f589e63c522b029da0c359"
+      },
+      "unconditional_use": {
+        "value": false,
+        "source_level": "inferred",
+        "source": "Q2 target uncertainty + guide warnings"
+      },
+      "storage": {
+        "value": "单人应优先保留到安全目标出现；蹭车是队伍资产，Owner旧规则禁止自用并可存公共背包。",
+        "source_level": "inferred",
+        "source": "Owner rules + PUBLIC_BAG GT"
+      }
+    },
+    {
+      "name": {
+        "value": "神赐吞噬丹",
+        "source_level": "guide",
+        "source": "KK：https://www.kkdzpt.com/fab/204521/698ee14764ecf0639c8cee10"
+      },
+      "effect": {
+        "value": "攻略中的高价值特殊吞噬道具，可赠送主C；能力可能强于普通丹。",
+        "source_level": "guide",
+        "source": "同上"
+      },
+      "unconditional_use": {
+        "value": false,
+        "source_level": "inferred",
+        "source": "特殊稀缺资产，不应与普通丹混用规则"
+      }
+    },
+    {
+      "name": {
+        "value": "英雄卡",
+        "source_level": "live",
+        "source": "assets/Images/hero_card_item.png + tests/test_pr3_merchant_bag_equipment.py"
+      },
+      "effect": {
+        "value": "点击后进入英雄进化/选择流程。",
+        "source_level": "live",
+        "source": "test_hero_card_triggers_evolution_flow_with_pending_action"
+      },
+      "unconditional_use": {
+        "value": false,
+        "source_level": "live",
+        "source": "tests/test_owner_ingame_rules_lock_20260924.py",
+        "note": "Owner：用英雄卡前先把“点击进化”用完；进化未闭环时物品栏零点击。"
+      },
+      "storage": {
+        "value": "攻略明确有“后期留一张英雄卡放背包”的玩法。",
+        "source_level": "guide",
+        "source": "KK：https://www.kkdzpt.com/fab/204521/69c7d5dd2ed08d08cfd4c5e9"
+      }
+    },
+    {
+      "name": {
+        "value": "银月之晶",
+        "source_level": "live",
+        "source": "tests/fixtures/yinyue_item_20260923.jpg + tests/test_yinyue_inventory_20260923.py"
+      },
+      "effect": {
+        "value": "单人点击后出现确认框，确认“是”后完成使用流程。",
+        "source_level": "live",
+        "source": "tests/test_yinyue_inventory_20260923.py"
+      },
+      "unconditional_use": {
+        "value": "当前实机资产支持单人机会式使用；具体收益词条不在本轮资料中。",
+        "source_level": "live",
+        "source": "tests/test_yinyue_inventory_20260923.py"
+      }
+    },
+    {
+      "name": {
+        "value": "黄金猿",
+        "source_level": "guide",
+        "source": "config/game_mechanics_kb.json:equipment_bar_lmb + KK多篇海盗攻略"
+      },
+      "effect": {
+        "value": "单人物品栏 2–6 左键使用，开启宝藏卡组；攻略强调通常等毁灭战舰/合适海盗节点后再用。",
+        "source_level": "guide",
+        "source": "config/game_mechanics_kb.json user-confirmed note + KK：https://www.kkdzpt.com/fab/204521/69fd6cd62ed08d3135990932"
+      },
+      "unconditional_use": {
+        "value": false,
+        "source_level": "guide",
+        "source": "过早使用会改变宝藏/海盗卡池与吞噬节奏。"
+      }
+    },
+    {
+      "name": {
+        "value": "悬赏令",
+        "source_level": "live",
+        "source": "fixtures/card_template_assertions/positives/haidao_bounty_inventory_strip_20260830.png + choice_lexicon"
+      },
+      "effect": {
+        "value": "海盗专用吞噬/推进道具，存在 N/R/SR/SSR/UR 多档并按品质向下兼容的攻略/目录语义。",
+        "source_level": "guide",
+        "source": "config/game_mechanics_kb.json:haidao_chain.bounty_mechanics + KK海盗攻略"
+      },
+      "unconditional_use": {
+        "value": false,
+        "source_level": "guide",
+        "source": "不同海盗成员/阶段有时机要求；不能满栏就盲用。"
+      }
+    },
+    {
+      "name": {
+        "value": "神符/绿色神符",
+        "source_level": "guide",
+        "source": "PUBLIC_BAG_GT_SPEC + KK辅助攻略"
+      },
+      "effect": {
+        "value": "不同神符效果不同；有魔瓶后可转换/赠送。",
+        "source_level": "guide",
+        "source": "KK：https://www.kkdzpt.com/fab/204521/698ee14764ecf0639c8cee10"
+      },
+      "unconditional_use": {
+        "value": false,
+        "source_level": "none",
+        "source": "本轮没有建立完整神符目录与单人自动使用安全表"
+      }
+    },
+    {
+      "name": {
+        "value": "装备/黑市装备",
+        "source_level": "guide",
+        "source": "KK黑市攻略 + inventory fixtures"
+      },
+      "effect": {
+        "value": "装备/合成材料，不属于可无条件消耗类。",
+        "source_level": "guide",
+        "source": "KK：https://www.kkdzpt.com/fab/204521/69972bbc2ed08dfe0eef933e"
+      },
+      "unconditional_use": {
+        "value": false,
+        "source_level": "inferred",
+        "source": "误用可能替换/卖出/破坏合成，Owner 要求溢出整理前先分类。"
+      }
+    }
+  ],
+  "placement_policy_research_recommendation": {
+    "value": {
+      "keep_item_bar": [
+        "当前马上要使用且已识别的安全消耗品",
+        "需要立即完成事务的英雄卡（仅进化闭环后）",
+        "安全目标已确认的吞噬丹"
+      ],
+      "prefer_personal_bag": [
+        "要留到后期的英雄卡",
+        "暂不满足使用条件的吞噬丹/黄金猿/悬赏令",
+        "不希望误点的合成装备/高价值道具"
+      ],
+      "unknown": [
+        "私有背包↔物品栏的可靠自动移动手势尚无 GT，不能把这套建议直接接生产"
+      ]
+    },
+    "source_level": "inferred",
+    "source": "Owner 2026-09-24 rule + live inventory geometry + guide timing"
+  },
+  "none_summary": [
+    "普通吞噬丹精确目标选择算法（随机/最早/最低品质/可点选）",
+    "普通吞噬丹游戏内冷却时间",
+    "普通吞噬丹是否始终精确减少 1 格的 live before/after",
+    "吞噬丹当前固定杀敌价",
+    "黑商付费刷新当前固定价",
+    "木材礼包/伐木机固定获得木材量",
+    "黑商逐商品完整杀敌价格表",
+    "吞噬丹/各商品出现概率及按黑市等级的概率表",
+    "H 在任意局内状态都能打开黑商",
+    "物品栏满后新道具究竟掉地、进个人背包还是拒绝",
+    "个人背包与物品栏之间的可靠自动移动手势"
+  ]
+}

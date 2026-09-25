@@ -166,8 +166,8 @@ def _new_shell(tmp_path: Path, runner=None) -> WebConfigShell:
     )
 
 def test_host_window_matches_od12_product_size(shell):
-    """宿主=产品窗 1080×820：独立看板，无画布黑边。"""
-    assert (shell.width(), shell.height()) == (1080, 820)
+    """宿主=产品窗 960×820：独立看板，无画布黑边。"""
+    assert (shell.width(), shell.height()) == (960, 820)
 
 
 def test_wizard_layout_uses_content_sized_solo_and_team_windows(shell):
@@ -181,7 +181,7 @@ def test_wizard_layout_uses_content_sized_solo_and_team_windows(shell):
     region = shell._titlebar_drag_region
     assert (region.x(), region.y(), region.width(), region.height()) == (0, 0, 330, 40)
     shell._set_window_layout("dashboard")
-    assert (shell.width(), shell.height()) == (1080, 820)
+    assert (shell.width(), shell.height()) == (960, 820)
 
 
 def test_compact_layout_is_360_wide_content_high_and_keeps_window_buttons(shell):
@@ -194,8 +194,8 @@ def test_compact_layout_is_360_wide_content_high_and_keeps_window_buttons(shell)
     shell._set_window_layout("compact", height=100)
     assert (shell.width(), shell.height()) == (360, 400)
     shell._set_window_layout("dashboard")
-    assert (shell.width(), shell.height()) == (1080, 820)
-    assert shell._titlebar_drag_region.width() == 850
+    assert (shell.width(), shell.height()) == (960, 820)
+    assert shell._titlebar_drag_region.width() == 360
 
 
 def test_runtime_uses_only_the_full_mode_wizard():
@@ -219,13 +219,13 @@ def test_frameless_titlebar_drag_region_receives_native_mouse_press(shell, monke
             calls.append(False)
 
     region = shell._titlebar_drag_region
-    assert (region.x(), region.y(), region.width(), region.height()) == (0, 0, 690, 40)
+    assert (region.x(), region.y(), region.width(), region.height()) == (0, 0, 360, 40)
     region.mousePressEvent(_Press())
     assert calls == [True, False]
 
 
 def test_production_canvas_semantics_host_exact_product_window():
-    """生产态：body 只保留居中语义；折叠断点必须低于固定视口 1080。"""
+    """生产态：body 只保留居中语义；折叠断点必须低于固定视口 960。"""
     html = (ROOT / "ui-v2" / "index.html").read_text(encoding="utf-8")
     assert "place-items: center;" in html
     assert "padding: 24px 16px;" not in html, "生产态不得残留沙盒画布留白"

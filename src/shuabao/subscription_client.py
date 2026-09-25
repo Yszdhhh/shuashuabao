@@ -45,6 +45,12 @@ PERMIT_REQUEST_FIELDS = (
 )
 LIVE_MODE_IDS = frozenset({"normal_farm", "lobby_hitch", "follow_team", "lead_team"})
 DEFAULT_LOCAL_BRIDGE_URL = "https://quebec-luis-flooring-kenneth.trycloudflare.com"
+CLIENT_USER_AGENT = "shuabao-client/internal-pilot"
+_JSON_REQUEST_HEADERS = {
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "User-Agent": CLIENT_USER_AGENT,
+}
 
 _KEY_FILE_NAME = "subscription.key"
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
@@ -165,7 +171,7 @@ def validate_entitlement(
     req = urllib_request.Request(
         f"{base_url}/v1/entitlements/validate",
         data=json.dumps(body).encode("utf-8"),
-        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        headers=_JSON_REQUEST_HEADERS,
         method="POST",
     )
     try:
@@ -222,7 +228,7 @@ def activate_device(
     req = urllib_request.Request(
         f"{base_url}/v1/devices/activate",
         data=json.dumps({"license_key": key, "hardware": hardware}).encode("utf-8"),
-        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        headers=_JSON_REQUEST_HEADERS,
         method="POST",
     )
     try:

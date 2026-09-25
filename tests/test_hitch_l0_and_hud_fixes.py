@@ -471,3 +471,176 @@ def test_case_c_lobby_plus_pet_plus_room_selects_room(monkeypatch):
     best_frame = med._capture_best("KK官方对战平台", role="l0")
     assert med._confirmed_room_hwnd == 1003
     assert best_frame.hwnd == 1003
+
+
+# ===========================================================================
+# 蹭车统计（局数/胜负/难度）与 Boss 防呆滞防死锁验证
+# ===========================================================================
+
+def test_hitch_stats_tracking_and_formatting(monkeypatch):
+    """验证蹭车局数、胜负、局内 HUD 关卡统计以及格式化输出。"""
+    from shuabao.mediator import RoundOutcome
+    from shuabao.vision.stage_selector import StageId
+
+    settings = Settings(mode_id="lobby_hitch")
+    root = Path(__file__).resolve().parents[1]
+    med = Mediator(settings, root)
+    med.set_phase(Phase.MAIN_LINE, "test")
+
+    # 1. 初始状态为空
+    assert med.format_hitch_stats_progress() == ""
+    assert med.format_hitch_stats_summary() == ""
+    assert med.format_hitch_stage_summary() == "无"
+
+    # 2. 局内 HUD 的章节-关卡标签是 2-7，旁边独立的波次标签不参与统计。
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=1001)
+    med._hitch_pending_selected_stage = "1-1"
+    monkeypatch.setattr("shuabao.mediator.detect_ingame_stage_label", lambda f, img: StageId(2, 7))
+    med._tick_main_line(frame)
+    assert med._hitch_stats_started == 1
+    assert med._hitch_stats_current_stage == "2-7"
+    assert med._hitch_stats_stages == {"2-7": 1}
+    assert med.format_hitch_stats_progress() == "关卡2-7"
+    med._record_hitch_challenge("金币(确认开启)")
+    med._record_hitch_challenge("档案-strengthen(已点击)")
+
+    # 局 1 取得胜利
+    med._record_round_outcome(RoundOutcome.VICTORY, "victory test")
+    assert med._hitch_stats_victories == 1
+    assert med._hitch_stats_failures == 0
+    assert med.format_hitch_stats_progress() == "胜1 败0 关卡2-7"
+    assert med.format_hitch_stats_summary() == (
+        "蹭车开局 1 把 / 完成 0 把 (胜 1 / 败 0) · 章节选择分布 2-7:1把 · "
+        "本局关卡 2-7 · 本局挑战 金币(确认开启)、档案-strengthen(已点击) · "
+        "门票约消耗 0 张 · 单刷完成 0 把"
+    )
+
+    # 3. 局 1 退出，进入 episode 重置
+    med._hitch_after_exit(100.0)
+    assert med._hitch_round_started_counted is False
+    assert med._hitch_stats_stage_recorded_this_round is False
+    assert med._hitch_stats_current_stage is None
+    assert med._hitch_stats_current_challenges == []
+    # 累计统计保留
+    assert med._hitch_stats_started == 1
+    assert med._hitch_stats_victories == 1
+    med.game_count = 1
+
+    # 4. 局 2 局内 HUD 读到 3-9，优先于选关页候选 3-4。
+    med._hitch_pending_selected_stage = "3-4"
+    monkeypatch.setattr("shuabao.mediator.detect_ingame_stage_label", lambda f, img: StageId(3, 9))
+    med._tick_main_line(frame)
+    assert med._hitch_stats_started == 2
+    assert med._hitch_stats_current_stage == "3-9"
+    assert med._hitch_stats_stages == {"2-7": 1, "3-9": 1}
+    assert med.format_hitch_stage_summary() == "2-7:1把 3-9:1把"
+
+    # 局 2 超时失败
+    med._record_round_outcome(RoundOutcome.TIMEOUT, "timeout test")
+    assert med._hitch_stats_victories == 1
+    assert med._hitch_stats_failures == 1
+    assert med.format_hitch_stats_summary() == (
+        "蹭车开局 2 把 / 完成 1 把 (胜 1 / 败 1) · 章节选择分布 2-7:1把 3-9:1把 · "
+        "本局关卡 3-9 · 本局挑战 无确认记录 · 门票约消耗 2 张 · 单刷完成 0 把"
+    )
+    med.game_count = 2
+    med.settings.mode_id = "normal_farm"
+    assert med.format_hitch_stats_summary().startswith("蹭车开局 2 把 / 完成 2 把")
+    assert "门票约消耗 4 张" in med.format_hitch_stats_summary()
+    assert med.format_hitch_stats_progress() == med.format_hitch_stats_summary()
+
+
+def test_overlay_hud_stats_display(qapp):
+    """验证 OverlayHud 在运行中与停止后正确渲染统计文案。"""
+    hud = OverlayHud()
+
+    # 运行中带进度统计
+    hud.update_status(
+        running=True,
+        phase="MAIN_LINE",
+        game_count=3,
+        cycle_num=10,
+        mode="lobby_hitch",
+        stats_text="胜2 败0 章节2",
+    )
+    assert "胜2 败0 章节2" in hud.round_chip.text()
+    assert "胜2 败0 章节2" in hud.detail_label.text()
+
+    # 停止后带总战绩统计
+    hud.update_status(
+        running=False,
+        game_count=10,
+        cycle_num=10,
+        mode="lobby_hitch",
+        terminal_reason="cycle_num reached",
+        stats_text="蹭车开局 10 把 / 完成 10 把 · 章节选择分布 1-1:1把 2-7:6把 3-9:2把",
+    )
+    assert "蹭车开局 10 把 / 完成 10 把 · 章节选择分布 1-1:1把 2-7:6把 3-9:2把" in hud.detail_label.text()
+
+
+def test_boss_challenge_attempt_limit_deadlock_prevention(monkeypatch):
+    """验证 Boss 挑战达到 3 次上限时返回 None 并推进到 archive 关闭路径，绝不死锁循环。"""
+    settings = Settings(sgzx_boss="15莫格莱尼", ocr_mode="off")
+    root = Path(__file__).resolve().parents[1]
+    med = Mediator(settings, root)
+    med.set_phase(Phase.MAIN_LINE, "test")
+    med._boss_challenge_attempts = 3
+
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=1001)
+    monkeypatch.setattr(med, "_post_game_state", lambda f: "ARCHIVE_PANEL")
+
+    # 达到 3 次必须返回 None，且设置 _time_cave_boss_done = True
+    action = med._maybe_challenge_configured_boss(frame, 10.0)
+    assert action is None
+    assert med._time_cave_boss_done is True
+    assert med._post_game_route == "archive"
+
+    # 调用重置函数后所有计数清空
+    med._reset_boss_challenge_round_state()
+    assert med._boss_challenge_attempts == 0
+    assert med._time_cave_boss_done is False
+    assert med._time_cave_boss_search_attempts == 0
+    assert med._boss_anomaly_retry_attempts == 0
+
+
+def test_hitch_l0_sleep_backoff_and_modal_close(monkeypatch):
+    """验证 L0 阶段递增沉睡退避、KK 最小化唤醒与平台弹窗优先关闭按钮机制。"""
+    settings = Settings(mode_id="lobby_hitch", ocr_mode="off")
+    root = Path(__file__).resolve().parents[1]
+    med = Mediator(settings, root)
+
+    # 1. 退避序列单调递增
+    intervals = med._HITCH_L0_BACKOFF_INTERVALS
+    assert len(intervals) >= 5
+    assert all(intervals[i] <= intervals[i + 1] for i in range(len(intervals) - 1))
+    assert intervals[0] == 30
+    assert intervals[-1] == 1800
+
+    # 2. _sleep_with_stop_check 支持受急停中断
+    med._running = True
+    assert med._sleep_with_stop_check(0.05, slice_s=0.01) is True
+    med.stop_signal.trigger("test")
+    assert med._sleep_with_stop_check(10.0, slice_s=0.01) is False
+    med.stop_signal.reset()
+
+    # 3. 弹窗先 Esc；Esc 关不掉（活动弹窗）时下一个 fresh 帧再点 X（Owner 2026-09-24）
+    from shuabao.mediator import PlatformModalShell
+
+    close_btn = MatchResult("test_close", 1.0, 100, 100, 10, 10, 100, 100)
+    shell = PlatformModalShell("main_overlay", close_btn)
+    frame = Frame(np.zeros((364, 560, 3), dtype=np.uint8), hwnd=2001)
+
+    clicked_reasons = []
+    monkeypatch.setattr(med, "act_click", lambda hit, reason: clicked_reasons.append(reason) or True)
+    monkeypatch.setattr(med, "act_key", lambda key, reason: clicked_reasons.append(reason) or True)
+
+    med._tick_hitch_platform_modal(frame, shell, 100.0)
+    assert clicked_reasons == ["HitchDismissPlatformModalEsc"]
+    assert med._hitch_platform_modal_last_action == "esc"
+
+    fresh = Frame(np.zeros((364, 560, 3), dtype=np.uint8), hwnd=2001, timestamp=200.0)
+    med._tick_hitch_platform_modal(fresh, shell, 200.0)
+    assert clicked_reasons == ["HitchDismissPlatformModalEsc", "HitchDismissPlatformModalClose"]
+    assert med._hitch_platform_modal_last_action == "close"
+
+

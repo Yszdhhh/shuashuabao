@@ -1,7 +1,9 @@
-# 开发桌面唯一入口：源码与 Web dist 不一致时先重建，再启动 Web 壳。
+﻿# 开发桌面唯一入口：源码与 Web dist 不一致时先重建，再启动 Web 壳。
 # 正式发行请使用 build_release.ps1；本脚本不部署、不改桌面快捷方式。
 param(
-    [switch]$SkipNpmCi
+    [switch]$SkipNpmCi,
+    # Optional interpreter (e.g. a sibling worktree reusing the main checkout's .venv).
+    [string]$Python = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -81,7 +83,10 @@ if ($needsBuild) {
     Write-Host "[dev] UI dist 已按 source_sha=$sourceSha 重建。" -ForegroundColor Green
 }
 
-$python = Join-Path $PSScriptRoot ".venv\Scripts\python.exe"
+$python = if ($Python) { $Python } else { Join-Path $PSScriptRoot ".venv\Scripts\python.exe" }
+if ($Python -and -not (Test-Path -LiteralPath $python -PathType Leaf)) {
+    throw "Python not found: $Python"
+}
 if (-not (Test-Path -LiteralPath $python -PathType Leaf)) {
     $python = (Get-Command python -ErrorAction Stop).Source
 }

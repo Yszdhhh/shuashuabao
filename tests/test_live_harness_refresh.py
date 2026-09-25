@@ -26,14 +26,15 @@ from tools.live_scenario_capture import (
     HitchLobbyChainObserver,
     SoloIngameChainObserver,
     _initial_phase_for_target,
+    _arm_direct_archaeology_after_stage_select,
     _invoke_target_handler,
     _start_surface_preflight,
 )
 
 
 ROOT = Path(__file__).resolve().parents[1]
-FROZEN = "423706d4699697604c41b4efb85809f42001f41b"
-BASE = "423706d4699697604c41b4efb85809f42001f41b"
+FROZEN = "7a6c36bbbdc39064ceed1aebd9ffc301bfeea342"
+BASE = identity.load_identity_manifest(ROOT)["candidate_sha"]
 OLD_HARNESS = "144c0c9adc366a35548f6e1c2e52fad8387da090"
 OLD_PROD = "b15da05f4fd7313b02b2cc466e319d9683aa979c"
 
@@ -46,6 +47,7 @@ def _blank_frame(**kwargs) -> Frame:
 def test_identity_uses_current_worktree_not_old_runtime() -> None:
     report = identity.identity_report(repo_root=ROOT)
     assert report["harness_base"] == BASE
+    assert report["candidate_anchor_sha"] == identity.load_identity_manifest(ROOT)["candidate_sha"]
     assert report["frozen_production_code_baseline"] == FROZEN
     assert report["production_code_diff"] == "CLEAN"
     assert report["runtime_source_verified"] is True
@@ -61,6 +63,7 @@ def test_production_code_diff_gate_is_clean_on_this_worktree() -> None:
     diff = identity.production_code_diff(ROOT)
     assert diff["status"] == "CLEAN"
     assert diff["files"] == []
+    assert diff["candidate_anchor_sha"] == BASE
 
 
 def test_source_mismatch_is_not_ready_for_gt(tmp_path: Path) -> None:
@@ -136,7 +139,7 @@ def test_fail_bundle_schema_includes_identity_and_window(tmp_path: Path) -> None
         "final_status", "window",
     ):
         assert key in payload
-    assert payload["harness_base_sha"] == BASE
+    assert payload["harness_base_sha"] == identity.candidate_anchor_sha(ROOT)
     assert payload["production_baseline_sha"] == FROZEN
     assert payload["production_diff_status"] == "CLEAN"
     assert payload["final_status"] == "BLOCKED_PRECONDITION"
@@ -170,6 +173,11 @@ def test_solo_chain_keeps_dashboard_room_creation_and_run_settings(monkeypatch) 
         auto_create_room=True,
         cycle_num=5,
         stage_targets=["1-21"],
+        bonds=["chengzhang", "jingji"],
+        cards=["dasheng", "fengshen"],
+        auto_bond=False,
+        auto_treasure=False,
+        auto_devour_dan=False,
     )
     monkeypatch.setattr(live_capture, "_load_operator_settings", lambda _path: dashboard)
 
@@ -179,6 +187,52 @@ def test_solo_chain_keeps_dashboard_room_creation_and_run_settings(monkeypatch) 
     assert settings.auto_create_room is True
     assert settings.cycle_num == 5
     assert settings.stage_targets == ["1-21"]
+    assert settings.bonds == dashboard.bonds
+    assert settings.cards == dashboard.cards
+    assert settings.auto_bond is False
+    assert settings.auto_treasure is False
+    assert settings.auto_devour_dan is False
+
+
+def test_12_launcher_requires_current_dashboard_settings_by_default() -> None:
+    script = (ROOT / "live_scenario_launcher.ps1").read_text(encoding="utf-8")
+    start = script.index("function Invoke-SoloIngameChainCapture")
+    end = script.index("function Invoke-SoloDirectArchaeologyCapture", start)
+    case_12 = script[start:end]
+    assert "New-DashboardSettingsSnapshot -RequireDashboard" in case_12
+    assert '"--settings", $settingsPath' in case_12
+    assert "$script:HarnessSettingsPath = $null" in case_12
+    assert "Resolve-OperatorSettingsPath" in script
+    assert "user_settings.json" in script
+
+
+def test_solo_chain_loads_saved_dashboard_snapshot_without_replacing_policy(tmp_path: Path) -> None:
+    saved = Settings(
+        mode_id="lobby_hitch", auto_create_room=True, cycle_num=3,
+        stage_targets=["1-22"], bonds=["成长", "经济"],
+        cards=["齐天大圣", "封神"], auto_devour_dan=True,
+        auto_bond=True, auto_treasure=False,
+    )
+    path = tmp_path / "user_settings.json"
+    saved.save(path)
+
+    actual = live_capture._prepare_settings(path, "solo_ingame_chain", live_input=True)
+
+    assert actual.mode_id == "normal_farm"
+    for field in ("auto_create_room", "cycle_num", "stage_targets", "bonds", "cards", "auto_devour_dan", "auto_bond", "auto_treasure"):
+        assert getattr(actual, field) == getattr(saved, field)
+
+
+def test_direct_archaeology_arms_only_after_production_stage_select() -> None:
+    med = SimpleNamespace(phase=Phase.ROOM_WAITING)
+
+    assert _arm_direct_archaeology_after_stage_select(med, enabled=True) is False
+    assert not hasattr(med, "_archaeology_handoff_pending")
+
+    med.phase = Phase.STAGE_SELECT
+    assert _arm_direct_archaeology_after_stage_select(med, enabled=True) is True
+    assert med._archaeology_handoff_pending is True
+    assert _arm_direct_archaeology_after_stage_select(med, enabled=True) is False
 
 
 def test_solo_chain_preflight_accepts_production_l0_start_surface() -> None:

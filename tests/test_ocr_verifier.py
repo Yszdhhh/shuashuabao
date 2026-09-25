@@ -70,6 +70,10 @@ def test_hitch_prefix_accepts_exact_unicode_search_term():
 
     assert has_prefix_evidence("速", "速")
     assert not has_prefix_evidence("极速", "速")
+    assert has_prefix_evidence("2-7", "2-7")
+    assert has_prefix_evidence("2 - 7", "2-7")
+    assert has_prefix_evidence("3—4", "3-4")
+    assert not has_prefix_evidence("2-8", "2-7")
 
 
 def test_hitch_prefix_rejects_malformed_ambiguous_and_invalid_expected():

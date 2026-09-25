@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "case": "main_hud_idle",
-  "description": "R0.1-#4 主线 HUD 独立场景：真实帧 fixtures/replay/main_line_auto_on.png（1600×900 窗口捕获，idle HUD，无选择面板）。生产语义：context=MAIN_LINE；首帧按 L1 循环第一步打开羁绊面板（OpenBondPanel @ (1390,808)），随后本轮面板已请求、零输入 idle 等待（第二帧 t=2.0 actions=0）。HUD 锚点识别与零盲点由本场景冻结。\n\n【2026-08-29 期望修订】17c52d9 已将 L1 首步改为先完成基础羁绊，再进入技能/宝物；当前 Mediator 与 RuntimeMediator 的生产入口均在 MAIN_LINE 初始化为 bond，且已有 test_main_line_starts_on_bond 覆盖。此次修订是将冻结期望同步到已确认的产品语义，不是放宽断言：动作数仍为 1，第二帧仍恒为零输入。",
+  "description": "R0.1-#4 主线 HUD 独立场景：真实帧 fixtures/replay/main_line_auto_on.png（1600×900 窗口捕获，idle HUD，无选择面板）。2026-09-23 复核原始帧：物品栏有银月之晶，模板 yinyue_crystal 得分 0.988，中心 (1147,831)。按已确认的单人道具时间线，首帧应先点击银月之晶；随后等待消耗确认，第二帧零输入。动作数仍为 1，保留真实帧和点击点断言。",
   "phase": "MAIN_LINE",
   "settings_overrides": {
     "dry_run": true
@@ -43,8 +43,8 @@
       "action_count": 1,
       "action": {
         "kind": "click",
-        "reason": "OpenBondPanel",
-        "target": "bond_button",
+        "reason": "UseInventory-yinyue_crystal",
+        "target": "yinyue_crystal",
         "input_kind": "left_click"
       },
       "action_result": {

@@ -14,7 +14,7 @@ from typing import Any
 from shuabao.interaction_surface import PendingAction
 from shuabao.log_sink import emit_print as print  # noqa: A001
 from shuabao.loop_action import LoopAction
-from shuabao.choice_policy import matches_bond_preset
+from shuabao.choice_policy import matches_bond_preset, same_bond_identity
 from shuabao.mediator import Mediator as CoreMediator
 from shuabao.mediator import PanelState, Phase
 from shuabao.vision.matcher import MatchResult
@@ -215,40 +215,8 @@ class Mediator(CoreMediator):
         self._last_runtime_progress_at = float(now if now is not None else time.time())
 
     def _l1_cycle_order(self) -> tuple[str, ...]:
-        """蹭车和单人是两条完全不同的环，LIVE 必须和核心 Mediator 选同一条。
-
-        20260910 实机复盘：本方法此前写死 ``_L1_CYCLE_ORDER``，于是蹭车局在
-        LIVE 下照样走 bond/skill/evolve/equipment（点了进化、升了 1 号装备
-        —— 全是发育自己的动作），而蹭车专属步一次都没到，公共背包流转因此
-        从未被调用。bundle 里 ``l1_cycle_step`` 只出现 solo 步就是这个原因。
-        """
-        return self._HITCH_L1_CYCLE_ORDER if self._hitch_enabled() else self._L1_CYCLE_ORDER
-
-    def _advance_l1_cycle(self, completed: str | None = None) -> None:
-        """Advance by position, not tuple.index(), so duplicate bond/skill steps work."""
-        order = self._l1_cycle_order()
-        current = completed or getattr(self, "_l1_cycle_step", order[0])
-        idx = int(getattr(self, "_l1_cycle_index", 0) or 0)
-        if not (0 <= idx < len(order) and order[idx] == current):
-            matches = [i for i, step in enumerate(order) if step == current]
-            if matches:
-                forward = [i for i in matches if i >= idx]
-                idx = forward[0] if forward else matches[0]
-            else:
-                idx = -1
-        next_idx = (idx + 1) % len(order)
-        nxt = order[next_idx]
-        if nxt == "evolve":
-            self._evolve_ok_this_cycle = False
-            self._evolve_awaiting_hero_pick = False
-        if nxt == "equipment" or completed == "evolve":
-            self._inventory_clicks_this_visit = 0
-            self._inventory_last_pt = None
-            self._inventory_same_pt_hits = 0
-            self._inventory_next_at = 0.0
-            self._devour_dan_consecutive_clicks = 0
-        self._l1_cycle_index = next_idx
-        self._l1_cycle_step = nxt
+        """蹭车和单人是两条完全不同的环，LIVE 必须和核心 Mediator 选同一条。"""
+        return super()._l1_cycle_order()
 
     def _runtime_watchdog_allowed(self, now: float) -> bool:
         if getattr(self, "phase", None) != Phase.MAIN_LINE:
@@ -478,6 +446,10 @@ class Mediator(CoreMediator):
             getattr(self, "_evolve_awaiting_hero_pick", False)
             or getattr(self, "_evolve_feedback_pending", False)
         )
+        inventory_modal_recent = bool(
+            time.time() < getattr(self, "_inventory_modal_until", 0.0)
+            and getattr(self, "_panel_opened_by_us", None) is None
+        )
         active_reward = (
             getattr(self, "_panel_opened_by_us", None) in ("skill", "bond", "treasure")
             or (
@@ -485,7 +457,9 @@ class Mediator(CoreMediator):
                 and getattr(self, "_panel_kind", None) in ("skill", "bond", "treasure")
             )
         )
-        if not awaiting_hero and (active_reward or self._classify_choice_panel(frame) is not None):
+        if not (awaiting_hero or inventory_modal_recent) and (
+            active_reward or self._classify_choice_panel(frame) is not None
+        ):
             return None
         hit = super()._find_evolution_choice(frame, anchor)
         if hit is not None and "refresh" not in str(getattr(hit, "name", "")).lower():
@@ -516,7 +490,7 @@ class Mediator(CoreMediator):
             return None
 
         inventory_roi = (0.64, 0.77, 0.74, 0.98)
-        if self.settings.auto_devour_dan and self._can_consume_inventory_swallow_pill(frame):
+        if self._can_consume_inventory_swallow_pill(frame):
             pill = self.find(
                 frame,
                 ["danGif"],
@@ -534,23 +508,13 @@ class Mediator(CoreMediator):
                         kind="WAIT_DEVOUR_DAN",
                         target_id="danGif",
                         deadline=now + 2.0,
-                        verifier=lambda f: bool(
-                            (
-                                baseline_occ is not None
-                                and getattr(self, "_bond_bar_occupancy", lambda _: None)(f) is not None
-                                and getattr(self, "_bond_bar_occupancy", lambda _: None)(f) < baseline_occ
-                            )
-                            or (not self._bond_bar_nonempty(f))
-                            or (
-                                self.find(
-                                    f,
-                                    ["danGif"],
-                                    threshold=0.55,
-                                    scales=self._hot_scales(),
-                                    roi=inventory_roi,
-                                )
-                                is None
-                            )
+                        # 消耗的唯一证据是羁绊格数真的变少：模板掉帧、背包
+                        # 重排、羁绊栏读不出来都会让"丹不见了/栏空了"成立，
+                        # 那是丢失识别而不是吞噬成功。
+                        verifier=lambda f: (
+                            baseline_occ is not None
+                            and (occ := self._bond_bar_occupancy(f)) is not None
+                            and occ < baseline_occ
                         ),
                     )
                     return LoopAction.Continue
@@ -558,9 +522,9 @@ class Mediator(CoreMediator):
                 self._devour_dan_consecutive_clicks = 0
 
         if not getattr(self, "_evolve_ok_this_cycle", False):
-            return None
+            return self._maybe_use_inventory_slot(frame, now)
         if now < self._inventory_next_at or self._inventory_clicks_this_visit >= 2:
-            return None
+            return self._maybe_use_inventory_slot(frame, now)
         hero_card = self.find(
             frame,
             ["hero_card_item"],
@@ -569,12 +533,13 @@ class Mediator(CoreMediator):
             scales=(0.8, 0.9, 1.0, 1.1, 1.2),
         )
         if hero_card is None:
-            return None
+            return self._maybe_use_inventory_slot(frame, now)
         if not self.act_click(hero_card, "UseInventory-hero-card"):
             return None
         self._inventory_clicks_this_visit += 1
         self._inventory_next_at = now + 1.0
         self._evolve_awaiting_hero_pick = True
+        self._evolve_awaiting_hero_pick_at = now
         self._pending_action = PendingAction(
             kind="WAIT_HERO_CHOICE",
             target_id="hero_card_item",
@@ -587,8 +552,10 @@ class Mediator(CoreMediator):
     # ------------------------------------------------------------------
     # Merchant: use the single integrated core handler in LIVE too.
     # ------------------------------------------------------------------
-    def _maybe_black_merchant(self, frame):
-        return super()._maybe_black_merchant(frame)
+    def _maybe_black_merchant(self, frame, allow_reroll: bool = True):
+        # 机会黑商用 allow_reroll=False 调用（mediator.py:6465）。覆写必须
+        # 收得下并原样转交，否则命中该路径就是 TypeError，整局中断。
+        return super()._maybe_black_merchant(frame, allow_reroll=allow_reroll)
 
     # ------------------------------------------------------------------
     # Stage selection: SendInput success alone is not selection proof.
@@ -645,13 +612,20 @@ class Mediator(CoreMediator):
         return self._configured_bond_presets()
 
     def _bond_presets_complete(self) -> bool:
-        return not self._configured_bond_presets()
+        # Never "complete": repeat cards upgrade/merge (see
+        # _remaining_bond_presets) and wood >= 1000 still routes to F, so
+        # owning one copy of each preset must not skip or close the F panel.
+        # An empty preset list is not "complete" either.
+        return False
 
     def _stage_bond_card(self, name: str | None) -> None:
         canonical = self._canonical_bond_name(name)
-        configured = self._configured_bond_presets()
-        if not matches_bond_preset(canonical, configured):
+        if not canonical:
             return
+        # The policy has already authorized the clicked slot.  In soft mode it
+        # may deliberately choose a non-preset quality fallback, so filtering
+        # the confirmed result against the configured presets here would make
+        # the ownership ledger incomplete and corrupt later decisions.
         # 重复卡必须保留次数，供“已拿卡优先合成”决策使用。
         self._bond_cards_pending.append(canonical)
 
@@ -765,7 +739,10 @@ class Mediator(CoreMediator):
         result = super()._find_reward_choice(frame, anchor=anchor)
         if result is None:
             if getattr(self, "_choice_policy_idle", False):
-                self._clear_runtime_unknown_panel()
+                # Core uses this flag for a deliberate zero-input wait, most
+                # importantly the second-frame confirmation of an F candidate.
+                # Clearing it here makes Core interpret a legal pending draw
+                # as an unknown panel and close it before confirmation.
                 return None
             self._arm_runtime_unknown_panel(frame, kind)
             return None
@@ -785,7 +762,7 @@ class Mediator(CoreMediator):
 
         canonical = self._canonical_bond_name(hit_name)
         remaining = set(self._remaining_bond_presets())
-        if matches_bond_preset(canonical, tuple(remaining)):
+        if matches_bond_preset(canonical, tuple(remaining)) or any(same_bond_identity(canonical, c) for c in self._confirmed_bond_cards()):
             return result
 
         close_hit = self._verified_panel_close(frame, "bond")

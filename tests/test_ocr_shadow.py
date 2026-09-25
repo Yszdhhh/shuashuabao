@@ -100,6 +100,53 @@ class TestWorkerPrediction(unittest.TestCase):
         self.assertEqual(raw_text, "测试描述")
         self.assertEqual(score, 0.91)
 
+    def test_counter_kind_does_not_load_choice_lexicon(self):
+        from PIL import Image
+        from unittest.mock import patch
+
+        payload = io.BytesIO()
+        Image.new("RGB", (32, 16), "white").save(payload, format="PNG")
+        image_b64 = base64.b64encode(payload.getvalue()).decode("ascii")
+
+        class Recognizer:
+            @staticmethod
+            def predict(_path):
+                return [{"rec_text": "128", "rec_score": 0.97}]
+
+        with patch("shuabao.vision.choice_ocr.load_lexicon", side_effect=AssertionError("unused lexicon")):
+            candidates, raw_text, score = worker_module._predict(
+                Recognizer(), image_b64, "counter"
+            )
+
+        self.assertEqual(candidates, [{"name": "128", "confidence": 0.97}])
+        self.assertEqual(raw_text, "128")
+        self.assertEqual(score, 0.97)
+
+    def test_semantic_kind_returns_raw_text_when_lexicon_is_missing(self):
+        from PIL import Image
+        from unittest.mock import patch
+
+        payload = io.BytesIO()
+        Image.new("RGB", (32, 16), "white").save(payload, format="PNG")
+        image_b64 = base64.b64encode(payload.getvalue()).decode("ascii")
+
+        class Recognizer:
+            @staticmethod
+            def predict(_path):
+                return [{"rec_text": "测试名称", "rec_score": 0.91}]
+
+        with patch(
+            "shuabao.vision.choice_ocr.load_lexicon",
+            side_effect=FileNotFoundError("choice_lexicon.json"),
+        ):
+            candidates, raw_text, score = worker_module._predict(
+                Recognizer(), image_b64, "treasure"
+            )
+
+        self.assertEqual(candidates, [])
+        self.assertEqual(raw_text, "测试名称")
+        self.assertEqual(score, 0.91)
+
 
 class TestClientLifecycle(unittest.TestCase):
     def new_client(self, **kwargs) -> ShadowClient:

@@ -113,7 +113,7 @@ def get_catalog_max_order(
                         pass
             if valid_nos:
                 return max(valid_nos)
-    return 54 if page_type == "ARCHIVE_PANEL" else 20
+    return 59 if page_type == "ARCHIVE_PANEL" else 21
 
 
 def parse_boss_order_number(

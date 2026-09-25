@@ -18,7 +18,9 @@ NEGATIVE_TREASURES = (
     "金转木",
     "杀敌梭哈",
     "伐木契约",
-    "等级优势",
+    "诅咒之力",
+    "提高上限",
+    "木材梭哈",
 )
 
 
@@ -35,7 +37,10 @@ class CardTemplateInventoryTests(unittest.TestCase):
 
         labels = json.loads(FETTER_LABELS.read_text(encoding="utf-8"))
         label_keys = sorted(k for k in labels if not str(k).startswith("_"))
-        self.assertEqual(label_keys, sorted(shortcodes))
+        # Registered families whose template is captured on the next live run.
+        pending = sorted(k for k in index.get("pending_live_capture", {}) if not k.startswith("_"))
+        self.assertFalse(set(pending) & set(shortcodes))
+        self.assertEqual(label_keys, sorted([*shortcodes, *pending]))
 
     def test_thresholds_present(self):
         index = json.loads(INDEX.read_text(encoding="utf-8"))
@@ -86,7 +91,7 @@ class CardBidirectionalTests(unittest.TestCase):
 
 
 class NegativeTreasureLexiconTests(unittest.TestCase):
-    def test_six_negative_treasures_in_lexicon(self):
+    def test_default_blocked_treasures_in_lexicon(self):
         data = json.loads(LEXICON.read_text(encoding="utf-8"))
         entries = data["entries"]
         for name in NEGATIVE_TREASURES:
