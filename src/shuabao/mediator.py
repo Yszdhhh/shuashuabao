@@ -2649,10 +2649,13 @@ class Mediator:
 
     def _classify_choice_panel(self, frame: Frame) -> str | None:
         """Distinguish skill / bond / treasure choice panels by their unique buttons."""
-        if self._evolve_hero_choice_pending() and getattr(self, "_panel_opened_by_us", None) not in (
-            "skill", "bond", "treasure",
+        if (
+            (self._evolve_hero_choice_pending() or self._find_evolution_choice(frame) is not None)
+            and getattr(self, "_panel_opened_by_us", None) not in (
+                "skill", "bond", "treasure",
+            )
         ):
-            # 进化后的英雄二选一会误中 treasure_lock，先交给英雄排序。
+            # 进化/英雄卡二选一会误中 treasure_lock，先交给英雄排序。
             return None
         opened = getattr(self, "_panel_opened_by_us", None)
         if opened == "treasure":
@@ -4191,7 +4194,16 @@ class Mediator:
         if not anchor:
             return None
 
-        if self._evolve_hero_choice_pending():
+        # 英雄二选一/进化选择：支持由 evolve 流程触发、背包英雄卡使用后触发，或中央呈现英雄二选一特征
+        is_hero_choice = (
+            self._evolve_hero_choice_pending()
+            or (
+                getattr(self, "_panel_opened_by_us", None) not in ("skill", "bond", "treasure")
+                and (anchor is None or (not anchor.name.startswith("treasure_") and not anchor.name.startswith("bond_")))
+                and self._find_evolution_choice(frame, anchor) is not None
+            )
+        )
+        if is_hero_choice:
             evo_hit = self._find_evolution_choice(frame, anchor)
             if evo_hit is not None:
                 print(f"[L1] 进化英雄选择：{evo_hit.name} @ {evo_hit.center}")
@@ -4200,6 +4212,12 @@ class Mediator:
             if rarity_hit is not None:
                 print(f"[L1] 进化英雄三选一按品质色：{rarity_hit.name} @ {rarity_hit.center}")
                 return ("card", rarity_hit)
+            if LayoutTransform.is_supported(frame.width, frame.height):
+                transform = LayoutTransform.from_frame(frame.width, frame.height)
+                x, y = transform.logical_point(666, 300)
+                fallback_hit = MatchResult("evolution_card_0_fallback", 1.0, x, y, 0, 0, frame.left + x, frame.top + y)
+                print(f"[L1] 进化英雄识别不清兜底第一张：{fallback_hit.name} @ {fallback_hit.center}")
+                return ("card", fallback_hit)
         kind = self._panel_kind_of(frame, anchor)
         if kind == "unknown":
             self._record_selection_unknown(frame, anchor, "panel classification failed")
@@ -5396,18 +5414,19 @@ class Mediator:
             else:
                 self._inventory_last_pt = hero_card.center
                 self._inventory_same_pt_hits = 1
-            self._inventory_next_at = now + 1.0
-            if self.act_click(hero_card, "UseInventory-hero-card"):
-                self._evolve_awaiting_hero_pick = True
-                self._evolve_awaiting_hero_pick_at = now
+            clicked = self.act_click(hero_card, "UseInventory-hero-card")
+            self._evolve_awaiting_hero_pick = True
+            self._evolve_awaiting_hero_pick_at = now
+            self._inventory_modal_until = now + 4.0
+            if clicked:
                 print(f"[L1] 使用背包英雄卡 @ {hero_card.center}")
-                self._pending_action = PendingAction(
-                    kind="WAIT_HERO_CHOICE",
-                    target_id="hero_card_item",
-                    deadline=now + 3.0,
-                    verifier=lambda f: bool(self._find_evolution_choice(f, anchor=self._selection_anchor(f)) is not None),
-                )
-                return LoopAction.Continue
+            self._pending_action = PendingAction(
+                kind="WAIT_HERO_CHOICE",
+                target_id="hero_card_item",
+                deadline=now + 3.0,
+                verifier=lambda f: bool(self._find_evolution_choice(f, anchor=self._selection_anchor(f)) is not None),
+            )
+            return LoopAction.Continue
         return self._maybe_use_inventory_slot(frame, now)
 
     def _maybe_use_inventory_slot(self, frame: Frame, now: float | None = None) -> LoopAction | None:
@@ -7260,6 +7279,9 @@ class Mediator:
 
     def _close_current_panel(self, frame: Frame, panel_kind: str | None = None) -> MatchResult | None:
         """Resolve a verified physical hide/close affordance for a card panel."""
+        if self._find_evolution_choice(frame) is not None:
+            # 英雄选择弹窗严禁隐藏关闭，必须选卡
+            return None
         kind = panel_kind or getattr(self, "_panel_opened_by_us", None)
         if kind in ("技能", "技能刷新", "技能放弃"):
             kind = "skill"
@@ -9386,6 +9408,9 @@ class Mediator:
             if not getattr(self.settings, "dry_run", False):
                 self.act_click(select_hero_btn, "ClickSelectHero")
                 self.act_key("F1", "SelectHeroHotkey")
+            self._evolve_awaiting_hero_pick = True
+            self._evolve_awaiting_hero_pick_at = now
+            self._inventory_modal_until = now + 4.0
             self._hero_focus_lost_count = 0
             self._hero_focus_last_frame_id = None
             self._hero_focus_next_check_at = now + 1.5
@@ -16903,6 +16928,9 @@ class Mediator:
                 roi=self._PANEL_BUTTONS_ROI,
             ) is not None:
                 return "skill"
+            # 英雄卡弹窗避免被彩色卡牌误判为 treasure
+            if self._find_evolution_choice(frame, anchor) is not None:
+                return "card"
             transform = LayoutTransform.from_frame(frame.width, frame.height)
             rx1, ry1, rx2, ry2 = transform.logical_roi(450, 180, 1145, 515)
             roi = frame.bgr[ry1:ry2, rx1:rx2]
