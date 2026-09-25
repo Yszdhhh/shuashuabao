@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "candidate_sha": "c04911976f5119879c0d6afeb11401975a24139f",
+  "candidate_sha": "2e0bcfb3a3f0882d3cc62e19048e32f1367d5186",
   "anchored_at": "2026-09-26T00:06:00+08:00",
   "branch": "fix/bond-panel-stuck-20260925",
   "note": "09-26 修复羁绊面板刷新耗尽与超时死锁：以最后进展计算超时、solo有锚点转CLOSING、COOLDOWN脱节重识别纠偏"
