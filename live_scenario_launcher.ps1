@@ -261,25 +261,42 @@ function Show-HarnessSettingsPanel {
     $form.Size = New-Object System.Drawing.Size(620, 590)
     $form.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 10)
     $form.TopMost = $true
+    $strategyDefaultsPath = Join-Path $RepoRoot "config\official_strategy_defaults.json"
+    $strategyDefaults = [System.IO.File]::ReadAllText($strategyDefaultsPath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+    $dashengCards = @($strategyDefaults.card_packs.advanced.dasheng.cards)
+    $haizeiwangCards = @($strategyDefaults.card_packs.advanced.haizeiwang.cards)
+    $suggestedCards = @($dashengCards + $haizeiwangCards | Select-Object -Unique)
     $note = New-Object System.Windows.Forms.Label
-    $note.Text = "默认点击 12 会自动读取正式看板设置，无需在这里输入。`r`n来源：$source`r`n本页只生成临时覆盖，不会写正式 user_settings.json。"
-    $note.AutoSize = $false; $note.Size = New-Object System.Drawing.Size(570, 62); $note.Location = [System.Drawing.Point]::new(20, 15)
+    $note.Text = "默认点击 12 会自动读取正式看板设置，无需在这里输入。`r`n来源：$source`r`n本页只生成临时覆盖，不会写正式 user_settings.json。`r`n大圣+海贼王成员示例：$([string]::Join(',', $suggestedCards))"
+    $note.AutoSize = $false; $note.Size = New-Object System.Drawing.Size(570, 82); $note.Location = [System.Drawing.Point]::new(20, 15)
     $note.ForeColor = [System.Drawing.Color]::DimGray; $form.Controls.Add($note)
     $fields = @(
         @{ Label = "目标关卡（逗号分隔）"; Name = "stage_targets"; Value = (Csv-Value "stage_targets") },
         @{ Label = "技能 short code（最多 4 个）"; Name = "skills"; Value = (Csv-Value "skills") },
         @{ Label = "羁绊（逗号分隔）"; Name = "bonds"; Value = (Csv-Value "bonds") },
+        @{ Label = "高级卡组成员（cards，逗号分隔）"; Name = "cards"; Value = (Csv-Value "cards") },
         @{ Label = "传家宝 Boss（留空则跳过）"; Name = "cjb_boss"; Value = (Value-OrDefault "cjb_boss" "") },
         @{ Label = "时光之穴 Boss（留空则跳过）"; Name = "sgzx_boss"; Value = (Value-OrDefault "sgzx_boss" "") }
     )
     $controls = @{}
-    $y = 74
+    $y = 94
     foreach ($field in $fields) {
         $label = New-Object System.Windows.Forms.Label
         $label.Text = $field.Label; $label.AutoSize = $true; $label.Location = [System.Drawing.Point]::new(20, ($y + 4)); $form.Controls.Add($label)
         $box = New-Object System.Windows.Forms.TextBox
-        $box.Text = [string]$field.Value; $box.Size = New-Object System.Drawing.Size(285, 28); $box.Location = [System.Drawing.Point]::new(230, $y)
+        $box.Text = [string]$field.Value
+        $boxWidth = 285
+        if ($field.Name -eq "cards") { $boxWidth = 205 }
+        $box.Size = New-Object System.Drawing.Size($boxWidth, 28)
+        $box.Location = [System.Drawing.Point]::new(230, $y)
         $controls[$field.Name] = $box; $form.Controls.Add($box); $y += 42
+        if ($field.Name -eq "cards") {
+            $fillCards = New-Object System.Windows.Forms.Button
+            $fillCards.Text = "填入 大圣+海贼王"; $fillCards.Size = New-Object System.Drawing.Size(130, 30)
+            $fillCards.Location = [System.Drawing.Point]::new(442, ($y - 42))
+            $fillCards.Add_Click({ $controls["cards"].Text = [string]::Join(',', $suggestedCards) })
+            $form.Controls.Add($fillCards)
+        }
     }
     $toggleSpecs = @(
         @{ Label = "自动秘境"; Name = "auto_secret_realm" },
@@ -311,6 +328,7 @@ function Show-HarnessSettingsPanel {
         $raw.stage_targets = @($controls["stage_targets"].Text -split "[,;\s]+" | Where-Object { $_ })
         $raw.skills = $skills
         $raw.bonds = @($controls["bonds"].Text -split "[,;\s]+" | Where-Object { $_ })
+        $raw.cards = @($controls["cards"].Text -split "[,;\s]+" | Where-Object { $_ })
         $raw.cjb_boss = $controls["cjb_boss"].Text.Trim()
         $raw.sgzx_boss = $controls["sgzx_boss"].Text.Trim()
         foreach ($spec in $toggleSpecs) {
