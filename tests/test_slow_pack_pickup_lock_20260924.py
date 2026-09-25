@@ -101,11 +101,13 @@ def test_slow_pack_is_walked_from_first_to_last_card(pack: str) -> None:
         # 没有硬门槛：开局 10s、一张基础羁绊都没有，本组卡单独出现照拿。
         decision = _decide(policy, [STRANGER, card], owned=owned)
         assert (decision.action, decision.index) == (PolicyAction.SELECT_SLOT, 1), (step, card, decision.reason)
-        # 规则锁 8：还没拿到的勾选基础羁绊同页出现时先拿基础，本组起步前后都一样；
-        # 只有"差一张合成"排在它前面。
-        decision = _decide(policy, [card, "经济"], owned=owned)
-        expected = 0 if card in NEAR_COMPLETE_BY_LEXICON.get(pack, ()) else 1
-        assert (decision.action, decision.index) == (PolicyAction.SELECT_SLOT, expected), (step, card, decision.reason)
+        # 规则锁 8（Owner 2026-09-25 修订）：同页只有「祝福」优先于高级卡组；高级卡组与其余基础卡平级。
+        # 还没拿到的祝福同页出现时先拿祝福。
+        decision_blessing = _decide(policy, [card, "祝福"], owned=owned)
+        assert (decision_blessing.action, decision_blessing.index) == (PolicyAction.SELECT_SLOT, 1), (step, card, decision_blessing.reason)
+        # 经济等其余基础卡与高级卡组平级，按现有规则不抢占当前推进的高级卡
+        decision_econ = _decide(policy, [card, "经济"], owned=owned)
+        assert (decision_econ.action, decision_econ.index) == (PolicyAction.SELECT_SLOT, 0), (step, card, decision_econ.reason)
         owned.append(card)
 
     decision = _decide(policy, [STRANGER], owned=owned)
