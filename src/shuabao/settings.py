@@ -77,6 +77,7 @@ _INT_RANGES: dict[str, tuple[int, int]] = {
     "hitch_rotate_interval": (1, 100),
     "boss_live_time": (0, 3600), "archive_boss_time": (0, 3600),
     "auto_clean_interval": (0, 99), "develop_time": (0, 3000),
+    "clean_backpack_every_rounds": (1, 100),
     "close_main_line_time": (0, 3600), "auto_gambling_time": (0, 3600),
     "reputation_stage1": (0, 50), "reputation_stage2": (0, 50),
     "round_timeout_s": (60, 7200), "round_tail_window_s": (30, 600),
@@ -132,6 +133,8 @@ class Settings:
     auto_close_main_line: bool = False
     close_main_line_time: int = 0
     auto_clean_interval: int = 0
+    auto_clean_backpack: bool = False
+    clean_backpack_every_rounds: int = 10
     auto_card: bool = True
     auto_weapon: bool = True
     damage_increase_card: bool = False
@@ -330,7 +333,7 @@ class Settings:
             "recovery_action_limit", "failure_streak_limit",
             "panel_action_limit_per_fingerprint", "panel_episode_limit_per_kind",
             "ocr_timeout_ms", "ocr_warmup_timeout_ms", "merchant_max_rerolls", "merchant_gold_reserve",
-            "downgrade_after_failures",
+            "downgrade_after_failures", "clean_backpack_every_rounds",
         }
         float_fields = {
             "recovery_retry_interval_s", "panel_visible_timeout_s", "panel_hard_deadline_s",
@@ -362,7 +365,7 @@ class Settings:
             "auto_secret_realm", "auto_close_main_line", "auto_archaeology", "auto_card", "auto_weapon",
             "damage_increase_card", "develop_priority", "auto_reputation",
             "continue_reputation", "auto_bond", "auto_treasure", "auto_artifact",
-            "merchant_enabled", "dry_run",
+            "merchant_enabled", "dry_run", "auto_clean_backpack",
         }
         for k in bool_fields:
             if k in clean and not isinstance(clean[k], bool):
