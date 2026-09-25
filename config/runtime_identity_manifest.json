@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "5a23ce4c742e5ebb601e7a610697e2e6975726e1",
-  "anchored_at": "2026-09-25T00:40:00+08:00",
+  "candidate_sha": "0d72607f5173bbdd60e53741ff7dca1f300fb316",
+  "anchored_at": "2026-09-25T11:30:00+08:00",
   "branch": "claude/project-thread-fqyf7h",
-  "note": "Owner 09-24 late rules (pick order, one pack until EX, devour 6/10 with undead hold, urgent merchant, wood 500) + bond-bar EX templates"
+  "note": "Hitch live 09-25 fixes via #46 (stage misread guard, 失败 overlay anchor, heirloom/时光之穴 list bounds, Boss bottom fallback) on top of Owner 09-24 late rules"
 }
