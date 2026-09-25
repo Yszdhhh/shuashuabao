@@ -15,6 +15,7 @@ Examples::
     python tools/live_scenario_capture.py probe --target inventory_item \
         --out C:/tmp/shuabao-probes --duration 15
     python tools/live_scenario_capture.py replay --bundle C:/tmp/.../bundle
+    python tools/live_scenario_capture.py export --run C:/tmp/.../bundle --at 08:29 --window 8
 
 ``Natural E2E`` remains a separate live PASS.  A frozen replay PASS is only an
 offline regression result and is recorded as such in the bundle metadata.
@@ -3587,6 +3588,7 @@ class BundleRecorder:
             "phase_after": phase_after,
             "context": getattr(med, "_context_cache_value", None),
             "actions": getattr(med, "_trace_actions", []),
+            "decision_reasons": list(getattr(med, "_tick_decision_reasons", None) or []),
             "controls": getattr(med, "_trace_controls", []),
             "scenes": getattr(med, "_trace_scenes", []),
             "decision": getattr(med, "_trace_decision", lambda: None)(),
@@ -6255,7 +6257,188 @@ def build_parser() -> argparse.ArgumentParser:
     contracts_parser.add_argument("--json", action="store_true")
     runbook_parser = sub.add_parser("runbook", help="显示极简 target live runbook")
     runbook_parser.add_argument("--target", choices=SUPPORTED_TARGETS, default=None)
+    export_parser = sub.add_parser("export", help="按时间点导出该时刻前后的帧/trace 行/决策原因汇总")
+    export_parser.add_argument("--run", type=Path, required=True, help="结果包目录（含 trace.jsonl / manifest.json / frames/）")
+    export_parser.add_argument("--at", required=True, help="时刻：mm:ss（如 08:29）或 elapsed 秒（如 509 / 509s）；当前按采集 elapsed 秒定位")
+    export_parser.add_argument("--window", type=float, default=8.0, help="前后各取多少秒（默认 8）")
     return parser
+
+
+_EXPORT_AT_RE = re.compile(r"^\s*(?:(\d+):([0-5]?\d)(?:\.\d+)?|(\d+(?:\.\d+)?)\s*s?)\s*$")
+
+
+def _parse_export_at(raw: str) -> float:
+    """解析 export --at：mm:ss（如 08:29）或 elapsed 秒（如 509 / 509s）。
+
+    尚无逐帧顶栏游戏时钟识别函数，导出统一按采集 elapsed 秒定位，
+    这里只做时间写法归一，不读任何游戏时钟。
+    """
+    match = _EXPORT_AT_RE.match(str(raw))
+    if not match:
+        raise ValueError(f"无法解析 --at={raw!r}，用 mm:ss（如 08:29）或 elapsed 秒（如 509 / 509s）")
+    minutes, seconds, plain = match.group(1), match.group(2), match.group(3)
+    if plain is not None:
+        return float(plain)
+    return int(minutes) * 60 + int(seconds)
+
+
+def _read_export_trace_rows(trace_path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    with trace_path.open(encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(row, dict):
+                rows.append(row)
+    return rows
+
+
+def _export_action_text(row: dict[str, Any]) -> str:
+    actions = row.get("actions") or []
+    if actions and isinstance(actions[0], dict):
+        intent = str(actions[0].get("intent") or "").strip()
+        reason = str(actions[0].get("reason") or "").strip()
+        text = f"{intent}（{reason}）" if reason else intent
+        if text:
+            return text
+    decision = row.get("decision")
+    if decision:
+        return f"decision={decision}"
+    return "无动作（零输入/观察）"
+
+
+def _export_reasons_text(row: dict[str, Any]) -> str:
+    reasons = row.get("decision_reasons") or []
+    parts: list[str] = []
+    for item in reasons:
+        if not isinstance(item, dict):
+            continue
+        inputs = item.get("inputs")
+        suffix = ""
+        if isinstance(inputs, dict) and inputs:
+            try:
+                suffix = json.dumps(inputs, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            except (TypeError, ValueError):
+                suffix = str(inputs)
+            suffix = f" inputs={suffix}"
+        parts.append(f"{item.get('kind')}:{item.get('rule')}{suffix}")
+    return "；".join(parts) if parts else "无"
+
+
+def export_moment_bundle(run_dir: Path, at_raw: str, window_s: float = 8.0) -> Path:
+    """把结果包中目标时刻前后 window 秒的帧与 trace 行导出到 exports/<时刻>/。
+
+    时间基线是采集 elapsed 秒（manifest 事件 at_s / trace 首行 ts 起算），
+    不是游戏顶栏时钟——尚无逐帧顶栏时钟识别函数，见 summary.md 说明。
+    """
+    run_dir = Path(run_dir).resolve()
+    trace_path = run_dir / "trace.jsonl"
+    manifest_path = run_dir / "manifest.json"
+    if not trace_path.exists():
+        raise ValueError(f"结果包缺少 trace.jsonl：{run_dir}")
+    if not manifest_path.exists():
+        raise ValueError(f"结果包缺少 manifest.json：{run_dir}")
+    window_s = max(0.0, float(window_s))
+    target_s = _parse_export_at(at_raw)
+
+    rows = _read_export_trace_rows(trace_path)
+    if not rows:
+        raise ValueError(f"trace.jsonl 为空：{trace_path}")
+    base_ts: float | None = None
+    for row in rows:
+        ts = row.get("ts")
+        if isinstance(ts, (int, float)):
+            base_ts = float(ts)
+            break
+    if base_ts is None:
+        raise ValueError("trace 行都没有 ts，无法按 elapsed 秒定位")
+
+    def elapsed_of(row: dict[str, Any]) -> float | None:
+        ts = row.get("ts")
+        return float(ts) - base_ts if isinstance(ts, (int, float)) else None
+
+    selected_rows = [
+        row for row in rows
+        if (elapsed_of(row) is not None and abs(elapsed_of(row) - target_s) <= window_s)  # type: ignore[operator]
+    ]
+    if not selected_rows:
+        raise ValueError(f"时刻 {at_raw} 前后 {window_s:g}s 内没有 trace 行")
+
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        raise ValueError(f"manifest.json 解析失败：{exc}") from exc
+    if not isinstance(manifest, dict):
+        raise ValueError("manifest.json 顶层不是对象")
+    events = [event for event in manifest.get("events") or [] if isinstance(event, dict)]
+    selected_events = [
+        event for event in events
+        if isinstance(event.get("at_s"), (int, float)) and abs(float(event["at_s"]) - target_s) <= window_s
+    ]
+
+    label = re.sub(r"[^0-9A-Za-z_-]+", "_", str(at_raw).strip()).strip("_") or f"{target_s:.0f}s"
+    out_dir = run_dir / "exports" / label
+    frames_out = out_dir / "frames"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    frames_out.mkdir(parents=True, exist_ok=True)
+
+    frames_by_id = {
+        frame.get("id"): frame
+        for frame in manifest.get("frames") or []
+        if isinstance(frame, dict) and frame.get("id")
+    }
+    copied: list[str] = []
+    missing: list[str] = []
+    for event in selected_events:
+        for key in ("frame_before", "frame_after"):
+            frame_id = event.get(key)
+            frame = frames_by_id.get(frame_id) if frame_id else None
+            if not isinstance(frame, dict) or not frame.get("file"):
+                continue
+            source = run_dir / str(frame["file"])
+            target = frames_out / Path(str(frame["file"])).name
+            if target.name in copied:
+                continue
+            if source.exists():
+                shutil.copy2(source, target)
+                copied.append(target.name)
+            elif frame_id not in missing:
+                missing.append(str(frame_id))
+
+    (out_dir / "trace_slice.jsonl").write_text(
+        "\n".join(json.dumps(row, ensure_ascii=False) for row in selected_rows) + "\n",
+        encoding="utf-8",
+    )
+    (out_dir / "events_slice.json").write_text(
+        json.dumps(selected_events, ensure_ascii=False, indent=2), encoding="utf-8",
+    )
+
+    ordered = sorted(selected_rows, key=lambda row: (elapsed_of(row) or 0.0, row.get("tick") or 0))
+    lines = [
+        f"# 决策导出 {label}（elapsed {target_s:g}s ± {window_s:g}s）",
+        "",
+        "- 时间基线：采集 elapsed 秒（manifest 事件 at_s；trace 行按首行 ts 起算）。"
+        "不是游戏顶栏时钟——尚无逐帧顶栏时钟识别函数，--at 的 mm:ss 同样按 elapsed 秒理解。",
+        f"- 来源：{run_dir.name}，共 {len(ordered)} 个 tick / {len(selected_events)} 个事件 / {len(copied)} 帧。",
+        "",
+        "| elapsed | tick | 动作 | 决策原因 |",
+        "| --- | --- | --- | --- |",
+    ]
+    for row in ordered:
+        elapsed = elapsed_of(row)
+        lines.append(
+            f"| {elapsed:.1f}s | {row.get('tick')} "
+            f"| {_export_action_text(row)} | {_export_reasons_text(row)} |"
+        )
+    if missing:
+        lines += ["", f"缺失帧（包内无文件，已跳过）：{', '.join(missing)}"]
+    (out_dir / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return out_dir
 
 
 def _bundle_preflight_blocked(bundle_dir: Path) -> bool:
@@ -6364,6 +6547,10 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "runbook":
             _print_runbook(args.target)
+            return 0
+        if args.command == "export":
+            out = export_moment_bundle(args.run, args.at, window_s=args.window)
+            print(f"[export] {out}")
             return 0
         if args.case_dir is not None:
             case_dirs = [args.case_dir]
