@@ -1426,8 +1426,6 @@ class Mediator:
                 return True
             if self.find(frame, ["shortKey"], threshold=th, scales=self._hot_scales(), roi=self._ENV_SHORTKEY_ROI):
                 return True
-            if self._archaeology_mode_anchor(frame):
-                return True
             # mainIdentifier is the "等待玩家1选择难度" banner of the in-game
             # stage lobby (see _host_choosing_difficulty), never HUD evidence:
             # counting it made a waiting guest "enter" MAIN_LINE before the
