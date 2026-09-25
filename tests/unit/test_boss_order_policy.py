@@ -491,7 +491,7 @@ def test_catalog_vs_assets_consistency_and_anomalies():
     3. Boss 24戴文戴尔男爵 and 24瑞文戴尔男爵 are aliases in assets (same order 24).
     4. Every asset template stem in assets/Images/boss exists in catalog["boss"] (including 54莫阿姆).
     5. Every asset template stem in assets/Images/chuanjiaobao exists in catalog["chuanjiaobao"].
-    6. Catalog max order matches assets: 54 for ARCHIVE_PANEL, 20 for HEIRLOOM_DIALOG.
+    6. Catalog max order matches assets: 59 for ARCHIVE_PANEL (55-59 cut from the 2026-09-25 live list), 20 for HEIRLOOM_DIALOG.
     """
     from shuabao.policy.boss_order import get_catalog_max_order
 
@@ -538,7 +538,7 @@ def test_catalog_vs_assets_consistency_and_anomalies():
         assert no in cjb_items, f"Chuanjiaobao template {stem} missing from challenge_boss_catalog.json"
 
     # 6. Upper bounds
-    assert get_catalog_max_order("ARCHIVE_PANEL", catalog) == 54
+    assert get_catalog_max_order("ARCHIVE_PANEL", catalog) == 59
     assert get_catalog_max_order("HEIRLOOM_DIALOG", catalog) == 20
 
 
