@@ -181,7 +181,9 @@ def test_confident_whitelist_bond_is_clicked_on_the_first_frame() -> None:
     for conf, expect_click in ((0.99, True), (0.80, False)):
         med._ocr_confirm_key = None
         slots = (SlotCandidate(index=0, name="祝福", confidence=conf), SlotCandidate(index=1, name="刀刀", confidence=0.5))
-        with patch.object(med, "_ocr_panel_slots", return_value=[_slot(0, "祝福", conf)]), \
+        with patch.object(med, "_ocr_panel_slots", return_value=[
+            _slot(0, "祝福", conf), _slot(1, "刀刀", 0.5), _slot(2, "成长", 0.5),
+        ]), \
              patch.object(med, "_slots_to_candidates", return_value=slots), \
              patch.object(med, "_panel_can_refresh", return_value=False), \
              patch.object(med, "_panel_has_giveup", return_value=False), \

@@ -36,6 +36,7 @@ _CONTENT_HASH_CACHE: dict[Path, str] = {}
 # 尺度化灰度也缓存，与彩色路径完全对称。
 _TEMPLATE_GRAY_CACHE: dict[Path, np.ndarray | None] = {}
 _SCALE_GRAY_CACHE: dict[tuple[Path, float], np.ndarray | None] = {}
+_CARD_FAMILY_TEMPLATES_CACHE: dict[Path, list[tuple[str, str, np.ndarray]]] = {}
 CACHED_SCALES: tuple[float, ...] = (0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2)
 
 # N2.4：灰度候选阈值相对彩色阈值的偏移（离线重标，见
@@ -100,6 +101,7 @@ def clear_template_cache() -> None:
     _TEMPLATE_GRAY_CACHE.clear()
     _SCALE_GRAY_CACHE.clear()
     _CONTENT_HASH_CACHE.clear()
+    _CARD_FAMILY_TEMPLATES_CACHE.clear()
 
 
 def _template_content_hash(path: Path) -> str | None:
@@ -772,4 +774,148 @@ def match_scenes(
         if res.best:
             return key, res.best
     return None
+
+
+_CARD_SLOT_ROIS_4: tuple[tuple[float, float, float, float], ...] = (
+    (0.185, 0.175, 0.330, 0.255),
+    (0.340, 0.175, 0.485, 0.255),
+    (0.495, 0.175, 0.640, 0.255),
+    (0.650, 0.175, 0.795, 0.255),
+)
+
+_CARD_SLOT_ROIS_3: tuple[tuple[float, float, float, float], ...] = (
+    (0.250, 0.175, 0.415, 0.255),
+    (0.420, 0.175, 0.585, 0.255),
+    (0.590, 0.175, 0.755, 0.255),
+)
+
+
+def _get_card_family_templates(
+    images_dir: Path, fetter_labels: dict[str, str] | None = None
+) -> list[tuple[str, str, np.ndarray]]:
+    """Cached list of (stem, label, gray_template) for all card templates."""
+    cards_dir = images_dir / "cards" if (images_dir / "cards").is_dir() else images_dir
+    cached = _CARD_FAMILY_TEMPLATES_CACHE.get(cards_dir)
+    if cached is not None:
+        return cached
+
+    labels = fetter_labels or {}
+    loaded: list[tuple[str, str, np.ndarray]] = []
+    if cards_dir.is_dir():
+        for p in sorted(cards_dir.glob("*.png")):
+            tgray = _load_template_gray(p)
+            if tgray is not None and tgray.size > 0:
+                code = p.stem
+                label = str(labels.get(code, code)).strip() or code
+                loaded.append((code, label, tgray))
+    _CARD_FAMILY_TEMPLATES_CACHE[cards_dir] = loaded
+    return loaded
+
+
+def match_card_slots_by_template(
+    frame: Frame,
+    images_dir: Path,
+    kind: str = "bond",
+    fetter_labels: dict[str, str] | None = None,
+    min_confidence: float = 0.85,
+) -> tuple[int, list[dict]] | None:
+    """Fast template-based slot recognition for card reward panels.
+
+    Deterministically determines 4-slot vs 3-slot layout based on title template matches
+    on fixed slot ROIs. When confident matches exist, returns (slot_count, slots_raw)
+    matching the schema expected by _slots_to_candidates. Returns None when templates
+    cannot make a confident classification, allowing fallback to OCR shadow.
+    """
+    if frame is None or getattr(frame, "bgr", None) is None:
+        return None
+
+    if kind not in ("bond", "card"):
+        return None
+
+    templates = _get_card_family_templates(images_dir, fetter_labels)
+    if not templates:
+        return None
+
+    gray = (
+        frame.gray()
+        if callable(getattr(frame, "gray", None))
+        else cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2GRAY)
+    )
+    if gray is None:
+        return None
+    fh, fw = gray.shape[:2]
+
+    def scan_layout(rois: tuple[tuple[float, float, float, float], ...]) -> tuple[list[dict], int, float]:
+        slots: list[dict] = []
+        high_conf_count = 0
+        sum_conf = 0.0
+        for idx, (x0, y0, x1, y1) in enumerate(rois):
+            crop = gray[int(y0 * fh) : int(y1 * fh), int(x0 * fw) : int(x1 * fw)]
+            if crop.size == 0:
+                slots.append({
+                    "index": idx,
+                    "name": None,
+                    "confidence": 0.0,
+                    "raw_text": "",
+                    "rec_score": 0.0,
+                    "status": "MISS",
+                    "reason": "empty_crop",
+                    "rarity": None,
+                    "description": "",
+                    "source": "template",
+                })
+                continue
+
+            best_code, best_label, best_score = "", "", -1.0
+            ch, cw = crop.shape[:2]
+            for code, label, tpl in templates:
+                th, tw = tpl.shape[:2]
+                if ch < th or cw < tw:
+                    continue
+                res = cv2.matchTemplate(crop, tpl, cv2.TM_CCOEFF_NORMED)
+                val = float(cv2.minMaxLoc(res)[1])
+                if val > best_score:
+                    best_score = val
+                    best_code = code
+                    best_label = label
+
+            is_confident = best_score >= min_confidence
+            if is_confident:
+                high_conf_count += 1
+                sum_conf += best_score
+
+            slots.append({
+                "index": idx,
+                "name": best_label if is_confident else None,
+                "confidence": best_score if is_confident else 0.0,
+                "raw_text": best_label if is_confident else "",
+                "rec_score": best_score if is_confident else 0.0,
+                "status": "SUCCESS" if is_confident else "MISS",
+                "reason": f"template:{best_code}:{best_score:.3f}" if is_confident else "template_low_conf",
+                "rarity": None,
+                "description": "",
+                "source": "template",
+                "template_code": best_code,
+                "template_score": best_score,
+            })
+        return slots, high_conf_count, sum_conf
+
+    # Evaluate 4-slot layout first (predominant in in-game bond panels)
+    slots_4, high_4, sum_4 = scan_layout(_CARD_SLOT_ROIS_4)
+    if high_4 >= 2:
+        return 4, slots_4
+
+    # Scan 3-slot layout
+    slots_3, high_3, sum_3 = scan_layout(_CARD_SLOT_ROIS_3)
+    if high_3 >= 2 and high_3 > high_4:
+        return 3, slots_3
+    if high_3 >= 1 and high_4 == 0:
+        return 3, slots_3
+    if high_4 >= 1 and high_3 == 0:
+        return 4, slots_4
+    if high_4 >= 1 and high_3 >= 1:
+        return (4, slots_4) if sum_4 >= sum_3 else (3, slots_3)
+
+    return None
+
 

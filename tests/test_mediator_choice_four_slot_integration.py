@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from shuabao.mediator import Mediator
+from shuabao import mediator as mediator_module
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
 from shuabao.choice_policy import PolicyAction, PolicyDecision
@@ -37,6 +38,37 @@ class TestMediatorChoiceFourSlotIntegration(unittest.TestCase):
         self.settings.bond_must_take = []
         self.med = Mediator(self.settings, ROOT)
         self.frame_1600 = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="game", hwnd=1)
+
+    def test_confident_complete_template_slots_skip_ocr(self):
+        frame_path = ROOT / "fixtures/card_template_assertions/positives/bond_choice_3.png"
+        data = np.fromfile(str(frame_path), dtype=np.uint8)
+        frame = Frame(cv2.imdecode(data, cv2.IMREAD_COLOR))
+        self.med._ocr_client = MagicMock()
+
+        slots = self.med._ocr_panel_slots(frame, "bond")
+
+        self.assertEqual(len(slots), 3)
+        self.assertTrue(all(slot.get("source") == "template" for slot in slots))
+        self.assertTrue(self.med._last_slots_from_template)
+        self.med._ocr_client.shadow_predict.assert_not_called()
+
+    def test_incomplete_template_slots_fall_back_to_ocr(self):
+        template_slots = [
+            {"index": i, "name": "祝福" if i < 3 else None,
+             "confidence": 0.95 if i < 3 else 0.0,
+             "template_score": 0.95 if i < 3 else 0.0,
+             "source": "template"}
+            for i in range(4)
+        ]
+        self.med._ocr_client = MagicMock()
+        self.med._ocr_client.shadow_predict.return_value = DummyResponse(candidates=[], raw_text="")
+
+        with patch.object(mediator_module, "match_card_slots_by_template", return_value=(4, template_slots)):
+            slots = self.med._ocr_panel_slots(self.frame_1600, "bond")
+
+        self.assertFalse(self.med._last_slots_from_template)
+        self.med._ocr_client.shadow_predict.assert_called()
+        self.assertFalse(any(slot.get("source") == "template" for slot in slots))
 
     def test_1_true_three_slot_fixture_confirms_layout_3_and_legacy_centers(self):
         med = self.med

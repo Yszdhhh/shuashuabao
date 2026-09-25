@@ -62,6 +62,7 @@ from shuabao.vision.matcher import (
     match_all,
     match_any,
     match_any_with_margin,
+    match_card_slots_by_template,
     match_one,
     resolve_template,
 )
@@ -953,6 +954,7 @@ class Mediator:
         self._pressure_next_at: float = 0.0
         # L1 reward/challenge actions are one-shot until the next game.
         self._selection_click_cooldown_until = 0.0
+        self._last_slots_from_template: bool = False
         self._challenge_done: set[str] = set()
         self._challenge_attempts: dict[str, int] = {}
         self._challenge_unknown_since: dict[str, float] = {}
@@ -3061,6 +3063,33 @@ class Mediator:
         """Read title (+ treasure description) lines with deterministic layout=3 or 4 detection.
         When layout is determined, name ROI, desc ROI, rarity ROI and click centers MUST use the same layout.
         """
+        # 只在固定槽位全部达到高置信时走模板快路，部分识别仍交给 OCR。
+        if getattr(frame, "bgr", None) is not None:
+            tpl_res = match_card_slots_by_template(
+                frame,
+                self.images,
+                kind=kind,
+                fetter_labels=self._fetter_labels,
+                min_confidence=0.85,
+            )
+            if tpl_res is not None:
+                slot_count, slots_raw = tpl_res
+                indexes = [int(slot.get("index", -1)) for slot in slots_raw]
+                complete = (
+                    slot_count in (3, 4)
+                    and len(slots_raw) == slot_count
+                    and sorted(indexes) == list(range(slot_count))
+                    and all(
+                        slot.get("source") == "template"
+                        and slot.get("name")
+                        and float(slot.get("template_score", 0.0)) >= 0.85
+                        for slot in slots_raw
+                    )
+                )
+                if complete:
+                    self._last_slots_from_template = True
+                    return slots_raw
+        self._last_slots_from_template = False
         if self._ocr_client is None or not LayoutTransform.is_supported(frame.width, frame.height):
             return []
         rois_3 = self._OCR_SLOT_ROIS.get(kind)
@@ -3340,7 +3369,7 @@ class Mediator:
             index = int(slot.get("index", 0))
             rarity = slot.get("rarity")
             rarity_letter = slot.get("rarity_letter")
-            if rarity is None and frame is not None:
+            if rarity is None and frame is not None and slot.get("source") != "template":
                 letter, band = self._read_slot_rarity_badge(frame, kind, index, slot_count=len(slots))
                 rarity = band
                 rarity_letter = letter
@@ -4096,6 +4125,9 @@ class Mediator:
         # 必拿/预设命中只有在 ≥0.95 的无歧义单槽读数上才免第二帧
         # （_is_unambiguous_high_confidence_pick）；低置信的「祝福」读数照样
         # 等第二帧，否则默认必拿的祝福系会在单帧误读上直接点。
+        is_tpl_decision = getattr(self, "_last_slots_from_template", False) or any(
+            s.get("source") == "template" for s in slots_raw
+        )
         skip_confirm = (
             "差一张合成" in reason
             or "已持有合成" in reason
@@ -4104,7 +4136,14 @@ class Mediator:
                 and self._is_unambiguous_high_confidence_pick(decision, slots, reason)
             )
         )
-        if (
+        if is_tpl_decision:
+            if decision.action == PolicyAction.SELECT_SLOT:
+                chosen = next((s for s in slots if s.index == decision.index), None)
+                if chosen is not None and float(chosen.confidence or 0.0) >= 0.85:
+                    skip_confirm = True
+            elif decision.action == PolicyAction.REFRESH:
+                skip_confirm = True
+        elif (
             not skip_confirm
             and kind in ("bond", "skill")
             and decision.action == PolicyAction.SELECT_SLOT
