@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "564e58be8116e51ae672e615f64184bfbddadc16",
-  "anchored_at": "2026-09-25T20:56:00+08:00",
+  "candidate_sha": "4da9790e02a44c2868e1b719a4242d52a8b7a4e8",
+  "anchored_at": "2026-09-25T21:20:00+08:00",
   "branch": "fix/solo-r2-20260925",
-  "note": "09-25 吞噬丹防超吃与特效读数修复"
+  "note": "09-25 审查返工：英雄选卡fail-closed、词缀互斥、黑商木材保守判断、单帧拿卡收窄"
 }
