@@ -264,5 +264,41 @@ class LookupNegativeTests(unittest.TestCase):
         self.assertNotIn(unknown, data["entries"])
 
 
+class HaizeiwangLexiconTests(unittest.TestCase):
+    """Solo-Executor B：海贼王 7 卡归一化 + 大圣短名识别词锁定。
+
+    7 短名出自 choice_policy advanced group / official_strategy_defaults
+    haizeiwang pack / 看板高级包，nightwatch 王令海道录像分析确认候选页出现
+    凯多/红发 UR。长写法（百兽凯多/红发香克斯/爱德华/夏洛特玲玲）零实机观测，
+    按“未观察到的不写入”不收 alias。
+    """
+
+    GROUP = ("见习海贼", "超新星", "七武海", "凯多", "红发", "白胡子", "大妈")
+
+    def test_haizeiwang_group_entries_present(self):
+        entries = load_lexicon()["entries"]
+        for name in self.GROUP:
+            with self.subTest(name=name):
+                self.assertIn(name, entries)
+                self.assertEqual(entries[name]["kind"], "bond")
+                self.assertEqual(entries[name]["set_membership"], "海贼王")
+
+    def test_haizeiwang_lookup_exact_and_progress(self):
+        for name in self.GROUP:
+            with self.subTest(name=name):
+                self.assertEqual(lookup_lexicon(name, kind="bond").canonical, name)
+        self.assertEqual(lookup_lexicon("凯多(0/3)", kind="bond").canonical, "凯多")
+        self.assertEqual(lookup_lexicon("见习海贼(0/3)", kind="bond").canonical, "见习海贼")
+
+    def test_dasheng_short_forms(self):
+        # 法天/象地 短名见词典顶层遗留 aliases 映射；奇技系已由
+        # test_dasheng_qiji_pickup_20260925 锁定，此处只锁归一化。
+        self.assertEqual(lookup_lexicon("法天象地", kind="bond").canonical, "法天象地")
+        self.assertEqual(lookup_lexicon("法天", kind="bond").canonical, "法天象地")
+        self.assertEqual(lookup_lexicon("象地", kind="bond").canonical, "法天象地")
+        self.assertEqual(lookup_lexicon("奇技", kind="bond").canonical, "奇技")
+        self.assertEqual(lookup_lexicon("奇技大成", kind="bond").canonical, "奇技大成")
+
+
 if __name__ == "__main__":
     unittest.main()
