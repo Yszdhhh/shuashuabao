@@ -435,7 +435,8 @@ def test_boss_last_visible_fallback_when_unresolved_limit_exceeded(base_patches)
     assert len(clicked) == 1
     hit, reason = clicked[0]
     assert reason == "BossLastVisibleFallback"
-    assert "09" in hit.name or "摩拉迪姆" in hit.name
+    # Rightmost card of the bottom visible row (row-clustered since 2026-09-25).
+    assert "12卡尔加" in hit.name
     assert med.phase != Phase.ERROR
     assert not med.stop_signal.is_set()
 

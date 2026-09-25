@@ -773,7 +773,9 @@ class P1B0PostGameTests(unittest.TestCase):
 
         self.assertEqual(action, LoopAction.Continue)
         clicked, reason = click.call_args.args
-        self.assertEqual(clicked.name, "09摩拉迪姆")
+        # Physical last card of the fixture's bottom row; the old raw-bottom key
+        # picked 09摩拉迪姆 from the same row by one pixel (fixed 2026-09-25).
+        self.assertEqual(clicked.name, "12卡尔加")
         self.assertEqual(reason, "BossNotUnlockedLast")
 
     def test_heirloom_unavailable_boss_falls_back_to_last_card_only_after_bottom(self):
@@ -938,6 +940,23 @@ class P1B0PostGameTests(unittest.TestCase):
         choose.assert_called_once()
         click.assert_not_called()
         self.assertFalse(getattr(med, "_heirloom_boss_result_confirmed", False))
+
+    def test_heirloom_bottom_fallback_takes_the_physical_last_card(self):
+        """2026-09-25 hitch f1826: the list ends at the new 21界龟, and 19/20 in
+        the row above sit one pixel apart; the old max(y+h) picked 19玛洛恩."""
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        frame = load_fixture_frame("fixtures/hitch_heirloom_20260925/room5_heirloom_list_bottom_21.png")
+        hit = med._find_last_recognized_post_game_boss(frame, "HEIRLOOM_DIALOG")
+        self.assertIsNotNone(hit)
+        self.assertIn("21界龟", hit.name)
+
+    def test_heirloom_last_card_same_row_prefers_the_rightmost(self):
+        """Without the 21 template in view, 20鲁克玛 beats 19玛洛恩 in one row."""
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        frame = load_fixture_frame("fixtures/hitch_heirloom_20260925/round02_heirloom_list_before_click.png")
+        hit = med._find_last_recognized_post_game_boss(frame, "HEIRLOOM_DIALOG")
+        self.assertIsNotNone(hit)
+        self.assertIn("20鲁克玛", hit.name)
 
     def test_heirloom_without_config_delegates_to_bottom_fallback(self):
         """An empty cjb_boss must invoke the safe bottom-search handler first."""
