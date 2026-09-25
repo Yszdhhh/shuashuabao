@@ -35,7 +35,7 @@ def test_progress_clears_the_stall_and_failure_text_triggers_it() -> None:
     assert med._main_line_stalled()
 
 
-def test_stall_bond_filter_keeps_only_documented_combat_cards() -> None:
+def test_stall_bond_filter_keeps_combat_and_selected_targets() -> None:
     med = _med()
     slots = (
         SlotCandidate(index=0, name="经济", confidence=0.99),
@@ -43,8 +43,8 @@ def test_stall_bond_filter_keeps_only_documented_combat_cards() -> None:
         SlotCandidate(index=2, name="成长", confidence=0.99),
     )
     kept = med._stall_combat_bond_slots(slots)
-    assert [slot.name for slot in kept] == ["法术(1/3)"]
+    assert [slot.name for slot in kept] == ["经济", "法术(1/3)", "成长"]
     policy = med._stall_combat_bond_policy(PolicySettings(bond_presets=("经济",)))
-    assert policy.bond_presets == med._STALL_COMBAT_BOND_PRESETS
+    assert policy.bond_presets == ("经济",) + med._STALL_COMBAT_BOND_PRESETS
     assert not policy.bond_base_presets
-    assert not policy.bond_must_take
+    assert policy.bond_must_take == PolicySettings().bond_must_take

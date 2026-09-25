@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-25 12:53:48",
-  "reason": "09-25 单人第四轮前置：PR #46 合并；空闲机门禁验证场景 149、运行资产 423 项无缺失和哈希错误；修复 Windows 启动器 smoke 清理临时 EXE 的退出竞态，单节点三次通过",
+  "updated_at": "2026-09-26 05:20:51",
+  "reason": "09-25 背包整理实机截图切图：新增并登记 backpack 下 7 个真实模板，asset_files 与 asset_allowlisted 从 423 增至 430；其余门禁阶段保持通过",
   "note": "发版门禁快照。任何偏离都会让 tools/release_gate.py 失败。known_failures 里的每一项必须写明原因；修好后请重新 --update-baseline。",
   "stages": {
     "pytest": {
@@ -35,8 +35,8 @@
         "asset_spec_assets_root": 1,
         "asset_manifest_schema": 1,
         "asset_package_root_whole_tree": 1,
-        "asset_files": 423,
-        "asset_allowlisted": 423,
+        "asset_files": 430,
+        "asset_allowlisted": 430,
         "asset_missing_allowlist": 0,
         "asset_stale_manifest": 0,
         "asset_forbidden_paths": 0,

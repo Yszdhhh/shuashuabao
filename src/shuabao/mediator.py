@@ -5249,13 +5249,7 @@ class Mediator:
         if self._find_equipment_affix_choice(frame) is not None:
             return None
         transform = LayoutTransform.from_frame(frame.width, frame.height)
-        hero_choice_anchor = self.find(
-            frame,
-            ["toHero"],
-            threshold=min(0.70, self.settings.match_threshold),
-            scales=self._hot_scales(),
-        )
-        # 进化二选一面板支持底部 anchor (toHero 等) 或中央双卡边框特征
+        # 进化二选一面板需中央双卡边框；toHero 在普通 HUD 上也会命中。
         gray = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2GRAY)
         gradient = np.abs(cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3))
 
@@ -5267,14 +5261,9 @@ class Mediator:
         if not (
             edge_count(816) >= max(50, int(350 * scale_area))
             and edge_count(1050) >= max(30, int(100 * scale_area))
-            and (
-                hero_choice_anchor is not None
-                or (
-                    edge_count(370) < max(20, int(100 * scale_area))
-                    and edge_count(408) < max(20, int(100 * scale_area))
-                    and edge_count(1201) < max(20, int(100 * scale_area))
-                )
-            )
+            and edge_count(370) < max(20, int(100 * scale_area))
+            and edge_count(408) < max(20, int(100 * scale_area))
+            and edge_count(1201) < max(20, int(100 * scale_area))
         ):
             return None
         hsv = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2HSV)

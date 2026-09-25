@@ -103,7 +103,7 @@ def _talisman_stacks(mode_id: str, slots, can_refresh: bool = False):
 
     @contextmanager
     def patched():
-        with patch.object(med, "_ocr_panel_slots", return_value=[{"index": s.index} for s in slots]), \
+        with patch.object(med, "_ocr_panel_slots", return_value=[{"index": i} for i in range(3)]), \
                 patch.object(med, "_slots_to_candidates", return_value=slots), \
                 patch.object(med, "_extract_live_set_progress", return_value=None), \
                 patch.object(med, "_bond_bar_occupancy", return_value=None), \
