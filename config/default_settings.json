@@ -19,6 +19,8 @@
   "auto_close_main_line": false,
   "close_main_line_time": 0,
   "auto_clean_interval": 5,
+  "auto_clean_backpack": false,
+  "clean_backpack_every_rounds": 10,
   "auto_card": true,
   "auto_weapon": true,
   "damage_increase_card": true,

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""紧急资源插队去黑商（Owner 2026-09-24）。
+"""紧急资源插队去黑商（Owner 2026-09-24；Owner 2026-09-25 改为 ≥8/10）。
 
-- 羁绊栏超过一半（≥6/10）且物品栏没有吞噬丹：黑商是当前最紧急的支线；
+- 羁绊栏空位 ≤ 2（≥8/10）且物品栏没有吞噬丹：黑商是当前最紧急的支线；
 - 木材 < 500：去黑商买木材；
 - 插队是绕一趟：黑商一步结束后回到被打断的那一步，装备/拾取不被跳过；
 - 蹭车不插队（黑商在蹭车环里本来就是第一步，丹是队伍资产）。
@@ -47,11 +47,11 @@ def _hud(med: Mediator, *, bond: int | None, pill: bool, wood: int | None):
 
 def test_bond_bar_over_half_without_pill_is_urgent() -> None:
     med = _med()
-    with _hud(med, bond=6, pill=False, wood=2000):
+    with _hud(med, bond=8, pill=False, wood=2000):
         assert "吞噬丹" in med._urgent_merchant_reason(_hud_frame(), 100.0)
-    with _hud(med, bond=6, pill=True, wood=2000):
+    with _hud(med, bond=8, pill=True, wood=2000):
         assert med._urgent_merchant_reason(_hud_frame(), 100.0) is None
-    with _hud(med, bond=5, pill=False, wood=2000):
+    with _hud(med, bond=7, pill=False, wood=2000):
         assert med._urgent_merchant_reason(_hud_frame(), 100.0) is None
 
 
@@ -102,7 +102,7 @@ def test_main_line_tick_detours_to_merchant_when_urgent() -> None:
     med = _med()
     med._l1_cycle_step = "skill"
     med._l1_cycle_index = 1
-    with _hud(med, bond=7, pill=False, wood=2000), \
+    with _hud(med, bond=8, pill=False, wood=2000), \
          patch.object(med, "_refresh_solo_signals", return_value=None), \
          patch.object(med, "_maybe_open_choice_panel") as opener:
         for _ in range(5):
@@ -116,7 +116,7 @@ def test_main_line_tick_detours_to_merchant_when_urgent() -> None:
 
 
 @pytest.mark.parametrize("bond,wood,action", [
-    (6, 2000, "OpenBlackMerchantForDevourPill"),
+    (8, 2000, "OpenBlackMerchantForDevourPill"),
     (2, 300, "OpenBlackMerchantForWood"),
 ])
 def test_merchant_step_opens_the_shop_with_h(bond: int, wood: int, action: str) -> None:

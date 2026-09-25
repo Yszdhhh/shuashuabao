@@ -50,8 +50,8 @@ OWNER_RULES: tuple[tuple[str, str, str], ...] = (
     ("木材充足（≥1000）时羁绊压过技能积压",
      "Owner 2026-09-15",
      "tests/test_solo_planner_20260915.py::test_high_wood_bonds_preempt_the_skill_backlog"),
-    ("勾选的基础羁绊与高级羁绊同页：先拿还没拿到的基础（高级卡组起步前后都一样，只让位于差一张合成）",
-     "Owner 2026-09-24；同日追加：起步后也先拿基础",
+    ("勾选的基础羁绊与高级羁绊同页：仅祝福优先于高级卡，高级卡与其余基础卡平级",
+     "Owner 2026-09-25（修订 09-24 全基础优先）",
      "tests/test_choice_policy.py::TestBondTreasureUnknown::test_missing_basic_bond_beats_advanced_on_the_same_page"),
     ("宝物在自己那一步能打开，不被 F 饿死",
      "Owner 2026-09-15",
@@ -98,14 +98,14 @@ OWNER_RULES: tuple[tuple[str, str, str], ...] = (
     ("刀刀/修仙/海盗/亡灵按看板勾选从首卡拿到白名单末卡",
      "Owner 2026-09-24（上线主线：卡组拿取跑通）",
      "tests/test_slow_pack_pickup_lock_20260924.py::test_slow_pack_is_walked_from_first_to_last_card"),
-    ("单人默认吃吞噬丹（看板不加开关），羁绊栏超过一半（≥6/10）就吃（亡灵例外见下）",
-     "Owner 2026-09-24（吞噬只腾格子，不影响合成进度）",
+    ("单人默认吃吞噬丹（看板不加开关），羁绊栏空位≤2（≥8/10）就吃（亡灵例外见下）",
+     "Owner 2026-09-24；Owner 2026-09-25 改为 ≥8/10（吞噬只腾格子，不影响合成进度）",
      "tests/test_p0_devour_failclosed_20260917.py::test_solo_eats_pill_over_half_even_with_saved_false"),
-    ("羁绊栏过半没丹、木材 < 500：插队去黑商，绕一趟回到被打断的步骤",
-     "Owner 2026-09-24",
+    ("羁绊栏空位≤2没丹、木材 < 500：插队去黑商，绕一趟回到被打断的步骤",
+     "Owner 2026-09-24；Owner 2026-09-25",
      "tests/test_urgent_merchant_20260924.py::test_main_line_tick_detours_to_merchant_when_urgent"),
-    ("黑商一步按 H 开店：羁绊栏过半找吞噬丹，木材 < 500 买木材",
-     "Owner 2026-09-24",
+    ("黑商一步按 H 开店：羁绊栏空位≤2找吞噬丹，木材 < 500 买木材",
+     "Owner 2026-09-24；Owner 2026-09-25",
      "tests/test_urgent_merchant_20260924.py::test_merchant_step_opens_the_shop_with_h"),
     ("亡灵卡组进行中（持有亡灵卡、兵主 EX 未出）不吃吞噬丹：提前吞倒计时卡会断碎片",
      "Owner 2026-09-24",
@@ -169,6 +169,16 @@ def test_rule_evolve_before_item_bar_while_evolve_bar_is_lit(cls) -> None:
 
     med._evolve_awaiting_hero_pick = False
     med._evolve_ok_this_cycle = True
+    # 金条再次亮起：重置 _evolve_ok_this_cycle，且一律不点物品栏
     with patch.object(med, "act_click", return_value=True) as click:
-        assert med._maybe_use_inventory_slot(frame, 300.0) is LoopAction.Continue
+        assert med._maybe_use_inventory_slot(frame, 300.0) is None
+        assert med._maybe_use_inventory_item(frame) is None
+        assert med._evolve_ok_this_cycle is False
+    click.assert_not_called()
+
+    # 进化已完成且金条不再亮起：恢复逐格试用
+    med._evolve_ok_this_cycle = True
+    with patch.object(med, "_has_evolve_button", return_value=False), \
+         patch.object(med, "act_click", return_value=True) as click:
+        assert med._maybe_use_inventory_slot(frame, 400.0) is LoopAction.Continue
     assert str(click.call_args.args[1]).startswith("UseInventorySlot")

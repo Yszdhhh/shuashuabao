@@ -111,7 +111,7 @@ class TestP1_01_RuntimeMediatorCycle:
             assert med._l1_cycle_last_advance_at is not None
 
     def test_runtime_mediator_lobby_hitch_cycle_unaffected(self) -> None:
-        """P1-01: Lobby hitch mode preserves merchant -> treasure -> pickup -> public_bag."""
+        """P1-01: Lobby hitch mode keeps its ring order including backpack cleanup."""
         settings = Settings(mode_id="lobby_hitch", ocr_mode="off")
         med = RuntimeMediator(settings, ROOT)
         assert med._hitch_enabled() is True

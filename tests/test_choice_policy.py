@@ -417,7 +417,7 @@ class TestBondTreasureUnknown(unittest.TestCase):
                 self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))
 
     def test_missing_basic_bond_beats_advanced_on_the_same_page(self):
-        """Owner 2026-09-24：预设基础羁绊与高级羁绊同屏时先拿基础。"""
+        """Owner 2026-09-24，2026-09-25 修订：仅祝福优先于高级卡，高级卡与其余基础卡平级。"""
         for root, member in (
             ("齐天大圣", "大圣残躯"),
             ("封神", "封神榜"),
@@ -438,8 +438,29 @@ class TestBondTreasureUnknown(unittest.TestCase):
                     ),
                     SessionState(),
                 )
-                self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))
-                self.assertIn("基础羁绊优先", decision.reason)
+                # Owner 2026-09-25 改为：仅祝福优先于高级卡，高级卡与其余基础卡平级
+                self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 0))
+                self.assertIn("当前高级卡组持续推进", decision.reason)
+
+                # 仅祝福享有超越高级卡的优先特权（显式验证 Step 2.5 祝福优先）
+                blessing_policy = settings(
+                    bond_presets=["祝福", "经济", "成长", root, member],
+                    bond_base_presets=["祝福", "经济", "成长"],
+                    bond_advanced_presets=[root, member],
+                    bond_advanced_groups=[(root, member)],
+                    bond_whitelist_mode="hard",
+                    bond_must_take=(),
+                )
+                blessing_decision = choose_action(
+                    bond_cands(
+                        [slot(0, member), slot(1, "祝福")],
+                        settings=blessing_policy,
+                        owned_bond_cards=(),
+                    ),
+                    SessionState(),
+                )
+                self.assertEqual((blessing_decision.action, blessing_decision.index), (PolicyAction.SELECT_SLOT, 1))
+                self.assertTrue("祝福" in blessing_decision.reason and ("优先" in blessing_decision.reason or "必拿" in blessing_decision.reason))
 
     def test_unselected_simple_ex_family_is_not_taken(self):
         policy = settings(
@@ -1514,15 +1535,15 @@ class TestAssemblePolicySettings(unittest.TestCase):
         self.assertEqual(ps.bond_advanced_groups[1][0], "海盗")
 
     def test_configured_simple_ex_chains_progress_but_yield_to_missing_basic(self):
-        """Owner 2026-09-24：EX 靠合成得到，不锁"从面板拿终卡"；锁的是链上成员照拿、
-        同页有还没拿到的基础羁绊时先拿基础（取代 09-24 早先的"起步后不让基础"）。"""
+        """Owner 2026-09-24，2026-09-25 修订：EX 靠合成得到，链上成员照拿；
+        同页拿卡时仅祝福优先于高级卡，高级卡与其余基础卡平级。"""
         policy_doc = json.loads(
             (Path(__file__).resolve().parents[1] / "config/choice_policy.json").read_text(encoding="utf-8")
         )
         for root, final in (("异火", "帝炎"), ("齐天大圣", "法天象地"), ("封神", "圣人")):
             with self.subTest(root=root):
                 policy = assemble_policy_settings(
-                    settings=self.fake_settings(["jq"], cards=[root], bonds=["经济", "成长"]),
+                    settings=self.fake_settings(["jq"], cards=[root], bonds=["经济", "成长", "祝福"]),
                     skill_labels=self.LABELS,
                     fetter_labels={},
                     policy_doc=policy_doc,
@@ -1538,6 +1559,7 @@ class TestAssemblePolicySettings(unittest.TestCase):
                     SessionState(),
                 )
                 self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))
+                # 经济与高级卡平级，按高级卡组推进规则优先拿链上成员
                 decision = choose_action(
                     bond_cands(
                         [slot(0, "经济"), slot(1, member)],
@@ -1546,7 +1568,36 @@ class TestAssemblePolicySettings(unittest.TestCase):
                     ),
                     SessionState(),
                 )
-                self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 0))
+                # Owner 2026-09-25 改为：仅祝福优先于高级卡，高级卡与其余基础卡平级
+                self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))
+
+                # 仅祝福享有超越高级卡的优先特权
+                decision_blessing = choose_action(
+                    bond_cands(
+                        [slot(0, "祝福"), slot(1, member)],
+                        settings=policy,
+                        owned_bond_cards=(started,),
+                    ),
+                    SessionState(),
+                )
+                self.assertEqual((decision_blessing.action, decision_blessing.index), (PolicyAction.SELECT_SLOT, 0))
+
+    def test_haizeiwang_group_recognized_from_real_config(self):
+        """海贼王高级卡组：勾选见习海贼即选中整组；EX 海贼王靠合成，不进白名单。"""
+        policy_doc = json.loads(
+            (Path(__file__).resolve().parents[1] / "config/choice_policy.json").read_text(encoding="utf-8")
+        )
+        policy = assemble_policy_settings(
+            settings=self.fake_settings(["jq"], cards=["见习海贼"], bonds=["经济", "成长", "祝福"]),
+            skill_labels=self.LABELS,
+            fetter_labels={},
+            policy_doc=policy_doc,
+        )
+        group = ("见习海贼", "超新星", "七武海", "凯多", "红发", "白胡子", "大妈")
+        self.assertIn(group, policy.bond_advanced_groups)
+        for name in group:
+            self.assertIn(name, policy.bond_advanced_presets)
+        self.assertNotIn("海贼王", policy.bond_presets)
 
     def test_treasure_allow_negative_from_settings(self):
         ps = assemble_policy_settings(

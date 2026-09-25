@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "0d72607f5173bbdd60e53741ff7dca1f300fb316",
-  "anchored_at": "2026-09-25T11:30:00+08:00",
-  "branch": "claude/project-thread-fqyf7h",
-  "note": "Hitch live 09-25 fixes via #46 (stage misread guard, 失败 overlay anchor, heirloom/时光之穴 list bounds, Boss bottom fallback) on top of Owner 09-24 late rules"
+  "candidate_sha": "4da9790e02a44c2868e1b719a4242d52a8b7a4e8",
+  "anchored_at": "2026-09-25T21:20:00+08:00",
+  "branch": "fix/solo-r2-20260925",
+  "note": "09-25 审查返工：英雄选卡fail-closed、词缀互斥、黑商木材保守判断、单帧拿卡收窄"
 }

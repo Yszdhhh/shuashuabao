@@ -1477,28 +1477,26 @@ def _decide_collectible(
                     f"羁绊差一张合成秒选【{slot.name}】 @ slot {slot.index}",
                 )
 
-            # 2.5 Owner 2026-09-24：勾选的基础羁绊与高级羁绊同时出现时先拿基础羁绊，
-            #     高级卡组起步前后都一样；基础之间按白名单顺序（祝福 → 成长 → 经济
-            #     → 挑战 → 力量/智力/敏捷线 → 其他基础卡）。排在"差一张合成"之后：
-            #     差一张的卡本页不拿就可能丢掉整组合成。只对还没拿到的基础卡生效，
-            #     已拿到的基础卡走下方合成/预设顺序。
-            basic_tier = tuple(
+            # 2.5 Owner 2026-09-25：同页拿卡时只有「祝福」优先于高级卡组；高级卡组与其余基础卡平级。
+            #     排在"差一张合成"之后：差一张的卡本页不拿就可能丢掉整组合成。
+            #     只对还没拿到的祝福（及必拿）生效，已拿到的走下方合成/高级卡组/预设顺序。
+            blessing_tier = tuple(
                 name for name in settings.bond_presets
-                if name in settings.bond_base_presets or name in settings.bond_chain_presets
+                if same_bond_identity(name, "祝福") or name in settings.bond_must_take
             )
-            if basic_tier and settings.bond_advanced_presets:
-                missing_base = tuple(
+            if blessing_tier and settings.bond_advanced_presets:
+                missing_blessing = tuple(
                     slot for slot in eligible
-                    if matches_bond_preset(slot.name, basic_tier)
+                    if matches_bond_preset(slot.name, blessing_tier)
                     and not any(same_bond_identity(name, slot.name) for name in owned_bonds)
                 )
                 base_hit = _match_bond_preset(
-                    missing_base, basic_tier,
+                    missing_blessing, blessing_tier,
                     settings.min_confidence, settings.quality_order,
                 )
                 if base_hit is not None:
                     name = _slot_name(cands.slots, base_hit)
-                    return PolicyDecision.select(base_hit, f"基础羁绊优先：{name} @ slot {base_hit}")
+                    return PolicyDecision.select(base_hit, f"祝福羁绊优先：{name} @ slot {base_hit}")
 
             # 3. 20260822：已持有的羁绊卡合成跃升（如 1/3, 2/3 未满星卡牌）
             # 只要手中已持有过某羁绊卡，且当前面板再次出现该卡，优先合成升级，绝不可刷新丢弃！
