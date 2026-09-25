@@ -223,6 +223,8 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_backpack_clean_deadline": 1.0e9,
         "_backpack_clean_last_round": 99,
         "_backpack_clean_abort_reason": "polluted",
+        # 决策原因日志只写 trace、不参与决策；列入污染清单以锁定该隔离属性。
+        "_tick_decision_reasons": [{"kind": "polluted", "rule": "polluted", "inputs": {}}],
     }
 
     def _pollute(self, med: Mediator) -> None:
