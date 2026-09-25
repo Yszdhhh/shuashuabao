@@ -1,7 +1,7 @@
 {
-  "schema_version": 1,
-  "candidate_sha": "c04911976f5119879c0d6afeb11401975a24139f",
-  "anchored_at": "2026-09-26T00:06:00+08:00",
-  "branch": "fix/bond-panel-stuck-20260925",
-  "note": "09-26 修复羁绊面板刷新耗尽与超时死锁：以最后进展计算超时、solo有锚点转CLOSING、COOLDOWN脱节重识别纠偏"
+    "schema_version":  1,
+    "candidate_sha":  "46ec6a3a078aeb05595817cdc90f9e66d65be6e0",
+    "anchored_at":  "2026-09-26T01:27:11+08:00",
+    "branch":  "fix/bond-fsm-deadlock-20260926",
+    "note":  "09-26 修复单人面板关闭失败后 CLOSING/COOLDOWN 振荡：最多关闭 3 次，耗尽后零输入等待物理锚点消失"
 }
