@@ -92,10 +92,10 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
 
     @patch("shuabao.mediator.time.time", return_value=100.0)
     def test_devour_pill_fail_closed_with_saved_opt_in_and_visible_pill(self, mock_time):
-        # Owner 2026-09-24: solo eats pills from 6/10; below that the gate stays closed.
+        # Owner 2026-09-24: solo eats pills from 6/10; Owner 2026-09-25: from 8/10; below that the gate stays closed.
         self.med.settings = Settings(auto_devour_dan=True)
         pill_match = MatchResult("danGif", 0.9, 1100, 750, 20, 20, 1100, 750)
-        for occupancy in (4, 5):
+        for occupancy in (4, 5, 6, 7):
             with self.subTest(occupancy=occupancy), \
                  patch.object(self.med, "_bond_bar_occupancy", return_value=occupancy), \
                  patch.object(self.med, "find", return_value=pill_match), \
@@ -116,9 +116,9 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
         mock_click.assert_not_called()
 
     def test_devour_pill_gate_stays_closed_at_four_and_five_bonds(self):
-        # Owner 2026-09-24: the gate opens at 6/10 (test_p0_devour_failclosed_20260917).
+        # Owner 2026-09-24: the gate opened at 6/10; Owner 2026-09-25: opens at 8/10 (test_p0_devour_failclosed_20260917).
         self.med.settings = Settings(auto_devour_dan=True)
-        for occupancy in (4, 5):
+        for occupancy in (4, 5, 6, 7):
             with self.subTest(occupancy=occupancy), \
                  patch.object(self.med, "_bond_bar_occupancy", return_value=occupancy):
                 self.assertFalse(self.med._can_consume_inventory_swallow_pill(self.frame))

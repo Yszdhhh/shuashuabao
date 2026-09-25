@@ -2649,10 +2649,24 @@ class Mediator:
 
     def _classify_choice_panel(self, frame: Frame) -> str | None:
         """Distinguish skill / bond / treasure choice panels by their unique buttons."""
-        if self._evolve_hero_choice_pending() and getattr(self, "_panel_opened_by_us", None) not in (
-            "skill", "bond", "treasure",
+        opened = getattr(self, "_panel_opened_by_us", None)
+        if opened in ("skill", "bond"):
+            return opened
+        threshold = min(0.70, self.settings.match_threshold)
+        roi = self._PANEL_BUTTONS_ROI
+        scales = self._hot_scales()
+        # 羁绊与技能有强独有按钮特征，绝不受英雄进化二选一抑制
+        bond_hide = self.find(frame, ["bond_hide_btn"], threshold=threshold, scales=scales, roi=roi)
+        bond_refresh = self.find(frame, ["bond_refresh_btn"], threshold=threshold, scales=scales, roi=roi)
+        if bond_hide is not None and bond_refresh is not None:
+            return "bond"
+        if self.find(frame, ["skill_giveup_btn"], threshold=threshold, scales=scales, roi=roi) is not None:
+            return "skill"
+        if (
+            (self._evolve_hero_choice_pending() or self._find_evolution_choice(frame) is not None)
+            and opened != "treasure"
         ):
-            # 进化后的英雄二选一会误中 treasure_lock，先交给英雄排序。
+            # 进化/英雄卡二选一会误中 treasure_lock，先交给英雄排序。
             return None
         opened = getattr(self, "_panel_opened_by_us", None)
         if opened == "treasure":
@@ -3782,6 +3796,7 @@ class Mediator:
         transform = LayoutTransform.from_frame(frame.width, frame.height)
         occupied = 0
         min_pixels = int(250 * transform.scale * transform.scale)
+        min_cols = int(18 * transform.scale)
         for cx in (603, 655, 707, 759, 811, 863, 915, 967, 1019, 1071):
             rx1, ry1, rx2, ry2 = transform.logical_roi(cx - 20, 635, cx + 20, 680)
             roi_bgr = frame.bgr[ry1:ry2, rx1:rx2]
@@ -3789,8 +3804,23 @@ class Mediator:
                 continue
             hsv_roi = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2HSV)
             colored = (hsv_roi[:, :, 1] > 70) & (hsv_roi[:, :, 2] > 60)
-            if int(colored.sum()) >= min_pixels:
-                occupied += 1
+            cnt = int(colored.sum())
+            if cnt < min_pixels:
+                continue
+            # 必须具有一定的水平跨度，排除邻格特效边缘溢出
+            if (colored.sum(axis=0) > 0).sum() < min_cols:
+                continue
+            # 排除全格单一金色流光特效（吞噬/合成粒子动画，非实体卡牌）
+            colored_h = hsv_roi[:, :, 0][colored]
+            if (
+                len(colored_h) > 0
+                and 18 <= colored_h.mean() <= 32
+                and colored_h.std() < 5.0
+                and hsv_roi[:, :, 2][colored].mean() > 200
+                and hsv_roi[:, :, 1][colored].mean() > 180
+            ):
+                continue
+            occupied += 1
         return occupied
     def _canonical_bond_name(self, card_name: str) -> str:
         """Map a card name or bond string to canonical 5 bond categories if applicable."""
@@ -4128,15 +4158,15 @@ class Mediator:
     def _is_unambiguous_high_confidence_pick(
         decision: "PolicyDecision", slots: tuple, reason: str
     ) -> bool:
-        """B2 拿卡提速：卡名完整命中白名单预设、OCR>=0.95、四槽无重名歧义时免二次确认。
+        """B2 拿卡提速：卡名完整命中白名单预设、OCR>=0.85、四槽无重名歧义时免二次确认。
 
         其余情形（刷新、模糊/低置信/重名槽位、非预设兜底如品质降级/套装进度）
         仍保留 _ocr_reward_choice 现有的两帧确认。
         """
-        if "预设命中" not in reason and "严格命中" not in reason and "必拿" not in reason:
+        if "预设命中" not in reason and "严格命中" not in reason and "必拿" not in reason and "合成" not in reason:
             return False
         chosen = next((s for s in slots if s.index == decision.index), None)
-        if chosen is None or not chosen.name or float(chosen.confidence or 0.0) < 0.95:
+        if chosen is None or not chosen.name or float(chosen.confidence or 0.0) < 0.85:
             return False
         named = [str(s.name).strip() for s in slots if s.name and str(s.name).strip()]
         return len(named) == len(set(named))
@@ -4191,15 +4221,50 @@ class Mediator:
         if not anchor:
             return None
 
-        if self._evolve_hero_choice_pending():
+        # 英雄二选一/进化选择：支持由 evolve 流程触发、背包英雄卡使用后触发，或中央呈现英雄二选一特征
+        # 1. 严格互斥：绝不在羁绊/技能/宝物面板上走英雄逻辑
+        opened = getattr(self, "_panel_opened_by_us", None)
+        classified = self._classify_choice_panel(frame)
+        is_non_hero_panel = (
+            opened in ("skill", "bond", "treasure")
+            or classified in ("skill", "bond", "treasure")
+            or (anchor is not None and (
+                anchor.name.startswith("bond_")
+                or anchor.name.startswith("treasure_")
+                or anchor.name in ("skill_giveup_btn", "skill_hide", "giveUp")
+            ))
+        )
+        if self._evolve_hero_choice_pending() and is_non_hero_panel:
+            # 等待英雄选择期间出现非英雄面板（羁绊/技能等）：绝不可被误点成英雄卡，保持零输入等待
+            print(f"[L1] 等待英雄选择期间出现非英雄面板（{classified or opened or (anchor.name if anchor else 'non-hero')}），保持零输入等待")
+            return None
+
+        # 2. 确认是英雄面板（英雄面板锚点命中或进化几何检测命中）
+        is_hero_choice = (
+            not is_non_hero_panel
+            and (
+                self._find_evolution_choice(frame, anchor) is not None
+                or (
+                    self._evolve_hero_choice_pending()
+                    and (
+                        (anchor is not None and anchor.name in ("toHero", "card_hide", "hide"))
+                        or (anchor is not None and self._panel_kind_of(frame, anchor) == "card")
+                    )
+                )
+            )
+        )
+        if is_hero_choice:
             evo_hit = self._find_evolution_choice(frame, anchor)
             if evo_hit is not None:
                 print(f"[L1] 进化英雄选择：{evo_hit.name} @ {evo_hit.center}")
                 return ("card", evo_hit)
-            rarity_hit = self._rarity_choice(frame, "card") or self._rarity_choice(frame, "skill") or self._rarity_choice(frame, "treasure")
+            rarity_hit = self._rarity_choice(frame, "card") or self._rarity_choice(frame, "skill")
             if rarity_hit is not None:
                 print(f"[L1] 进化英雄三选一按品质色：{rarity_hit.name} @ {rarity_hit.center}")
                 return ("card", rarity_hit)
+            # fail-closed：无法识别英雄卡时零输入等待，严禁盲点左卡，也不反复隐藏
+            print("[L1] 进化英雄面板候选识别不清，fail-closed 零输入等待下一帧")
+            return None
         kind = self._panel_kind_of(frame, anchor)
         if kind == "unknown":
             self._record_selection_unknown(frame, anchor, "panel classification failed")
@@ -4720,29 +4785,30 @@ class Mediator:
     def _stall_combat_bond_slots(
         self, slots: tuple[SlotCandidate, ...]
     ) -> tuple[SlotCandidate, ...]:
-        """Keep documented combat bonds and confirmed uncompleted owned bonds after a main-line stall."""
+        """Keep documented combat bonds, target presets, and confirmed uncompleted owned bonds after a main-line stall."""
         owned = getattr(self, "_confirmed_bond_cards", lambda: ())()
-        return tuple(
+        target_bonds = tuple(b for b in getattr(self.settings, "bonds", ()) if b)
+        filtered = tuple(
             slot for slot in slots
             if matches_bond_preset(slot.name, self._STALL_COMBAT_BOND_PRESETS)
+            or matches_bond_preset(slot.name, target_bonds)
             or (owned and _is_uncompleted_merge_upgrade(slot, owned))
         )
+        return filtered if filtered else slots
 
     def _stall_combat_bond_policy(self_or_policy: Any, policy: PolicySettings | None = None) -> PolicySettings:
-        """Remove economic/base-card gates while stalled, keeping documented combat presets only."""
+        """Keep documented combat presets and target presets while stalled, without purging base/advanced presets."""
         if policy is None:
             pol = self_or_policy
         else:
             pol = policy
-        presets = Mediator._STALL_COMBAT_BOND_PRESETS
+        presets = tuple(dict.fromkeys(
+            tuple(getattr(pol, "bond_presets", ()))
+            + Mediator._STALL_COMBAT_BOND_PRESETS
+        ))
         return replace(
             pol,
             bond_presets=presets,
-            bond_base_presets=(),
-            bond_advanced_presets=(),
-            bond_advanced_groups=(),
-            bond_chain_presets=(),
-            bond_must_take=(),
         )
 
     def _should_hold_core_development(self, frame: Frame | None = None, now: float | None = None) -> bool:
@@ -5084,13 +5150,12 @@ class Mediator:
             if roi.size == 0:
                 return 1
             hue, sat, val = roi[:, :, 0], roi[:, :, 1], roi[:, :, 2]
-            # 积极属性多为绿字；优先于红/橙品质色，避免永远点第一行 equipment_affix_0。
+            # Owner 2026-09-25: 装备词条按颜色 橙/红 > 紫 > 蓝 > 绿 > 白 选择
             masks = (
-                (6, (hue >= 35) & (hue < 90) & (sat > 60) & (val > 80)),
-                (5, ((hue <= 10) | (hue >= 170)) & (sat > 80) & (val > 90)),
-                (4, (hue > 10) & (hue <= 30) & (sat > 80) & (val > 90)),
-                (3, (hue >= 125) & (hue < 170) & (sat > 60) & (val > 80)),
-                (2, (hue >= 90) & (hue < 125) & (sat > 60) & (val > 80)),
+                (5, ((hue <= 30) | (hue >= 170)) & (sat > 80) & (val > 90)),
+                (4, (hue >= 125) & (hue < 170) & (sat > 60) & (val > 80)),
+                (3, (hue >= 90) & (hue < 125) & (sat > 60) & (val > 80)),
+                (2, (hue >= 35) & (hue < 90) & (sat > 60) & (val > 80)),
             )
             for rank, mask in masks:
                 if mask.sum() >= 30:
@@ -5106,6 +5171,9 @@ class Mediator:
         """Recognize the two-card hero-evolution modal and choose its best rarity."""
         if frame.bgr is None or not LayoutTransform.is_supported(frame.width, frame.height):
             return None
+        # 装备十级词缀弹窗互斥：词缀弹窗绝非英雄进化二选一
+        if self._find_equipment_affix_choice(frame) is not None:
+            return None
         transform = LayoutTransform.from_frame(frame.width, frame.height)
         # 进化二选一面板支持底部 anchor (toHero 等) 或中央双卡边框特征
         gray = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2GRAY)
@@ -5117,7 +5185,8 @@ class Mediator:
 
         scale_area = transform.scale * transform.scale
         if not (
-            edge_count(816) >= max(50, int(350 * scale_area))
+            edge_count(540) >= max(30, int(100 * scale_area))
+            and edge_count(816) >= max(50, int(350 * scale_area))
             and edge_count(1050) >= max(30, int(100 * scale_area))
             and edge_count(408) < max(30, int(600 * scale_area))
             and edge_count(1201) < max(30, int(600 * scale_area))
@@ -5165,6 +5234,9 @@ class Mediator:
 
     def _evolve_gold_center(self, frame: Frame) -> tuple[int, int] | None:
         """Only the inner evolve bar can authorize a click; HUD edge highlights cannot."""
+        # 装备词条弹窗互斥：词条弹窗存在时绝非战斗 HUD 进化按钮
+        if self._find_equipment_affix_choice(frame) is not None:
+            return None
         x0 = int(frame.width * 0.52)
         y0 = int(frame.height * 0.765)
         x1 = int(frame.width * 0.59)
@@ -5203,6 +5275,8 @@ class Mediator:
         return MatchResult("evolve_hud", 1.0, x, y, 40, 12, frame.left + x, frame.top + y)
 
     def _has_evolve_button(self, frame: Frame) -> bool:
+        if self._find_equipment_affix_choice(frame) is not None:
+            return False
         has = self._evolve_gold_center(frame) is not None
         if has:
             self._evolve_ok_this_cycle = False
@@ -5353,6 +5427,8 @@ class Mediator:
                 scales=(0.8, 0.9, 1.0, 1.1, 1.2),
             )
             if pill:
+                if self._devour_dan_consecutive_clicks >= 5 and now >= self._devour_dan_next_at:
+                    self._devour_dan_consecutive_clicks = 0
                 if now >= self._devour_dan_next_at and self._devour_dan_consecutive_clicks < 5:
                     baseline_occ = getattr(self, "_bond_bar_occupancy", lambda f: None)(frame)
                     if self.act_click(pill, "UseInventory-swallow_pill"):
@@ -5396,25 +5472,54 @@ class Mediator:
             else:
                 self._inventory_last_pt = hero_card.center
                 self._inventory_same_pt_hits = 1
-            self._inventory_next_at = now + 1.0
-            if self.act_click(hero_card, "UseInventory-hero-card"):
-                self._evolve_awaiting_hero_pick = True
-                self._evolve_awaiting_hero_pick_at = now
+            clicked = self.act_click(hero_card, "UseInventory-hero-card")
+            self._evolve_awaiting_hero_pick = True
+            self._evolve_awaiting_hero_pick_at = now
+            self._inventory_modal_until = now + 4.0
+            if clicked:
                 print(f"[L1] 使用背包英雄卡 @ {hero_card.center}")
-                self._pending_action = PendingAction(
-                    kind="WAIT_HERO_CHOICE",
-                    target_id="hero_card_item",
-                    deadline=now + 3.0,
-                    verifier=lambda f: bool(self._find_evolution_choice(f, anchor=self._selection_anchor(f)) is not None),
-                )
-                return LoopAction.Continue
+            self._pending_action = PendingAction(
+                kind="WAIT_HERO_CHOICE",
+                target_id="hero_card_item",
+                deadline=now + 3.0,
+                verifier=lambda f: bool(self._find_evolution_choice(f, anchor=self._selection_anchor(f)) is not None),
+            )
+            return LoopAction.Continue
         return self._maybe_use_inventory_slot(frame, now)
+
+    def _is_inventory_slot_swallow_pill(self, frame: Frame, index: int) -> bool:
+        """Check if HUD item bar slot contains a devour pill (danGif / swallow_pill)."""
+        rect = self._hud_item_bar_rect(frame, index)
+        if rect is None or frame.bgr is None:
+            return False
+        cx = (rect[0] + rect[2]) // 2
+        cy = (rect[1] + rect[3]) // 2
+        hw, hh = 30, 30
+        w, h = frame.width, frame.height
+        slot_roi = (max(0, cx - hw) / w, max(0, cy - hh) / h, min(w, cx + hw) / w, min(h, cy + hh) / h)
+        match = self.find(
+            frame,
+            ["danGif", "swallow_pill"],
+            threshold=0.65,
+            roi=slot_roi,
+            scales=(0.8, 0.9, 1.0, 1.1, 1.2),
+        )
+        if match is None:
+            return False
+        mx, my = getattr(match, "center", (getattr(match, "x", cx), getattr(match, "y", cy)))
+        if hasattr(frame, "left") and frame.left and mx >= frame.left:
+            mx -= frame.left
+            my -= frame.top
+        dist = ((cx - mx) ** 2 + (cy - my) ** 2) ** 0.5
+        return dist <= 35
 
     def _maybe_use_inventory_slot(self, frame: Frame, now: float | None = None) -> LoopAction | None:
         """Try one occupied solo item-bar slot 2–6, then yield to modal handling."""
         if str(getattr(self.settings, "mode_id", "normal_farm")) != "normal_farm":
             return None
         if self._panel_state != PanelState.CLOSED:
+            return None
+        if self._pending_action is not None:
             return None
         if self._public_bag_fsm.active or self._has_active_transaction(frame):
             return None
@@ -5437,6 +5542,10 @@ class Mediator:
             index = 1 + (first - 1 + offset) % 5
             rect = self._hud_item_bar_rect(frame, index)
             if rect is None or not self._bag_slot_occupied(frame, rect):
+                continue
+            if self._is_inventory_slot_swallow_pill(frame, index):
+                # 吞噬丹必须受 _can_consume_inventory_swallow_pill 严格门控，仅由 _maybe_use_inventory_item 控制，
+                # 绝不在此处盲点使用（防止在羁绊栏低于门槛或吞空时持续吃丹）
                 continue
             x0, y0, x1, y1 = rect
             patch = frame.bgr[y0:y1, x0:x1]
@@ -5600,11 +5709,12 @@ class Mediator:
 
     # Owner 2026-09-24：单人默认吃吞噬丹（看板不加开关），羁绊栏超过一半就吃。
     # 吞噬只提前腾出格子，不影响合成进度：凑齐后同组剩下的卡照样一起合成。
-    _DEVOUR_BOND_OCCUPANCY = 6
+    # Owner 2026-09-25 改为 ≥8/10（空位 ≤ 2 才吃吞噬丹，亡灵例外规则不变）
+    _DEVOUR_BOND_OCCUPANCY = 8
     _MERCHANT_URGENT_COOLDOWN_S = 45.0
 
     def _can_consume_inventory_swallow_pill(self, frame: Frame) -> bool:
-        """Solo eats devour pills once more than half of the ten-cell bond bar is used."""
+        """Solo eats devour pills once bond bar has <= 2 empty slots (occupied >= 8/10)."""
         return (
             str(getattr(self.settings, "mode_id", "normal_farm")) == "normal_farm"
             and self._devour_hold_reason() is None
@@ -5631,6 +5741,26 @@ class Mediator:
         return self.find(
             frame, ["danGif"], threshold=0.55, scales=self._hot_scales(), roi=(0.64, 0.77, 0.74, 0.98),
         ) is not None
+
+    def _solo_wants_merchant(self, frame: Frame) -> bool:
+        """Solo only visits/interacts with merchant when wood < 500 (or unreadable) or devour pill is urgently needed."""
+        if self._passenger_mode() or not getattr(self.settings, "merchant_enabled", True):
+            return False
+        # 1. 羁绊栏 >= 8/10 且背包无吞噬丹：急需前往黑商买丹（即使木材充足）
+        occupied = self._bond_bar_occupancy(frame)
+        if (
+            occupied is not None
+            and occupied >= self._DEVOUR_BOND_OCCUPANCY
+            and self._devour_hold_reason() is None
+            and not self._inventory_has_swallow_pill(frame)
+        ):
+            return True
+        # 2. 木材判断：读数为 None 时按保守规则处理（不可假定充足，仍去黑商）；
+        #    只有明确读出木材且 >= 500 时才认定充足跳过
+        wood = getattr(self, "_wood_balance", None)
+        if wood is None or wood < self._SKILL_FIRST_WOOD:
+            return True
+        return False
 
     def _urgent_merchant_reason(self, frame: Frame, now: float) -> str | None:
         """Why solo should jump the L1 cycle to the black merchant now, if at all."""
@@ -7026,7 +7156,8 @@ class Mediator:
         # _maybe_use_inventory_item; do not hide merchant recognition behind it.
         ranked = scanner.rank_purchases(detected_slots, solo=not self._passenger_mode())
         # 0 means no script cap: keep refreshing while the recycle control is up.
-        reroll_cap = int(getattr(self.settings, "merchant_max_rerolls", 0)) or 20
+        default_reroll_cap = 2 if not self._passenger_mode() else 20
+        reroll_cap = int(getattr(self.settings, "merchant_max_rerolls", 0)) or default_reroll_cap
 
         if ranked and self._merchant_fsm.can_purchase(5):
             target_item = ranked[0]
@@ -7108,6 +7239,8 @@ class Mediator:
     def _maybe_opportunistic_merchant(self, frame: Frame, now: float) -> LoopAction | None:
         """HUD_ONLY opportunistic single high-value merchant buy without rerolls."""
         if getattr(self.settings, "merchant_enabled", True) is False:
+            return None
+        if not self._passenger_mode() and not self._solo_wants_merchant(frame):
             return None
         if now < getattr(self, "_opportunistic_merchant_next_at", 0.0):
             return None
@@ -7260,6 +7393,9 @@ class Mediator:
 
     def _close_current_panel(self, frame: Frame, panel_kind: str | None = None) -> MatchResult | None:
         """Resolve a verified physical hide/close affordance for a card panel."""
+        if self._evolve_hero_choice_pending() or self._find_evolution_choice(frame) is not None:
+            # 英雄选择弹窗或等待英雄选择期间严禁隐藏关闭，必须选卡或等待
+            return None
         kind = panel_kind or getattr(self, "_panel_opened_by_us", None)
         if kind in ("技能", "技能刷新", "技能放弃"):
             kind = "skill"
@@ -9386,6 +9522,9 @@ class Mediator:
             if not getattr(self.settings, "dry_run", False):
                 self.act_click(select_hero_btn, "ClickSelectHero")
                 self.act_key("F1", "SelectHeroHotkey")
+            self._evolve_awaiting_hero_pick = True
+            self._evolve_awaiting_hero_pick_at = now
+            self._inventory_modal_until = now + 4.0
             self._hero_focus_lost_count = 0
             self._hero_focus_last_frame_id = None
             self._hero_focus_next_check_at = now + 1.5
@@ -16903,6 +17042,9 @@ class Mediator:
                 roi=self._PANEL_BUTTONS_ROI,
             ) is not None:
                 return "skill"
+            # 英雄卡弹窗避免被彩色卡牌误判为 treasure
+            if self._find_evolution_choice(frame, anchor) is not None:
+                return "card"
             transform = LayoutTransform.from_frame(frame.width, frame.height)
             rx1, ry1, rx2, ry2 = transform.logical_roi(450, 180, 1145, 515)
             roi = frame.bgr[ry1:ry2, rx1:rx2]
@@ -18109,6 +18251,12 @@ class Mediator:
         if self._pending_action is not None:
             if self._pending_action.is_confirmed(frame):
                 print(f"[med][pending] 后置动作验证成功: {self._pending_action.kind} ({self._pending_action.target_id})")
+                if (
+                    self._pending_action.target_id in ("danGif", "swallow_pill")
+                    or self._pending_action.kind in ("WAIT_DEVOUR_DAN", "WAIT_SWALLOW_PILL_CONFIRM")
+                ):
+                    self._devour_dan_next_at = now + 1.0
+                    self._devour_dan_consecutive_clicks = 0
                 self._pending_action = None
             elif self._pending_action.is_expired(now):
                 print(f"[med][pending] 后置动作验证超时: {self._pending_action.kind} ({self._pending_action.target_id})")
@@ -18119,8 +18267,12 @@ class Mediator:
                     # 20260822：验证超时必须同时清掉等待标志，否则残留的
                     # _evolve_awaiting_hero_pick 会让进化兜底在普通面板上盲点。
                     self._evolve_awaiting_hero_pick = False
-                elif self._pending_action.target_id == "danGif" or self._pending_action.kind == "WAIT_DEVOUR_DAN":
-                    self._devour_dan_next_at = now + 1.0
+                elif (
+                    self._pending_action.target_id in ("danGif", "swallow_pill")
+                    or self._pending_action.kind in ("WAIT_DEVOUR_DAN", "WAIT_SWALLOW_PILL_CONFIRM")
+                ):
+                    self._devour_dan_next_at = now + 1.5
+                    self._devour_dan_consecutive_clicks = 0
                 elif self._pending_action.target_id == "equipment_upgrade" or self._pending_action.kind == "EQUIPMENT_UPGRADE":
                     self._equipment_pending_until = now + 1.0
                 self._pending_action = None
@@ -19001,6 +19153,7 @@ class Mediator:
             or has_affix
             or mainline_proactive_active
             or hitch_bootstrap_pending
+            or (not self._passenger_mode() and not self._solo_wants_merchant(frame))
         ) else self._black_merchant_present(frame)
 
         surface = resolve_interaction_surface(
@@ -19495,14 +19648,17 @@ class Mediator:
                 if item_res is not None:
                     self._main_line_since = now
                     return item_res
-            # 1. 拾取 Z 不是常驻战斗按键。只有可移动装备栏 2-6 已全部
-            #    占满、确有溢出风险时才做范围拾取；空栏/不确定画面零输入。
-            #    和背包同理：优先点 HUD 上的 [Z] 按钮，键盘只作兜底。
-            if (
+            # 1. 拾取 Z：单人循环轮到 pickup 步时按 CD 执行范围拾取（Z 一键拾取），不再受限于满格溢出；
+            #    蹭车模式只在装备栏溢出且公共背包有空位时拾取队伍资产。
+            #    优先点 HUD 上的 [Z] 按钮，键盘只作兜底。
+            should_pickup = (
                 now >= self._pickup_next_at
-                and self._hud_item_bar_overflowed(frame)
-                and self._pickup_bag_has_space(frame)
-            ):
+                and (
+                    not self._passenger_mode()
+                    or (self._hud_item_bar_overflowed(frame) and self._pickup_bag_has_space(frame))
+                )
+            )
+            if should_pickup:
                 pickup_button = self._hud_hotkey_button(frame, "bag/hud_pickup_button")
                 picked = (
                     self.act_click(pickup_button, "Pickup-Z")
@@ -19516,7 +19672,7 @@ class Mediator:
                 # 蹭车不吃丹、不用英雄卡：那是队伍资产，只负责搬进公共背包。
                 self._advance_l1_cycle("pickup")
                 return LoopAction.Continue
-            # 已先尝试腾空道具格，随后才判断是否需要范围拾取。
+            # 单人推进轮换到下一步。
             self._advance_l1_cycle("pickup")
             return LoopAction.Continue
 
@@ -19524,6 +19680,12 @@ class Mediator:
             if now < getattr(self, "_merchant_budget_retry_at", 0.0):
                 # 余额不足/不可读时让循环继续做宝物、拾取和公共背包，等下一
                 # 个预算观察窗口再回来，而不是把整局卡在黑商步骤。
+                self._advance_l1_cycle("merchant")
+                return LoopAction.Continue
+            if not self._passenger_mode() and not self._solo_wants_merchant(frame):
+                wood = getattr(self, "_wood_balance", None)
+                bond_occ = self._bond_bar_occupancy(frame)
+                print(f"[L1] 单人模式木材充足（{wood}）且未急需吞噬丹（{bond_occ}/10），跳过黑商推进羁绊")
                 self._advance_l1_cycle("merchant")
                 return LoopAction.Continue
             if now < self._merchant_next_at:

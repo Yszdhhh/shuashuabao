@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "29a1fb801689e674c9c0ba76487a4861e308c033",
-  "anchored_at": "2026-09-25T16:40:09+08:00",
-  "branch": "claude/project-thread-fqyf7h",
-  "note": "09-25 单人四修 + 黑商木材 + 背包清理"
+  "candidate_sha": "4da9790e02a44c2868e1b719a4242d52a8b7a4e8",
+  "anchored_at": "2026-09-25T21:20:00+08:00",
+  "branch": "fix/solo-r2-20260925",
+  "note": "09-25 审查返工：英雄选卡fail-closed、词缀互斥、黑商木材保守判断、单帧拿卡收窄"
 }
