@@ -123,7 +123,10 @@ from shuabao.input.keyboard_mouse import (
     InputExecutor,
     is_current_process_elevated,
 )  # noqa: E402
-from shuabao.input.emergency_stop import EmergencyStopListener  # noqa: E402
+from shuabao.input.emergency_stop import (  # noqa: E402
+    EmergencyStopListener,
+    check_key_pressed_win32,
+)  # noqa: E402
 from shuabao.loop_action import LoopAction  # noqa: E402
 from shuabao.mediator import BUILD_ID, Mediator, Phase  # noqa: E402
 from shuabao.player_profile import LiveLane, LiveLaneBusy  # noqa: E402
@@ -1835,6 +1838,65 @@ class BookmarkCommandReader:
         return commands
 
 
+VK_F9 = 0x78
+OWNER_MARK_PRE_S = 10.0
+OWNER_MARK_POST_S = 5.0
+
+
+class OwnerMarkListener:
+    """Background F9 listener that only queues owner marks.  Never sends input.
+
+    Mirrors :class:`EmergencyStopListener`'s polling style but watches a
+    different virtual key (F9, ``VK_F9``), so it neither conflicts with nor
+    affects the Shift+F12 emergency-stop thread.  The callback receives the
+    wall-clock press time and must stay read-only: the live loop drains the
+    queue on the main thread and persists evidence without touching the
+    mediator decision or the input executor.
+    """
+
+    def __init__(
+        self,
+        on_press: Callable[[float], None] | None = None,
+        poll_interval: float = 0.05,
+        key_check: Callable[[int], bool] | None = None,
+    ) -> None:
+        self._on_press = on_press
+        self.poll_interval = poll_interval
+        self._key_check = key_check or check_key_pressed_win32
+        self._running = False
+        self._was_down = False
+        self._thread: threading.Thread | None = None
+
+    def _poll_once(self) -> bool:
+        down = bool(self._key_check(VK_F9))
+        pressed = down and not self._was_down
+        self._was_down = down
+        if pressed and self._on_press is not None:
+            self._on_press(time.time())
+        return pressed
+
+    def _poll_loop(self) -> None:
+        while self._running:
+            try:
+                self._poll_once()
+            except Exception:
+                pass
+            time.sleep(self.poll_interval)
+
+    def start(self) -> None:
+        if self._running:
+            return
+        self._running = True
+        self._thread = threading.Thread(target=self._poll_loop, daemon=True, name="OwnerMarkListener")
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._running = False
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=0.5)
+            self._thread = None
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -3111,6 +3173,7 @@ class BundleRecorder:
         self._last_state: dict[str, Any] | None = None
         self._pending_event_index: int | None = None
         self._blocked_recorded = False
+        self._pending_marks: list[dict[str, Any]] = []
         self._clock_start = time.monotonic()
         self.inputs_this_tick: list[dict[str, Any]] = []
         self._frame_write_queue: queue.Queue[tuple[Path, Frame] | None] = queue.Queue()
@@ -3205,6 +3268,7 @@ class BundleRecorder:
             "recent_trace": [],
             "bookmarks": [],
             "bookmark_summary": {status: 0 for status in BOOKMARK_STATUSES},
+            "marks": [],
             "automatic_failures": [],
             "failure_summaries": [],
             "generated_cases": [],
@@ -3307,6 +3371,122 @@ class BundleRecorder:
             at_s=at_s,
             automatic=False,
         )
+
+    def record_owner_mark(
+        self,
+        med: Mediator,
+        frame: Frame | None = None,
+        *,
+        at_s: float | None = None,
+        wall_ts: float | None = None,
+    ) -> dict[str, Any]:
+        """Persist one read-only owner mark.  Never sends game input.
+
+        Writes ``{"owner_mark": {"ts": ..., "n": ...}}`` into the current
+        trace tick, then packages frames from 10s before to 5s after the
+        press plus recent trace rows and ``_state_snapshot`` under
+        ``marks/mark_<n>_<elapsed>/``.  Post-press frames are backfilled by
+        subsequent :meth:`record_tick` calls and closed in :meth:`finalize`.
+        """
+        at_s = self.elapsed() if at_s is None else float(at_s)
+        wall_ts = time.time() if wall_ts is None else float(wall_ts)
+        number = len(self.manifest.get("marks") or []) + 1
+        row = {
+            "tick": getattr(med, "_tick_no", None),
+            "ts": round(wall_ts, 3),
+            "owner_mark": {"ts": round(wall_ts, 3), "n": number},
+        }
+        self._append_trace(row)
+        self._save_frame(
+            _copy_frame(frame) or _copy_frame(getattr(med, "_last_frame", None)),
+            "owner_mark",
+            at_s,
+        )
+        self._flush_frame_writes()
+        state = _state_snapshot(med, getattr(med, "_context_cache_value", None))
+        dirname = f"mark_{number:04d}_{at_s:08.3f}s"
+        mark_dir = self.bundle_dir / "marks" / dirname
+        mark_dir.mkdir(parents=True, exist_ok=True)
+        (mark_dir / "state_snapshot.json").write_text(
+            json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        (mark_dir / "trace_slice.json").write_text(
+            json.dumps(list(self._recent_trace), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        record = {
+            "n": number,
+            "dir": f"marks/{dirname}",
+            "at_s": round(at_s, 3),
+            "ts": round(wall_ts, 3),
+            "tick": getattr(med, "_tick_no", None),
+            "state_snapshot_file": f"marks/{dirname}/state_snapshot.json",
+            "trace_file": f"marks/{dirname}/trace_slice.json",
+            "frames": self._copy_mark_frames(mark_dir, at_s - OWNER_MARK_PRE_S, at_s),
+            "window_end_at_s": round(at_s + OWNER_MARK_POST_S, 3),
+            "closed": False,
+        }
+        (mark_dir / "mark.json").write_text(
+            json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        self._pending_marks.append(record)
+        self.manifest["marks"].append(record)
+        self._write_manifest()
+        print(f"[mark] 已标记第 {number} 处问题")
+        return record
+
+    def _copy_mark_frames(self, mark_dir: Path, start_at_s: float, end_at_s: float) -> list[str]:
+        copied: list[str] = []
+        for frame in self.manifest.get("frames") or []:
+            try:
+                at = float(frame.get("at_s", 0.0))
+            except (TypeError, ValueError):
+                continue
+            if not (start_at_s <= at <= end_at_s):
+                continue
+            source = self.bundle_dir / str(frame.get("file") or "")
+            if not source.is_file():
+                continue
+            target = mark_dir / source.name
+            if not target.exists():
+                shutil.copy2(source, target)
+            relative = f"{mark_dir.name}/{source.name}"
+            if relative not in copied:
+                copied.append(f"marks/{relative}")
+        return copied
+
+    def _collect_mark_frames(self, at_s: float) -> None:
+        if not getattr(self, "_pending_marks", None):
+            return
+        self._flush_frame_writes()
+        for record in self._pending_marks:
+            if record.get("closed"):
+                continue
+            mark_dir = self.bundle_dir / str(record["dir"])
+            end_at_s = min(float(at_s), float(record.get("window_end_at_s", 0.0)))
+            for relative in self._copy_mark_frames(mark_dir, float(record.get("at_s", 0.0)), end_at_s):
+                if relative not in record["frames"]:
+                    record["frames"].append(relative)
+            if float(at_s) >= float(record.get("window_end_at_s", 0.0)):
+                record["closed"] = True
+            try:
+                (mark_dir / "mark.json").write_text(
+                    json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8"
+                )
+            except OSError:
+                pass
+        self._write_manifest()
+
+    def _close_owner_marks(self) -> None:
+        for record in getattr(self, "_pending_marks", None) or []:
+            record["closed"] = True
+            try:
+                mark_dir = self.bundle_dir / str(record["dir"])
+                (mark_dir / "mark.json").write_text(
+                    json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8"
+                )
+            except OSError:
+                pass
 
     def record_blocked(
         self,
@@ -3746,6 +3926,7 @@ class BundleRecorder:
             self.solo_observer.observe(med, after_state, after_frame or before_frame, trace_row, action)
             self.manifest[str(self.solo_observer_key)] = self.solo_observer.payload()
         self._write_manifest(checkpoint=False)
+        self._collect_mark_frames(at_s)
         return event
 
     def record_direct(
@@ -3804,6 +3985,7 @@ class BundleRecorder:
     def finalize(self) -> Path:
         self._close_frame_writer()
         self._read_trace()
+        self._close_owner_marks()
         self.manifest["completed_at_utc"] = _utc_now()
         if self.solo_observer is not None:
             self.manifest[str(self.solo_observer_key)] = self.solo_observer.payload()
@@ -5225,9 +5407,11 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
     print(f"[runbook] 请将真实游戏停在以下页面/状态：{contract['runbook_manual']}")
     print(
         f"[capture] bundle={bundle_dir} bookmark_file={bookmark_file} "
-        "keys: p=PASS f=FAIL m=MANUAL_INTERVENTION"
+        "keys: p=PASS f=FAIL m=MANUAL_INTERVENTION F9=owner-mark(只记录，不发输入) "
+        "Shift+F12=emergency-stop"
     )
     med.see = capture_for_tick
+    mark_listener: OwnerMarkListener | None = None
     try:
         if live_preflight_blocked:
             current_frame["value"] = _copy_frame(preflight_frame)
@@ -5259,6 +5443,23 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
 
         med.emergency_listener = EmergencyStopListener(stop_signal)
         med.emergency_listener.start()
+
+        owner_mark_presses: queue.Queue[float] = queue.Queue()
+        mark_listener = OwnerMarkListener(on_press=owner_mark_presses.put)
+        mark_listener.start()
+
+        def process_owner_marks() -> None:
+            while True:
+                try:
+                    wall_ts = owner_mark_presses.get_nowait()
+                except queue.Empty:
+                    break
+                try:
+                    recorder.record_owner_mark(
+                        med, current_frame["value"], wall_ts=wall_ts
+                    )
+                except Exception as exc:
+                    print(f"[mark] 记录失败（不影响决策）: {exc}")
 
         if args.live_input:
             import threading
@@ -5302,6 +5503,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             and (deadline is None or time.monotonic() <= deadline)
         ):
             process_bookmarks()
+            process_owner_marks()
             if awaiting_manual_resume:
                 if _is_emergency_reason(stop_signal.reason):
                     break
@@ -5440,6 +5642,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                     else:
                         break
             process_bookmarks()
+            process_owner_marks()
             if (
                 target == "lobby_search"
                 and recorder.manifest["target_result"].get("authoritative")
@@ -5499,6 +5702,9 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         if med.emergency_listener:
             med.emergency_listener.stop()
             med.emergency_listener = None
+        if mark_listener is not None:
+            mark_listener.stop()
+            mark_listener = None
         recorder.stop_trace(med)
         recorder.manifest["capture_ticks"] = ticks
         recorder.manifest["capture_options"] = {
