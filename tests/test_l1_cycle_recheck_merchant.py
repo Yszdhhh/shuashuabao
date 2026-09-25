@@ -207,6 +207,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.med._l1_cycle_step = "pickup"
         self.med._auto_task_done = True
         self.med._main_line_started_at = 1.0
+        self.med._pickup_next_at = time.time() + 10.0  # 冷却中跳过拾取
         with patch.object(self.med, "_post_game_state", return_value=None), \
                 patch.object(self.med, "find", return_value=None), \
                 patch.object(self.med, "_find_equipment_affix_choice", return_value=None), \
@@ -227,6 +228,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.med._l1_cycle_step = "pickup"
         self.med._auto_task_done = True
         self.med._main_line_started_at = 1.0
+        self.med._pickup_next_at = 0.0  # 冷却到期执行拾取
         with patch.object(self.med, "_post_game_state", return_value=None), \
                 patch.object(self.med, "find", return_value=None), \
                 patch.object(self.med, "_find_equipment_affix_choice", return_value=None), \
@@ -238,8 +240,6 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
                 patch.object(self.med, "_maybe_open_choice_panel", return_value=None), \
                 patch.object(self.med, "_maybe_ensure_hero_panel_focus", return_value=None), \
                 patch.object(self.med, "_is_in_game_hud", return_value=True), \
-                patch.object(self.med, "_hud_item_bar_overflowed", return_value=True), \
-                patch.object(self.med, "_pickup_bag_has_space", return_value=True), \
                 patch.object(self.med, "act_key", return_value=True) as key:
             self.assertIs(self.med._tick_main_line(self.frame), LoopAction.Continue)
         key.assert_called_once_with("z", "Pickup-Z")

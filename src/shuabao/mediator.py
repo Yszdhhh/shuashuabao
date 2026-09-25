@@ -19546,14 +19546,17 @@ class Mediator:
                 if item_res is not None:
                     self._main_line_since = now
                     return item_res
-            # 1. 拾取 Z 不是常驻战斗按键。只有可移动装备栏 2-6 已全部
-            #    占满、确有溢出风险时才做范围拾取；空栏/不确定画面零输入。
-            #    和背包同理：优先点 HUD 上的 [Z] 按钮，键盘只作兜底。
-            if (
+            # 1. 拾取 Z：单人循环轮到 pickup 步时按 CD 执行范围拾取（Z 一键拾取），不再受限于满格溢出；
+            #    蹭车模式只在装备栏溢出且公共背包有空位时拾取队伍资产。
+            #    优先点 HUD 上的 [Z] 按钮，键盘只作兜底。
+            should_pickup = (
                 now >= self._pickup_next_at
-                and self._hud_item_bar_overflowed(frame)
-                and self._pickup_bag_has_space(frame)
-            ):
+                and (
+                    not self._passenger_mode()
+                    or (self._hud_item_bar_overflowed(frame) and self._pickup_bag_has_space(frame))
+                )
+            )
+            if should_pickup:
                 pickup_button = self._hud_hotkey_button(frame, "bag/hud_pickup_button")
                 picked = (
                     self.act_click(pickup_button, "Pickup-Z")
@@ -19567,7 +19570,7 @@ class Mediator:
                 # 蹭车不吃丹、不用英雄卡：那是队伍资产，只负责搬进公共背包。
                 self._advance_l1_cycle("pickup")
                 return LoopAction.Continue
-            # 已先尝试腾空道具格，随后才判断是否需要范围拾取。
+            # 单人推进轮换到下一步。
             self._advance_l1_cycle("pickup")
             return LoopAction.Continue
 
