@@ -330,8 +330,9 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
             scales=(0.75, 0.9, 1.0, 1.1, 1.25),
             roi=(0.70, 0.67, 0.90, 0.79),
         )
-        self.assertIsNotNone(wood)
-        self.assertEqual(wood.name, "merchant_wood")
+        # 2026-09-25 P2：该 strip 无真木材（slot 1/2 为拳套）。旧模板本身即拳套图，
+        # 故曾在此误命中；新模板下拳套不得再被认成木材。
+        self.assertIsNone(wood)
 
     def test_merchant_fingerprint_uses_slot_identity_not_whole_strip_pixels(self):
         x0, y0, x1, y1 = (
