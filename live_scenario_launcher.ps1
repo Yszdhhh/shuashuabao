@@ -684,6 +684,23 @@ function Invoke-SoloDirectArchaeologyCapture {
     Invoke-CaptureTool $cliArgs
 }
 
+function Invoke-BackpackCleanCapture {
+    param([ValidateSet("ingame", "stage")][string]$Entry)
+    Assert-ReadyForGt
+    $settingsPath = New-DashboardSettingsSnapshot
+    $settingsCopy = [System.IO.File]::ReadAllText($settingsPath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+    $settingsCopy | Add-Member -NotePropertyName auto_clean_backpack -NotePropertyValue $true -Force
+    $settingsCopy | Add-Member -NotePropertyName clean_backpack_every_rounds -NotePropertyValue 1 -Force
+    [System.IO.File]::WriteAllText($settingsPath, ($settingsCopy | ConvertTo-Json -Depth 12), [System.Text.UTF8Encoding]::new($false))
+    $cliArgs = @(
+        "capture", "--target", "backpack_clean", "--backpack-entry", $Entry,
+        "--out", $script:SoloCaptureRoot, "--repo-root", $RepoRoot,
+        "--settings", $settingsPath, "--duration", "60", "--max-ticks", "1000", "--interval", "0.15"
+    )
+    $cliArgs += @(Get-LiveRuntimeArgs)
+    Invoke-CaptureTool $cliArgs
+}
+
 function Invoke-SoloSettingsPanel {
     if (Show-HarnessSettingsPanel) {
         [System.Windows.Forms.MessageBox]::Show(
@@ -801,6 +818,7 @@ $script:MenuForm = New-Object System.Windows.Forms.Form
 $script:MenuForm.Text = "刷刷宝 · Live 实机测试"
 $script:MenuForm.StartPosition = "CenterScreen"
 $script:MenuForm.Size = New-Object System.Drawing.Size(760, 860)
+$script:MenuForm.AutoScroll = $true
 $script:MenuForm.MinimumSize = New-Object System.Drawing.Size(760, 860)
 $script:MenuForm.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 10)
 $script:MenuForm.TopMost = $true
@@ -940,11 +958,13 @@ Add-MenuButton "10 Reproduce 最新 FAIL`r`n    进入 Frozen Replay（离线回
 Add-MenuButton "单人临时设置（可选）`r`n    仅覆盖下一次 12；默认读取正式看板" 390 528 { Invoke-SoloSettingsPanel } $yellow
 Add-MenuButton "14 单人考古直达`r`n    建房→选关→直接考古；fresh 锚点确认" 24 586 { Invoke-SoloDirectArchaeologyCapture } $(if ($script:ReadyForGt) { $green } else { $locked })
 Add-MenuButton "15 当前房间短链`r`n    一楼→退出旧房→自建房→考古" 390 586 { Invoke-HitchRoomArchaeologyHandoffCapture } $(if ($script:ReadyForGt) { $green } else { $locked })
+Add-MenuButton "B1 局内清理背包（蹭车/局内）" 24 666 { Invoke-BackpackCleanCapture -Entry ingame } $(if ($script:ReadyForGt) { $green } else { $locked })
+Add-MenuButton "B2 选关页清理背包（单人）" 390 666 { Invoke-BackpackCleanCapture -Entry stage } $(if ($script:ReadyForGt) { $green } else { $locked })
 
 $exitButton = New-Object System.Windows.Forms.Button
 $exitButton.Text = "关闭菜单"
 $exitButton.Size = New-Object System.Drawing.Size(706, 44)
-$exitButton.Location = [System.Drawing.Point]::new(24, 676)
+$exitButton.Location = [System.Drawing.Point]::new(24, 750)
 $exitButton.Add_Click({ $script:MenuForm.Close() })
 $script:MenuForm.Controls.Add($exitButton)
 
@@ -952,7 +972,7 @@ $footer = New-Object System.Windows.Forms.Label
 $footer.Text = "注意：不要同时启动普通刷刷宝。UNKNOWN / 窗口身份不可信时 ZERO INPUT。点击测试按钮后本窗口暂时隐藏。"
 $footer.AutoSize = $false
 $footer.Size = New-Object System.Drawing.Size(700, 48)
-$footer.Location = [System.Drawing.Point]::new(24, 730)
+$footer.Location = [System.Drawing.Point]::new(24, 806)
 $footer.ForeColor = [System.Drawing.Color]::Firebrick
 $script:MenuForm.Controls.Add($footer)
 

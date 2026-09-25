@@ -181,6 +181,23 @@ TARGET_CONTRACT_FIELDS = (
 # the named existing Mediator method; these fields make its entry conditions
 # and evidence bar visible before a live session starts.
 TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
+    "backpack_clean": {
+        "handler": "_tick_backpack_clean",
+        "call": "frame, now",
+        "start_condition": "局内 HUD 存档入口或单人选关页存档页签可见。",
+        "production_entry": "只调用 Mediator._tick_backpack_clean；本次设置副本立即到期，事务后停止。",
+        "expected_steps": ("ARCHIVE", "EQUIPMENT", "DECOMPOSE", "QUALITY", "RETURN_VERIFIED"),
+        "success_postcondition": "品质确认后返回局内 HUD 或选关页，且生产状态机确认。",
+        "fail_condition": "品质勾选异常、事务超时或返回页面未确认。",
+        "blocked_condition": "60 秒内无法识别指定入口；零输入退出。",
+        "max_probe_time_s": 60.0,
+        "natural_e2e_eligible": "独立单次事务，不计完整自然链路。",
+        "bundle_replay": "采集真实帧和 production 输入用于冻结回放。",
+        "runbook_manual": "B1 停在局内 HUD；B2 停在单人选关页。只运行一次清理事务。",
+        "runbook_hands_off": "启动后不要手动点击存档、装备、分解或返回页签。",
+        "runbook_pass": "manifest 中 final_status=cleaned 且返回页面已确认。",
+        "runbook_manual_intervention": "需要人工干预时标记 MANUAL_INTERVENTION。",
+    },
     "black_merchant": {
         "handler": "_maybe_black_merchant",
         "call": "frame",
@@ -614,6 +631,12 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
 # The facts below describe what this checkpoint actually wires; time cave stays
 # Ground Truth-only until its production entry is separately designed.
 TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
+    "backpack_clean": {
+        "production_readiness": "CONDITIONAL",
+        "scope": "单次调用 production 背包清理状态机，返回 HUD 或选关页后停止。",
+        "routes": ({"route": "backpack_clean_once", "readiness": "CONDITIONAL"},),
+        "ground_truth_only": False,
+    },
     "black_merchant": {
         "production_readiness": "CONDITIONAL",
         "scope": "同一黑商遭遇内：买吞噬丹/木材/折扣并持续刷新；背包吞噬丹与英雄卡走各自现有 verifier，神器 Q/W/E 仅按现有开关、槽位与冷却条件释放。悬赏令仅留 Ground Truth。",
@@ -2571,6 +2594,8 @@ def _invoke_choice_probe(med: Mediator, frame: Frame, *, cycle_step: str) -> Any
 
 
 def _invoke_target_handler(med: Mediator, target: str, frame: Frame) -> Any:
+    if target == "backpack_clean":
+        return med._tick_backpack_clean(frame, time.time())
     if target in {"hitch_runtime", "solo_ingame_chain", "hitch_lobby_chain"}:
         return med.tick()
     if target == "choice_bond_skill":
@@ -3798,6 +3823,11 @@ class BundleRecorder:
     def _compute_final_status(self) -> tuple[str, str]:
         preflight = self.manifest.get("live_preflight") or {}
         preflight_status = str(preflight.get("status") or "")
+        if self.manifest.get("target") == "backpack_clean":
+            result = self.manifest.get("backpack_result") or {}
+            if preflight_status in {"BLOCKED_PRECHECK", "BLOCKED_PRECONDITION"}:
+                return "aborted", "; ".join(preflight.get("blocked_reasons") or [preflight_status])
+            return str(result.get("status") or "aborted"), str(result.get("reason") or "capture_timeout_or_stop")
         if preflight_status in {"BLOCKED_PRECHECK", "BLOCKED_PRECONDITION"}:
             return preflight_status, "; ".join(preflight.get("blocked_reasons") or [preflight_status])
         if self.manifest.get("ready_for_gt") is False and self.manifest.get("execution_mode") != "ground_truth_only":
@@ -4145,6 +4175,7 @@ def _start_surface_preflight(
     }
     if not _frame_is_valid(frame):
         if target in {
+            "backpack_clean",
             "solo_ingame_chain", "hitch_runtime", "hitch_lobby_chain",
             "choice_bond_skill", "treasure", "hero_evolve",
             "inventory_devour", "inventory_hero_card", "inventory_item",
@@ -4167,6 +4198,14 @@ def _start_surface_preflight(
             "reason": reason_ok if observed else reason_bad,
         })
         return result
+
+    if target == "backpack_clean":
+        solo = bool(getattr(med, "_backpack_clean_solo", False))
+        entry = "backpack/tab_cundang" if solo else "backpack/hud_cundang"
+        observed = med.find(frame, [entry], threshold=0.95 if solo else 0.85) is not None
+        if solo:
+            observed = observed and bool(med._find_stage_page(frame))
+        return _ok("production backpack entry", observed, "backpack entry confirmed", "backpack entry not visible; ZERO INPUT")
 
     if target == "s01_lobby_surface_identity":
         surface = _production_lobby_surface(med, frame)
@@ -4624,6 +4663,8 @@ def _capture_input_guard(target: str, execution_mode: str) -> Callable[[str, str
     allowed = _probe_allowed_reasons(target)
 
     def guard(method: str, reason: str) -> str | None:
+        if target == "backpack_clean" and not reason.startswith("backpack_clean:"):
+            return f"{target} permits only production backpack_clean actions"
         if _ground_truth_only(target):
             return f"{target} production is BLOCKED; Ground Truth capture is zero-input"
         if target == "s02_lobby_platform_modal" and reason not in TIER0_MODAL_DISMISS_REASONS:
@@ -4661,6 +4702,8 @@ def _prepare_settings(path: Path | None, target: str, live_input: bool) -> Setti
     settings = _load_operator_settings(path)
     if not live_input:
         settings.dry_run = True
+    if target == "backpack_clean":
+        settings.auto_clean_backpack = True
     # A Ground Truth-only target remains zero-input even when an operator
     # accidentally supplied --live-input. Never turn a production flag on in
     # Boss/时间之穴测试只在内存中使用不可用哨兵，强制验证最后可识别 Boss fallback。
@@ -4863,6 +4906,8 @@ def _is_emergency_reason(reason: str | None) -> bool:
 
 
 def _initial_phase_for_target(target: str) -> Phase:
+    if target == "backpack_clean":
+        return Phase.MAIN_LINE
     if target == "solo_ingame_chain":
         return Phase.BOOT
     if target in {"lobby_hitch", "lobby_search", "hitch_lobby_chain", "s01_lobby_surface_identity", "s02_lobby_platform_modal", "s05_lobby_search_join_ready", "s06_lobby_recovery_chain"}:
@@ -4926,6 +4971,10 @@ def _append_bookmark_command(
 
 def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
     target = args.target
+    backpack_capture = target == "backpack_clean" and not probe
+    backpack_entry = getattr(args, "backpack_entry", None)
+    if target == "backpack_clean" and backpack_entry not in {"ingame", "stage"}:
+        raise ValueError("backpack_clean requires --backpack-entry ingame|stage")
     until_success = bool(getattr(args, "until_success", False))
     until_success_ok = (
         args.live_input
@@ -4967,7 +5016,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
     execution_mode = (
         "ground_truth_only"
         if _ground_truth_only(target)
-        else ("target_handler" if probe else "mediator_tick")
+        else ("target_handler" if probe or backpack_capture else "mediator_tick")
     )
     runtime_root = _configured_production_source_root(getattr(args, "production_source_root", None)) or repo_root
     runtime_mediator_error: str | None = None
@@ -4983,8 +5032,12 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         med = Mediator(settings, runtime_root, stop_signal=stop_signal, incident_dir=bundle_dir / "incidents")
         if elevation_blocked:
             runtime_mediator_error = "Real input requires an elevated process; accept the UAC prompt from the desktop launcher"
-    initial_phase = Phase.ROOM_WAITING if current_room_archaeology else _initial_phase_for_target(target)
+    initial_phase = Phase.ROOM_WAITING if current_room_archaeology else (Phase.STAGE_SELECT if backpack_capture and backpack_entry == "stage" else _initial_phase_for_target(target))
     med.set_phase(initial_phase, f"{target} {'target probe' if probe else 'live capture'}")
+    if backpack_capture:
+        med._backpack_clean_solo = backpack_entry == "stage"
+        med._backpack_clean_phase = "wait_cundang"
+        med._backpack_clean_abort_reason = None
     if target == "hitch_lobby_chain":
         med._hitch_re_search = False
         try:
@@ -5012,6 +5065,8 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         production_source_root=runtime_root if runtime_root != repo_root else None,
         production_source_sha=getattr(args, "production_source_sha", None),
     )
+    if backpack_capture:
+        recorder.manifest["backpack_entry"] = backpack_entry
     if current_room_archaeology:
         recorder.solo_observer = None
         recorder.solo_observer_key = None
@@ -5075,6 +5130,10 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         recorder._write_manifest()
 
     guard_events: list[dict[str, str]] = []
+    if backpack_capture and not str(recorder.manifest.get("live_preflight", {}).get("status") or "").startswith("BLOCKED"):
+        med._backpack_clean_started_at = time.time()
+        med._backpack_clean_phase_since = med._backpack_clean_started_at
+        med._backpack_clean_deadline = med._backpack_clean_started_at + med._BACKPACK_CLEAN_HARD_CAP_S
 
     def on_guard(method: str, reason: str, denial: str) -> None:
         guard_events.append({"method": method, "reason": reason, "denial": denial})
@@ -5097,7 +5156,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
     awaiting_manual_resume = False
     requested_duration = float(getattr(args, "duration", 60.0))
     duration_s = max(0.0, requested_duration)
-    if probe:
+    if probe or backpack_capture:
         duration_s = min(duration_s, float(contract["max_probe_time_s"]))
     deadline = None if until_success else time.monotonic() + duration_s
     ticks = 0
@@ -5254,7 +5313,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                     frame=current_frame["value"],
                     result=loop_action,
                 )
-            elif probe:
+            elif probe or backpack_capture:
                 # Existing production handlers only. Black merchant also consumes
                 # bought devour pills through the existing inventory entry.
                 med._tick_no += 1
@@ -5305,6 +5364,13 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                 print(f"[live] 当前帧无效或正在过渡/最小化中，等待画面恢复 (tick {ticks})")
                 time.sleep(1.0)
                 continue
+            if backpack_capture and med._backpack_clean_phase == "idle":
+                recorder.manifest["backpack_result"] = {
+                    "status": "aborted" if med._backpack_clean_abort_reason else "cleaned",
+                    "reason": med._backpack_clean_abort_reason or "return_verified",
+                }
+                ticks += 1
+                break
             if guard_events:
                 blocked = guard_events[-1]
                 recorder.record_blocked(
@@ -5390,6 +5456,12 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             note=f"lobby search/room-select visual postcondition failed: {post_state}",
             )
     finally:
+        if backpack_capture and "backpack_result" not in recorder.manifest:
+            preflight_reason = str((recorder.manifest.get("live_preflight") or {}).get("start_surface", {}).get("reason") or "")
+            recorder.manifest["backpack_result"] = {
+                "status": "aborted",
+                "reason": med._backpack_clean_abort_reason or preflight_reason or "capture_timeout_or_stop",
+            }
         if med.emergency_listener:
             med.emergency_listener.stop()
             med.emergency_listener = None
@@ -6042,6 +6114,8 @@ def _common_live_args(parser: argparse.ArgumentParser) -> None:
         help="expected injected production SHA (required for GT runs when candidate source is injected)",
     )
     parser.add_argument("--settings", type=Path, default=None)
+    parser.add_argument("--backpack-entry", choices=("ingame", "stage"), default=None,
+                        help="backpack_clean 单次事务入口")
     parser.add_argument(
         "--direct-archaeology",
         action="store_true",
