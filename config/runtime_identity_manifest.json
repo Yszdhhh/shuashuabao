@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "candidate_sha": "29a1fb801689e674c9c0ba76487a4861e308c033",
-  "anchored_at": "2026-09-25T16:40:09+08:00",
-  "branch": "claude/project-thread-fqyf7h",
-  "note": "09-25 单人四修 + 黑商木材 + 背包清理"
+  "candidate_sha": "c81254b3a9a437147e7309237a3c3389198f1661",
+  "anchored_at": "2026-09-25T20:33:00+08:00",
+  "branch": "fix/solo-r2-20260925",
+  "note": "09-25 单人实测第二局 6 起问题综合修复"
 }
