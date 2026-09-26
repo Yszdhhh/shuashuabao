@@ -9,6 +9,17 @@ Keep this file current. Whoever picks the work up (any Claude, GPT or the Owner)
 - Fast lane (AGENTS.md): related tests + `tests/contract` + `tests/test_live_harness_refresh.py`, then re-pin `config/runtime_identity_manifest.json` `candidate_sha = git log -1 --format=%H -- src/shuabao`. Full `tools/release_gate.py` only before the merge tier.
 - Owner rules: `G:\刷刷宝\素材\系列标签\README_Owner口径.md` and the lock table `tests/test_owner_ingame_rules_lock_20260924.py`.
 
+## PR #51 merge close-out (2026-09-26)
+
+- PR #64 merged from `gpt/owner-bond-fallback-20260926` (`9acf0e9c`) as merge commit `dcf40b4c`. Kept its immediate-merge-only 10/10 capacity gate and advanced-group fallback. Excluded its removal of PR #58's `bond_negative_names`: default remains empty, dashboard `bond_banned` remains configurable, and normal, template-direct, and refresh-fallback picks all filter banned cards.
+- PR #63 merged from `claude/pr51-merchant-surface-20260926` (`1fa2583b`) as `cb9c742c`; merchant transactions are not treated as ordinary HUD.
+- PR #65 merged from `claude/pr51-blessing-priority-scope-20260926` (`0a0df021`) as `b9d45089`; blessing priority no longer blocks pickup/equipment/merchant handling while blessings remain incomplete.
+- PR #62 was not merged: it duplicates #64's capacity work, and #64 is stricter because a full 10/10 bar accepts only a card that immediately completes a merge.
+- Identity manifest is UTF-8 without BOM. `candidate_sha` is `b9d45089c07cc7cebf09a0994a003d860c512a9d`, the latest commit touching `src/shuabao`. Branch HEAD before this handoff update: `31511e0e43695872ca6c3c3610ecdaf0da79ffce`.
+- Fast lane: bond/owner/policy group **112 passed, 11 subtests passed**; selected `choice_policy` groups **54 passed, 11 subtests passed**; black-market plus PR #63/#65 group **249 passed, 13 subtests passed**; `tests/contract` plus `tests/test_live_harness_refresh.py` **93 passed, 232 subtests passed**. No remaining fast-lane failures.
+- One stale assertion expected an owned 2/4 bond to be selected with `free_slots=0`; it conflicted with #64's immediate-merge-only rule. Updated the expectation and reran that test: **1 passed**. A first combined exploratory run was interrupted while stalled and is not counted; the final split runs above completed.
+- Mimo owns the remaining close-out: run the full release gate; if all other stages pass and the only asset delta is the expected 430→436 templates, update `docs/baselines/GATE_BASELINE.json` with the documented reason, commit it, and rerun for 4/4 PASS; switch the desktop test bench to `b9d45089c07cc7cebf09a0994a003d860c512a9d` and verify `ready_for_gt: true`; complete the five live re-checks below. No gate, bench switch, or game run was done here.
+
 ## Merged into round4 today (latest first)
 
 | What | Source |
@@ -30,8 +41,7 @@ Keep this file current. Whoever picks the work up (any Claude, GPT or the Owner)
 
 | Item | Where | Next step |
 |---|---|---|
-| Owner rules full reconciliation | cloud thread "Owner 规则全面对账" | small PRs to round4, merge one by one |
-| Four red tests: emergency detour, merchant cycle skip / skip reason, fetter-label mapping | `G:\刷刷宝\Worktrees\red4-20260926`, `fix/red-tests-20260926` (uncommitted) | Source fix and focused verification below; parent owns combined fast-lane checks, layer commits and identity re-pin |
+| PR #62 capacity proposal | cloud PR #62 | intentionally not merged; #64 duplicates it and enforces the stricter immediate-merge-only rule at 10/10 |
 | Owner hand-cut series labels (海贼王, 海盗, 刀刀装备, 三国, 修仙, 魔法师/元素师/屠戮者) | branch `feat/owner-labels-20260926` (worktree `G:\刷刷宝\Worktrees\pick-speed2-20260926`), WIP 9b103ab1 + merge 54c69e80 | verify hit/false-hit on the 93 bond panels, then merge |
 | Unified exclusive screen classifier | brief `scene_classifier.md` (Claude scratchpad), paused by Owner until one EX run passes | resume later |
 
@@ -47,9 +57,9 @@ Keep this file current. Whoever picks the work up (any Claude, GPT or the Owner)
 
 ## Closing steps
 
-1. Merge everything in "Waiting" that is ready; fast lane must be green.
-2. `python tools/release_gate.py`. The only intended asset delta is +6 bond family templates (genji/shenfa recut). If every other stage is green: `python tools/release_gate.py --update-baseline --reason "PR #51: add 6 verified bond family templates; genji/shenfa recut from live frames"`, commit `docs/baselines/GATE_BASELINE.json`, push, rerun the gate and require 4/4 PASS, exit 0. Never refresh the baseline while pytest is red.
-3. Point the test bench at the final SHA, confirm `ready_for_gt: true`, put the SHA and gate result in the PR #51 description.
+1. Mimo runs `python tools/release_gate.py`. Expected asset baseline delta is 430→436 (+6 bond family templates, genji/shenfa recut); only if all other stages pass, update the baseline with the documented reason, commit it, and rerun for 4/4 PASS.
+2. Mimo points the desktop test bench at the source candidate SHA above, checks `ready_for_gt: true`, and records the SHA and gate result in the PR #51 description.
+3. Owner completes the five live re-checks below. No synthetic-frame result substitutes for live evidence.
 
 ## Owner live re-checks (morning)
 
