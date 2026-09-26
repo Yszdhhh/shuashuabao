@@ -49,10 +49,26 @@ def _replace_med(monkeypatch, texts, incoming=None):
     med = Mediator(Settings(), ROOT)
     med._ocr_client = _FakeOcr(texts) if texts is not None else None
     med._bond_replace_incoming = incoming
+    med._bond_replace_authorized = True
     clicked = []
     monkeypatch.setattr(med, "act_click", lambda hit, reason="": clicked.append((hit, reason)) or True)
+    monkeypatch.setattr(med, "_bond_bar_occupancy", lambda _frame: 10)
     frame = Frame(bgr=np.zeros((900, 1600, 3), dtype=np.uint8), left=0, top=0, hwnd=123)
     return med, frame, clicked
+
+
+def test_bond_slot_replacement_requires_immediate_merge_authorization(monkeypatch):
+    med, frame, clicked = _replace_med(monkeypatch, _FULL_BAR)
+    med._bond_replace_authorized = False
+    assert med._maybe_execute_bond_slot_replacement(frame) is False
+    assert clicked == []
+
+
+def test_bond_slot_replacement_cancels_after_merge_frees_a_slot(monkeypatch):
+    med, frame, clicked = _replace_med(monkeypatch, _FULL_BAR)
+    monkeypatch.setattr(med, "_bond_bar_occupancy", lambda _frame: 9)
+    assert med._maybe_execute_bond_slot_replacement(frame) is False
+    assert clicked == []
 
 
 def test_bond_slot_replacement_clicks_only_an_ocr_identified_non_target(monkeypatch):

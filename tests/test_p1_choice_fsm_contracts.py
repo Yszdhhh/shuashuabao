@@ -109,20 +109,30 @@ def test_bond_tier_cross_beats_non_crossing_gap_reduction() -> None:
 def test_bond_zero_slots_accepts_only_real_owned_merge() -> None:
     merge = choose_action(PanelCandidates(
         panel_kind=PANEL_BOND,
-        slots=(slot(0, "成长", evidence="1/3"), slot(1, "免费散卡", zero_cost=True)),
-        owned_bond_cards=("成长",),
+        slots=(slot(0, "成长", evidence="3/4"), slot(1, "免费散卡", zero_cost=True)),
+        owned_bond_cards=("成长", "成长", "成长"),
         settings=PolicySettings(bond_whitelist_mode="soft"),
         free_slots=0,
     ))
     assert (merge.action, merge.index) == (PolicyAction.SELECT_SLOT, 0)
-    unsafe = choose_action(PanelCandidates(
+
+    not_immediate = choose_action(PanelCandidates(
         panel_kind=PANEL_BOND,
-        slots=(slot(0, "免费散卡", zero_cost=True), slot(1, "未知已持有")),
+        slots=(slot(0, "成长", evidence="2/4"), slot(1, "免费散卡", zero_cost=True)),
+        owned_bond_cards=("成长", "成长"),
+        settings=PolicySettings(bond_whitelist_mode="soft"),
+        free_slots=0,
+    ))
+    assert not_immediate.action is PolicyAction.CLOSE
+
+    unknown_recipe = choose_action(PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(slot(0, "未知已持有"),),
         owned_bond_cards=("未知已持有",),
         settings=PolicySettings(bond_whitelist_mode="soft"),
         free_slots=0,
     ))
-    assert unsafe.action is PolicyAction.CLOSE
+    assert unknown_recipe.action is PolicyAction.CLOSE
 
 
 def test_merchant_requires_two_matching_frames_and_evicts_timeout() -> None:

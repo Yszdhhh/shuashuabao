@@ -155,6 +155,21 @@ def test_refresh_fallback_after_all_advanced_complete_allows_any_advanced_or_bas
     assert (decision.action, decision.index) == (PolicyAction.SELECT_SLOT, 0), decision.reason
 
 
+def test_no_advanced_pack_selected_does_not_unlock_unselected_advanced_fallback() -> None:
+    policy = _policy([], bonds=("祝福",))
+    decision = _decide(
+        policy, ["见习海贼", "贪婪"],
+        refreshes=3, can_refresh=False, completed_advanced_groups=0,
+    )
+    assert (decision.action, decision.index) == (PolicyAction.SELECT_SLOT, 1), decision.reason
+
+    only_advanced = _decide(
+        policy, ["见习海贼", "异火"],
+        refreshes=3, can_refresh=False, completed_advanced_groups=0,
+    )
+    assert only_advanced.action is not PolicyAction.SELECT_SLOT
+
+
 def test_refresh_is_used_before_the_fallback() -> None:
     policy = _policy(["daodao"], bonds=("祝福",))
     decision = _decide(policy, ["见习海贼", "贪婪"], refreshes=2, can_refresh=True)
