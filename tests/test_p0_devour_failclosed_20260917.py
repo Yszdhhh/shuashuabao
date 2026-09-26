@@ -2,7 +2,7 @@
 """P0-2：低占用不吞丹；用户 2026-09-23 授权近满时使用。
 
 Owner 2026-09-24：单人默认吃吞噬丹（看板不加开关，不再看 auto_devour_dan），
-羁绊栏超过一半（≥6/10）就吃；吞噬只提前腾格子，不影响合成进度。弹窗与未知
+Owner 2026-09-25 改为羁绊栏空位 ≤ 2（≥8/10）才吃；吞噬只提前腾格子，不影响合成进度。弹窗与未知
 道具由单人物品栏调度另行处理。本文件只运行 mock 输入。
 
 本文件零真实输入：executor 一律换成 MagicMock 记录器，任何一次真的
@@ -125,11 +125,11 @@ def test_saved_true_is_preserved_and_missing_key_falls_back_to_disabled(tmp_path
 
 def test_real_gate_waits_until_bond_bar_is_over_half() -> None:
     med = _med(CoreMediator)
-    for occupied in (3, 4, 5):
+    for occupied in (3, 4, 5, 6, 7):
         frame = _bond_frame(occupied)
         assert med._bond_bar_occupancy(frame) == occupied
         assert med._can_consume_inventory_swallow_pill(frame) is False
-    for occupied in (6, 8, 10):
+    for occupied in (8, 9, 10):
         assert med._can_consume_inventory_swallow_pill(_bond_frame(occupied)) is True
 
 
@@ -137,8 +137,13 @@ def test_real_gate_waits_until_bond_bar_is_over_half() -> None:
 def test_solo_eats_pill_over_half_even_with_saved_false(cls) -> None:
     med = _med(cls, auto_devour_dan=False)
     pill = MatchResult("danGif", 0.95, 1100, 780, 20, 20, 1100, 780)
+    # Owner 2026-09-25: 7/10 未达 8/10，不吃丹
     with _pill_only_find(med, pill), patch.object(med, "act_click", return_value=True) as click:
-        assert med._maybe_use_inventory_item(_bond_frame(6)) is LoopAction.Continue
+        assert med._maybe_use_inventory_item(_bond_frame(7)) is None
+    click.assert_not_called()
+    # 8/10 达到门限，吃丹
+    with _pill_only_find(med, pill), patch.object(med, "act_click", return_value=True) as click:
+        assert med._maybe_use_inventory_item(_bond_frame(8)) is LoopAction.Continue
     click.assert_called_once_with(pill, "UseInventory-swallow_pill")
 
 
@@ -174,7 +179,7 @@ def test_undead_selected_but_not_started_does_not_hold() -> None:
 
 
 @pytest.mark.parametrize("cls", [CoreMediator, RuntimeMediator])
-@pytest.mark.parametrize("occupied", [3, 4, 5])
+@pytest.mark.parametrize("occupied", [3, 4, 5, 6, 7])
 def test_consumer_waits_for_half_full_bar_even_with_saved_true(cls, occupied: int) -> None:
     med = _med(cls, auto_devour_dan=True)
     frame = _bond_frame(occupied)

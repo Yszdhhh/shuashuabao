@@ -114,6 +114,62 @@
       "sha256": "e04db1ec8713e55ecf2ecdd07de8e481a26c5b72ddec78a3c89bfe9899bb9c4d"
     },
     {
+      "path": "assets/Images/backpack/hud_cundang.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from live read-only capture backpack_clean_gt_20260925 g0001",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 4278,
+      "sha256": "e98b4a43250dfece042fed51e5cade2c605c7d1b842fd3ff89dce22243342587"
+    },
+    {
+      "path": "assets/Images/backpack/quality_no.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from live read-only capture backpack_clean_gt_20260925 g0004",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 4043,
+      "sha256": "afd6c4e468aadea6f363f296202b06bdb37e49a916956b0861b7f5aaa27c0e8d"
+    },
+    {
+      "path": "assets/Images/backpack/quality_title.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from live read-only capture backpack_clean_gt_20260925 g0004",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 6332,
+      "sha256": "df3fee05d1d551a3886d96c979ea482518829b8e3f60bbbde3d467be151cd8c7"
+    },
+    {
+      "path": "assets/Images/backpack/quality_yes.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from live read-only capture backpack_clean_gt_20260925 g0004",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 3965,
+      "sha256": "49c4fb2d0da2c423c61c80ca19936ca0dc8225b2660e09c9f8892ac9179925e1"
+    },
+    {
+      "path": "assets/Images/backpack/return_game.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from live read-only capture backpack_clean_gt_20260925 g0002",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 3833,
+      "sha256": "4d72990c4b6d5cfed661a3a7c0d189791d92fc9119de02454958f478bb68a8af"
+    },
+    {
+      "path": "assets/Images/backpack/tab_cundang.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from real stage-select frame highlight_on_1_1_client_1600x900",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 2131,
+      "sha256": "8a710c5f1eb1862f4a859b1ca05d5b5cb33b0e1763b41cd4fd8d695f7a18450f"
+    },
+    {
+      "path": "assets/Images/backpack/tab_lobby.png",
+      "purpose": "runtime_template",
+      "provenance": "cut 2026-09-25 from live read-only capture backpack_clean_gt_20260925 g0002",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 3926,
+      "sha256": "4fdbd311b0c4e7652d8f5f520a3421ffbfd1d8a8757ae965be2aa0c27366c411"
+    },
+    {
       "path": "assets/Images/bag/bag_sell_equipment.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
@@ -842,12 +898,28 @@
       "sha256": "ccc68b3f96c68da62ba3ce1dec66c3d5667d74bb5ba8f450691790808e11e713"
     },
     {
+      "path": "assets/Images/cards/cangbaotu.png",
+      "purpose": "runtime_template",
+      "provenance": "cropped from live solo capture solo_ingame_chain_20260925_230841_870781/frames/f0096_state_change.png tick 112 slot 1 crop (613, 176, 675, 201) (bond series-label; OpenCV grayscale)",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 1119,
+      "sha256": "938971096d19c575f8ba8320fa8cc12ea232bec15af8aea65ad35f221955f7b8"
+    },
+    {
       "path": "assets/Images/cards/chengzhang.png",
       "purpose": "runtime_template",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
       "reason_required": "runtime visual matching template",
       "size_bytes": 2224,
       "sha256": "272e19dd82a737ac3b4f8dc5fd733a4a4d7b56e1794951a17e1928c2cf0953d1"
+    },
+    {
+      "path": "assets/Images/cards/daodao.png",
+      "purpose": "runtime_template",
+      "provenance": "cropped from live solo capture solo_ingame_chain_20260925_230841_870781/frames/f0068_action_before.png tick 94 slot 2 crop (899, 176, 943, 201) (bond series-label; OpenCV grayscale)",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 718,
+      "sha256": "5ba5f8a829f439cd1b4e8f7578110ab8519348a5896fc237975c32508c11a106"
     },
     {
       "path": "assets/Images/cards/dapao.png",
@@ -890,6 +962,14 @@
       "sha256": "34edec97523497eaf1b963edbcf61ebda5b54958c53a5c69b9c296fff3c9c79c"
     },
     {
+      "path": "assets/Images/cards/fengshen.png",
+      "purpose": "runtime_template",
+      "provenance": "cropped from live solo capture solo_ingame_chain_20260925_230841_870781/frames/f0074_state_change.png tick 98 slot 0 crop (369, 176, 413, 201) (bond series-label; OpenCV grayscale)",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 881,
+      "sha256": "eea8396967442b36e348c6a8bbeb8ee2d2c7df7ba32d38a00c37dc576287c40f"
+    },
+    {
       "path": "assets/Images/cards/fs.png",
       "purpose": "runtime_template",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
@@ -900,10 +980,10 @@
     {
       "path": "assets/Images/cards/genji.png",
       "purpose": "runtime_template",
-      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "provenance": "cropped from live solo capture solo_ingame_chain_20260925_230841_870781/frames/f0187_action_before.png tick 174 slot 0 crop (349, 176, 391, 201) (bond series-label; OpenCV grayscale)",
       "reason_required": "runtime visual matching template",
-      "size_bytes": 2039,
-      "sha256": "d6031eda83034e922c1cde659946b421f7807c6464568e631c695d43feaef6f9"
+      "size_bytes": 747,
+      "sha256": "254294800aefa6d420937cd4811805b380972896060f0b842a3b19e04f9b6d24"
     },
     {
       "path": "assets/Images/cards/gongshen.png",
@@ -928,6 +1008,14 @@
       "reason_required": "runtime visual matching template",
       "size_bytes": 1585,
       "sha256": "ec8c4f83c31399ce417963e4bcf49c5e13eb76b6859347571b419ff5d029825b"
+    },
+    {
+      "path": "assets/Images/cards/jianshu.png",
+      "purpose": "runtime_template",
+      "provenance": "cropped from live solo capture solo_ingame_chain_20260925_230841_870781/frames/f0074_state_change.png tick 98 slot 2 crop (899, 176, 943, 201) (bond series-label; OpenCV grayscale)",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 831,
+      "sha256": "196d0463803b234534fd5fb6bf49aa4340445228d7e9ec7003409197efaccdbb"
     },
     {
       "path": "assets/Images/cards/jisu.png",
@@ -994,12 +1082,20 @@
       "sha256": "7eaaf42b0429a1f34c72959d56752c73e56dafbf34eae6e8d9213b1fc7bd9636"
     },
     {
+      "path": "assets/Images/cards/sanguo.png",
+      "purpose": "runtime_template",
+      "provenance": "cropped from live solo capture solo_ingame_chain_20260925_230841_870781/frames/f0096_state_change.png tick 112 slot 0 crop (371, 176, 415, 201) (bond series-label; OpenCV grayscale)",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 625,
+      "sha256": "93ab7bbd6a8cefc2773974b244383aed39dc48f1353d83e28080d6485f3da37f"
+    },
+    {
       "path": "assets/Images/cards/shenfa.png",
       "purpose": "runtime_template",
-      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "provenance": "cropped from live solo capture solo_ingame_chain_20260925_230841_870781/frames/f0205_action_before.png tick 187 slot 0 crop (349, 176, 389, 201) (bond series-label; OpenCV grayscale)",
       "reason_required": "runtime visual matching template",
-      "size_bytes": 2144,
-      "sha256": "d45fb230813fce64d47f5081c436db6f4506ec0e2e7e2c3057a2c552def48922"
+      "size_bytes": 763,
+      "sha256": "32f6e9b7bae422e5e991c43cfa968523d1dba4c3055f7da7b432f232c7e05d36"
     },
     {
       "path": "assets/Images/cards/shengming.png",
@@ -1056,6 +1152,14 @@
       "reason_required": "runtime visual matching template",
       "size_bytes": 2398,
       "sha256": "3f172eba6a688cd7ae94a69e8f60789d4b348ad0aa4b4ca65bda706e1cfd2253"
+    },
+    {
+      "path": "assets/Images/cards/wangling.png",
+      "purpose": "runtime_template",
+      "provenance": "cropped from live solo capture solo_ingame_chain_20260925_230841_870781/frames/f0068_action_before.png tick 94 slot 1 crop (644, 176, 688, 201) (bond series-label; OpenCV grayscale)",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 659,
+      "sha256": "6502a0532e8d9d466c2c2a105e075ad8019f7f308a1b99f72db0db845b418725"
     },
     {
       "path": "assets/Images/cards/xianzhen.png",
@@ -2596,10 +2700,10 @@
     {
       "path": "assets/Images/merchant_wood.png",
       "purpose": "runtime_ui",
-      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "provenance": "live capture solo_ingame_chain_20260925_145724_766240 f0249_action_before.png merchant slot 2 wood icon core (44x22, excludes 8折 badge and price bar)",
       "reason_required": "runtime UI/status/icon asset",
-      "size_bytes": 6927,
-      "sha256": "1bf0ec8b49d26901cbf9f6777b372bb80f22e828ed7431ad6d5c941671325868"
+      "size_bytes": 2002,
+      "sha256": "43122c9b30fb3ddf041c383beb9d41b9336b333d7828bca06491035b9c2c7aff"
     },
     {
       "path": "assets/Images/mijingOk.png",

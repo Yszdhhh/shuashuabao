@@ -15,6 +15,7 @@ Examples::
     python tools/live_scenario_capture.py probe --target inventory_item \
         --out C:/tmp/shuabao-probes --duration 15
     python tools/live_scenario_capture.py replay --bundle C:/tmp/.../bundle
+    python tools/live_scenario_capture.py export --run C:/tmp/.../bundle --at 08:29 --window 8
 
 ``Natural E2E`` remains a separate live PASS.  A frozen replay PASS is only an
 offline regression result and is recorded as such in the bundle metadata.
@@ -123,7 +124,10 @@ from shuabao.input.keyboard_mouse import (
     InputExecutor,
     is_current_process_elevated,
 )  # noqa: E402
-from shuabao.input.emergency_stop import EmergencyStopListener  # noqa: E402
+from shuabao.input.emergency_stop import (  # noqa: E402
+    EmergencyStopListener,
+    check_key_pressed_win32,
+)  # noqa: E402
 from shuabao.loop_action import LoopAction  # noqa: E402
 from shuabao.mediator import BUILD_ID, Mediator, Phase  # noqa: E402
 from shuabao.player_profile import LiveLane, LiveLaneBusy  # noqa: E402
@@ -181,6 +185,23 @@ TARGET_CONTRACT_FIELDS = (
 # the named existing Mediator method; these fields make its entry conditions
 # and evidence bar visible before a live session starts.
 TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
+    "backpack_clean": {
+        "handler": "_tick_backpack_clean",
+        "call": "frame, now",
+        "start_condition": "局内 HUD 存档入口或单人选关页存档页签可见。",
+        "production_entry": "只调用 Mediator._tick_backpack_clean；本次设置副本立即到期，事务后停止。",
+        "expected_steps": ("ARCHIVE", "EQUIPMENT", "DECOMPOSE", "QUALITY", "RETURN_VERIFIED"),
+        "success_postcondition": "品质确认后返回局内 HUD 或选关页，且生产状态机确认。",
+        "fail_condition": "品质勾选异常、事务超时或返回页面未确认。",
+        "blocked_condition": "60 秒内无法识别指定入口；零输入退出。",
+        "max_probe_time_s": 60.0,
+        "natural_e2e_eligible": "独立单次事务，不计完整自然链路。",
+        "bundle_replay": "采集真实帧和 production 输入用于冻结回放。",
+        "runbook_manual": "B1 停在局内 HUD；B2 停在单人选关页。只运行一次清理事务。",
+        "runbook_hands_off": "启动后不要手动点击存档、装备、分解或返回页签。",
+        "runbook_pass": "manifest 中 final_status=cleaned 且返回页面已确认。",
+        "runbook_manual_intervention": "需要人工干预时标记 MANUAL_INTERVENTION。",
+    },
     "black_merchant": {
         "handler": "_maybe_black_merchant",
         "call": "frame",
@@ -614,6 +635,12 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
 # The facts below describe what this checkpoint actually wires; time cave stays
 # Ground Truth-only until its production entry is separately designed.
 TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
+    "backpack_clean": {
+        "production_readiness": "CONDITIONAL",
+        "scope": "单次调用 production 背包清理状态机，返回 HUD 或选关页后停止。",
+        "routes": ({"route": "backpack_clean_once", "readiness": "CONDITIONAL"},),
+        "ground_truth_only": False,
+    },
     "black_merchant": {
         "production_readiness": "CONDITIONAL",
         "scope": "同一黑商遭遇内：买吞噬丹/木材/折扣并持续刷新；背包吞噬丹与英雄卡走各自现有 verifier，神器 Q/W/E 仅按现有开关、槽位与冷却条件释放。悬赏令仅留 Ground Truth。",
@@ -1079,9 +1106,10 @@ class _SoloRouteDiagnosticsMixin:
 class SoloIngameChainObserver(_SoloRouteDiagnosticsMixin):
     """Observe the production stage-to-post-game chain without adding FSM logic."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, require_secret_realm: bool = False) -> None:
         self._observation_no = 0
         self._postgame_seen = False
+        self.require_secret_realm = bool(require_secret_realm)
         self._init_route_diagnostics()
         self.failed_reason: str | None = None
         self.blocked_reason: str | None = None
@@ -1174,12 +1202,6 @@ class SoloIngameChainObserver(_SoloRouteDiagnosticsMixin):
         if postgame:
             self._postgame_seen = True
             self._pass("POSTGAME_SURFACE_CLASSIFIED", evidence={**evidence, "surface": postgame})
-        if self._postgame_seen and (
-            bool(state.get("post_game_pending"))
-            or bool(state.get("secret_realm_active"))
-            or reason in {"ContinueGame", "BossConfigured", "OpenGreatRift", "ConfirmGreatRift"}
-        ):
-            self._pass("POSTGAME_ROUTE_PROGRESS", evidence=evidence)
         reason_lower = reason.lower()
         for name, markers in (
             ("BLACK_MERCHANT", ("blackmerchant", "merchant")),
@@ -1190,6 +1212,19 @@ class SoloIngameChainObserver(_SoloRouteDiagnosticsMixin):
             if self.optional_events[name]["status"] == "NOT_OBSERVED" and any(marker in reason_lower for marker in markers):
                 self.optional_events[name] = {"status": "OBSERVED", "evidence": _jsonable(evidence)}
         self._observe_route_diagnostics(med, state, frame, surfaces, reason, action, evidence)
+        secret_realm_finished = (
+            self.route_observations["SECRET_REALM_ROUTE"]["confirmation_status"] == "PASS"
+            and not bool(state.get("secret_realm_active"))
+            and (surfaces["stage"] or surfaces["postgame"] in {"POST_VICTORY", "NPC_HUB"})
+        )
+        if self._postgame_seen and (
+            secret_realm_finished if self.require_secret_realm else (
+                bool(state.get("post_game_pending"))
+                or bool(state.get("secret_realm_active"))
+                or reason in {"ContinueGame", "BossConfigured", "OpenGreatRift", "ConfirmGreatRift"}
+            )
+        ):
+            self._pass("POSTGAME_ROUTE_PROGRESS", evidence=evidence)
         return self.is_pass
 
     @property
@@ -1802,6 +1837,65 @@ class BookmarkCommandReader:
         except (ImportError, OSError):
             pass
         return commands
+
+
+VK_F9 = 0x78
+OWNER_MARK_PRE_S = 10.0
+OWNER_MARK_POST_S = 5.0
+
+
+class OwnerMarkListener:
+    """Background F9 listener that only queues owner marks.  Never sends input.
+
+    Mirrors :class:`EmergencyStopListener`'s polling style but watches a
+    different virtual key (F9, ``VK_F9``), so it neither conflicts with nor
+    affects the Shift+F12 emergency-stop thread.  The callback receives the
+    wall-clock press time and must stay read-only: the live loop drains the
+    queue on the main thread and persists evidence without touching the
+    mediator decision or the input executor.
+    """
+
+    def __init__(
+        self,
+        on_press: Callable[[float], None] | None = None,
+        poll_interval: float = 0.05,
+        key_check: Callable[[int], bool] | None = None,
+    ) -> None:
+        self._on_press = on_press
+        self.poll_interval = poll_interval
+        self._key_check = key_check or check_key_pressed_win32
+        self._running = False
+        self._was_down = False
+        self._thread: threading.Thread | None = None
+
+    def _poll_once(self) -> bool:
+        down = bool(self._key_check(VK_F9))
+        pressed = down and not self._was_down
+        self._was_down = down
+        if pressed and self._on_press is not None:
+            self._on_press(time.time())
+        return pressed
+
+    def _poll_loop(self) -> None:
+        while self._running:
+            try:
+                self._poll_once()
+            except Exception:
+                pass
+            time.sleep(self.poll_interval)
+
+    def start(self) -> None:
+        if self._running:
+            return
+        self._running = True
+        self._thread = threading.Thread(target=self._poll_loop, daemon=True, name="OwnerMarkListener")
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._running = False
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=0.5)
+            self._thread = None
 
 
 def _utc_now() -> str:
@@ -2571,6 +2665,8 @@ def _invoke_choice_probe(med: Mediator, frame: Frame, *, cycle_step: str) -> Any
 
 
 def _invoke_target_handler(med: Mediator, target: str, frame: Frame) -> Any:
+    if target == "backpack_clean":
+        return med._tick_backpack_clean(frame, time.time())
     if target in {"hitch_runtime", "solo_ingame_chain", "hitch_lobby_chain"}:
         return med.tick()
     if target == "choice_bond_skill":
@@ -3078,6 +3174,7 @@ class BundleRecorder:
         self._last_state: dict[str, Any] | None = None
         self._pending_event_index: int | None = None
         self._blocked_recorded = False
+        self._pending_marks: list[dict[str, Any]] = []
         self._clock_start = time.monotonic()
         self.inputs_this_tick: list[dict[str, Any]] = []
         self._frame_write_queue: queue.Queue[tuple[Path, Frame] | None] = queue.Queue()
@@ -3172,6 +3269,7 @@ class BundleRecorder:
             "recent_trace": [],
             "bookmarks": [],
             "bookmark_summary": {status: 0 for status in BOOKMARK_STATUSES},
+            "marks": [],
             "automatic_failures": [],
             "failure_summaries": [],
             "generated_cases": [],
@@ -3197,7 +3295,9 @@ class BundleRecorder:
         self.solo_observer: SoloIngameChainObserver | HitchLobbyChainObserver | None
         if target == "solo_ingame_chain":
             self.solo_observer_key = "solo_ingame_chain"
-            self.solo_observer = SoloIngameChainObserver()
+            self.solo_observer = SoloIngameChainObserver(
+                require_secret_realm=bool(getattr(settings, "auto_secret_realm", False)),
+            )
             self.manifest[self.solo_observer_key] = self.solo_observer.payload()
         elif target == "hitch_lobby_chain":
             self.solo_observer_key = "hitch_lobby_chain"
@@ -3272,6 +3372,122 @@ class BundleRecorder:
             at_s=at_s,
             automatic=False,
         )
+
+    def record_owner_mark(
+        self,
+        med: Mediator,
+        frame: Frame | None = None,
+        *,
+        at_s: float | None = None,
+        wall_ts: float | None = None,
+    ) -> dict[str, Any]:
+        """Persist one read-only owner mark.  Never sends game input.
+
+        Writes ``{"owner_mark": {"ts": ..., "n": ...}}`` into the current
+        trace tick, then packages frames from 10s before to 5s after the
+        press plus recent trace rows and ``_state_snapshot`` under
+        ``marks/mark_<n>_<elapsed>/``.  Post-press frames are backfilled by
+        subsequent :meth:`record_tick` calls and closed in :meth:`finalize`.
+        """
+        at_s = self.elapsed() if at_s is None else float(at_s)
+        wall_ts = time.time() if wall_ts is None else float(wall_ts)
+        number = len(self.manifest.get("marks") or []) + 1
+        row = {
+            "tick": getattr(med, "_tick_no", None),
+            "ts": round(wall_ts, 3),
+            "owner_mark": {"ts": round(wall_ts, 3), "n": number},
+        }
+        self._append_trace(row)
+        self._save_frame(
+            _copy_frame(frame) or _copy_frame(getattr(med, "_last_frame", None)),
+            "owner_mark",
+            at_s,
+        )
+        self._flush_frame_writes()
+        state = _state_snapshot(med, getattr(med, "_context_cache_value", None))
+        dirname = f"mark_{number:04d}_{at_s:08.3f}s"
+        mark_dir = self.bundle_dir / "marks" / dirname
+        mark_dir.mkdir(parents=True, exist_ok=True)
+        (mark_dir / "state_snapshot.json").write_text(
+            json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        (mark_dir / "trace_slice.json").write_text(
+            json.dumps(list(self._recent_trace), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        record = {
+            "n": number,
+            "dir": f"marks/{dirname}",
+            "at_s": round(at_s, 3),
+            "ts": round(wall_ts, 3),
+            "tick": getattr(med, "_tick_no", None),
+            "state_snapshot_file": f"marks/{dirname}/state_snapshot.json",
+            "trace_file": f"marks/{dirname}/trace_slice.json",
+            "frames": self._copy_mark_frames(mark_dir, at_s - OWNER_MARK_PRE_S, at_s),
+            "window_end_at_s": round(at_s + OWNER_MARK_POST_S, 3),
+            "closed": False,
+        }
+        (mark_dir / "mark.json").write_text(
+            json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        self._pending_marks.append(record)
+        self.manifest["marks"].append(record)
+        self._write_manifest()
+        print(f"[mark] 已标记第 {number} 处问题")
+        return record
+
+    def _copy_mark_frames(self, mark_dir: Path, start_at_s: float, end_at_s: float) -> list[str]:
+        copied: list[str] = []
+        for frame in self.manifest.get("frames") or []:
+            try:
+                at = float(frame.get("at_s", 0.0))
+            except (TypeError, ValueError):
+                continue
+            if not (start_at_s <= at <= end_at_s):
+                continue
+            source = self.bundle_dir / str(frame.get("file") or "")
+            if not source.is_file():
+                continue
+            target = mark_dir / source.name
+            if not target.exists():
+                shutil.copy2(source, target)
+            relative = f"{mark_dir.name}/{source.name}"
+            if relative not in copied:
+                copied.append(f"marks/{relative}")
+        return copied
+
+    def _collect_mark_frames(self, at_s: float) -> None:
+        if not getattr(self, "_pending_marks", None):
+            return
+        self._flush_frame_writes()
+        for record in self._pending_marks:
+            if record.get("closed"):
+                continue
+            mark_dir = self.bundle_dir / str(record["dir"])
+            end_at_s = min(float(at_s), float(record.get("window_end_at_s", 0.0)))
+            for relative in self._copy_mark_frames(mark_dir, float(record.get("at_s", 0.0)), end_at_s):
+                if relative not in record["frames"]:
+                    record["frames"].append(relative)
+            if float(at_s) >= float(record.get("window_end_at_s", 0.0)):
+                record["closed"] = True
+            try:
+                (mark_dir / "mark.json").write_text(
+                    json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8"
+                )
+            except OSError:
+                pass
+        self._write_manifest()
+
+    def _close_owner_marks(self) -> None:
+        for record in getattr(self, "_pending_marks", None) or []:
+            record["closed"] = True
+            try:
+                mark_dir = self.bundle_dir / str(record["dir"])
+                (mark_dir / "mark.json").write_text(
+                    json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8"
+                )
+            except OSError:
+                pass
 
     def record_blocked(
         self,
@@ -3552,6 +3768,7 @@ class BundleRecorder:
             "phase_after": phase_after,
             "context": getattr(med, "_context_cache_value", None),
             "actions": getattr(med, "_trace_actions", []),
+            "decision_reasons": list(getattr(med, "_tick_decision_reasons", None) or []),
             "controls": getattr(med, "_trace_controls", []),
             "scenes": getattr(med, "_trace_scenes", []),
             "decision": getattr(med, "_trace_decision", lambda: None)(),
@@ -3618,7 +3835,11 @@ class BundleRecorder:
                     "confirmed_at_s": round(at_s, 3),
                     "confirmed_by_event": f"e{self._event_number:04d}",
                 }
-                if target_observed and pending_postcondition.get("authoritative", True):
+                if (
+                    target_observed
+                    and pending_postcondition.get("authoritative", True)
+                    and str(self.manifest["target"]) != "solo_ingame_chain"
+                ):
                     self._record_authoritative_target_result(
                         event_id=pending_event.get("event_id"),
                         postcondition=pending_event["postcondition"],
@@ -3690,6 +3911,7 @@ class BundleRecorder:
         if (
             event["postcondition"].get("observed") is True
             and event["postcondition"].get("authoritative", True)
+            and str(self.manifest["target"]) != "solo_ingame_chain"
         ):
             self._record_authoritative_target_result(
                 event_id=event["event_id"],
@@ -3706,6 +3928,7 @@ class BundleRecorder:
             self.solo_observer.observe(med, after_state, after_frame or before_frame, trace_row, action)
             self.manifest[str(self.solo_observer_key)] = self.solo_observer.payload()
         self._write_manifest(checkpoint=False)
+        self._collect_mark_frames(at_s)
         return event
 
     def record_direct(
@@ -3764,9 +3987,17 @@ class BundleRecorder:
     def finalize(self) -> Path:
         self._close_frame_writer()
         self._read_trace()
+        self._close_owner_marks()
         self.manifest["completed_at_utc"] = _utc_now()
         if self.solo_observer is not None:
             self.manifest[str(self.solo_observer_key)] = self.solo_observer.payload()
+            if self.manifest.get("target") == "solo_ingame_chain" and self.solo_observer.is_pass:
+                last_event = (self.manifest.get("events") or [{}])[-1]
+                self._record_authoritative_target_result(
+                    event_id=last_event.get("event_id"),
+                    postcondition={"kind": "solo_ingame_chain_complete"},
+                    target_stage="POSTGAME_ROUTE_COMPLETE",
+                )
             # Hitch HUD/room observations are intermediate evidence.  Promote
             # the target result only after the observer has verified every
             # required round and lobby return; this prevents a first-HUD
@@ -3798,6 +4029,11 @@ class BundleRecorder:
     def _compute_final_status(self) -> tuple[str, str]:
         preflight = self.manifest.get("live_preflight") or {}
         preflight_status = str(preflight.get("status") or "")
+        if self.manifest.get("target") == "backpack_clean":
+            result = self.manifest.get("backpack_result") or {}
+            if preflight_status in {"BLOCKED_PRECHECK", "BLOCKED_PRECONDITION"}:
+                return "aborted", "; ".join(preflight.get("blocked_reasons") or [preflight_status])
+            return str(result.get("status") or "aborted"), str(result.get("reason") or "capture_timeout_or_stop")
         if preflight_status in {"BLOCKED_PRECHECK", "BLOCKED_PRECONDITION"}:
             return preflight_status, "; ".join(preflight.get("blocked_reasons") or [preflight_status])
         if self.manifest.get("ready_for_gt") is False and self.manifest.get("execution_mode") != "ground_truth_only":
@@ -4145,6 +4381,7 @@ def _start_surface_preflight(
     }
     if not _frame_is_valid(frame):
         if target in {
+            "backpack_clean",
             "solo_ingame_chain", "hitch_runtime", "hitch_lobby_chain",
             "choice_bond_skill", "treasure", "hero_evolve",
             "inventory_devour", "inventory_hero_card", "inventory_item",
@@ -4167,6 +4404,14 @@ def _start_surface_preflight(
             "reason": reason_ok if observed else reason_bad,
         })
         return result
+
+    if target == "backpack_clean":
+        solo = bool(getattr(med, "_backpack_clean_solo", False))
+        entry = "backpack/tab_cundang" if solo else "backpack/hud_cundang"
+        observed = med.find(frame, [entry], threshold=0.95 if solo else 0.85) is not None
+        if solo:
+            observed = observed and bool(med._find_stage_page(frame))
+        return _ok("production backpack entry", observed, "backpack entry confirmed", "backpack entry not visible; ZERO INPUT")
 
     if target == "s01_lobby_surface_identity":
         surface = _production_lobby_surface(med, frame)
@@ -4624,6 +4869,8 @@ def _capture_input_guard(target: str, execution_mode: str) -> Callable[[str, str
     allowed = _probe_allowed_reasons(target)
 
     def guard(method: str, reason: str) -> str | None:
+        if target == "backpack_clean" and not reason.startswith("backpack_clean:"):
+            return f"{target} permits only production backpack_clean actions"
         if _ground_truth_only(target):
             return f"{target} production is BLOCKED; Ground Truth capture is zero-input"
         if target == "s02_lobby_platform_modal" and reason not in TIER0_MODAL_DISMISS_REASONS:
@@ -4661,6 +4908,8 @@ def _prepare_settings(path: Path | None, target: str, live_input: bool) -> Setti
     settings = _load_operator_settings(path)
     if not live_input:
         settings.dry_run = True
+    if target == "backpack_clean":
+        settings.auto_clean_backpack = True
     # A Ground Truth-only target remains zero-input even when an operator
     # accidentally supplied --live-input. Never turn a production flag on in
     # Boss/时间之穴测试只在内存中使用不可用哨兵，强制验证最后可识别 Boss fallback。
@@ -4863,6 +5112,8 @@ def _is_emergency_reason(reason: str | None) -> bool:
 
 
 def _initial_phase_for_target(target: str) -> Phase:
+    if target == "backpack_clean":
+        return Phase.MAIN_LINE
     if target == "solo_ingame_chain":
         return Phase.BOOT
     if target in {"lobby_hitch", "lobby_search", "hitch_lobby_chain", "s01_lobby_surface_identity", "s02_lobby_platform_modal", "s05_lobby_search_join_ready", "s06_lobby_recovery_chain"}:
@@ -4926,6 +5177,10 @@ def _append_bookmark_command(
 
 def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
     target = args.target
+    backpack_capture = target == "backpack_clean" and not probe
+    backpack_entry = getattr(args, "backpack_entry", None)
+    if target == "backpack_clean" and backpack_entry not in {"ingame", "stage"}:
+        raise ValueError("backpack_clean requires --backpack-entry ingame|stage")
     until_success = bool(getattr(args, "until_success", False))
     until_success_ok = (
         args.live_input
@@ -4967,7 +5222,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
     execution_mode = (
         "ground_truth_only"
         if _ground_truth_only(target)
-        else ("target_handler" if probe else "mediator_tick")
+        else ("target_handler" if probe or backpack_capture else "mediator_tick")
     )
     runtime_root = _configured_production_source_root(getattr(args, "production_source_root", None)) or repo_root
     runtime_mediator_error: str | None = None
@@ -4983,8 +5238,12 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         med = Mediator(settings, runtime_root, stop_signal=stop_signal, incident_dir=bundle_dir / "incidents")
         if elevation_blocked:
             runtime_mediator_error = "Real input requires an elevated process; accept the UAC prompt from the desktop launcher"
-    initial_phase = Phase.ROOM_WAITING if current_room_archaeology else _initial_phase_for_target(target)
+    initial_phase = Phase.ROOM_WAITING if current_room_archaeology else (Phase.STAGE_SELECT if backpack_capture and backpack_entry == "stage" else _initial_phase_for_target(target))
     med.set_phase(initial_phase, f"{target} {'target probe' if probe else 'live capture'}")
+    if backpack_capture:
+        med._backpack_clean_solo = backpack_entry == "stage"
+        med._backpack_clean_phase = "wait_cundang"
+        med._backpack_clean_abort_reason = None
     if target == "hitch_lobby_chain":
         med._hitch_re_search = False
         try:
@@ -5012,6 +5271,8 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         production_source_root=runtime_root if runtime_root != repo_root else None,
         production_source_sha=getattr(args, "production_source_sha", None),
     )
+    if backpack_capture:
+        recorder.manifest["backpack_entry"] = backpack_entry
     if current_room_archaeology:
         recorder.solo_observer = None
         recorder.solo_observer_key = None
@@ -5075,6 +5336,10 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         recorder._write_manifest()
 
     guard_events: list[dict[str, str]] = []
+    if backpack_capture and not str(recorder.manifest.get("live_preflight", {}).get("status") or "").startswith("BLOCKED"):
+        med._backpack_clean_started_at = time.time()
+        med._backpack_clean_phase_since = med._backpack_clean_started_at
+        med._backpack_clean_deadline = med._backpack_clean_started_at + med._BACKPACK_CLEAN_HARD_CAP_S
 
     def on_guard(method: str, reason: str, denial: str) -> None:
         guard_events.append({"method": method, "reason": reason, "denial": denial})
@@ -5097,7 +5362,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
     awaiting_manual_resume = False
     requested_duration = float(getattr(args, "duration", 60.0))
     duration_s = max(0.0, requested_duration)
-    if probe:
+    if probe or backpack_capture:
         duration_s = min(duration_s, float(contract["max_probe_time_s"]))
     deadline = None if until_success else time.monotonic() + duration_s
     ticks = 0
@@ -5144,9 +5409,11 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
     print(f"[runbook] 请将真实游戏停在以下页面/状态：{contract['runbook_manual']}")
     print(
         f"[capture] bundle={bundle_dir} bookmark_file={bookmark_file} "
-        "keys: p=PASS f=FAIL m=MANUAL_INTERVENTION"
+        "keys: p=PASS f=FAIL m=MANUAL_INTERVENTION F9=owner-mark(只记录，不发输入) "
+        "Shift+F12=emergency-stop"
     )
     med.see = capture_for_tick
+    mark_listener: OwnerMarkListener | None = None
     try:
         if live_preflight_blocked:
             current_frame["value"] = _copy_frame(preflight_frame)
@@ -5178,6 +5445,23 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
 
         med.emergency_listener = EmergencyStopListener(stop_signal)
         med.emergency_listener.start()
+
+        owner_mark_presses: queue.Queue[float] = queue.Queue()
+        mark_listener = OwnerMarkListener(on_press=owner_mark_presses.put)
+        mark_listener.start()
+
+        def process_owner_marks() -> None:
+            while True:
+                try:
+                    wall_ts = owner_mark_presses.get_nowait()
+                except queue.Empty:
+                    break
+                try:
+                    recorder.record_owner_mark(
+                        med, current_frame["value"], wall_ts=wall_ts
+                    )
+                except Exception as exc:
+                    print(f"[mark] 记录失败（不影响决策）: {exc}")
 
         if args.live_input:
             import threading
@@ -5221,6 +5505,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             and (deadline is None or time.monotonic() <= deadline)
         ):
             process_bookmarks()
+            process_owner_marks()
             if awaiting_manual_resume:
                 if _is_emergency_reason(stop_signal.reason):
                     break
@@ -5254,7 +5539,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                     frame=current_frame["value"],
                     result=loop_action,
                 )
-            elif probe:
+            elif probe or backpack_capture:
                 # Existing production handlers only. Black merchant also consumes
                 # bought devour pills through the existing inventory entry.
                 med._tick_no += 1
@@ -5305,6 +5590,13 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                 print(f"[live] 当前帧无效或正在过渡/最小化中，等待画面恢复 (tick {ticks})")
                 time.sleep(1.0)
                 continue
+            if backpack_capture and med._backpack_clean_phase == "idle":
+                recorder.manifest["backpack_result"] = {
+                    "status": "aborted" if med._backpack_clean_abort_reason else "cleaned",
+                    "reason": med._backpack_clean_abort_reason or "return_verified",
+                }
+                ticks += 1
+                break
             if guard_events:
                 blocked = guard_events[-1]
                 recorder.record_blocked(
@@ -5317,31 +5609,42 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                 )
             if loop_action is LoopAction.Break:
                 if med.phase is not Phase.ERROR:
-                    break
-                failure_reason = (
-                    getattr(med, "_interrupt_reason", None)
-                    or getattr(med, "_tick_reason", None)
-                    or stop_signal.reason
-                    or "Mediator returned Break"
-                )
-                recorder.bookmark(
-                    "FAIL",
-                    med,
-                    current_frame["value"],
-                    note=f"automatic Mediator failure: {failure_reason}",
-                )
-                if (
-                    getattr(args, "continue_after_failure", False)
-                    and not _is_emergency_reason(stop_signal.reason)
-                ):
-                    awaiting_manual_resume = True
-                    print(
-                        "[capture] failure evidence saved; waiting for "
-                        "MANUAL_INTERVENTION bookmark to resume"
-                    )
+                    if not (
+                        target == "solo_ingame_chain"
+                        and bool(settings.auto_secret_realm)
+                        and recorder.solo_observer is not None
+                        and not recorder.solo_observer.is_pass
+                        and not recorder.solo_observer.failed_reason
+                        and not recorder.solo_observer.blocked_reason
+                        and not recorder.solo_observer.manual_intervention_seen
+                    ):
+                        break
                 else:
-                    break
+                    failure_reason = (
+                        getattr(med, "_interrupt_reason", None)
+                        or getattr(med, "_tick_reason", None)
+                        or stop_signal.reason
+                        or "Mediator returned Break"
+                    )
+                    recorder.bookmark(
+                        "FAIL",
+                        med,
+                        current_frame["value"],
+                        note=f"automatic Mediator failure: {failure_reason}",
+                    )
+                    if (
+                        getattr(args, "continue_after_failure", False)
+                        and not _is_emergency_reason(stop_signal.reason)
+                    ):
+                        awaiting_manual_resume = True
+                        print(
+                            "[capture] failure evidence saved; waiting for "
+                            "MANUAL_INTERVENTION bookmark to resume"
+                        )
+                    else:
+                        break
             process_bookmarks()
+            process_owner_marks()
             if (
                 target == "lobby_search"
                 and recorder.manifest["target_result"].get("authoritative")
@@ -5349,6 +5652,8 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                 ticks += 1
                 break
             ticks += 1
+            if target == "solo_ingame_chain" and recorder.solo_observer is not None and recorder.solo_observer.is_pass:
+                break
             if stop_signal.is_set() and not awaiting_manual_resume:
                 break
             if args.interval > 0:
@@ -5390,9 +5695,18 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             note=f"lobby search/room-select visual postcondition failed: {post_state}",
             )
     finally:
+        if backpack_capture and "backpack_result" not in recorder.manifest:
+            preflight_reason = str((recorder.manifest.get("live_preflight") or {}).get("start_surface", {}).get("reason") or "")
+            recorder.manifest["backpack_result"] = {
+                "status": "aborted",
+                "reason": med._backpack_clean_abort_reason or preflight_reason or "capture_timeout_or_stop",
+            }
         if med.emergency_listener:
             med.emergency_listener.stop()
             med.emergency_listener = None
+        if mark_listener is not None:
+            mark_listener.stop()
+            mark_listener = None
         recorder.stop_trace(med)
         recorder.manifest["capture_ticks"] = ticks
         recorder.manifest["capture_options"] = {
@@ -6042,6 +6356,8 @@ def _common_live_args(parser: argparse.ArgumentParser) -> None:
         help="expected injected production SHA (required for GT runs when candidate source is injected)",
     )
     parser.add_argument("--settings", type=Path, default=None)
+    parser.add_argument("--backpack-entry", choices=("ingame", "stage"), default=None,
+                        help="backpack_clean 单次事务入口")
     parser.add_argument(
         "--direct-archaeology",
         action="store_true",
@@ -6147,7 +6463,188 @@ def build_parser() -> argparse.ArgumentParser:
     contracts_parser.add_argument("--json", action="store_true")
     runbook_parser = sub.add_parser("runbook", help="显示极简 target live runbook")
     runbook_parser.add_argument("--target", choices=SUPPORTED_TARGETS, default=None)
+    export_parser = sub.add_parser("export", help="按时间点导出该时刻前后的帧/trace 行/决策原因汇总")
+    export_parser.add_argument("--run", type=Path, required=True, help="结果包目录（含 trace.jsonl / manifest.json / frames/）")
+    export_parser.add_argument("--at", required=True, help="时刻：mm:ss（如 08:29）或 elapsed 秒（如 509 / 509s）；当前按采集 elapsed 秒定位")
+    export_parser.add_argument("--window", type=float, default=8.0, help="前后各取多少秒（默认 8）")
     return parser
+
+
+_EXPORT_AT_RE = re.compile(r"^\s*(?:(\d+):([0-5]?\d)(?:\.\d+)?|(\d+(?:\.\d+)?)\s*s?)\s*$")
+
+
+def _parse_export_at(raw: str) -> float:
+    """解析 export --at：mm:ss（如 08:29）或 elapsed 秒（如 509 / 509s）。
+
+    尚无逐帧顶栏游戏时钟识别函数，导出统一按采集 elapsed 秒定位，
+    这里只做时间写法归一，不读任何游戏时钟。
+    """
+    match = _EXPORT_AT_RE.match(str(raw))
+    if not match:
+        raise ValueError(f"无法解析 --at={raw!r}，用 mm:ss（如 08:29）或 elapsed 秒（如 509 / 509s）")
+    minutes, seconds, plain = match.group(1), match.group(2), match.group(3)
+    if plain is not None:
+        return float(plain)
+    return int(minutes) * 60 + int(seconds)
+
+
+def _read_export_trace_rows(trace_path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    with trace_path.open(encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(row, dict):
+                rows.append(row)
+    return rows
+
+
+def _export_action_text(row: dict[str, Any]) -> str:
+    actions = row.get("actions") or []
+    if actions and isinstance(actions[0], dict):
+        intent = str(actions[0].get("intent") or "").strip()
+        reason = str(actions[0].get("reason") or "").strip()
+        text = f"{intent}（{reason}）" if reason else intent
+        if text:
+            return text
+    decision = row.get("decision")
+    if decision:
+        return f"decision={decision}"
+    return "无动作（零输入/观察）"
+
+
+def _export_reasons_text(row: dict[str, Any]) -> str:
+    reasons = row.get("decision_reasons") or []
+    parts: list[str] = []
+    for item in reasons:
+        if not isinstance(item, dict):
+            continue
+        inputs = item.get("inputs")
+        suffix = ""
+        if isinstance(inputs, dict) and inputs:
+            try:
+                suffix = json.dumps(inputs, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            except (TypeError, ValueError):
+                suffix = str(inputs)
+            suffix = f" inputs={suffix}"
+        parts.append(f"{item.get('kind')}:{item.get('rule')}{suffix}")
+    return "；".join(parts) if parts else "无"
+
+
+def export_moment_bundle(run_dir: Path, at_raw: str, window_s: float = 8.0) -> Path:
+    """把结果包中目标时刻前后 window 秒的帧与 trace 行导出到 exports/<时刻>/。
+
+    时间基线是采集 elapsed 秒（manifest 事件 at_s / trace 首行 ts 起算），
+    不是游戏顶栏时钟——尚无逐帧顶栏时钟识别函数，见 summary.md 说明。
+    """
+    run_dir = Path(run_dir).resolve()
+    trace_path = run_dir / "trace.jsonl"
+    manifest_path = run_dir / "manifest.json"
+    if not trace_path.exists():
+        raise ValueError(f"结果包缺少 trace.jsonl：{run_dir}")
+    if not manifest_path.exists():
+        raise ValueError(f"结果包缺少 manifest.json：{run_dir}")
+    window_s = max(0.0, float(window_s))
+    target_s = _parse_export_at(at_raw)
+
+    rows = _read_export_trace_rows(trace_path)
+    if not rows:
+        raise ValueError(f"trace.jsonl 为空：{trace_path}")
+    base_ts: float | None = None
+    for row in rows:
+        ts = row.get("ts")
+        if isinstance(ts, (int, float)):
+            base_ts = float(ts)
+            break
+    if base_ts is None:
+        raise ValueError("trace 行都没有 ts，无法按 elapsed 秒定位")
+
+    def elapsed_of(row: dict[str, Any]) -> float | None:
+        ts = row.get("ts")
+        return float(ts) - base_ts if isinstance(ts, (int, float)) else None
+
+    selected_rows = [
+        row for row in rows
+        if (elapsed_of(row) is not None and abs(elapsed_of(row) - target_s) <= window_s)  # type: ignore[operator]
+    ]
+    if not selected_rows:
+        raise ValueError(f"时刻 {at_raw} 前后 {window_s:g}s 内没有 trace 行")
+
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        raise ValueError(f"manifest.json 解析失败：{exc}") from exc
+    if not isinstance(manifest, dict):
+        raise ValueError("manifest.json 顶层不是对象")
+    events = [event for event in manifest.get("events") or [] if isinstance(event, dict)]
+    selected_events = [
+        event for event in events
+        if isinstance(event.get("at_s"), (int, float)) and abs(float(event["at_s"]) - target_s) <= window_s
+    ]
+
+    label = re.sub(r"[^0-9A-Za-z_-]+", "_", str(at_raw).strip()).strip("_") or f"{target_s:.0f}s"
+    out_dir = run_dir / "exports" / label
+    frames_out = out_dir / "frames"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    frames_out.mkdir(parents=True, exist_ok=True)
+
+    frames_by_id = {
+        frame.get("id"): frame
+        for frame in manifest.get("frames") or []
+        if isinstance(frame, dict) and frame.get("id")
+    }
+    copied: list[str] = []
+    missing: list[str] = []
+    for event in selected_events:
+        for key in ("frame_before", "frame_after"):
+            frame_id = event.get(key)
+            frame = frames_by_id.get(frame_id) if frame_id else None
+            if not isinstance(frame, dict) or not frame.get("file"):
+                continue
+            source = run_dir / str(frame["file"])
+            target = frames_out / Path(str(frame["file"])).name
+            if target.name in copied:
+                continue
+            if source.exists():
+                shutil.copy2(source, target)
+                copied.append(target.name)
+            elif frame_id not in missing:
+                missing.append(str(frame_id))
+
+    (out_dir / "trace_slice.jsonl").write_text(
+        "\n".join(json.dumps(row, ensure_ascii=False) for row in selected_rows) + "\n",
+        encoding="utf-8",
+    )
+    (out_dir / "events_slice.json").write_text(
+        json.dumps(selected_events, ensure_ascii=False, indent=2), encoding="utf-8",
+    )
+
+    ordered = sorted(selected_rows, key=lambda row: (elapsed_of(row) or 0.0, row.get("tick") or 0))
+    lines = [
+        f"# 决策导出 {label}（elapsed {target_s:g}s ± {window_s:g}s）",
+        "",
+        "- 时间基线：采集 elapsed 秒（manifest 事件 at_s；trace 行按首行 ts 起算）。"
+        "不是游戏顶栏时钟——尚无逐帧顶栏时钟识别函数，--at 的 mm:ss 同样按 elapsed 秒理解。",
+        f"- 来源：{run_dir.name}，共 {len(ordered)} 个 tick / {len(selected_events)} 个事件 / {len(copied)} 帧。",
+        "",
+        "| elapsed | tick | 动作 | 决策原因 |",
+        "| --- | --- | --- | --- |",
+    ]
+    for row in ordered:
+        elapsed = elapsed_of(row)
+        lines.append(
+            f"| {elapsed:.1f}s | {row.get('tick')} "
+            f"| {_export_action_text(row)} | {_export_reasons_text(row)} |"
+        )
+    if missing:
+        lines += ["", f"缺失帧（包内无文件，已跳过）：{', '.join(missing)}"]
+    (out_dir / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return out_dir
 
 
 def _bundle_preflight_blocked(bundle_dir: Path) -> bool:
@@ -6256,6 +6753,10 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "runbook":
             _print_runbook(args.target)
+            return 0
+        if args.command == "export":
+            out = export_moment_bundle(args.run, args.at, window_s=args.window)
+            print(f"[export] {out}")
             return 0
         if args.case_dir is not None:
             case_dirs = [args.case_dir]

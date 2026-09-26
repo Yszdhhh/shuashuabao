@@ -54,10 +54,10 @@ def test_stall_preserves_and_synthesizes_owned_bond():
     assert "急速" in names, "Documented combat bond 急速 must be kept"
     assert "未知卡" not in names
 
-    # 2. Mediator._stall_combat_bond_policy keeps only documented combat presets without injecting owned cards
+    # 2. Stall policy retains configured targets alongside documented combat presets.
     base_policy = PolicySettings(bond_presets=("经济",), bond_whitelist_mode=WHITELIST_HARD)
     stall_pol = med._stall_combat_bond_policy(base_policy)
-    assert stall_pol.bond_presets == med._STALL_COMBAT_BOND_PRESETS
+    assert stall_pol.bond_presets == ("经济",) + med._STALL_COMBAT_BOND_PRESETS
     assert "智力" not in stall_pol.bond_presets
 
     # 3. choose_action with WHITELIST_HARD prioritizes owned bond for synthesis
@@ -125,9 +125,9 @@ def test_equipment_affix_modal_real_fixture():
     med = Mediator(Settings(), ROOT)
     hit = med._find_equipment_affix_choice(frame)
     assert hit is not None, "Real equipment affix modal must be detected"
-    assert hit.name == "equipment_affix_2"
+    assert hit.name == "equipment_affix_1"
     assert hit.x == 800
-    assert hit.y == 350
+    assert hit.y == 305
 
 
 def test_post_game_hub_heirloom_offset_and_hero_focus():
@@ -259,7 +259,15 @@ def test_opportunistic_merchant_single_buy():
     frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
     now = time.time()
 
-    with patch.object(med, "_black_merchant_present", return_value=True), \
+    # a605c4cf（Owner 2026-09-26 03:43 木材两种模式）：单人木材溢出、不缺丹时不去黑商。
+    with patch.object(med, "_solo_wants_merchant", return_value=False), \
+         patch.object(med, "_black_merchant_present", return_value=True), \
+         patch.object(med, "_maybe_black_merchant") as mock_merchant:
+        assert med._maybe_opportunistic_merchant(frame, now) is None
+        mock_merchant.assert_not_called()
+
+    with patch.object(med, "_solo_wants_merchant", return_value=True), \
+         patch.object(med, "_black_merchant_present", return_value=True), \
          patch.object(med, "_maybe_black_merchant") as mock_merchant:
         mock_merchant.return_value = LoopAction.Continue
         res = med._maybe_opportunistic_merchant(frame, now)
@@ -520,7 +528,7 @@ def test_owned_off_whitelist_debt_lifecycle_and_release():
     assert dec_must.index == 1
     assert "羁绊系统必拿" in dec_must.reason
 
-    # 15. free_slots=0/1 下真实未完成同卡债务仍不能被 capacity 意外过滤
+    # 15. 10/10 只接受立即合成；尚有 1 格时仍允许继续补已持有债务
     for free in (0, 1):
         cands_cap = PanelCandidates(
             panel_kind="bond",
@@ -531,6 +539,9 @@ def test_owned_off_whitelist_debt_lifecycle_and_release():
             settings=off_whitelist_settings,
         )
         dec_cap = choose_action(cands_cap, SessionState())
-        assert dec_cap.action == PolicyAction.SELECT_SLOT
-        assert "已持有合成优先" in dec_cap.reason
+        if free == 0:
+            assert dec_cap.action == PolicyAction.REFRESH
+        else:
+            assert dec_cap.action == PolicyAction.SELECT_SLOT
+            assert "已持有合成优先" in dec_cap.reason
 

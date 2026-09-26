@@ -131,6 +131,7 @@ class C2InGameStateIsolation(unittest.TestCase):
     # 明确属于局内的可变状态；若新增局内字段，建议一并加进来。
     INGAME_POLLUTION = {
         "_hub_label_ocr_next_at": 9e18,
+        "_challenge_batch_input_active": True,
         "_l1_cycle_step": "equipment",
         "_l1_cycle_owned_panel": True,
         "_l1_cycle_selected": True,
@@ -217,6 +218,14 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_bond_replace_incoming": "polluted",
         "_bond_replace_at": 1.0e9,
         "_merchant_open_next_at": 1.0e9,
+        "_backpack_clean_phase": "wait_archive",
+        "_backpack_clean_phase_since": 1.0e9,
+        "_backpack_clean_started_at": 1.0e9,
+        "_backpack_clean_deadline": 1.0e9,
+        "_backpack_clean_last_round": 99,
+        "_backpack_clean_abort_reason": "polluted",
+        # 决策原因日志只写 trace、不参与决策；列入污染清单以锁定该隔离属性。
+        "_tick_decision_reasons": [{"kind": "polluted", "rule": "polluted", "inputs": {}}],
     }
 
     def _pollute(self, med: Mediator) -> None:

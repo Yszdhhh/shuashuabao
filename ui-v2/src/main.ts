@@ -53,6 +53,8 @@ const SWITCHES = [
   { el: "swSecret", stateKey: "autoSecret", field: "auto_secret_realm" },
   { el: "swCloseML", stateKey: "closeMainline", field: "auto_close_main_line" },
   { el: "swAutoArch", stateKey: "autoArch", field: "auto_archaeology" },
+  { el: "swBackpackClean", stateKey: "backpackClean", field: "auto_clean_backpack" },
+  { el: "swHitchBackpackClean", stateKey: "backpackClean", field: "auto_clean_backpack" },
   { el: "swNewRoom", stateKey: "newRoom", field: "new_room_every_times" },
   { el: "swDragon", stateKey: "dragonPrefer", field: "find_longzhu_where_multi_game" },
 ] as const;
@@ -261,10 +263,11 @@ const ADV_PACK_CARDS: Record<string, string[]> = {
   daodao: ["刀刀", "幽灵系带", "护腕", "空灵挂坠", "刀刀萌新", "刀刀大成"],
   yihuo: ["异火", "焚诀·黄阶", "阴阳双炎", "风怒龙炎", "幽冥毒火", "玄黄炎"],
   dasheng: ["齐天大圣", "大圣", "天命人", "大圣残躯", "大圣套装"],
-  xiuxian: ["修仙", "筑基丹", "金丹大道", "元神出窍", "修仙萌新", "修仙大成"],
+  xiuxian: ["修仙", "筑基丹", "金丹大道", "修仙萌新", "修仙大成"],
   fengshen: ["封神", "封神榜", "打神鞭", "杏黄旗", "斩仙飞刀", "肉身成圣"],
   haidao: ["海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏"],
   wangling: ["亡灵", "亡灵天灾", "白骨复生", "魂火收割", "巫妖之躯"],
+  haizeiwang: ["见习海贼", "超新星", "七武海", "凯多", "红发", "白胡子", "大妈"],
 };
 
 function pushBondsAndAttributes(): void {
@@ -274,7 +277,7 @@ function pushBondsAndAttributes(): void {
   const validBonds = ["祝福", "成长", "经济", "贪婪", "挑战"];
   const growthList = Array.isArray(state.growth) ? state.growth : Array.from(state.growth || []);
   const bondsList = Array.isArray(state.bonds) ? state.bonds : Array.from(state.bonds || []);
-  const combinedBonds = Array.from(new Set([...growthList, ...bondsList])).filter((b: string) => validBonds.includes(b)) as ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[];
+  const combinedBonds = Array.from(new Set([...growthList, ...bondsList, "祝福"])).filter((b: string) => validBonds.includes(b)) as ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[];
   // 空选择同样要落盘，不能偷偷回退成“全拿”。局内 hard 白名单只读此列表和 cards。
   const activeBonds = combinedBonds;
 
@@ -486,6 +489,12 @@ function applyDowngradeFailures(v: unknown): void {
   if (typeof v !== "number" || !Number.isFinite(v)) return;
   const input = document.getElementById("downgradeAfterFailures") as HTMLInputElement | null;
   if (input) input.value = String(Math.max(0, Math.min(20, Math.trunc(v))));
+}
+
+function applyBackpackCleanInterval(v: unknown): void {
+  if (typeof v !== "number" || !Number.isFinite(v)) return;
+  const input = document.getElementById("cleanBackpackEveryRounds") as HTMLInputElement | null;
+  if (input) input.value = String(Math.max(1, Math.min(100, Math.trunc(v))));
 }
 
 function applyBuildAndSkills(settings: SettingsDTO): void {
@@ -719,6 +728,7 @@ export function applySnapshot(snap: SnapshotDTO): void {
     applyPrestige(settings);
     applyStageTargets(settings);
     applyDowngradeFailures(settings.downgrade_after_failures);
+    applyBackpackCleanInterval(settings.clean_backpack_every_rounds);
     applyBuildAndSkills(settings);
     applyVisibleSettings();
     const roomName = asString(settings.room_name);
@@ -881,6 +891,12 @@ function wireIntents(): void {
     const value = Math.max(0, Math.min(20, Math.trunc(Number(downgrade.value) || 0)));
     downgrade.value = String(value);
     pushConfig({ downgrade_after_failures: value });
+  });
+  const cleanEvery = document.getElementById("cleanBackpackEveryRounds") as HTMLInputElement | null;
+  cleanEvery?.addEventListener("change", () => {
+    const value = Math.max(1, Math.min(100, Math.trunc(Number(cleanEvery.value) || 10)));
+    cleanEvery.value = String(value);
+    pushConfig({ clean_backpack_every_rounds: value });
   });
   afterGlobalCall("renderSkillRank", () => {
     if (state.collapsed) pushSkills();

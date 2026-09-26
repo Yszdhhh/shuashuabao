@@ -31,6 +31,7 @@ class TestLiveMediatorIntegration(unittest.TestCase):
         fake_slots_raw = [
             {"index": 0, "name": "成长之树", "rarity": "white", "confidence": 0.95, "rect": (10, 10, 50, 50), "description": ""},
             {"index": 1, "name": "散卡之王", "rarity": "purple", "confidence": 0.95, "rect": (60, 10, 100, 50), "description": ""},
+            {"index": 2, "name": None, "confidence": 0.0},
         ]
 
         with patch.object(self.mediator, "_ocr_panel_slots", return_value=fake_slots_raw), \
@@ -59,8 +60,8 @@ class TestLiveMediatorIntegration(unittest.TestCase):
              patch.object(self.mediator, "_bond_bar_occupancy", return_value=10):
             hit = self.mediator._ocr_reward_choice(frame, PANEL_BOND)
 
-        # In slot-capped zero free slots with only scatter cards, policy issues CLOSE (hide_fallback hit) rather than selecting a slot
-        self.assertIsNotNone(hit)
-        self.assertEqual(hit.name, "hide_fallback")
+        self.assertIsNone(hit)
+        self.assertTrue(self.mediator._choice_policy_idle)
+        self.assertIn("无安全候选", self.mediator._choice_policy_last_reason)
 if __name__ == "__main__":
     unittest.main()

@@ -10,6 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import cv2
 import numpy as np
 
 import tools.live_harness_identity as identity
@@ -19,6 +20,8 @@ from shuabao.loop_action import LoopAction
 from shuabao.mediator import Mediator, Phase
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult
+from tests.test_scenario_replay import FakeClock
 from tools.live_scenario_capture import (
     LONG_CHAIN_TARGETS,
     TARGETED_PROBE_MENU,
@@ -196,6 +199,7 @@ def test_solo_chain_keeps_dashboard_room_creation_and_run_settings(monkeypatch) 
 
 def test_12_launcher_requires_current_dashboard_settings_by_default() -> None:
     script = (ROOT / "live_scenario_launcher.ps1").read_text(encoding="utf-8")
+    assert "SHUABAO_SOLO_CLEAN_BACKPACK" not in script
     start = script.index("function Invoke-SoloIngameChainCapture")
     end = script.index("function Invoke-SoloDirectArchaeologyCapture", start)
     case_12 = script[start:end]
@@ -204,6 +208,21 @@ def test_12_launcher_requires_current_dashboard_settings_by_default() -> None:
     assert "$script:HarnessSettingsPath = $null" in case_12
     assert "Resolve-OperatorSettingsPath" in script
     assert "user_settings.json" in script
+
+
+def test_backpack_buttons_use_isolated_settings_and_live_gate() -> None:
+    script = (ROOT / "live_scenario_launcher.ps1").read_text(encoding="utf-8")
+    capture = script.split("function Invoke-BackpackCleanCapture {", 1)[1].split("\nfunction ", 1)[0]
+    for expected in (
+        "Assert-ReadyForGt", "New-DashboardSettingsSnapshot", "Get-LiveRuntimeArgs",
+        '"--target", "backpack_clean"', '"--backpack-entry", $Entry',
+        "auto_clean_backpack", "clean_backpack_every_rounds",
+    ):
+        assert expected in capture
+    assert "B1 局内清理背包（蹭车/局内）" in script
+    assert "B2 选关页清理背包（单人）" in script
+    assert "Invoke-BackpackCleanCapture -Entry ingame" in script
+    assert "Invoke-BackpackCleanCapture -Entry stage" in script
 
 
 def test_solo_chain_loads_saved_dashboard_snapshot_without_replacing_policy(tmp_path: Path) -> None:
@@ -248,7 +267,9 @@ def test_solo_chain_preflight_accepts_production_l0_start_surface() -> None:
 def test_hitch_lobby_chain_does_not_stop_at_first_verified_hud() -> None:
     """首次进入局内只是链路中间证据，不是多局实测的终止条件。"""
     source = (ROOT / "tools" / "live_scenario_capture.py").read_text(encoding="utf-8")
-    assert "recorder.solo_observer.is_pass" not in source
+    break_handler = source.split("if loop_action is LoopAction.Break:", 1)[1].split("process_bookmarks()", 1)[0]
+    assert 'target == "solo_ingame_chain"' in break_handler
+    assert 'target == "hitch_lobby_chain"' not in break_handler
 
 
 def test_chain_13_settings_enable_production_lobby_hitch() -> None:
@@ -294,6 +315,77 @@ def test_targeted_probes_call_production_handlers_not_copies() -> None:
     ]
 
 
+def test_evolve_click_routes_real_two_card_panel_before_shared_skill_buttons() -> None:
+    fixture = ROOT / "tests" / "fixtures" / "evolve_deadlock_20260926" / "hero_evolve_two_choice_f0030.png"
+    bgr = cv2.imdecode(np.fromfile(str(fixture), dtype=np.uint8), cv2.IMREAD_COLOR)
+    assert bgr is not None
+    frame = Frame(bgr, window_title="英雄三国KK", hwnd=10001, role="l1")
+    med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT)
+    med.set_phase(Phase.MAIN_LINE)
+    med._l1_cycle_step = "bond"
+    med._panel_cooldown_until["bond"] = 200.0
+    med._auto_task_done = True
+    med._main_line_started_at = 100.0
+    clock = FakeClock(start=100.0)
+    clicks: list[tuple[str, tuple[int, int]]] = []
+    evolve_btn = MatchResult("evolve_hud", 1.0, 800, 700, 40, 12, 800, 700)
+
+    with clock.install(), \
+         patch.object(med, "act_click", side_effect=lambda hit, reason, *a, **k: clicks.append((reason, hit.center)) or True), \
+         patch.object(med, "_has_evolve_button", return_value=True), \
+         patch.object(med, "_evolve_button_hit", return_value=evolve_btn):
+        assert med._maybe_opportunistic_evolve(_blank_frame(), clock.now()) == LoopAction.Continue
+        assert med._evolve_feedback_pending is True
+        clock.advance(0.5)
+        with patch.object(med, "_is_in_game_hud", return_value=True), \
+             patch.object(med, "_post_game_state", return_value=None), \
+             patch.object(med, "_ensure_auto_task_enabled", return_value=None), \
+             patch.object(med, "_ensure_challenge_buttons", return_value=None), \
+             patch.object(med, "_maybe_ensure_hero_panel_focus", return_value=None), \
+             patch.object(med, "_maybe_click_tqtz", return_value=None), \
+             patch.object(med, "_maybe_clear_pressure_monsters", return_value=None), \
+             patch.object(med, "_handle_self_opened_compact_panel", return_value=None), \
+             patch.object(med, "_find_equipment_affix_choice", return_value=None), \
+             patch.object(med, "_hud_wood_balance", return_value=5000):
+            assert med._selection_anchor(frame).name == "skill_refresh_btn"
+            assert med._classify_choice_panel(frame) is None
+            choice = med._find_reward_choice(frame)
+            assert choice is not None
+            assert choice[1].name == "evolution_card_1_rank_6"
+            assert med._tick_main_line(frame) == LoopAction.Continue
+
+    assert clicks == [
+        ("ClickEvolve", (800, 700)),
+        ("SelectEvolutionCard", (933, 300)),
+    ]
+    assert med._evolve_feedback_pending is False
+    assert med._evolve_awaiting_hero_pick is False
+    assert med._evolve_ok_this_cycle is True
+
+
+def test_unresolved_evolve_panel_wait_releases_lock_without_stopping() -> None:
+    """Owner 2026-09-26：等不到英雄面板只解锁、不停机。"""
+    med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT)
+    med.set_phase(Phase.MAIN_LINE)
+    med._evolve_awaiting_hero_pick = True
+    med._evolve_awaiting_hero_pick_at = 100.0
+    clock = FakeClock(start=100.0)
+
+    with clock.install(), \
+         patch.object(med, "_selection_anchor", return_value=None), \
+         patch.object(med, "_find_equipment_affix_choice", return_value=None), \
+         patch.object(med, "_post_game_state", return_value=None), \
+         patch.object(med, "stop") as stop:
+        clock.advance(15.1)
+        result = med._tick_main_line(_blank_frame())
+
+    assert result == LoopAction.Continue
+    assert med.phase == Phase.MAIN_LINE
+    assert med._evolve_awaiting_hero_pick is False
+    assert med._evolve_click_cooldown_until >= 115.1 + 60.0 - 0.01
+    stop.assert_not_called()
+
+
 def test_harness_source_does_not_reimplement_production_fsms() -> None:
     source = (ROOT / "tools" / "live_scenario_capture.py").read_text(encoding="utf-8")
     launcher = (ROOT / "live_scenario_launcher.ps1").read_text(encoding="utf-8")
@@ -334,6 +426,33 @@ def test_solo_observer_does_not_pass_on_click_success() -> None:
     hitch = HitchLobbyChainObserver()
     hitch.precheck(True, {"status": "READY"})
     assert hitch.is_pass is False
+
+
+def test_solo_observer_waits_for_secret_realm_terminal_surface(monkeypatch) -> None:
+    observer = SoloIngameChainObserver(require_secret_realm=True)
+    observer._postgame_seen = True
+    for name in observer.checkpoints:
+        if name != "POSTGAME_ROUTE_PROGRESS":
+            observer.checkpoints[name] = {"status": "PASS", "evidence": {}}
+    med = SimpleNamespace()
+    state = {"phase": "MAIN_LINE", "secret_realm_active": False}
+    surfaces = {
+        "room": False, "platform": False, "stage": False, "stage_target": False,
+        "hero": False, "hud": False, "game_hwnd": False, "boss_entry": False,
+        "lobby": False, "postgame": "POST_VICTORY",
+    }
+    monkeypatch.setattr(live_capture, "_physical_surfaces", lambda *_args: surfaces)
+
+    observer.observe(med, state, _blank_frame(), {}, None)
+    assert observer.is_pass is False
+
+    observer.route_observations["SECRET_REALM_ROUTE"].update({
+        "request_status": "PASS",
+        "confirmation_status": "PASS",
+        "status": "PASS",
+    })
+    observer.observe(med, state, _blank_frame(), {}, None)
+    assert observer.is_pass is True
 
 
 def test_probe_guard_blocks_unrelated_actions() -> None:

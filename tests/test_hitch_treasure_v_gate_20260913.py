@@ -120,7 +120,9 @@ class TestHitchTreasureVGate:
         close_hit = MatchResult("treasure_hide_btn", 0.95, 750, 550, 10, 10, 750, 550)
 
         # Slots without shared items, refresh would be chosen if budget allowed
-        slots = [{"index": 0, "name": "普通攻击", "confidence": 0.95}]
+        slots = [{"index": 0, "name": "普通攻击", "confidence": 0.95},
+                 {"index": 1, "name": None, "confidence": 0.0},
+                 {"index": 2, "name": None, "confidence": 0.0}]
         with patch.object(med, "_ocr_panel_slots", return_value=slots), \
              patch.object(med, "_panel_can_refresh", return_value=True), \
              patch.object(med, "_find_panel_refresh", return_value=refresh_hit), \
@@ -150,6 +152,7 @@ class TestHitchTreasureVGate:
         slots = [
             {"index": 0, "name": "压制", "confidence": 0.98, "description": "降低攻速"},
             {"index": 1, "name": "力量提升", "confidence": 0.98},
+            {"index": 2, "name": None, "confidence": 0.0},
         ]
         with patch.object(med, "_ocr_panel_slots", return_value=slots), \
              patch.object(med, "_panel_can_refresh", return_value=False):

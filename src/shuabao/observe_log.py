@@ -127,6 +127,7 @@ class ObserveLog:
         *,
         round_id: str,
         round_elapsed_s: object,
+        completed_advanced_groups: object = None,
         phase: str,
         cycle_step: object,
         wood: object,
@@ -140,7 +141,8 @@ class ObserveLog:
             return
         try:
             key = (round_id, str(cycle_step), _plain(wood), _plain(skill_points),
-                   _plain(treasure_count), str(plan_target), plan_reason)
+                   _plain(treasure_count), str(plan_target), plan_reason,
+                   _plain(completed_advanced_groups))
             if key == self._last_tick_key:
                 return
             self._last_tick_key = key
@@ -151,6 +153,7 @@ class ObserveLog:
                 "seq": self._seq,
                 "round_id": round_id,
                 "round_elapsed_s": _plain(round_elapsed_s),
+                "completed_advanced_groups": _plain(completed_advanced_groups),
                 "phase": phase,
                 "cycle_step": _plain(cycle_step),
                 # 读不出一律 null，不要变成 0
@@ -180,6 +183,7 @@ class ObserveLog:
         can_refresh: object,
         has_giveup: object,
         round_elapsed_s: object,
+        completed_advanced_groups: object = None,
         wood: object,
         refresh_price: object = None,
         downgraded_from: str | None = None,
@@ -201,6 +205,7 @@ class ObserveLog:
                 "can_refresh": bool(can_refresh),
                 "has_giveup": bool(has_giveup),
                 "round_elapsed_s": _plain(round_elapsed_s),
+                "completed_advanced_groups": _plain(completed_advanced_groups),
                 "wood": _plain(wood),
                 "refresh_price": _plain(refresh_price),
                 "decision_action": str(getattr(decision, "action", "") or ""),

@@ -261,25 +261,42 @@ function Show-HarnessSettingsPanel {
     $form.Size = New-Object System.Drawing.Size(620, 590)
     $form.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 10)
     $form.TopMost = $true
+    $strategyDefaultsPath = Join-Path $RepoRoot "config\official_strategy_defaults.json"
+    $strategyDefaults = [System.IO.File]::ReadAllText($strategyDefaultsPath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+    $dashengCards = @($strategyDefaults.card_packs.advanced.dasheng.cards)
+    $haizeiwangCards = @($strategyDefaults.card_packs.advanced.haizeiwang.cards)
+    $suggestedCards = @($dashengCards + $haizeiwangCards | Select-Object -Unique)
     $note = New-Object System.Windows.Forms.Label
-    $note.Text = "默认点击 12 会自动读取正式看板设置，无需在这里输入。`r`n来源：$source`r`n本页只生成临时覆盖，不会写正式 user_settings.json。"
-    $note.AutoSize = $false; $note.Size = New-Object System.Drawing.Size(570, 62); $note.Location = [System.Drawing.Point]::new(20, 15)
+    $note.Text = "默认点击 12 会自动读取正式看板设置，无需在这里输入。`r`n来源：$source`r`n本页只生成临时覆盖，不会写正式 user_settings.json。`r`n大圣+海贼王成员示例：$([string]::Join(',', $suggestedCards))"
+    $note.AutoSize = $false; $note.Size = New-Object System.Drawing.Size(570, 82); $note.Location = [System.Drawing.Point]::new(20, 15)
     $note.ForeColor = [System.Drawing.Color]::DimGray; $form.Controls.Add($note)
     $fields = @(
         @{ Label = "目标关卡（逗号分隔）"; Name = "stage_targets"; Value = (Csv-Value "stage_targets") },
         @{ Label = "技能 short code（最多 4 个）"; Name = "skills"; Value = (Csv-Value "skills") },
         @{ Label = "羁绊（逗号分隔）"; Name = "bonds"; Value = (Csv-Value "bonds") },
+        @{ Label = "高级卡组成员（cards，逗号分隔）"; Name = "cards"; Value = (Csv-Value "cards") },
         @{ Label = "传家宝 Boss（留空则跳过）"; Name = "cjb_boss"; Value = (Value-OrDefault "cjb_boss" "") },
         @{ Label = "时光之穴 Boss（留空则跳过）"; Name = "sgzx_boss"; Value = (Value-OrDefault "sgzx_boss" "") }
     )
     $controls = @{}
-    $y = 74
+    $y = 94
     foreach ($field in $fields) {
         $label = New-Object System.Windows.Forms.Label
         $label.Text = $field.Label; $label.AutoSize = $true; $label.Location = [System.Drawing.Point]::new(20, ($y + 4)); $form.Controls.Add($label)
         $box = New-Object System.Windows.Forms.TextBox
-        $box.Text = [string]$field.Value; $box.Size = New-Object System.Drawing.Size(285, 28); $box.Location = [System.Drawing.Point]::new(230, $y)
+        $box.Text = [string]$field.Value
+        $boxWidth = 285
+        if ($field.Name -eq "cards") { $boxWidth = 205 }
+        $box.Size = New-Object System.Drawing.Size($boxWidth, 28)
+        $box.Location = [System.Drawing.Point]::new(230, $y)
         $controls[$field.Name] = $box; $form.Controls.Add($box); $y += 42
+        if ($field.Name -eq "cards") {
+            $fillCards = New-Object System.Windows.Forms.Button
+            $fillCards.Text = "填入 大圣+海贼王"; $fillCards.Size = New-Object System.Drawing.Size(130, 30)
+            $fillCards.Location = [System.Drawing.Point]::new(442, ($y - 42))
+            $fillCards.Add_Click({ $controls["cards"].Text = [string]::Join(',', $suggestedCards) })
+            $form.Controls.Add($fillCards)
+        }
     }
     $toggleSpecs = @(
         @{ Label = "自动秘境"; Name = "auto_secret_realm" },
@@ -311,6 +328,7 @@ function Show-HarnessSettingsPanel {
         $raw.stage_targets = @($controls["stage_targets"].Text -split "[,;\s]+" | Where-Object { $_ })
         $raw.skills = $skills
         $raw.bonds = @($controls["bonds"].Text -split "[,;\s]+" | Where-Object { $_ })
+        $raw.cards = @($controls["cards"].Text -split "[,;\s]+" | Where-Object { $_ })
         $raw.cjb_boss = $controls["cjb_boss"].Text.Trim()
         $raw.sgzx_boss = $controls["sgzx_boss"].Text.Trim()
         foreach ($spec in $toggleSpecs) {
@@ -597,7 +615,7 @@ function Invoke-HitchLobbyChainCapture {
     $cliArgs += @(Get-LiveRuntimeArgs)
     $cliArgs += @("--settings", $settingsPath)
     Write-Host "[launcher] PRIMARY HITCH_FULL_NATURAL_E2E：production Mediator.tick() 连续大厅蹭车链；Harness 不复制 FSM" -ForegroundColor Cyan
-    Write-Host "[launcher] 试跑验收：$rounds 局蹭车退出 + fresh 考古锚点确认后退出脚本" -ForegroundColor Cyan
+    Write-Host "[launcher] 试跑验收：$rounds 局蹭车退出 + fresh 考古锚点确认后退出脚本；看到问题按 F9 标记（只记录，不发输入、不改变决策；急停仍用 Shift+F12）" -ForegroundColor Cyan
     Invoke-CaptureTool $cliArgs
 }
 
@@ -660,7 +678,7 @@ function Invoke-SoloIngameChainCapture {
     )
     $cliArgs += @(Get-LiveRuntimeArgs)
     $cliArgs += @("--settings", $settingsPath)
-    Write-Host "[launcher] 单人完整链路：沿用正式看板自动建房/局数/关卡；production 从大厅建房→选关→局内→战后" -ForegroundColor Cyan
+    Write-Host "[launcher] 单人完整链路：沿用正式看板自动建房/局数/关卡；production 从大厅建房→选关→局内→战后；看到问题按 F9 标记（只记录，不发输入、不改变决策；急停仍用 Shift+F12）" -ForegroundColor Cyan
     Invoke-CaptureTool $cliArgs
 }
 
@@ -681,6 +699,23 @@ function Invoke-SoloDirectArchaeologyCapture {
     $cliArgs += @(Get-LiveRuntimeArgs)
     $cliArgs += @("--settings", $settingsPath)
     Write-Host "[launcher] 单人考古直达：production 建房→选关→点击考古→fresh kaogu 锚点确认" -ForegroundColor Cyan
+    Invoke-CaptureTool $cliArgs
+}
+
+function Invoke-BackpackCleanCapture {
+    param([ValidateSet("ingame", "stage")][string]$Entry)
+    Assert-ReadyForGt
+    $settingsPath = New-DashboardSettingsSnapshot
+    $settingsCopy = [System.IO.File]::ReadAllText($settingsPath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+    $settingsCopy | Add-Member -NotePropertyName auto_clean_backpack -NotePropertyValue $true -Force
+    $settingsCopy | Add-Member -NotePropertyName clean_backpack_every_rounds -NotePropertyValue 1 -Force
+    [System.IO.File]::WriteAllText($settingsPath, ($settingsCopy | ConvertTo-Json -Depth 12), [System.Text.UTF8Encoding]::new($false))
+    $cliArgs = @(
+        "capture", "--target", "backpack_clean", "--backpack-entry", $Entry,
+        "--out", $script:SoloCaptureRoot, "--repo-root", $RepoRoot,
+        "--settings", $settingsPath, "--duration", "60", "--max-ticks", "1000", "--interval", "0.15"
+    )
+    $cliArgs += @(Get-LiveRuntimeArgs)
     Invoke-CaptureTool $cliArgs
 }
 
@@ -801,6 +836,7 @@ $script:MenuForm = New-Object System.Windows.Forms.Form
 $script:MenuForm.Text = "刷刷宝 · Live 实机测试"
 $script:MenuForm.StartPosition = "CenterScreen"
 $script:MenuForm.Size = New-Object System.Drawing.Size(760, 860)
+$script:MenuForm.AutoScroll = $true
 $script:MenuForm.MinimumSize = New-Object System.Drawing.Size(760, 860)
 $script:MenuForm.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 10)
 $script:MenuForm.TopMost = $true
@@ -940,11 +976,13 @@ Add-MenuButton "10 Reproduce 最新 FAIL`r`n    进入 Frozen Replay（离线回
 Add-MenuButton "单人临时设置（可选）`r`n    仅覆盖下一次 12；默认读取正式看板" 390 528 { Invoke-SoloSettingsPanel } $yellow
 Add-MenuButton "14 单人考古直达`r`n    建房→选关→直接考古；fresh 锚点确认" 24 586 { Invoke-SoloDirectArchaeologyCapture } $(if ($script:ReadyForGt) { $green } else { $locked })
 Add-MenuButton "15 当前房间短链`r`n    一楼→退出旧房→自建房→考古" 390 586 { Invoke-HitchRoomArchaeologyHandoffCapture } $(if ($script:ReadyForGt) { $green } else { $locked })
+Add-MenuButton "B1 局内清理背包（蹭车/局内）" 24 666 { Invoke-BackpackCleanCapture -Entry ingame } $(if ($script:ReadyForGt) { $green } else { $locked })
+Add-MenuButton "B2 选关页清理背包（单人）" 390 666 { Invoke-BackpackCleanCapture -Entry stage } $(if ($script:ReadyForGt) { $green } else { $locked })
 
 $exitButton = New-Object System.Windows.Forms.Button
 $exitButton.Text = "关闭菜单"
 $exitButton.Size = New-Object System.Drawing.Size(706, 44)
-$exitButton.Location = [System.Drawing.Point]::new(24, 676)
+$exitButton.Location = [System.Drawing.Point]::new(24, 750)
 $exitButton.Add_Click({ $script:MenuForm.Close() })
 $script:MenuForm.Controls.Add($exitButton)
 
@@ -952,7 +990,7 @@ $footer = New-Object System.Windows.Forms.Label
 $footer.Text = "注意：不要同时启动普通刷刷宝。UNKNOWN / 窗口身份不可信时 ZERO INPUT。点击测试按钮后本窗口暂时隐藏。"
 $footer.AutoSize = $false
 $footer.Size = New-Object System.Drawing.Size(700, 48)
-$footer.Location = [System.Drawing.Point]::new(24, 730)
+$footer.Location = [System.Drawing.Point]::new(24, 806)
 $footer.ForeColor = [System.Drawing.Color]::Firebrick
 $script:MenuForm.Controls.Add($footer)
 

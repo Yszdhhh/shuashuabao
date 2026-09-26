@@ -77,6 +77,7 @@ _INT_RANGES: dict[str, tuple[int, int]] = {
     "hitch_rotate_interval": (1, 100),
     "boss_live_time": (0, 3600), "archive_boss_time": (0, 3600),
     "auto_clean_interval": (0, 99), "develop_time": (0, 3000),
+    "clean_backpack_every_rounds": (1, 100),
     "close_main_line_time": (0, 3600), "auto_gambling_time": (0, 3600),
     "reputation_stage1": (0, 50), "reputation_stage2": (0, 50),
     "round_timeout_s": (60, 7200), "round_tail_window_s": (30, 600),
@@ -132,6 +133,8 @@ class Settings:
     auto_close_main_line: bool = False
     close_main_line_time: int = 0
     auto_clean_interval: int = 0
+    auto_clean_backpack: bool = False
+    clean_backpack_every_rounds: int = 10
     auto_card: bool = True
     auto_weapon: bool = True
     damage_increase_card: bool = False
@@ -162,6 +165,8 @@ class Settings:
     # Unknown bond cards must not bypass the declared strategy.
     bond_whitelist_mode: str = "hard"
     bond_must_take: list[str] = field(default_factory=list)
+    # Owner 2026-09-26 03:33：羁绊禁拿名单（看板可配，默认空），命中的卡永远不拿。
+    bond_banned: list[str] = field(default_factory=list)
     # 负面宝物放行名单（拿了会断资源/断成长的卡，默认一张都不选）。
     # 面板『宝物 · 负面卡』折叠区逐张打勾后写入；放行是逐卡的，不是全局开关。
     # 语义与判定见 config/choice_policy.json 与 shuabao.choice_policy。
@@ -298,7 +303,7 @@ class Settings:
                     clean[k] = ""
                 elif k in (
                     "skills", "cards", "stage_targets", "treasure_allow_negative",
-                    "bond_must_take", "bonds", "attributes", "smart_route_disabled_amplifiers",
+                    "bond_must_take", "bond_banned", "bonds", "attributes", "smart_route_disabled_amplifiers",
                     "skill_priority", "skill_custom_routes",
                 ):
                     clean[k] = []
@@ -330,7 +335,7 @@ class Settings:
             "recovery_action_limit", "failure_streak_limit",
             "panel_action_limit_per_fingerprint", "panel_episode_limit_per_kind",
             "ocr_timeout_ms", "ocr_warmup_timeout_ms", "merchant_max_rerolls", "merchant_gold_reserve",
-            "downgrade_after_failures",
+            "downgrade_after_failures", "clean_backpack_every_rounds",
         }
         float_fields = {
             "recovery_retry_interval_s", "panel_visible_timeout_s", "panel_hard_deadline_s",
@@ -362,7 +367,7 @@ class Settings:
             "auto_secret_realm", "auto_close_main_line", "auto_archaeology", "auto_card", "auto_weapon",
             "damage_increase_card", "develop_priority", "auto_reputation",
             "continue_reputation", "auto_bond", "auto_treasure", "auto_artifact",
-            "merchant_enabled", "dry_run",
+            "merchant_enabled", "dry_run", "auto_clean_backpack",
         }
         for k in bool_fields:
             if k in clean and not isinstance(clean[k], bool):
@@ -447,6 +452,14 @@ class Settings:
                 clean.pop("bond_must_take")
             else:
                 clean["bond_must_take"] = []
+        if "bond_banned" in clean:
+            raw_banned = clean["bond_banned"]
+            if isinstance(raw_banned, (list, tuple)):
+                clean["bond_banned"] = list(dict.fromkeys(str(v).strip() for v in raw_banned if str(v).strip()))
+            elif fallback is not None:
+                clean.pop("bond_banned")
+            else:
+                clean["bond_banned"] = []
         if "bond_whitelist_mode" in clean:
             mode = str(clean["bond_whitelist_mode"]).strip().lower()
             if mode in {"soft", "hard"}:
@@ -596,7 +609,7 @@ class Settings:
         errors: list[str] = []
         known = cls.__dataclass_fields__
         string_lists = {
-            "stage_targets", "skills", "cards", "bond_must_take", "treasure_allow_negative",
+            "stage_targets", "skills", "cards", "bond_must_take", "bond_banned", "treasure_allow_negative",
             "smart_route_disabled_amplifiers", "skill_priority", "bonds", "attributes",
         }
         for key, value in data.items():

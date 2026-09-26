@@ -82,6 +82,8 @@ def _med(**kw) -> Mediator:
     )
     med = Mediator(settings, ROOT)
     med.set_phase(Phase.MAIN_LINE)
+    # 这些用例测的是祝福拿完之后的循环（Owner 2026-09-26 04:59：祝福先于进化/英雄/神器）。
+    med._bond_cards_owned = ["祝福", "祝福", "祝福"]
     return med
 
 
@@ -381,7 +383,9 @@ def test_17_merchant_verifying_does_not_advance_holds_ownership() -> None:
 def test_18_real_merchant_frame_detects_merchant_wood() -> None:
     """18. Real merchant frame recognizes merchant_wood with threshold >= 0.95."""
     med = _med()
-    fixture_path = ROOT / "tests" / "fixtures" / "solo_round2_b1_20260915" / "merchant_wood_f0085.png"
+    # 2026-09-25 P2：旧夹具 merchant_wood_f0085.png 的 slot 0 是拳套（旧模板本身即拳套图，
+    # 故曾以 >=0.95“命中”），该帧并无真木材。改用 round4 实机真木材帧保住本用例原意。
+    fixture_path = ROOT / "tests" / "fixtures" / "solo_merchant_wood_f0249.png"
     assert fixture_path.exists(), f"Fixture not found at {fixture_path}"
     bgr = cv2.imdecode(np.fromfile(str(fixture_path), dtype=np.uint8), cv2.IMREAD_COLOR)
     assert bgr is not None
@@ -389,8 +393,8 @@ def test_18_real_merchant_frame_detects_merchant_wood() -> None:
     hit = med.find(frame, ["merchant_wood"], threshold=0.95, scales=(0.9, 1.0, 1.1), roi=(0.70, 0.66, 0.90, 0.76))
     assert hit is not None
     assert hit.score >= 0.95
-    assert 1100 <= hit.x <= 1200
-    assert 600 <= hit.y <= 620
+    assert 1240 <= hit.x <= 1280
+    assert 620 <= hit.y <= 645
 
 
 # =========================================================================

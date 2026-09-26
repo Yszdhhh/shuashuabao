@@ -521,10 +521,14 @@ def verify_stage_selection(
     return True
 
 
-def _row_border_bright_ratio(gray: np.ndarray, row: StageRow, scale: float) -> float:
+def _row_border_bright_ratio(gray: np.ndarray, row: StageRow, scale: float, sides_only: bool = False) -> float:
     """选中行整圈是奶白亮边（>200）；未选中行只有细灰边。返回边框环亮像素占比。
 
     实测 20260814_002537 客户端帧：选中的 1-1 占比 0.52，其余 11 行全为 0.000。
+
+    sides_only 只统计左右竖边：列表末行被底部裁掉上半截时（实机 20260926
+    solo 1-23 只露上半截），底边取不到而整圈被稀释，但竖边仍亮（0.206，
+    其余行 0.000），可作为截断行的选中确认。
     """
     half_h = max(6, int(round(22 * scale)))
     inner_h = max(4, int(round(16 * scale)))
@@ -546,6 +550,11 @@ def _row_border_bright_ratio(gray: np.ndarray, row: StageRow, scale: float) -> f
         band(cy - half_h, cy + half_h, cx - half_w, cx - inner_w),
         band(cy - half_h, cy + half_h, cx + inner_w, cx + half_w),
     ])
+    if sides_only:
+        ring = np.concatenate([
+            band(cy - half_h, cy + half_h, cx - half_w, cx - inner_w),
+            band(cy - half_h, cy + half_h, cx + inner_w, cx + half_w),
+        ])
     if ring.size == 0:
         return 0.0
     return float((ring > 200).mean())
@@ -553,6 +562,117 @@ def _row_border_bright_ratio(gray: np.ndarray, row: StageRow, scale: float) -> f
 
 SELECTED_RING_RATIO = 0.15
 SELECTED_RING_MARGIN = 3.0
+TRUNCATED_SIDE_RATIO = 0.10
+
+# 列表扫描 ROI 底部同 visible_stage_rows()（0.88h）：末行中心离它不到一整行
+# 步距（实机行距约 54px）且下方无下一行时，视为底部截断行。
+_TRUNCATED_LAST_ROW_EDGE_MARGIN = 48
+_TRUNCATED_ROW_BELOW_MIN = 25
+_TRUNCATED_ROW_BELOW_MAX = 80
+
+
+def _ring_clipped_at_bottom(gray: np.ndarray, row: StageRow, scale: float) -> bool:
+    """选中环上沿亮线存在、而环高范围内找不到下沿亮线时为 True。
+
+    上沿在字心上方 8..30 像素（1600x900 基准）内找整行亮像素占比 ≥0.6 的横线；
+    下沿在上沿下方 12..48 像素内找同样的横线。找到下沿说明环是完整的，不是截断。
+    """
+    height = gray.shape[0]
+    half_w = max(16, int(round(90 * scale)))
+    x0 = max(0, row.center_x - half_w)
+    x1 = min(gray.shape[1], row.center_x + half_w)
+    if x1 <= x0:
+        return False
+
+    def is_line(y: int) -> bool:
+        return 0 <= y < height and float((gray[y, x0:x1] > 200).mean()) >= 0.6
+
+    top_lo = row.center_y - max(9, int(round(30 * scale)))
+    top_hi = row.center_y - max(3, int(round(8 * scale)))
+    top = next((y for y in range(top_lo, top_hi + 1) if is_line(y)), None)
+    if top is None:
+        return False
+    bottom_lo = top + max(4, int(round(12 * scale)))
+    bottom_hi = top + max(14, int(round(48 * scale)))
+    return not any(is_line(y) for y in range(bottom_lo, bottom_hi + 1))
+
+
+def _truncated_last_row_fallback(
+    frame: Frame,
+    rows: list[StageRow],
+    gray: np.ndarray,
+    scale: float,
+) -> StageRow | None:
+    """底部截断末行的选中确认（实机 20260926 solo 1-23 只露上半截）。
+
+    整圈环在截断行上被稀释到阈值下（1-23 仅约 0.04），但竖边仍亮（0.206，
+    其余行 0.000）。只在“真是末行 + 贴着 ROI 底边 + 竖边证据 + 相对余量”
+    四者齐备时确认，否则返回 None（fail-closed，不发明高亮）。
+    """
+    last = max(rows, key=lambda row: row.center_y)
+    roi_bottom = int(frame.height * 0.88)
+    edge_margin = max(1, int(round(_TRUNCATED_LAST_ROW_EDGE_MARGIN * scale)))
+    row_gap_min = max(1, int(round(_TRUNCATED_ROW_BELOW_MIN * scale)))
+    row_gap_max = max(row_gap_min, int(round(_TRUNCATED_ROW_BELOW_MAX * scale)))
+    if roi_bottom - last.center_y > edge_margin:
+        return None
+
+    # 真截断证据看像素而不是几何：选中环的上沿亮线在，下沿亮线却不在
+    # （列表视口把它裁掉了）。实机 1-23 行字心 756、上沿 741、视口止于 764，
+    # 环下沿按半高推算只到 778，仍在 0.88h ROI（792）之内，所以旧的
+    # “环下沿超出 ROI”判据会把真截断行拒掉。
+    if not _ring_clipped_at_bottom(gray, last, scale):
+        return None
+
+    # 末行还必须与上一条可读行保持一个真实行距；旧实现检查“last 下方还有行”
+    # 对 max(center_y) 恒为假，无法提供任何证据。
+    previous = max(
+        (other for other in rows if other.center_y < last.center_y),
+        key=lambda row: row.center_y,
+        default=None,
+    )
+    if previous is None:
+        return None
+    row_gap = last.center_y - previous.center_y
+    if not (row_gap_min <= row_gap <= row_gap_max):
+        return None
+
+    # 上沿整条亮线已由 _ring_clipped_at_bottom 确认（未选中行上沿为 0），
+    # 竖边只需过截断专用的低阈值：1280x720 缩放后竖边被插值稀释到约 0.14。
+    side_best = _row_border_bright_ratio(gray, last, scale, sides_only=True)
+    if side_best < TRUNCATED_SIDE_RATIO:
+        return None
+    side_runner = max(
+        (
+            _row_border_bright_ratio(gray, other, scale, sides_only=True)
+            for other in rows
+            if other is not last
+        ),
+        default=0.0,
+    )
+    if side_runner > 0 and side_best < side_runner * SELECTED_RING_MARGIN:
+        return None
+    # 截断行被金边压住半截字，缩放后可能误读（1280x720 实测 1-23 读成 7-29）。
+    # 上面两行同章连号时，末行编号按“上一行 +1”恢复，与 visible_stage_rows
+    # 对超高选中行的邻行恢复同一口径；上面两行不连号则 fail-closed。
+    expected = StageId(previous.stage_id.chapter, previous.stage_id.index + 1)
+    if last.stage_id == expected:
+        return last
+    before_previous = max(
+        (other for other in rows if other.center_y < previous.center_y),
+        key=lambda row: row.center_y,
+        default=None,
+    )
+    if before_previous is None or before_previous.stage_id != StageId(
+        previous.stage_id.chapter, previous.stage_id.index - 1
+    ):
+        return None
+    return StageRow(
+        label=f"{expected.chapter}-{expected.index}",
+        stage_id=expected,
+        center_x=last.center_x,
+        center_y=last.center_y,
+    )
 
 
 def selected_stage_row(frame: Frame, images_dir: Path) -> StageRow | None:
@@ -571,12 +691,16 @@ def selected_stage_row(frame: Frame, images_dir: Path) -> StageRow | None:
         key=lambda item: (-item[0], str(item[1].stage_id)),
     )
     best_ratio, best_row = scored[0]
-    if best_ratio < SELECTED_RING_RATIO:
-        return None
-    runner_up = scored[1][0] if len(scored) > 1 else 0.0
-    if runner_up > 0 and best_ratio < runner_up * SELECTED_RING_MARGIN:
-        return None
-    return best_row
+    if best_ratio >= SELECTED_RING_RATIO:
+        runner_up = scored[1][0] if len(scored) > 1 else 0.0
+        # 两行整圈都达到“已高亮”阈值属于证据冲突：直接 fail-closed，
+        # 不得再让截断兜底用竖边替其中一行做决定。
+        if runner_up >= SELECTED_RING_RATIO:
+            return None
+        if runner_up <= 0 or best_ratio >= runner_up * SELECTED_RING_MARGIN:
+            return best_row
+    # 整圈无确信高亮时，再试底部截断末行（竖边确认）；仍无证据则 None。
+    return _truncated_last_row_fallback(frame, rows, gray, scale)
 
 
 def configured_stage_id(

@@ -1,5 +1,38 @@
 # 统一版本交接（2026-09-24）
 
+
+## PR #51 云端返工（2026-09-26，Draft）
+
+审计返工以 `claude/round4-live-20260926` 为 head，base 仍为 `claude/project-thread-fqyf7h`。接管时远端已从用户给出的 `bec4343` 并发推进到 `1d3b9f8`；本轮未回退既有提交，而是从当时最新 head 继续 fast-forward。PR 继续保持 Draft，未动 main。
+
+本轮提交（按层拆分）：
+
+- `2150c1071f563ed558e2e2af964098b3413b1015` — `fix(l1): preserve policy-authorized bond selections`：删除 RuntimeMediator 对策略已授权羁绊选择的二次白名单否决；仅保留不可读卡名零输入拦截。删除 `bond.negative_names` 配置/字段/过滤；抽出普通选择与刷新耗尽兜底共用的禁字法条件门（无安身法不得拿）。`whitelist_mode` 保持 `hard`，刷新次数文案统一为 3。
+- `824f471b82079b50e3f9042a7bd4a19ef593f6d3` — `fix(l1): scope anchorless hero geometry to evolve`：只有 `_evolve_feedback_pending` / `_evolve_awaiting_hero_pick` 事务允许在 anchor 缺失时采用双卡几何；补 f0030 正样本与羁绊/技能/宝物/HUD/结算负样本。
+- `2d5740eff9906ef0094b372e288ceaa8438b578a` — `fix(l0): require real clipping for last-stage fallback`：末行兜底要求环框下沿真实超出列表 ROI/帧底，48/25/80 像素阈值随 scale 缩放；两行整圈同时高亮时 fail-closed，不进入截断兜底；补末行未选中、未截断、双高亮与 1280×720 回归。
+- `c2ea2cbde578bfe7cffc9c1d439e6a166c9f7506` — `chore(release): pin round4 audit candidate`：首次把运行身份锚点钉到 `2d5740e`。
+- `e60bb017afbebb23d9e70609913a533cbdf9f1ee` — `docs: record PR51 audit closure status`：回写本节提交列表、资产门禁证据和真机重验项。
+- `be037d5e6ea958caabad470265ff6662d3cd5ec3` — `docs(policy): remove stale bond-ban wording`：清除策略源码注释与旧交接段落中残留的“羁绊永久负面名单”措辞；这是最后一个触碰 `src/shuabao` 的提交。
+- `1eeb59c1b810b2fe53a1c0eec9ca930ee11f8731` — `chore(release): repin audited runtime identity`：最终运行身份锚点改钉到 `be037d5e`，后续仅允许 baseline/文档门禁提交，不再修改 `src/shuabao`。
+
+资产门禁事实已复核：`bc8d331` 有意新增 6 张羁绊家族模板（箭术/藏宝图/亡灵/三国/刀刀/封神）并替换 genji/shenfa；`113185c` 又从真机帧重切这 8 张模板并同步 runtime asset manifest。当前 manifest 为 436 条，基线为 430，差值正好 6；8 个家族都有正样本 strip，`test_round2_new_family_strips_argmax` 对当前全模板做 argmax 且要求分数 ≥0.90。基线不得手改；必须在 Windows 上实际执行完整 `python tools/release_gate.py --update-baseline --reason "..."` 生成单独 baseline commit，然后在该新 HEAD 再跑 `python tools/release_gate.py`，要求 4/4、退出码 0。
+
+本轮仍需真机重验，未验证前不得把 #51 标 Ready：
+
+1. 祝福出现时必拿。
+2. 羁绊刷新耗尽/木材不足时，白名单外卡按策略兜底，不被 RuntimeMediator 二次拦截。
+3. 未持有安身法时，刷新耗尽也不得兜底拿禁字法；页面只剩禁字法时保持零输入。
+4. 进化英雄双卡弹窗在 refresh/give-up 锚点缺失时仍能识别并完成选择，同时普通羁绊/技能/宝物/HUD/结算不误判。
+5. 1600×900 的 1-23 底部截断选关与 1280×720 缩放场景都能正确确认；未选中/未截断/双高亮保持 fail-closed。
+
+
+
+## Owner 2026-09-26 调度口径更正
+
+Owner 2026-09-26 更正版：木材持续溢出（≥500）时专心推羁绊并快速合成 EX，不去黑商；木材未溢出（<500）时黑商按现有购买逻辑正常推进。缺吞噬丹且羁绊栏占格≥8 时保留应急插队。羁绊刷新每面板最多 3 次。羁绊采用两档口径：看板勾选项是常规白名单；未勾选普通羁绊只在刷新预算耗尽或木材不足时进入兜底。羁绊没有永久负面禁拿名单（负面禁拿仅属于宝物）；禁字法是条件门，未持有安身法时任何路径都不得拿。刷新用尽或木材不足时优先顺序仍为祝福 > 成长/经济 > 当前高级组 > 其它白名单，再从其余可读且满足条件门的卡按稀有度兜底。技能/宝物面板不使用羁绊兜底。祝福不依赖看板勾选且每局必拿。暂时隐藏仅用于调度器让路处理地面、背包或其它面板；无可读目标时保留面板并零输入等待。
+
+默认高级卡组选序：海盗 → 大圣 → 刀刀 → 异火 → 海贼王 → 封神 → 修仙；亡灵仍为实验项且不默认勾选。低木材且技能积压时先点技能规则保持不变。KB 已确认海贼王终卡为 EX、不可吞噬；但 `_BOND_BAR_EX_TEMPLATES` 无海贼王 EX 模板，当前高级组解锁计数依赖羁绊栏模板命中，海贼王成型后可能无法解锁下一组。按 Owner 本轮要求只记录风险，待真机素材齐备后另议模板。发布门禁通过后仍需真机验证刷新用尽/木材不足兜底、无安身法时禁字法条件门、祝福强制必拿及高级组解锁。
+
 ## 组成
 
 `claude/project-thread-fqyf7h` 分支上的统一版本，由三部分组成：
@@ -46,6 +79,8 @@ Owner 2026-09-24 三条决策加审查发现的问题，按层分成 7 个提交
 
 需要真机验证（新增）：F2 的触发时机和回阵地效果（尤其大秘境、传家宝 Boss 前后）；平台活动弹窗 Esc 后点叉。
 
+入口 12 的 `solo_ingame_chain` 收尾现已由 observer 的整链路结果决定：普通动作 post-confirm 不再直接记为 target PASS；`auto_secret_realm=true` 时要求确认进入秘境，并观察秘境结束后回到选关页或战后页。此链路需要 Owner 在真机重新验证秘境胜利、失败/超时后的收尾表现。
+
 ## 本地门禁单次失败的处理（2026-09-24 晚）
 
 本地首跑 `release_gate.py` 的 pytest 阶段 2679 passed / 1 failed，重跑 2680 全过，失败用例名没有留下（门禁只保留输出最后 3 行）。云端判断与处理，三个提交，未改业务逻辑：
@@ -73,7 +108,7 @@ Owner 指出以前写好的局内规则在多轮架构收敛里被删掉。下�
 | 5 | 木材 < 500 且技能积压：先点技能 | Owner 09-15，09-24 定 500 | 09-24 补回（#37 删过） |
 | 6 | 木材 ≥ 500 且基础羁绊未成型：先点羁绊 | Owner 09-20 优先羁绊，09-24 | 生效 |
 | 7 | 木材 ≥ 1000：羁绊压过技能积压 | Owner 09-15 | 生效 |
-| 8 | 勾选的基础羁绊与高级羁绊同页：先拿还没拿到的基础（高级卡组起步后也一样，只让位于差一张合成） | Owner 09-24，同日追加 | 09-24 新增；晚间改为起步后也先拿基础 |
+| 8 | 勾选的基础羁绊与高级羁绊同页：仅祝福优先于高级卡，高级卡与其余基础卡平级 | Owner 2026-09-25（修订 09-24 全基础优先） | 09-25 改写；同页只有祝福优先于高级卡，高级卡与其余基础卡平级 |
 | 9 | 宝物在自己那一步能打开，不被 F 饿死 | Owner 09-15 | 09-24 补回（#37 删过） |
 | 10 | 拿齐预设后 F 整局不关（重复卡升级/合成） | 09-24 审查恢复 | 09-24 补回（#37 改过） |
 | 11 | 技能面板点真正的【刷新(N)】，不点「刷新次数+1」文字 | Owner 09-24 | 生效 |
@@ -89,9 +124,9 @@ Owner 指出以前写好的局内规则在多轮架构收敛里被删掉。下�
 | 21 | 同一时刻只推进一组高级卡组，羁绊栏出现蓝色 EX（海盗为 UR）才解锁下一组 | Owner 09-24 | 同上；EX 模板待实机截图 |
 | 22 | EX 靠合成链得到，不从面板拿 | Owner 09-24 | 同上 |
 | 23 | 刀刀/修仙/海盗/亡灵按看板勾选从首卡拿到白名单末卡 | Owner 09-24 | 同上 |
-| 24 | 单人默认吃吞噬丹（看板不加开关），羁绊栏 ≥6/10 就吃 | Owner 09-24 | 同上 |
-| 25 | 羁绊栏过半没丹、木材 < 500：插队去黑商，绕一趟回到被打断的步骤 | Owner 09-24 | 同上 |
-| 26 | 黑商一步按 H 开店：羁绊栏过半找吞噬丹，木材 < 500 买木材 | Owner 09-24 | 同上 |
+| 24 | 单人默认吃吞噬丹（看板不加开关），羁绊栏空位 ≤ 2（≥8/10）就吃（亡灵例外见下） | Owner 09-24；Owner 09-25 改为 ≥8/10 | 09-25 更新 |
+| 25 | 羁绊栏空位 ≤ 2 没丹、木材 < 500：插队去黑商，绕一趟回到被打断的步骤 | Owner 09-24；Owner 09-25 | 09-25 更新 |
+| 26 | 黑商一步按 H 开店：羁绊栏空位 ≤ 2 找吞噬丹，木材 < 500 买木材 | Owner 09-24；Owner 09-25 | 09-25 更新 |
 | 27 | 亡灵卡组进行中（持有亡灵卡、兵主 EX 未出）不吃吞噬丹：提前吞倒计时卡会断碎片 | Owner 09-24 | 同上 |
 | 28 | 木材 < 500 以支线循环为主：F 每次最多 1 张（500–1000 两张，≥1000 十五张） | Owner 09-24 | 同上（原 300 分档） |
 
@@ -156,3 +191,60 @@ EX 模板（`a57d697`）：从 Owner 的卡面截图 `fixtures/ex_finals_2026081
 还没做：物品栏满时的消耗品识别与溢出整理、单人背包放置逻辑，等 GPT 调研（`gpt/urgent-resources-20260924`）和实机 tooltip 截图。
 
 本地第三轮（`local/quicktest-20260924b`，HEAD `88eb4d2`）：门禁首跑启动器冒烟测试临时 EXE `PermissionError`，单跑 3/3 过，重跑全绿；快照已刷新（404→405）。`build_release.ps1 -NoDeploy` 因缺操作员 Ed25519 manifest 私钥 BLOCKED（第 113–121 行，所有冻结渠道都要，设计如此），冻结包 harness 未跑。云端决定继续用源码模式跑入口 1 和入口 12。
+
+## 2026-09-26 L1 选卡模板直判接线（worktree `perf/pick-speed-20260925`）
+
+- 在羁绊固定 3/4 槽面板先匹配卡族标题；只有槽数有效、索引完整且唯一、所有槽位都有名称且模板分数均 ≥0.85 时才用模板结果。模板不完整或低分时保持原 OCR 回退。
+- `choice_policy` 的排序、规则锁与输入执行路径未改；完整高置信直判沿用其策略结果，并跳过 OCR 等待和第二帧确认。冷却及面板 FSM 未调整。
+- 两包真实帧共 93 个羁绊 OCR 面板：12 个满足直判门槛，逐槽卡族/布局与 trace OCR 一致；相同策略配置下两路决策 12/12 动作类型与槽位一致，81 个走 OCR 回退。热缓存模板耗时约 50 ms 中位数（包 1 P90 96.98 ms；包 2 P90 74.98 ms）。完整数据记在 `G:\刷刷宝\nightwatch\pick_speed.md`。
+- 离线真帧核对不是实机新运行；下次真机需观察模板覆盖率、当帧输入后面板是否正常变化，识别异常仍按 fail-closed 处理。
+- 定向验证：`test_card_slot_template_matcher.py`、`test_choice_policy.py`、`test_mediator_choice_four_slot_integration.py`、第一帧高置信选卡用例及 Owner 规则锁通过；`tests/contract` 67 passed / 232 subtests passed；4 个选卡自然面板/OCR miss 用例 4 passed。组合运行整份 `test_live_run_205044_regressions.py` 时有 3 个进化弹窗用例失败（不经过羁绊模板直判路径，待单独排查）。`test_live_harness_refresh.py` 在重钉前因旧锚点报告 NOT_CLEAN；candidate 重钉到 `2b3ba108e9c653d9dc04f2a2514c65a160968cab` 后通过，23 passed。身份提交：`e2011ecf`，UTF-8 格式修复：`ab39726c`。
+
+## 2026-09-26 局内分类递归修复
+
+- Mediator._classify_choice_panel 的英雄几何候选改为显式调用 Core 检测，防止 Runtime 覆写互递归；无锚点帧保持返回 None。
+- 未启动游戏；真机局内面板及进化点击流程需所有者后续验证。
+
+## 2026-09-26 羁绊面板关闭失败 fail-closed
+
+- Trace `solo_ingame_chain_20260925_230841_870781` 的 tick 291 显示 hard-deadline 后转 `CLOSING`；后续锚点持续存在而决策无输入。指定基线的单人 episode 上限分支已经会推进 `_L1_CYCLE_ORDER`，因此方案文档所述漏 advance 不是这次 trace 的直接根因。
+- `_tick_panel_fsm` 的 `CLOSING` 现在最多尝试 3 次；关闭锚点缺失、点击被拒或 3s 超时后进入 `COOLDOWN` 并耗尽本次关闭预算。锚点仍在时保持零输入，直到锚点消失后再清理面板 episode。未加 Escape/盲点。
+- FakeClock 回放覆盖 episode 上限推进和关闭失败后的有界重试；定向用例 8 passed，`tests/contract` 68 passed / 232 subtests passed，候选身份锚点更新后 `tests/test_live_harness_refresh.py` 23 passed。源码提交 `46ec6a3a078aeb05595817cdc90f9e66d65be6e0`。没有启动游戏；面板物理关闭及后续主线恢复仍待真机验证。
+- OCR 的白名单目标路径已支持 ≥0.85 单帧免确认，模板完整快路已跳过 OCR 与双帧确认。本次不再调低通用 OCR 的 0.95 门槛；trace 真帧 f0352 上 ≥0.85 的「封神 / 箭术 / 三国」与卡面文字一致，f0355 上重复「法术」槽位仍被唯一性门控排除。该样本只支持维持现有门控，不代表整体误点率测量。
+## 2026-09-26 进化二选一召回修复
+
+- Perception 修复提交：`bce9c1bc941574b647b7fd2d8902ff0d70c10cfc`；身份清单独立提交：`09eef1ebb6e95e0c32343b436c7bb577ac9b6e0a`。
+- 根因定位：`4da9790e` 在 `_find_evolution_choice` 新增固定 `x=540` 左边缘硬门槛；原回归夹具左框从 `x=550` 起，该采样带落空，进化选择被识别为 None，连带三项 205044 用例失败。
+- 修复：移除过严左边缘条件；采用已有 `toHero` 专用模板与双卡边框联合确认；明确战后页优先排除。未增加局内状态字段，`INGAME_POLLUTION` 无需调整。
+- 选择性离线探针：基线英雄真帧 `0/3` 命中，修复后 `3/3`；羁绊 `0/3`、空闲 `0/3`、scene_audit 冲突样本 `0/10` 命中；探针统计 C1=`0`、C1b=`0`。其中 2 张 ARCHIVE_PANEL 战后帧修复前曾误命中，战后排除后为 0。未重跑完整 1908 帧审计。
+- 验证：`tests/contract` + `test_live_run_205044_regressions.py` 共 124 passed、234 subtests passed；`test_live_harness_refresh.py` 23 passed。未启动游戏；正式运行链路仍需真机验证。
+- 额外试跑 `tests/test_runtime_stability_hotfix_20260821.py` 时，`test_physical_panel_deadline_is_telemetry_only_never_recovers_by_input` 失败；此项与本次 Perception 差异无关，按当前任务范围未处理。
+
+## 2026-09-26 全量门禁分诊续跑
+
+- L1 提交 `f8888272`：物理面板 watchdog 恢复为只记录遥测，关闭仍由 Core 面板 FSM 负责；旧选卡测试夹具补齐真实三槽布局，并按已验证的卡组目标保留规则校正期望。感知提交 `45890fda`：普通 HUD 上的 `toHero` 不再绕过进化弹窗几何条件，修复蹭车真帧 `f1028` 被误判、面板隐藏链无法进入 `CLOSING`；真实英雄二选一夹具继续通过。身份锚点由 `99d88cde` 单独重钉到 `45890fda`。
+- 上述验证仅为离线夹具和测试，未启动游戏。蹭车选择面板的物理隐藏与主线恢复、局内进化二选一召回、羁绊面板超时关闭仍需下一次真机复核；不要把此次离线门禁结果当作实机通过。
+
+## 2026-09-26 海贼王家族卡策略
+
+- 配置将“海贼王”系列名放到海贼王高级组首位，并从 EX 终卡剥离名单删除。Owner 规则：家族槽位按系列名快速命中；同名 EX 海贼王也看到就拿。异火及大圣多子卡组继续通过现有家族匹配命中；同页只有未获得的祝福优先于勾选高级卡组。
+- 两份 solo 真机 trace 未记录海贼王槽位；同批 trace 确认槽位含原始进度文本（如“齐天大圣(0/3)”“棍法(2/3)”，OCR 输出规范家族名）。抽帧未找到清晰的独立海贼王系列标签，未新增合成或裁切模板。
+- 发布门禁本次结果：pytest 阶段 FAIL（2228 passed、1 failed、2 xfailed、16 skipped、373 subtests；pytest 生成失败详情时发生 MemoryError，退出前未输出失败 traceback）；冻结回放、模板完整性、contract 三阶段 PASS。模板资产 430 与 manifest 一致，未更新基线。单独重跑失败项 `test_real_f0245_reads_card_rarity_badge_letters_and_bands` 为 1 passed；全量 pytest/release_gate 仍需在资源稳定时重跑至 0 退出码。海贼王家族标签仍需有清晰真帧时再确认原始文字与模板需求。
+
+<<<<<<< HEAD
+## 2026-09-26 英雄进化二选一卡死修复
+
+- Owner 截图 `G:\刷刷宝\nightwatch\hero_stuck_owner_screenshot.png` 与现场包 `solo_ingame_chain_20260926_125414_506355` 的 f0030–f0032 确认是英雄两卡面板：卡名位于顶部，卡中央显示 R/UR，左右卡框蓝/红；底部“放弃/刷新”及“英雄免费刷新次数+1”被共享按钮模板误认成技能面板。技能选择为三槽结构。回归帧取自包内原始 `f0030_state_change.png`，没有合成或裁切模板。
+- Perception commit `939c54d75502f8dae5f5f54214b4e0d9e5ef8509`：旧几何排除条件被背景竖边触发；增加四个双卡框位置的连续竖边确认，使双卡英雄框胜过 giveUp/refresh 命中，并作为技能分类及面板种类判定的优先证据。原有稀有度排序未改；样帧识别为右槽 UR（小鱼）。
+- L1 commit `7d834b41a0caf8de3708263b7ff627624f307a02`：feedback 检查提前到交互表面仲裁之前，等待期间发现英雄框立即转交英雄选择；英雄选择 15 秒仍未确认则经 `set_phase(ERROR)` 留 incident 并停止，不再进入 60 秒静默 COOLDOWN。无新增局内状态字段。
+- 兼容测试期望提交 `2ae40793e3dde071d058c285cbcc1108bf272bd0`；身份清单单独重钉提交 `bfb033724e884c6891db5aafe98f53f6ef051c5d`，candidate SHA 指向 L1 源码提交 `7d834b41a0caf8de3708263b7ff627624f307a02`。
+- 快速档最终组合：149 passed、232 subtests passed；`tests/test_live_harness_refresh.py` 单独 25 passed。整份 `test_live_run_205044_regressions.py` 的探索性运行另有两项羁绊白名单断言失败，与本次路径无关；进化相关用例均在最终组合中通过。没有运行全量 pytest/release_gate，也没有启动游戏。修复仍需用正式桌面构建进行真机验证，不能把离线结果视为实机通过。
+=======
+## 2026-09-26 祝福优先与挑战批量开启提速
+
+- L1：羁绊模板家族达到 0.85 即按未完成祝福、成长/经济、当前高级组、其它目标顺序直接选卡；只有最高目标家族出现多个槽位时读取稀有度徽标，否则选最左槽。没有命中目标时保留现有 OCR 与充分性回退门。
+- L1：祝福集未满时优先进入羁绊选择，且不因羁绊访问成功次数上限推进；保留面板既有硬超时及 fail-closed 行为。自动技能队列的强制上限没有修改。
+- L1：四个挑战按固定控制顺序批量右键，随后截图检查；仍为 OFF 的控制在同 tick 立即补点，最多两次重试。输入门禁只对当前 tick 同一证据帧中的挑战批量右键开放；重试仍 OFF 时记录 `challenge_toggle_unverified` incident 并停止。
+- 离线 trace 重放：现场包 1/1 面板走直拿；指定旧 trace 两包共 93 面板中 64 面板直拿；总计 65/94 覆盖，65/65 与 trace OCR 的动作槽位一致，未发现不一致。直拿耗时中位数 162.617 ms、P90 271.987 ms（包含同家族并列时徽标识别）；均未启动游戏或发送真实输入。
+- 定向选择/模板测试 `160 passed, 37 subtests passed`；本次新增用例 `10 passed`；`tests/contract` 为 `68 passed, 232 subtests passed`；身份重钉后 `tests/test_live_harness_refresh.py` 为 `23 passed`。`tests/test_live_run_205044_regressions.py` 为 `54 passed, 2 failed`：失败是 hard whitelist 场景仍被既有耗尽回退选卡，未由本次模板直拿命中；本次未扩展修复该策略行为。所有新行为仍需后续 Owner 实机验证。
+>>>>>>> perf/direct-family-pick-20260926

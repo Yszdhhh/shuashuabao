@@ -4120,6 +4120,7 @@
           <div class="switch-row"><span id="lblSecret">自动秘境</span><button type="button" class="switch" id="swSecret" role="switch" aria-checked="true" aria-pressed="true" aria-labelledby="lblSecret"></button></div>
           <div class="switch-row"><span id="lblCloseML">5-5 后取消自动主线</span><button type="button" class="switch" id="swCloseML" role="switch" aria-checked="true" aria-pressed="true" aria-labelledby="lblCloseML"></button></div>
           <div class="switch-row"><span id="lblAutoArch">票刷完自动考古</span><button type="button" class="switch" id="swAutoArch" role="switch" aria-checked="true" aria-pressed="true" aria-labelledby="lblAutoArch"></button></div>
+          <div class="switch-row"><span id="lblBackpackClean">自动清理背包</span><button type="button" class="switch" id="swBackpackClean" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblBackpackClean"></button></div>
         </section>
         <section class="panel lead-box" id="leadBox">
           <h3 data-od-id="lead-room-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M232,212H212V40a20,20,0,0,0-20-20H64A20,20,0,0,0,44,40V212H24a12,12,0,0,0,0,24H232a12,12,0,0,0,0-24Zm-44,0H172V44h16ZM68,44h80V212H68Zm68,84a16,16,0,1,1-16-16A16,16,0,0,1,136,128Z"/></svg></span>带车房间</h3>
@@ -4222,6 +4223,7 @@
               </div>
             </div>
           </div>
+          <div class="switch-row"><span id="lblHitchBackpackClean">自动清理背包</span><button type="button" class="switch" id="swHitchBackpackClean" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblHitchBackpackClean"></button></div>
         </section>
         <ol class="hitch-path" data-od-id="hitch-route" aria-label="蹭车运行路径">
           <li><i>01</i><span class="ph" aria-hidden="true"><svg viewBox="0 0 256 256" fill="currentColor"><path d="M232.49,215.51,185,168a92.12,92.12,0,1,0-17,17l47.53,47.54a12,12,0,0,0,17-17ZM44,112a68,68,0,1,1,68,68A68.07,68.07,0,0,1,44,112Z"></path></svg></span><b>自动找房</b></li>
@@ -4307,6 +4309,9 @@
     <div class="drawer-backdrop" id="drawerBackdrop"></div>
     <aside class="drawer" id="drawer" role="dialog" aria-labelledby="drawerTitle" aria-modal="false" aria-hidden="true">
       <div class="drawer-head"><h3 id="drawerTitle">高级设置</h3><button type="button" class="drawer-close" id="btnDrawerClose" aria-label="关闭高级设置">✕</button></div>
+      <h4>背包清理</h4>
+      <div class="fail-down"><span>每</span><input id="cleanBackpackEveryRounds" type="number" inputmode="numeric" min="1" max="100" step="1" value="10" aria-label="每几局清理一次背包" /><span>局清理一次</span></div>
+      <p class="fail-hint">仅分解精良及以下和史诗，保留传说</p>
       <h4>关卡难度<small>连败时自动降档</small></h4><div class="fail-down"><span>失败</span><input id="downgradeAfterFailures" type="number" inputmode="numeric" min="0" max="20" step="1" value="2" aria-label="连续失败几局" /><span>局，降低</span><input id="downgradeSteps" type="number" inputmode="numeric" min="1" max="10" step="1" value="1" aria-label="降低几级关卡难度" /><span>级关卡难度</span></div><p class="fail-hint">局数填 0 即关闭</p>
       <h4>特殊宝物<small>默认不拿，勾选即放行</small></h4>
       <div class="neg" id="negatives"></div>
@@ -4393,17 +4398,18 @@
       ys:{name:"陨石",aff:"力量/智力",routes:[["stun","优先眩晕"],["damage","优先爆发伤害"],["area","优先范围碎片"]]}
     };
     const DEFAULT_PRESETS = [
-      { id:"arcane_open", name:"奥术开荒", skills:["asj","asjg","assx","jq"], priority:["asj","asjg","assx","jq"], attr:["intelligence"], growth:["祝福","成长","经济","贪婪","挑战"], basic:["法术","急速","箭术"], adv:["haidao","fengshen"] },
-      { id:"thunder_classic", name:"天雷经典", skills:["tl","sdl","asjg","assx"], priority:["tl","sdl","asjg","assx"], attr:["intelligence"], growth:["祝福","成长","经济","贪婪","挑战"], basic:["法术","急速"], adv:[] },
-      { id:"thunder_net", name:"天雷狂轰", skills:["tl","sdl","dcw","asj"], priority:["tl","sdl","dcw","asj"], attr:["intelligence"], growth:["祝福","成长","经济","贪婪","挑战"], basic:["法术","急速"], adv:[] },
-      { id:"sword_qi", name:"剑气物理", skills:["jq","ys","dz","asjg"], priority:["jq","ys","dz","asjg"], attr:["agility"], growth:["祝福","成长","经济","贪婪","挑战"], basic:["急速","箭术","战术"], adv:[] },
-      { id:"aa_universal", name:"普攻万金油", skills:["pg","ys","dz","jq"], priority:["pg","ys","dz","jq"], attr:["agility"], growth:["祝福","成长","经济","贪婪","挑战"], basic:["急速","箭术","战术"], adv:[] }
+      { id:"arcane_open", name:"奥术开荒", skills:["asj","asjg","assx","jq"], priority:["asj","asjg","assx","jq"], attr:["intelligence"], growth:["成长","经济","贪婪","挑战"], basic:["法术","急速","箭术"], adv:["haidao","fengshen"] },
+      { id:"thunder_classic", name:"天雷经典", skills:["tl","sdl","asjg","assx"], priority:["tl","sdl","asjg","assx"], attr:["intelligence"], growth:["成长","经济","贪婪","挑战"], basic:["法术","急速"], adv:[] },
+      { id:"thunder_net", name:"天雷狂轰", skills:["tl","sdl","dcw","asj"], priority:["tl","sdl","dcw","asj"], attr:["intelligence"], growth:["成长","经济","贪婪","挑战"], basic:["法术","急速"], adv:[] },
+      { id:"sword_qi", name:"剑气物理", skills:["jq","ys","dz","asjg"], priority:["jq","ys","dz","asjg"], attr:["agility"], growth:["成长","经济","贪婪","挑战"], basic:["急速","箭术","战术"], adv:[] },
+      { id:"aa_universal", name:"普攻万金油", skills:["pg","ys","dz","jq"], priority:["pg","ys","dz","jq"], attr:["agility"], growth:["成长","经济","贪婪","挑战"], basic:["急速","箭术","战术"], adv:[] }
     ];
     const BUILDS = DEFAULT_PRESETS;
     const ATTR = [{id:"intelligence",label:"智力"},{id:"strength",label:"力量"},{id:"agility",label:"敏捷"}];
-    const GROWTH = ["祝福","成长","经济","贪婪","挑战"];
+    const GROWTH = ["成长","经济","贪婪","挑战"];
     const BASIC = ["法术","急速","魔能","魔术","魔法师","元素师","箭术","战术","暴击","提速","体术","固守","陷阵"];
-    const ADV = [{id:"daodao",label:"刀刀"},{id:"yihuo",label:"异火"},{id:"dasheng",label:"大圣"},{id:"xiuxian",label:"修仙"},{id:"fengshen",label:"封神"},{id:"haidao",label:"海盗"},{id:"wangling",label:"亡灵"}];
+    const ADV = [{id:"daodao",label:"刀刀"},{id:"yihuo",label:"异火"},{id:"dasheng",label:"大圣"},{id:"xiuxian",label:"修仙"},{id:"fengshen",label:"封神"},{id:"haidao",label:"海盗"},{id:"wangling",label:"亡灵"},{id:"haizeiwang",label:"海贼王"}];
+    const ADV_EXPERIMENTAL = ["wangling"];  // Owner 2026-09-26：复杂机制（符文/残骸计数、邪爆时机）需重构后才做；正式版不默认勾选，看板标实验；未勾选时零影响
     const FACTIONS = [
       { id:"heifeng", name:"黑锋骑士团", short:"黑锋", affix:["怪物强度 ×1.2","怪物血量 +30%","怪物血量、防御 +20%","怪物百分比恢复 +1%/s","怪物强度 ×1.3","玩家最终力量 -50%","玩家最终伤害 -50%，恢复 -50%","双 BOSS · 怪物强度 ×1.3","最终攻击 -25%，全伤害 -25%","怪物强度 ×1.5（极难）"] },
       { id:"yinse", name:"银色北伐军", short:"银色", affix:["怪物强度 ×1.2","怪物攻击 +40%","怪物血量、防御 +20%","怪物闪避 +25%","怪物强度 ×1.3","玩家最终敏捷 -50%","攻速 -75%，间隔 +0.25s，射程 -300","双 BOSS · 怪物强度 ×1.3","最终攻击 -25%，物理伤害 -25%","怪物强度 ×1.5（极难）"] },
@@ -4500,12 +4506,12 @@
     const state = {
       scene:"farm", mode:"solo", wizKind:"solo", wizTeam:"lead", wizardReturnScene:"farm",
       running:false, hudPhase:"IDLE",
-      theme:"dark", hero:false, cycle:2, played:0, autoSecret:true, autoArch:true, closeMainline:true, newRoom:false, chapter:2, stage:1, dragonPrefer:false,
+      theme:"dark", hero:false, cycle:2, played:0, autoSecret:true, autoArch:true, closeMainline:true, backpackClean:false, newRoom:false, chapter:2, stage:1, dragonPrefer:false,
       teamRules:{follow:{cycle:100,afterRoom:"solo",recoveryHours:1,pairCode:""},hitch:{cycle:100,afterGoal:"solo",recoveryHours:1}},
       selected:"arcane_open", presets:JSON.parse(JSON.stringify(DEFAULT_PRESETS)),
-      custom:[{id:"custom:1", name:"自定义策略", skills:["asj","asjg","assx","jq"], priority:["asj","asjg","assx","jq"], routes:{}, attr:["intelligence"], growth:["祝福","成长","经济","贪婪","挑战"], basic:["法术","急速","魔能","暴击"], adv:["haidao","fengshen"], isCustom:true}],
+      custom:[{id:"custom:1", name:"自定义策略", skills:["asj","asjg","assx","jq"], priority:["asj","asjg","assx","jq"], routes:{}, attr:["intelligence"], growth:["成长","经济","贪婪","挑战"], basic:["法术","急速","魔能","暴击"], adv:["haidao","fengshen"], isCustom:true}],
       collapsed:true, drawer:false,
-      modal:"", focusFac:"kenrito", attr:new Set(["intelligence"]), growth:new Set(["祝福","成长","经济","贪婪","挑战"]),
+      modal:"", focusFac:"kenrito", attr:new Set(["intelligence"]), growth:new Set(["成长","经济","贪婪","挑战"]),
       basic:new Set(["法术","急速","魔能","暴击"]), adv:["haidao","fengshen"], advDraft:[], advEditing:false, bondSaved:true,
       alloc:{heifeng:0,yinse:0,kenrito:5,tanxian:3,yuansu:0,shouhu:0}, draft:null,
       negative:new Set(),
@@ -4572,7 +4578,7 @@
         if (!Array.isArray(item.priority)) item.priority = item.skills.slice();
         if (!item.routes || typeof item.routes !== "object") item.routes = {};
         if (!Array.isArray(item.attr)) item.attr = ["intelligence"];
-        if (!Array.isArray(item.growth)) item.growth = ["祝福","成长","经济","贪婪","挑战"];
+        if (!Array.isArray(item.growth)) item.growth = ["成长","经济","贪婪","挑战"];
         if (!Array.isArray(item.basic)) item.basic = ["法术","急速","魔能","暴击"];
         if (!Array.isArray(item.adv)) item.adv = [];
       });
@@ -5454,7 +5460,7 @@
         return `<div class="adv-empty"><div class="adv-slots" aria-hidden="true">${slots}</div><p class="adv-empty-text"><b>未启用高级卡组</b><span>勾选后按这里的顺序优先拿。</span></p><button type="button" class="text-btn" id="btnPickAdv">选择高级卡组</button></div>`;
       }
       const last = advancedOrder.length - 1;
-      const rows = advancedOrder.map((pack, index) => `<li class="adv-ord${index===0 ? " is-first" : ""}" draggable="true" data-adv-id="${pack.id}" title="拖动或用 ▲▼ 调整顺序"><span class="adv-grip" aria-hidden="true">⋮⋮</span><span class="rank-no">${index+1}</span><b>${pack.label}</b><span class="adv-step"><button type="button" data-adv-move="-1" data-adv-id="${pack.id}" ${index===0 ? "disabled" : ""} aria-label="${pack.label} 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="${pack.id}" ${index===last ? "disabled" : ""} aria-label="${pack.label} 下移">▼</button></span></li>`).join("");
+      const rows = advancedOrder.map((pack, index) => `<li class="adv-ord${index===0 ? " is-first" : ""}" draggable="true" data-adv-id="${pack.id}" title="拖动或用 ▲▼ 调整顺序"><span class="adv-grip" aria-hidden="true">⋮⋮</span><span class="rank-no">${index+1}</span><b>${pack.label}${ADV_EXPERIMENTAL.includes(pack.id) ? "·实验" : ""}</b><span class="adv-step"><button type="button" data-adv-move="-1" data-adv-id="${pack.id}" ${index===0 ? "disabled" : ""} aria-label="${pack.label} 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="${pack.id}" ${index===last ? "disabled" : ""} aria-label="${pack.label} 下移">▼</button></span></li>`).join("");
       const cols = advancedOrder.length > 3 ? " is-2col" : "";
       return `<div class="adv-priority" data-od-id="advanced-pack-priority"><ol class="adv-ord-list${cols}" style="--rows:${Math.ceil(advancedOrder.length / 2)}" aria-label="高级卡组优先级">${rows}</ol></div>`;
     }
@@ -5484,7 +5490,7 @@
       syncBondFold(packById);
       if (state.bondSaved) { renderBondSummary(packById); renderLaunchSummary(); return; }
       const advancedOrder = state.adv.map((id)=>packById[id]).filter(Boolean);
-      const advanced = `<div class="bond-block" data-od-id="advanced-pack-selector"><h4>${blockIcon("star")}高级卡组</h4><div class="chips">${ADV.map((pack)=>`<button type="button" class="chip" data-pack="${pack.id}" aria-pressed="${state.adv.includes(pack.id)}">${pack.label}</button>`).join("")}</div>${advancedOrder.length ? advPriorityMarkup(advancedOrder) : `<p class="deck-note">勾选后按勾选顺序排优先级，可拖动或 ▲▼ 调整。</p>`}</div>`;
+      const advanced = `<div class="bond-block" data-od-id="advanced-pack-selector"><h4>${blockIcon("star")}高级卡组</h4><div class="chips">${ADV.map((pack)=>{const exp=ADV_EXPERIMENTAL.includes(pack.id);return `<button type="button" class="chip${exp ? " is-exp" : ""}" data-pack="${pack.id}" aria-pressed="${state.adv.includes(pack.id)}"${exp ? ` title="实验卡组：复杂机制需重构后才做，正式版不默认勾选" ` : ""}>${pack.label}${exp ? "·实验" : ""}</button>`;}).join("")}</div>${advancedOrder.length ? advPriorityMarkup(advancedOrder) : `<p class="deck-note">勾选后按勾选顺序排优先级，可拖动或 ▲▼ 调整。</p>`}</div>`;
       const coreCards = `<div class="bond-block"><h4>${blockIcon("attr")}属性</h4><div class="chips">${ATTR.map((a)=>`<button type="button" class="chip" data-attr="${a.id}" aria-pressed="${state.attr.has(a.id)}">${a.label}</button>`).join("")}</div></div><div class="bond-block"><h4>${blockIcon("growth")}发育卡组</h4><div class="chips">${GROWTH.map((n)=>`<button type="button" class="chip" data-bond-set="growth" data-bond="${n}" aria-pressed="${state.growth.has(n)}">${n}</button>`).join("")}</div></div><div class="bond-block"><h4>${blockIcon("cards")}基础卡组</h4><div class="chips">${BASIC.map((n)=>`<button type="button" class="chip" data-bond-set="basic" data-bond="${n}" aria-pressed="${state.basic.has(n)}">${n}</button>`).join("")}</div></div>`;
       const save = `<div class="bond-actions"><p class="hint">保存后锁定卡组勾选；高级顺序仍可随时改。</p><button type="button" class="secondary" id="btnCancelBonds">取消</button><button type="button" class="gold" id="btnSaveBonds">保存羁绊</button></div>`;
       $("bonds").innerHTML = `${coreCards}${advanced}${save}`;
@@ -6130,7 +6136,7 @@
         }
       }
     });
-    ["swSecret","swCloseML","swAutoArch","swNewRoom","swDragon"].forEach((id)=>{
+    ["swSecret","swCloseML","swAutoArch","swBackpackClean","swHitchBackpackClean","swNewRoom","swDragon"].forEach((id)=>{
       const el=$(id); if (!el) return;
       el.addEventListener("click",(e)=>{
         const pressed = e.currentTarget.getAttribute("aria-pressed")!=="true";
@@ -6139,6 +6145,11 @@
         if (id==="swDragon") state.dragonPrefer = pressed;
         if (id==="swAutoArch") state.autoArch = pressed;
         if (id==="swCloseML") state.closeMainline = pressed;
+        if (id==="swBackpackClean" || id==="swHitchBackpackClean") {
+          state.backpackClean = pressed;
+          setSwitch($("swBackpackClean"), pressed);
+          setSwitch($("swHitchBackpackClean"), pressed);
+        }
         if (id==="swNewRoom") state.newRoom = pressed;
         renderLaunchSummary();
       });
@@ -6422,6 +6433,8 @@
       setSwitch($("swSecret"), state.autoSecret);
       setSwitch($("swCloseML"), state.closeMainline);
       setSwitch($("swAutoArch"), state.autoArch);
+      setSwitch($("swBackpackClean"), state.backpackClean);
+      setSwitch($("swHitchBackpackClean"), state.backpackClean);
       setSwitch($("swDragon"), state.dragonPrefer);
       renderChapterStage(); renderNames(); renderBuilds(); renderBonds(); renderNegatives(); renderPrestige(); renderTeamRules();
       setScene("farm");
@@ -7064,7 +7077,7 @@
           const neg = document.getElementById("negatives");
           if (neg) neg.dispatchEvent(new Event("change", { bubbles: true }));
 
-          [["swSecret", "autoSecret"], ["swAutoArch", "autoArch"], ["swCloseML", "closeMainline"], ["swDragon", "dragonPrefer"], ["swNewRoom", "newRoom"]].forEach(([id, key]) => {
+          [["swSecret", "autoSecret"], ["swAutoArch", "autoArch"], ["swCloseML", "closeMainline"], ["swBackpackClean", "backpackClean"], ["swDragon", "dragonPrefer"], ["swNewRoom", "newRoom"]].forEach(([id, key]) => {
             const el = document.getElementById(id); const want = !!(p.sw && p.sw[key]);
             if (el && !!state[key] !== want) el.click();
           });

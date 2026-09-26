@@ -87,6 +87,16 @@ WHITELIST_HARD = "hard"
 WHITELIST_SOFT = "soft"
 VALID_WHITELIST_MODES = frozenset({WHITELIST_HARD, WHITELIST_SOFT})
 DEFAULT_BOND_MUST_TAKE: tuple[str, ...] = ("祝福", "智力祝福", "敏捷祝福", "力量祝福")
+DEFAULT_ADVANCED_GROUPS: tuple[tuple[str, ...], ...] = (
+    ("刀刀", "幽灵系带", "护腕", "空灵挂坠", "刀刀萌新", "刀刀大成", "旋涡", "风之杖", "纷争面纱", "风神杖", "灵匣", "绝刃", "雷神之锤", "希瓦的守护"),
+    ("异火", "焚诀·黄阶", "焚诀·玄阶", "焚诀·地阶", "焚诀·天阶", "阴阳双炎", "风怒龙炎", "幽冥毒火", "玄黄炎", "虚无吞炎", "净莲妖火", "金帝焚天炎", "生灵之焱", "八荒破灭焱", "九幽金祖火", "红莲业火", "三千焱炎火", "九龙雷罡火", "骨灵冷火", "陨落心炎", "海心焰", "青莲地心火", "龟灵地火", "火山石焰", "万兽灵火", "万火灵种", "初级兽火", "帝炎"),
+    ("齐天大圣", "大圣", "天命人", "大圣残躯", "眼看喜", "耳听怒", "鼻嗅爱", "舌尝思", "意见欲", "身本忧", "大圣套装", "如意金箍棒", "锁子黄金甲", "点翠", "飞龙臂", "点翠飞龙臂", "凤翅紫金冠", "藕丝步云履", "身法", "身法大成", "安身法", "纵跃身法", "金身护体", "棍法", "棍法大成", "武艺天赋", "体锻修行", "气力天赋", "术法", "术法大成", "禁字法", "进字法", "凝神法", "根系", "根基", "根系大成", "根基大成", "奇迹", "奇技", "奇迹大成", "奇技大成", "骑技大成", "法天象地"),
+    ("修仙", "筑基丹", "金丹大道", "修仙萌新", "修仙大成", "太乙青山", "元磁神山", "阴阳大五行山", "北极元山", "昊阴寒魄山", "元禾五极山"),
+    ("封神", "法宝", "姜子牙", "吕岳", "封神榜", "打神鞭", "杏黄旗", "斩仙飞刀", "肉身成圣", "天庭", "天仙", "金仙", "大罗金仙", "山河社稷图", "十二品莲台", "奇珍宝树", "盘古幡", "太极图", "混沌钟", "圣人"),
+    ("海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏", "藏宝图"),
+    ("亡灵", "亡灵天灾", "白骨复生", "魂火收割", "巫妖之躯"),
+    ("海贼王", "见习海贼", "超新星", "七武海", "凯多", "红发", "白胡子", "大妈"),
+)
 DEFAULT_SKILL_SLOT_CAP = 4
 DEFAULT_TREASURE_MUST_TAKE = ("全都要", "卡牌大师")
 _CATALOG_RARITY_TO_BAND = {
@@ -237,7 +247,7 @@ class PolicySettings:
     bond_base_presets: tuple[str, ...] = ()
     bond_advanced_presets: tuple[str, ...] = ()
     bond_advanced_groups: tuple[tuple[str, ...], ...] = ()
-    # 属性线门卡之后的链路卡（秘法师→法神→湮灭者 等）：在白名单里、任何阶段都可拿，
+    # 属性线链上卡（门卡→中环→次环→UR，另含 UR 散件名）：在白名单里、任何阶段都可拿，
     # 但不计入基础卡 80% 进度，也不是高级卡组。
     bond_chain_presets: tuple[str, ...] = ()
     bond_base_completion_ratio: float = 0.80
@@ -248,6 +258,10 @@ class PolicySettings:
     min_confidence: float = 0.0
     bond_whitelist_mode: str = WHITELIST_HARD
     bond_must_take: tuple[str, ...] = DEFAULT_BOND_MUST_TAKE
+    # Owner 2026-09-26 03:33「禁拿卡永远不拿」：常规、模板直拿、刷新耗尽兜底都排除。
+    # 来源 = config bond.negative_names + 看板 Settings.bond_banned，默认空。
+    bond_negative_names: tuple[str, ...] = ()
+    bond_unselected_advanced_names: tuple[str, ...] = ()
     treasure_negative_patterns: tuple[str, ...] = DEFAULT_NEGATIVE_PATTERNS
     treasure_negative_names: tuple[str, ...] = DEFAULT_NEGATIVE_NAMES
     treasure_allow_negative: tuple[str, ...] = ()
@@ -329,6 +343,7 @@ class PolicySettings:
         neg_names = raw.get("treasure_negative_names")
         must_take = raw.get("treasure_must_take")
         bond_must_take = raw.get("bond_must_take")
+        bond_negative_names = raw.get("bond_negative_names")
         habit_raw = raw.get("habit_name_scores") or {}
         if isinstance(habit_raw, Mapping):
             habit_scores = tuple((str(k), float(v)) for k, v in habit_raw.items())
@@ -365,6 +380,9 @@ class PolicySettings:
             bond_presets=tuple(str(s) for s in (raw.get("bond_presets") or ())),
             bond_base_presets=tuple(str(s) for s in (raw.get("bond_base_presets") or ())),
             bond_advanced_presets=tuple(str(s) for s in (raw.get("bond_advanced_presets") or ())),
+            bond_unselected_advanced_names=tuple(
+                str(s).strip() for s in (raw.get("bond_unselected_advanced_names") or ()) if str(s).strip()
+            ),
             bond_chain_presets=tuple(str(s) for s in (raw.get("bond_chain_presets") or ())),
             bond_advanced_groups=tuple(
                 tuple(str(x).strip() for x in group if str(x).strip())
@@ -380,6 +398,9 @@ class PolicySettings:
             bond_must_take=tuple(dict.fromkeys(
                 DEFAULT_BOND_MUST_TAKE
                 + tuple(str(s) for s in (bond_must_take or ()))
+            )),
+            bond_negative_names=tuple(dict.fromkeys(
+                str(s).strip() for s in (bond_negative_names or ()) if str(s).strip()
             )),
             treasure_negative_patterns=(
                 tuple(str(s) for s in neg) if neg is not None else DEFAULT_NEGATIVE_PATTERNS
@@ -418,6 +439,15 @@ _ATTRIBUTE_CHAINS = {
     "int": ("智力", "秘法师", "法神", "湮灭者"),
     "str": ("力量", "野蛮人", "战神", "屠戮者"),
     "agi": ("敏捷", "猎魔人", "弓神", "收割者"),
+}
+# UR 散件：卡面顶部是套名 (x/3)，图标下方红字才是散件名；标题 OCR 只读到
+# 散件名时视同该线 UR 套名去拿，而不是刷新（fixtures/ur_attr_routes 静帧 +
+# lexicon set_membership）。与 config/official_strategy_defaults.json
+# attr_routes.*.pieces 一致（tests 校验不漂移）。
+_ATTRIBUTE_PIECES = {
+    "int": ("聚能之虹", "洞察之眼", "奥法之辉"),
+    "str": ("战斗咆哮", "屠戮之刃", "杀戮之血"),
+    "agi": ("亡者之轮", "多重打击", "支配死灵"),
 }
 # Owner 2026-09-24：基础羁绊同页时的优先顺序 = 祝福 → 成长 → 经济 → 挑战 → 力量线 → 智力线
 # → 敏捷线 → 其他基础卡（贪婪归入其他基础卡，排在看板基础卡之前）。只排看板勾选的，
@@ -459,10 +489,15 @@ def assemble_policy_settings(
     advanced_names = tuple(
         str(item).strip() for item in (bond_cfg.get("advanced_names") or ()) if str(item).strip()
     )
+    # Owner 2026-09-24：终卡（海盗为 UR）靠合成得到，不从面板拿。
+    # advanced_groups 保留终卡只为链路归属；白名单预设在这里统一剥离。
+    ex_final_names = frozenset(
+        str(item).strip() for item in (bond_cfg.get("ex_final_names") or ()) if str(item).strip()
+    )
     # Whitelist order = pick priority (_match_bond_preset ranks by position),
     # Owner 2026-09-24:
     #   1. 祝福 / 成长 / 经济 / 挑战 (ticked ones only)
-    #   2. attribute lines 力量 → 智力 → 敏捷, each gate -> UR
+    #   2. attribute lines 力量 → 智力 → 敏捷, each gate -> UR (+ UR piece names)
     #   3. other basic bonds: 贪婪 first, then basic cards ticked on the dashboard
     #   4. advanced packs
     # Attribute-line cards never count toward the basic-formed ratio used by
@@ -497,6 +532,11 @@ def assemble_policy_settings(
                 bond_presets.append(name)
             if name not in chain_presets:
                 chain_presets.append(name)
+        for name in _ATTRIBUTE_PIECES[attr_id]:
+            if name not in bond_presets:
+                bond_presets.append(name)
+            if name not in chain_presets:
+                chain_presets.append(name)
     for text in other_bonds:
         if text not in bond_presets:
             bond_presets.append(text)
@@ -511,6 +551,8 @@ def assemble_policy_settings(
         names = tuple(str(x).strip() for x in (group or ()) if str(x).strip())
         if names:
             catalog_groups.append(names)
+    if not catalog_groups:
+        catalog_groups = [tuple(g) for g in DEFAULT_ADVANCED_GROUPS]
     selected_groups: list[tuple[str, ...]] = []
     used_groups: set[tuple[str, ...]] = set()
     for item in card_presets:
@@ -524,6 +566,21 @@ def assemble_policy_settings(
                     if name not in bond_presets:
                         bond_presets.append(name)
                 break
+    unselected_groups = [g for g in catalog_groups if g not in used_groups]
+    unselected_advanced_names = tuple(dict.fromkeys(
+        name for g in unselected_groups for name in g
+    ))
+    if ex_final_names:
+        bond_presets = [name for name in bond_presets if name not in ex_final_names]
+    # Owner 2026-09-26 03:03：勾了三国，四国的启动卡和国别卡都在白名单里，
+    # 哪国先出就先拿；第四国由 bond_candidate_allowed 按已持有国别拦下。
+    root_at = next((i for i, name in enumerate(bond_presets) if name in SANGUO_PRESET_ROOTS), None)
+    if root_at is not None:
+        extra = [
+            member for members in SANGUO_FACTIONS.values() for member in members
+            if member not in bond_presets
+        ]
+        bond_presets[root_at + 1:root_at + 1] = extra
 
     selected_group_names = tuple(name for group in selected_groups for name in group)
     advanced_presets = tuple(
@@ -603,6 +660,7 @@ def assemble_policy_settings(
             "bond_advanced_presets": advanced_presets,
             "bond_chain_presets": tuple(chain_presets),
             "bond_advanced_groups": tuple(selected_groups),
+            "bond_unselected_advanced_names": unselected_advanced_names,
             "bond_base_completion_ratio": bond_cfg.get("base_completion_ratio", 0.80),
             "bond_advanced_unlock_s": bond_cfg.get("advanced_unlock_s", 0.0),
             "treasure_presets": (),
@@ -617,6 +675,10 @@ def assemble_policy_settings(
                 + tuple(str(s) for s in (getattr(settings, "bond_must_take", None) or ()))
                 + tuple(str(s) for s in (bond_cfg.get("must_take_names") or ()))
             )),
+            "bond_negative_names": (
+                tuple(str(s) for s in (bond_cfg.get("negative_names") or ()))
+                + tuple(str(s) for s in (getattr(settings, "bond_banned", None) or ()))
+            ),
             "treasure_negative_patterns": treasure_cfg.get("negative_patterns"),
             "treasure_negative_names": treasure_cfg.get("negative_names"),
             "treasure_must_take": treasure_cfg.get("must_take_names"),
@@ -1151,7 +1213,32 @@ def _slot_stack_progress(slot: SlotCandidate) -> tuple[int, int] | None:
     return None
 
 
+def _is_blessing_uncompleted(
+    slot: SlotCandidate, owned_bonds: tuple[str, ...]
+) -> bool:
+    """祝福套装未凑满（need 见 config/bond_stack_catalog.json）前为 True。"""
+    prog = _slot_stack_progress(slot)
+    if prog is not None:
+        have, need = prog
+        return have < need
+    from shuabao.bond_capacity import stack_need
+
+    need = stack_need(slot.name) or 3
+    have = 0
+    for item in owned_bonds:
+        if not same_bond_identity(slot.name, item):
+            continue
+        have += 1
+        hit = _BOND_PROGRESS_RE.search(str(item))
+        if hit:
+            have = max(have, int(hit.group(1)))
+            need_o = int(hit.group(2))
+            if need_o > 1:
+                need = need_o
+    return have < need
+
 _BOND_PROGRESS_RATIO_RE = re.compile(r"[\[（(]\s*\d+\s*/\s*\d+\s*[\])）)]")
+
 
 
 def canonical_bond_identity(name: str | None) -> str:
@@ -1268,6 +1355,214 @@ def _is_uncompleted_merge_upgrade(
     return True
 
 
+def _is_proven_merge_upgrade(
+    slot: SlotCandidate, owned_cards: tuple[str, ...]
+) -> bool:
+    """10/10 专用：必须证明“拿这一张就立即合成”，不能只证明未来可合成。"""
+    if not slot.name or not owned_cards:
+        return False
+    if not _is_uncompleted_merge_upgrade(slot, owned_cards):
+        return False
+
+    progress = _slot_stack_progress(slot)
+    if progress is not None:
+        have, need = progress
+        return have + 1 >= need
+
+    from shuabao.bond_capacity import stack_need
+
+    need = stack_need(slot.name)
+    if need is None:
+        return False
+    have = sum(1 for item in owned_cards if item and same_bond_identity(slot.name, item))
+    return have + 1 >= need
+
+
+def _drop_completed_bond_slots(
+    slots: tuple[SlotCandidate, ...], owned_bonds: tuple[str, ...]
+) -> tuple[SlotCandidate, ...]:
+    """凑满的羁绊槽让路给下一环：已达 stack_need 的槽不参与预设匹配。
+
+    门卡 4/4 后同页再出现门卡 + 后环时选后环（游戏把凑满卡移出卡池前，
+    预设顺序会一直压住后环）。身份用 same_bond_identity，不用子串；
+    张数先信本张 OCR 的 (x/y)，再数已持有同名，最后信目录 need。
+    need 未知（UR 散件无目录条目）时保留——白名单本就允许拿，不替游戏猜。
+    """
+    from shuabao.bond_capacity import stack_need
+
+    kept: list[SlotCandidate] = []
+    for slot in slots:
+        if not slot.name:
+            kept.append(slot)
+            continue
+        progress = _slot_stack_progress(slot)
+        if progress is not None:
+            if progress[0] < progress[1]:
+                kept.append(slot)
+            continue
+        need = stack_need(slot.name)
+        if need is None:
+            kept.append(slot)
+            continue
+        have = 0
+        for item in owned_bonds:
+            if not same_bond_identity(slot.name, item):
+                continue
+            have += 1
+            hit = _BOND_PROGRESS_RE.search(str(item))
+            if hit:
+                have = max(have, int(hit.group(1)))
+        if have < need:
+            kept.append(slot)
+    return tuple(kept)
+
+
+def _is_unselected_advanced_bond(
+    name: str | None,
+    settings: PolicySettings,
+) -> bool:
+    unselected = getattr(settings, "bond_unselected_advanced_names", ())
+    if not name or not unselected:
+        return False
+    return matches_bond_preset(name, unselected)
+
+
+def _is_merge_or_near_complete(
+    slot: SlotCandidate,
+    cands: PanelCandidates,
+    settings: PolicySettings,
+    owned: tuple[str, ...],
+) -> bool:
+    if not slot.name:
+        return False
+    if _is_uncompleted_merge_upgrade(slot, owned):
+        return True
+    near = _near_complete_bond_slots(cands, settings, slots=(slot,))
+    if near:
+        return True
+    prog = _slot_stack_progress(slot)
+    if prog is not None:
+        have, need = prog
+        if need and have is not None and int(need) - int(have) == 1:
+            return True
+    return False
+
+
+def bond_candidate_allowed(name: str | None, owned_bonds: tuple[str, ...] | list[str]) -> bool:
+    """Shared safety gate for normal bond selection and exhausted-refresh fallback.
+
+    禁字法献祭 50% 生命；Owner 现行口径要求持有安身法后才可拿。
+    这不是“羁绊永久负面名单”：条件满足后禁字法仍是正常候选。
+    """
+    text = str(name or "").strip()
+    if not text:
+        return False
+    if same_bond_identity(text, "禁字法"):
+        return any(same_bond_identity(str(item), "安身法") for item in (owned_bonds or ()))
+    if sanguo_blocked_faction(text, owned_bonds):
+        return False
+    return True
+
+
+# Owner 2026-09-26 03:03：三国是魏、蜀、吴、群雄四选三。哪国先出来就先拿该国启动卡，
+# 拿满 3 国后不再拿第四国。国别卡名来自 config/choice_lexicon.json（启动牌 + UR），
+# 国名本身是系列标签模板的家族名。按卡名严格身份匹配，不用子串（魏延≠魏）。
+SANGUO_FACTIONS: dict[str, tuple[str, ...]] = {
+    "魏": ("魏", "曹操", "司马懿"),
+    "蜀": ("蜀", "刘备", "赵云"),
+    "吴": ("吴", "孙权", "孙策"),
+    "群雄": ("群雄", "董卓", "吕布"),
+}
+SANGUO_MAX_FACTIONS = 3
+SANGUO_PRESET_ROOTS = ("三国", "乱世三国")
+
+
+def sanguo_faction(name: str | None) -> str | None:
+    """卡名所属的三国国别；认不出返回 None。"""
+    if not name:
+        return None
+    for faction, members in SANGUO_FACTIONS.items():
+        if any(same_bond_identity(name, member) for member in members):
+            return faction
+    return None
+
+
+def sanguo_blocked_faction(name: str | None, owned_bonds: tuple[str, ...] | list[str]) -> bool:
+    """已持有 3 国时，第四国的卡一律不拿。"""
+    faction = sanguo_faction(name)
+    if faction is None:
+        return False
+    owned_factions = {
+        found for found in (sanguo_faction(item) for item in (owned_bonds or ())) if found
+    }
+    return len(owned_factions) >= SANGUO_MAX_FACTIONS and faction not in owned_factions
+
+
+def bond_banned(name: str | None, settings: PolicySettings) -> bool:
+    """Owner 2026-09-26 03:33：禁拿名单里的羁绊卡永远不拿。"""
+    return bool(name) and matches_bond_preset(name, settings.bond_negative_names)
+
+
+def _advanced_groups_complete(cands: PanelCandidates, settings: PolicySettings) -> bool:
+    groups = settings.bond_advanced_groups
+    if not groups:
+        # “没选高级组”不是“所选高级组全部完成”。只要还有已知未选高级卡族，
+        # 兜底就不得因此放开它们。
+        return not bool(settings.bond_unselected_advanced_names)
+    return max(0, int(cands.completed_advanced_groups or 0)) >= len(groups)
+
+
+def _is_any_advanced_bond(name: str | None, settings: PolicySettings) -> bool:
+    if not name:
+        return False
+    selected = tuple(item for group in settings.bond_advanced_groups for item in group)
+    return matches_bond_preset(name, selected) or _is_unselected_advanced_bond(name, settings)
+
+
+def _best_available_bond_pick(cands, settings, active_adv) -> SlotCandidate | None:
+    """刷新耗尽/无法刷新后的兜底；继续遵守前置、组顺序与容量安全。"""
+    owned = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
+    advanced_done = _advanced_groups_complete(cands, settings)
+    available = [
+        slot for slot in cands.slots
+        if slot.name and str(slot.name).strip()
+        and slot.confidence >= settings.min_confidence
+        and bond_candidate_allowed(slot.name, cands.owned_bond_cards)
+        and not bond_banned(slot.name, settings)
+        and (advanced_done or not _is_any_advanced_bond(slot.name, settings))
+    ]
+    if not available:
+        return None
+
+    if cands.free_slots is not None and cands.free_slots <= 0:
+        available = [slot for slot in available if _is_proven_merge_upgrade(slot, owned)]
+        if not available:
+            return None
+    elif cands.free_slots is not None and cands.free_slots <= 1:
+        available = [
+            slot for slot in available
+            if _is_merge_or_near_complete(slot, cands, settings, owned)
+        ]
+        if not available:
+            return None
+
+    def priority(slot: SlotCandidate) -> tuple[int, int, int]:
+        name = slot.name
+        if same_bond_identity(name, "祝福"):
+            tier = 0
+        elif matches_bond_preset(name, ("成长", "经济")):
+            tier = 1
+        elif matches_bond_preset(name, active_adv):
+            tier = 2
+        elif matches_bond_preset(name, settings.bond_presets):
+            tier = 3
+        else:
+            tier = 4
+        return tier, _rarity_rank(slot.rarity, settings.quality_order), int(slot.index)
+
+    return min(available, key=priority)
+
+
 def _bond_progress_hits(
     cands: PanelCandidates, slots: tuple[SlotCandidate, ...]
 ) -> tuple[tuple[SlotCandidate, int, int, str], ...]:
@@ -1319,11 +1614,12 @@ def _bond_capacity_candidates(
     kept: list[SlotCandidate] = []
     for slot in slots:
         merge = bool(slot.name and _is_uncompleted_merge_upgrade(slot, owned))
+        proven_merge = bool(slot.name and _is_proven_merge_upgrade(slot, owned))
         core = _is_bond_must_take(slot.name, settings.bond_must_take) or matches_bond_preset(
             slot.name, settings.bond_presets
         )
         if free <= 0:
-            allowed = merge or core or slot.zero_cost
+            allowed = proven_merge
         elif free == 1:
             allowed = merge or core or slot.name in tier_names
         else:
@@ -1414,8 +1710,13 @@ def _decide_collectible(
     else:
         eligible = cands.slots
         if kind == PANEL_BOND:
-            eligible = _bond_capacity_candidates(cands, eligible, settings)
             owned_bonds = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
+            eligible = tuple(
+                slot for slot in eligible
+                if bond_candidate_allowed(slot.name, owned_bonds)
+                and not bond_banned(slot.name, settings)
+            )
+            eligible = _bond_capacity_candidates(cands, eligible, settings)
             # Owner 2026-09-24：高级卡组不设基础 80% / 开局时间这类硬门槛；同一时刻
             # 只推进一组，合成出 EX（海盗为 UR）后才解锁下一组。
             active_adv = _active_advanced_presets(cands, settings)
@@ -1423,13 +1724,14 @@ def _decide_collectible(
                 eligible = tuple(
                     slot for slot in eligible
                     if (
-                        _is_bond_must_take(slot.name, settings.bond_must_take)
+                        (same_bond_identity(slot.name, "祝福") or _is_bond_must_take(slot.name, settings.bond_must_take))
                         or matches_bond_preset(slot.name, settings.bond_base_presets)
                         or matches_bond_preset(slot.name, settings.bond_chain_presets)
                         or matches_bond_preset(slot.name, active_adv)
-                        # A past run may already contain another pack's card.
-                        # Let its duplicate finish/merge, but never start it.
-                        or _is_uncompleted_merge_upgrade(slot, owned_bonds)
+                        or (
+                            _is_uncompleted_merge_upgrade(slot, owned_bonds)
+                            and not _is_any_advanced_bond(slot.name, settings)
+                        )
                     )
                 )
                 if not eligible:
@@ -1439,34 +1741,50 @@ def _decide_collectible(
                             None,
                             f"当前高级卡组未完成，第 {state.refreshes + 1}/{state.max_refreshes} 次刷新",
                         )
-                    return _no_safe_candidate(cands, state, kind, "当前高级卡组未完成，本页无合法卡")
+                    fallback = _best_available_bond_pick(cands, settings, active_adv)
+                    if fallback is not None:
+                        return PolicyDecision.select(fallback.index, f"羁绊刷新耗尽，当前页兜底选择【{fallback.name}】")
+                    return _no_safe_candidate(cands, state, kind, "当前高级卡组未完成，本页无可读卡")
             if settings.bond_whitelist_mode == WHITELIST_HARD:
                 eligible = tuple(
                     slot for slot in eligible
-                    if _is_bond_must_take(slot.name, settings.bond_must_take)
+                    if same_bond_identity(slot.name, "祝福")
+                    or _is_bond_must_take(slot.name, settings.bond_must_take)
                     or matches_bond_preset(slot.name, settings.bond_presets)
                     or _is_uncompleted_merge_upgrade(slot, owned_bonds)
                 )
-
-            # 禁字法避坑：献祭50%生命转高额攻击，必须在持有「安身法」百分比回血后才可选择，前期无安身法拿易暴毙
-            if any(slot.name == "禁字法" for slot in eligible):
-                has_anshen = any(
-                    "安身法" in str(b) for b in (cands.owned_bond_cards or ())
-                ) or any("安身法" in str(b) for b in (owned_bonds or ()))
-                if not has_anshen:
-                    eligible = tuple(slot for slot in eligible if slot.name != "禁字法")
 
             # 1. 必拿名单优先级最高（不受 near_complete 抢占）
             for slot in eligible:
                 if (
                     slot.confidence >= settings.min_confidence
-                    and _is_bond_must_take(slot.name, settings.bond_must_take)
+                    and (same_bond_identity(slot.name, "祝福") or _is_bond_must_take(slot.name, settings.bond_must_take))
+                    and (
+                        not same_bond_identity(slot.name, "祝福")
+                        or _is_blessing_uncompleted(slot, owned_bonds)
+                    )
                 ):
                     return PolicyDecision.select(
                         slot.index, f"羁绊系统必拿【{slot.name}】 @ slot {slot.index}"
                     )
 
-            # 2. 差一张合成秒选（受容量与门禁约束；满槽仅限已持有同卡合并）
+            growth_economy_hit = _match_bond_preset(
+                eligible,
+                tuple(name for name in settings.bond_presets if matches_bond_preset(name, ("成长", "经济"))),
+                settings.min_confidence,
+                settings.quality_order,
+            )
+            if growth_economy_hit is not None:
+                name = _slot_name(cands.slots, growth_economy_hit)
+                return PolicyDecision.select(growth_economy_hit, f"成长/经济羁绊优先：{name} @ slot {growth_economy_hit}")
+
+            if settings.bond_advanced_groups:
+                pack_hit = _match_bond_preset(
+                    eligible, active_adv, settings.min_confidence, settings.quality_order
+                )
+                if pack_hit is not None:
+                    name = _slot_name(cands.slots, pack_hit)
+                    return PolicyDecision.select(pack_hit, f"当前高级卡组持续推进：{name} @ slot {pack_hit}")
             near = _near_complete_bond_slots(cands, settings, slots=eligible)
             if cands.free_slots is not None and cands.free_slots <= 0:
                 near = tuple(s for s in near if _is_uncompleted_merge_upgrade(s, owned_bonds))
@@ -1476,32 +1794,6 @@ def _decide_collectible(
                     slot.index,
                     f"羁绊差一张合成秒选【{slot.name}】 @ slot {slot.index}",
                 )
-
-            # 2.5 Owner 2026-09-24：勾选的基础羁绊与高级羁绊同时出现时先拿基础羁绊，
-            #     高级卡组起步前后都一样；基础之间按白名单顺序（祝福 → 成长 → 经济
-            #     → 挑战 → 力量/智力/敏捷线 → 其他基础卡）。排在"差一张合成"之后：
-            #     差一张的卡本页不拿就可能丢掉整组合成。只对还没拿到的基础卡生效，
-            #     已拿到的基础卡走下方合成/预设顺序。
-            basic_tier = tuple(
-                name for name in settings.bond_presets
-                if name in settings.bond_base_presets or name in settings.bond_chain_presets
-            )
-            if basic_tier and settings.bond_advanced_presets:
-                missing_base = tuple(
-                    slot for slot in eligible
-                    if matches_bond_preset(slot.name, basic_tier)
-                    and not any(same_bond_identity(name, slot.name) for name in owned_bonds)
-                )
-                base_hit = _match_bond_preset(
-                    missing_base, basic_tier,
-                    settings.min_confidence, settings.quality_order,
-                )
-                if base_hit is not None:
-                    name = _slot_name(cands.slots, base_hit)
-                    return PolicyDecision.select(base_hit, f"基础羁绊优先：{name} @ slot {base_hit}")
-
-            # 3. 20260822：已持有的羁绊卡合成跃升（如 1/3, 2/3 未满星卡牌）
-            # 只要手中已持有过某羁绊卡，且当前面板再次出现该卡，优先合成升级，绝不可刷新丢弃！
             for slot in eligible:
                 if (
                     slot.confidence >= settings.min_confidence
@@ -1510,15 +1802,10 @@ def _decide_collectible(
                     return PolicyDecision.select(
                         slot.index, f"羁绊已持有合成优先：{slot.name} @ slot {slot.index}"
                     )
-            # The active advanced pack keeps moving when one of its members
-            # appears; only a missing basic bond (2.5) goes before it.
-            if settings.bond_advanced_groups:
-                pack_hit = _match_bond_preset(
-                    eligible, active_adv, settings.min_confidence, settings.quality_order
-                )
-                if pack_hit is not None:
-                    name = _slot_name(cands.slots, pack_hit)
-                    return PolicyDecision.select(pack_hit, f"当前高级卡组持续推进：{name} @ slot {pack_hit}")
+    if kind == PANEL_BOND:
+        # 凑满让路：已完成环不再参与预设匹配，同页后环才能排到。
+        # 必拿 / 差一张 / 已持有合成 / 高级卡组都在前面跑过，不受影响。
+        eligible = _drop_completed_bond_slots(eligible, owned_bonds)
     preset_hit = (
         _match_bond_preset(eligible, presets, settings.min_confidence, settings.quality_order)
         if kind == PANEL_BOND
@@ -1535,8 +1822,8 @@ def _decide_collectible(
         return PolicyDecision.select(preset_hit, f"{kind} 预设命中：{name} @ slot {preset_hit}")
 
     if kind == PANEL_BOND:
-        # 20260822 实机（trace 181735）：软/硬模式在预设未命中时都先尝试木材刷新，
-        # 刷完预算后软模式才回落到套装/品质，硬模式直接收口。
+        # Owner 2026-09-26：白名单未命中先刷新；预算耗尽或木材不足时允许兜底。
+        # 兜底与常规路径共用 bond_candidate_allowed（当前仅禁字法/安身法条件门）。
         # 老行为（软模式直接品质降级）导致羁绊整局只拿 4 张且从不刷新。
         if state.refreshes < state.max_refreshes and getattr(cands, "can_refresh", False):
             return PolicyDecision(
@@ -1544,13 +1831,17 @@ def _decide_collectible(
                 None,
                 f"羁绊未命中预设（第 {state.refreshes + 1}/{state.max_refreshes} 次木材刷新）",
             )
-        if settings.bond_whitelist_mode == WHITELIST_HARD:
-            return _no_safe_candidate(cands, state, kind, "白名单外不可选（硬禁用，刷新已耗尽）")
-
     synth_hit = _match_synthesis(cands, settings.min_confidence, slots=eligible)
     if synth_hit is not None:
         name = _slot_name(cands.slots, synth_hit)
         return PolicyDecision.select(synth_hit, f"{kind} 套装进度优先：{name} @ slot {synth_hit}")
+
+    if kind == PANEL_BOND and not (
+        state.refreshes < state.max_refreshes and getattr(cands, "can_refresh", False)
+    ):
+        fallback = _best_available_bond_pick(cands, settings, active_adv)
+        if fallback is not None:
+            return PolicyDecision.select(fallback.index, f"羁绊刷新耗尽，当前页兜底选择【{fallback.name}】")
 
     # 20260822 实机（trace 203910 20:42:19/22）：宝物面板橙/紫卡 OCR 读不出
     # 名字（conf=0）时品质降级只能在"可读的绿卡"里挑——用户裁决：宝物走红→
@@ -1578,7 +1869,9 @@ def _active_advanced_presets(cands: PanelCandidates, settings: PolicySettings) -
     if not groups:
         return settings.bond_advanced_presets
     done = max(0, int(cands.completed_advanced_groups or 0))
-    return groups[min(done, len(groups) - 1)]
+    if done >= len(groups):
+        return ()
+    return groups[done]
 
 
 def _no_safe_candidate(
@@ -1636,6 +1929,58 @@ def matches_bond_preset(name: str | None, presets: tuple[str, ...]) -> bool:
     """羁绊家族允许“成长”匹配“成长之根”，但空白名单永不放行。"""
     text = str(name or "").strip()
     return bool(text and any(preset and (text == preset or preset in text) for preset in presets))
+
+
+def template_family_sufficient(
+    slot_names: tuple[str, ...] | list[str],
+    *,
+    bond_presets: tuple[str, ...] = (),
+    bond_must_take: tuple[str, ...] = (),
+    owned_bond_cards: tuple[str, ...] = (),
+    progress_names: tuple[str, ...] = (),
+) -> tuple[bool, str]:
+    """模板快路家族充分性门（纯函数，无 I/O）。
+
+    模板槽只有系列标签家族名：无稀有度徽标、无 (x/y) 后缀、confidence 是
+    模板分而非 OCR 分。只有面板决策不可能依赖这些缺失信息时才允许直判：
+    - 至少含一个决策相关家族（预设/必拿/已持有/进度成员），否则品质降级
+      等回退分支两边可能分歧；
+    - 决策相关家族不得在面板出现 2 次及以上（_near_complete 按 confidence
+      取 max、_match_bond_preset 按稀有度 tie-break，两边排序键不同）；
+    - 决策相关槽不得命中已持有身份（合并/满卡让路依赖 (x/y) 后缀，模板没有）。
+    重复的非决策家族不影响。稀有度徽标不做 OCR 补读（快路零 IPC）：
+    _match_bond_preset 的稀有度 tie-break 只在同预设序命中之间生效，即同族
+    重复，已被上一条覆盖。
+    """
+    names = [str(item or "").strip() for item in (slot_names or ())]
+    if not names or any(not item for item in names):
+        return False, "模板槽位不完整"
+    presets = tuple(item for item in (bond_presets or ()) if str(item or "").strip())
+    owned = tuple(item for item in (owned_bond_cards or ()) if str(item or "").strip())
+    progs = tuple(item for item in (progress_names or ()) if str(item or "").strip())
+
+    def _relevant(name: str) -> bool:
+        if matches_bond_preset(name, presets):
+            return True
+        if _is_must_take(name, bond_must_take, is_bond=True):
+            return True
+        if any(same_bond_identity(name, have) for have in owned):
+            return True
+        return any(p in name or name in p for p in progs)
+
+    relevant = [item for item in names if _relevant(item)]
+    if not relevant:
+        return False, "面板无决策相关家族"
+    counts: dict[str, int] = {}
+    for item in relevant:
+        counts[item] = counts.get(item, 0) + 1
+    dupes = sorted(item for item, total in counts.items() if total >= 2)
+    if dupes:
+        return False, f"决策相关家族重复：{','.join(dupes)}"
+    for item in relevant:
+        if any(same_bond_identity(item, have) for have in owned):
+            return False, f"已持有相关【{item}】需后缀，走 OCR"
+    return True, "家族充分"
 
 
 def _match_bond_preset(

@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-"""紧急资源插队去黑商（Owner 2026-09-24）。
+"""缺吞噬丹或木材不足时紧急插队去黑商（Owner 2026-09-26）。
 
-- 羁绊栏超过一半（≥6/10）且物品栏没有吞噬丹：黑商是当前最紧急的支线；
-- 木材 < 500：去黑商买木材；
+- 物品栏没有吞噬丹或木材 < 500：黑商是当前获取支线；
 - 插队是绕一趟：黑商一步结束后回到被打断的那一步，装备/拾取不被跳过；
 - 蹭车不插队（黑商在蹭车环里本来就是第一步，丹是队伍资产）。
 """
@@ -45,23 +44,29 @@ def _hud(med: Mediator, *, bond: int | None, pill: bool, wood: int | None):
         yield
 
 
-def test_bond_bar_over_half_without_pill_is_urgent() -> None:
+def test_missing_pill_is_urgent_only_when_bond_bar_is_crowded() -> None:
     med = _med()
-    with _hud(med, bond=6, pill=False, wood=2000):
+    with _hud(med, bond=8, pill=False, wood=2000):
         assert "吞噬丹" in med._urgent_merchant_reason(_hud_frame(), 100.0)
-    with _hud(med, bond=6, pill=True, wood=2000):
+    with _hud(med, bond=8, pill=True, wood=2000):
         assert med._urgent_merchant_reason(_hud_frame(), 100.0) is None
-    with _hud(med, bond=5, pill=False, wood=2000):
+    with _hud(med, bond=7, pill=False, wood=2000):
         assert med._urgent_merchant_reason(_hud_frame(), 100.0) is None
 
 
-def test_low_wood_is_urgent_and_unknown_wood_is_not() -> None:
+def test_low_wood_uses_normal_merchant_cycle_and_unknown_is_not_urgent() -> None:
     med = _med()
-    with _hud(med, bond=2, pill=False, wood=499):
-        assert "木材" in med._urgent_merchant_reason(_hud_frame(), 100.0)
-    with _hud(med, bond=2, pill=False, wood=500):
+    with _hud(med, bond=2, pill=True, wood=499):
         assert med._urgent_merchant_reason(_hud_frame(), 100.0) is None
-    with _hud(med, bond=None, pill=False, wood=None):
+    with _hud(med, bond=2, pill=True, wood=500):
+        assert med._urgent_merchant_reason(_hud_frame(), 100.0) is None
+    with _hud(med, bond=None, pill=True, wood=None):
+        assert med._urgent_merchant_reason(_hud_frame(), 100.0) is None
+
+
+def test_pill_missing_is_urgent_independent_of_bond_occupancy() -> None:
+    med = _med()
+    with _hud(med, bond=2, pill=False, wood=1500):
         assert med._urgent_merchant_reason(_hud_frame(), 100.0) is None
 
 
@@ -102,7 +107,7 @@ def test_main_line_tick_detours_to_merchant_when_urgent() -> None:
     med = _med()
     med._l1_cycle_step = "skill"
     med._l1_cycle_index = 1
-    with _hud(med, bond=7, pill=False, wood=2000), \
+    with _hud(med, bond=8, pill=False, wood=2000), \
          patch.object(med, "_refresh_solo_signals", return_value=None), \
          patch.object(med, "_maybe_open_choice_panel") as opener:
         for _ in range(5):
@@ -116,7 +121,7 @@ def test_main_line_tick_detours_to_merchant_when_urgent() -> None:
 
 
 @pytest.mark.parametrize("bond,wood,action", [
-    (6, 2000, "OpenBlackMerchantForDevourPill"),
+    (8, 2000, "OpenBlackMerchantForDevourPill"),
     (2, 300, "OpenBlackMerchantForWood"),
 ])
 def test_merchant_step_opens_the_shop_with_h(bond: int, wood: int, action: str) -> None:
@@ -127,7 +132,6 @@ def test_merchant_step_opens_the_shop_with_h(bond: int, wood: int, action: str) 
          patch.object(med, "_refresh_solo_signals", return_value=None), \
          patch.object(med, "_black_merchant_present", return_value=False), \
          patch.object(med, "_maybe_open_choice_panel", return_value=None), \
-         patch.object(med, "_urgent_merchant_reason", return_value=None), \
          patch.object(med, "act_key", return_value=True) as key:
         for _ in range(5):
             if med._tick_main_line(_hud_frame()) is LoopAction.Continue and key.called:

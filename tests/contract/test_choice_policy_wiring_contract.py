@@ -53,12 +53,12 @@ class A2SkillRarityReason(unittest.TestCase):
 
 
 class A3BondHardDisableCutsBypass(unittest.TestCase):
-    def test_unlisted_bond_never_uses_rarity_or_fallback(self):
+    def test_refresh_exhaustion_allows_best_unlisted_bond_fallback(self):
         med = Mediator(Settings(ocr_mode="live", cards=[]), ROOT)
         slots = [
-            {"index": 0, "name": "海盗", "confidence": 0.99, "raw_text": "海盗"},
-            {"index": 1, "name": "亡灵", "confidence": 0.99, "raw_text": "亡灵"},
-            {"index": 2, "name": "军团", "confidence": 0.99, "raw_text": "军团"},
+            {"index": 0, "name": "海盗", "confidence": 0.99, "raw_text": "海盗", "rarity": "blue"},
+            {"index": 1, "name": "亡灵", "confidence": 0.99, "raw_text": "亡灵", "rarity": "red"},
+            {"index": 2, "name": "军团", "confidence": 0.99, "raw_text": "军团", "rarity": "orange"},
         ]
         with patch.object(med, "_ocr_panel_slots", return_value=slots), \
                 patch.object(med, "_find_panel_refresh", return_value=None), \
@@ -67,10 +67,10 @@ class A3BondHardDisableCutsBypass(unittest.TestCase):
                 patch.object(med, "_rarity_choice") as rarity, \
                 patch.object(med, "_fallback_choice") as fallback:
             hit = med._ocr_reward_choice(_frame(), "bond")
-        self.assertIsNone(hit)
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit.name, "ocr_bond:军团")
         rarity.assert_not_called()
         fallback.assert_not_called()
-        self.assertTrue(med._choice_policy_idle)
 
 
 class A3TreasureNegativeByName(unittest.TestCase):

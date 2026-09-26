@@ -288,7 +288,9 @@ class ExternalReviewRegressionTests(unittest.TestCase):
                 patch.object(med, "_find_stage_page", return_value=False), \
                 patch.object(med, "_handle_self_opened_compact_panel", return_value=None), \
                 patch.object(med, "_maybe_open_choice_panel", return_value=LoopAction.Continue) as panels, \
+                patch.object(med, "_blessing_priority_active", return_value=False), \
                 patch.object(med, "find") as find:
+            # 祝福优先已结束（Owner 2026-09-26 04:59），本例测 G/F/V 先于进化按钮。
             # No 【▲选择英雄】 prompt on screen: on an elevated Windows runner the
             # blanket mock would otherwise "see" it and preempt the panels.
             default_hit = find.return_value

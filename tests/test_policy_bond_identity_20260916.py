@@ -1,4 +1,5 @@
 """Tests for bond identity membership, completion semantics, and substring isolation (2026-09-16)."""
+from dataclasses import replace
 from pathlib import Path
 import pytest
 
@@ -56,8 +57,11 @@ def test_bond_must_take_no_substring_pollution():
         can_refresh=False,
         settings=settings,
     )
+    dec = choose_action(replace(cands, can_refresh=True), SessionState())
+    assert dec.action == PolicyAction.REFRESH
     dec = choose_action(cands, SessionState())
-    assert dec.action != PolicyAction.SELECT_SLOT or dec.index != 0
+    assert dec.action == PolicyAction.SELECT_SLOT
+    assert "必拿" not in dec.reason
 
 
 def test_active_advanced_pack_only_moves_on_after_its_ex():
@@ -74,7 +78,7 @@ def test_active_advanced_pack_only_moves_on_after_its_ex():
             settings=settings,
         )
         assert _active_advanced_presets(cands, settings) == ("海盗", "探险")
-    for done, expected in ((1, ("封神", "修仙")), (5, ("封神", "修仙"))):
+    for done, expected in ((1, ("封神", "修仙")), (2, ()), (5, ())):
         cands = PanelCandidates(
             panel_kind=PANEL_BOND, slots=(), settings=settings, completed_advanced_groups=done,
         )
@@ -85,7 +89,7 @@ def test_runtime_mediator_stages_policy_authorized_nonpreset_bond_card():
     """点击已由 Core 策略授权；Runtime 不得再用预设卡组过滤确认账本。"""
     from shuabao.runtime_mediator import Mediator as RuntimeMediator
 
-    med = RuntimeMediator(Settings(cards=[]), ROOT)
+    med = RuntimeMediator(Settings(ocr_mode="off", cards=[]), ROOT)
     med._bond_cards_owned = ["海盗"]
     med._bond_cards_pending.clear()
 

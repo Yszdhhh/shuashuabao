@@ -92,10 +92,10 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
 
     @patch("shuabao.mediator.time.time", return_value=100.0)
     def test_devour_pill_fail_closed_with_saved_opt_in_and_visible_pill(self, mock_time):
-        # Owner 2026-09-24: solo eats pills from 6/10; below that the gate stays closed.
+        # Owner 2026-09-24: solo eats pills from 6/10; Owner 2026-09-25: from 8/10; below that the gate stays closed.
         self.med.settings = Settings(auto_devour_dan=True)
         pill_match = MatchResult("danGif", 0.9, 1100, 750, 20, 20, 1100, 750)
-        for occupancy in (4, 5):
+        for occupancy in (4, 5, 6, 7):
             with self.subTest(occupancy=occupancy), \
                  patch.object(self.med, "_bond_bar_occupancy", return_value=occupancy), \
                  patch.object(self.med, "find", return_value=pill_match), \
@@ -109,16 +109,15 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
         with patch.object(self.med, "_bond_bar_occupancy", return_value=3), \
              patch.object(self.med, "_maybe_opportunistic_yinyue_crystal", return_value=None), \
              patch.object(self.med, "_maybe_use_inventory_slot", return_value=None), \
-             patch.object(self.med, "find") as mock_find, \
+             patch.object(self.med, "find", return_value=None), \
              patch.object(self.med, "act_click") as mock_click:
             self.assertIsNone(self.med._maybe_use_inventory_item(self.frame))
-        mock_find.assert_not_called()
         mock_click.assert_not_called()
 
     def test_devour_pill_gate_stays_closed_at_four_and_five_bonds(self):
-        # Owner 2026-09-24: the gate opens at 6/10 (test_p0_devour_failclosed_20260917).
+        # Owner 2026-09-24: the gate opened at 6/10; Owner 2026-09-25: opens at 8/10 (test_p0_devour_failclosed_20260917).
         self.med.settings = Settings(auto_devour_dan=True)
-        for occupancy in (4, 5):
+        for occupancy in (4, 5, 6, 7):
             with self.subTest(occupancy=occupancy), \
                  patch.object(self.med, "_bond_bar_occupancy", return_value=occupancy):
                 self.assertFalse(self.med._can_consume_inventory_swallow_pill(self.frame))
@@ -267,9 +266,10 @@ class TestPendingActionAndSurfaceMediatorIntegration(unittest.TestCase):
         
         # Simulate conflict (both affix modal and center card modal present -> CONFLICT)
         mock_affix = MatchResult(name="affix", score=0.9, x=10, y=10, w=50, h=50, screen_x=35, screen_y=35)
+        mock_card = MatchResult(name="bond_hide_btn", score=0.9, x=800, y=550, w=50, h=50, screen_x=825, screen_y=575)
         with patch.object(self.med, "_find_equipment_affix_choice", return_value=mock_affix), \
-             patch.object(self.med, "_selection_anchor", return_value=(100, 100)), \
-             patch.object(self.med, "_find_evolution_choice", return_value=None), \
+             patch.object(self.med, "_selection_anchor", return_value=mock_card), \
+             patch.object(Mediator, "_find_evolution_choice", return_value=None), \
              patch.object(self.med, "_black_merchant_present", return_value=False), \
              patch.object(self.med, "_find_failure_gift", return_value=None), \
              patch.object(self.med, "_round_deadline", 1000.0):

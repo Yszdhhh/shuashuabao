@@ -330,17 +330,16 @@ class LiveRun205044Tests(unittest.TestCase):
         click.assert_called_once_with(hero, "UseInventory-hero-card")
 
     def test_affix_prefers_green_positive_row(self) -> None:
-        """装备十级词缀优先绿字「积极属性」，而非永远点第一行。"""
+        """Owner 2026-09-25: 装备十级词缀按颜色 橙/红 > 紫 > 蓝 > 绿 > 白 选择（蓝 > 绿）。"""
         med = Mediator(Settings(), ROOT)
         image = np.zeros((900, 1600, 3), dtype=np.uint8)
         cv2.rectangle(image, (560, 215), (1039, 219), (0, 170, 230), -1)
         cv2.rectangle(image, (560, 430), (1039, 434), (0, 170, 230), -1)
         for y in (240, 285, 330, 375):
             cv2.rectangle(image, (735, y + 10), (865, y + 18), (230, 230, 230), -1)
-        # 小色块即可触发 HSV 排名；大色块会破坏 body 暗底门闩（需 ≥85% gray<80）。
-        # BGR：第 0 行红、第 2 行绿（积极属性）→ 应选 equipment_affix_2。
-        cv2.rectangle(image, (700, 250), (760, 268), (40, 40, 220), -1)
-        cv2.rectangle(image, (700, 340), (760, 358), (40, 200, 40), -1)
+        # BGR：第 0 行绿、第 2 行蓝（蓝 > 绿）→ 应选 equipment_affix_2。
+        cv2.rectangle(image, (700, 250), (760, 268), (40, 200, 40), -1)
+        cv2.rectangle(image, (700, 340), (760, 358), (220, 100, 40), -1)
         hit = med._find_equipment_affix_choice(Frame(image))
         self.assertIsNotNone(hit)
         self.assertEqual(hit.name, "equipment_affix_2")
@@ -598,6 +597,7 @@ class LiveRun205044Tests(unittest.TestCase):
         med._auto_task_done = True
         med._main_line_started_at = 0.0
         med._l1_cycle_step = "evolve"
+        med._bond_cards_owned = ["祝福", "祝福", "祝福"]
         return med
 
     def test_evolve_click_waits_for_feedback_before_advancing(self) -> None:
@@ -652,15 +652,17 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertTrue(med._evolve_awaiting_hero_pick)
         self.assertFalse(med._evolve_ok_this_cycle)
 
-    def test_missing_hero_modal_releases_evolve_and_continues_cycle(self) -> None:
+    def test_missing_hero_modal_releases_lock_after_bounded_wait(self) -> None:
+        # Owner 2026-09-26：等不到英雄面板只解锁、不停机，进化冷却后推进循环。
         med = self._evolve_ready_med()
         med._evolve_awaiting_hero_pick = True
         med._evolve_awaiting_hero_pick_at = time.time() - 16.0
-        with self._evolve_main_line_ctx(med, evolve_hit=None):
+        with self._evolve_main_line_ctx(med, evolve_hit=None), patch.object(med, "stop") as stop:
             self.assertIs(med._tick_main_line(frame()), LoopAction.Continue)
         self.assertFalse(med._evolve_awaiting_hero_pick)
-        self.assertEqual(med._l1_cycle_step, "equipment")
-        self.assertGreater(med._evolve_click_cooldown_until, time.time() + 30.0)
+        self.assertNotEqual(med.phase, Phase.ERROR)
+        self.assertGreater(med._evolve_click_cooldown_until, time.time() + 50.0)
+        stop.assert_not_called()
 
     def test_evolution_modal_handling_advances_evolve_step(self) -> None:
         # P0-2：进化面板真实出现并被处理 = 点击成功反馈 → L1 循环从 evolve 推进
@@ -717,7 +719,7 @@ class LiveRun205044Tests(unittest.TestCase):
         med = RuntimeMediator(Settings(), ROOT)
         med._evolve_ok_this_cycle = True
         fr = Frame(image, hwnd=1, window_title="英雄三国KK")
-        # 羁绊栏没过半时不吃吞噬丹（Owner 2026-09-24 ≥6/10 才吃），这里只看英雄卡。
+        # 羁绊栏空位>2（<8/10）时不吃吞噬丹（Owner 2026-09-25 ≥8/10 才吃），这里只看英雄卡。
         with patch.object(med, "act_click", return_value=True) as click, \
              patch.object(med, "_bond_bar_occupancy", return_value=5):
             med._maybe_use_inventory_item(fr)
@@ -736,9 +738,9 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertGreater(med._inventory_settle_until, 0)
 
     def test_live_20260923_devour_pill_goes_first_once_bond_bar_is_over_half(self) -> None:
-        """Owner 2026-09-24：单人默认吃吞噬丹，羁绊栏超过一半就吃。
+        """Owner 2026-09-24：单人默认吃吞噬丹，羁绊栏空位<=2（Owner 2026-09-25 改为 >=8/10）就吃。
 
-        真机帧：羁绊栏 7 格，物品栏第 4 格是紫色吞噬丹，进化未完成。
+        真机帧：羁绊栏 7 格（mock 设为 8 测试吃丹），物品栏第 4 格是紫色吞噬丹，进化未完成。
         """
         image = cv2.imdecode(np.fromfile(ROOT / "tests/fixtures/evolve_false_positive_20260923.jpg", dtype=np.uint8), cv2.IMREAD_COLOR)
         for cls in (Mediator, RuntimeMediator):
@@ -746,7 +748,8 @@ class LiveRun205044Tests(unittest.TestCase):
                 med = cls(Settings(), ROOT)
                 fr = Frame(image, hwnd=1, window_title="英雄三国KK")
                 self.assertEqual(med._bond_bar_occupancy(fr), 7)
-                with patch.object(med, "act_click", return_value=True) as click:
+                with patch.object(med, "_bond_bar_occupancy", return_value=8), \
+                     patch.object(med, "act_click", return_value=True) as click:
                     self.assertIs(med._maybe_use_inventory_item(fr), LoopAction.Continue)
                 self.assertEqual(click.call_args.args[1], "UseInventory-swallow_pill")
                 pill = click.call_args.args[0]

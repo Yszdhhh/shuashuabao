@@ -137,10 +137,10 @@ class P0B1FixesTests(unittest.TestCase):
             self.med._last_frame = f_off
             acted = self.med._ensure_challenge_buttons(f_off)
             self.assertEqual(acted, LoopAction.Continue)
-            mock_rc.assert_called_once()
-            _, kwargs = mock_rc.call_args
-            self.assertEqual(kwargs.get("target_hwnd"), 12345)
-            self.assertEqual(kwargs.get("dry_run"), self.settings.dry_run)
+            self.assertEqual(mock_rc.call_count, 4)
+            for _, kwargs in mock_rc.call_args_list:
+                self.assertEqual(kwargs.get("target_hwnd"), 12345)
+                self.assertEqual(kwargs.get("dry_run"), self.settings.dry_run)
 
     def test_executor_failure_aborts_further_actions(self):
         f_off = load_fixture_frame("fixtures/replay/main_line_auto_off.png")
@@ -219,10 +219,10 @@ class P0B1FixesTests(unittest.TestCase):
             self.med._last_frame = f_off
             acted = self.med._ensure_challenge_buttons(f_off)
             self.assertEqual(acted, LoopAction.Continue)
-            mock_rc.assert_called_once()
-            _, kwargs = mock_rc.call_args
-            self.assertEqual(kwargs.get("target_hwnd"), 12345)
-            self.assertEqual(kwargs.get("dry_run"), self.settings.dry_run)
+            self.assertEqual(mock_rc.call_count, 4)
+            for _, kwargs in mock_rc.call_args_list:
+                self.assertEqual(kwargs.get("target_hwnd"), 12345)
+                self.assertEqual(kwargs.get("dry_run"), self.settings.dry_run)
 
     def test_next_round_after_unknown_panel_resets_selection_state(self):
         """上一局未知面板不能阻塞下一局技能面板的首帧处理。"""

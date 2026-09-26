@@ -111,7 +111,7 @@ class TestP1_01_RuntimeMediatorCycle:
             assert med._l1_cycle_last_advance_at is not None
 
     def test_runtime_mediator_lobby_hitch_cycle_unaffected(self) -> None:
-        """P1-01: Lobby hitch mode preserves merchant -> treasure -> pickup -> public_bag."""
+        """P1-01: Lobby hitch mode keeps its ring order including backpack cleanup."""
         settings = Settings(mode_id="lobby_hitch", ocr_mode="off")
         med = RuntimeMediator(settings, ROOT)
         assert med._hitch_enabled() is True
@@ -170,7 +170,9 @@ class TestP1_02_StallRecoveryBondIdentity:
 
         # Slot 0 is '智力(2/4)' (exact same card identity debt)
         med._ocr_panel_slots = lambda f, k: [
-            {"index": 0, "name": "智力(2/4)", "confidence": 0.95, "rarity": "N"}
+            {"index": 0, "name": "智力(2/4)", "confidence": 0.95, "rarity": "N"},
+            {"index": 1, "name": None, "confidence": 0.0},
+            {"index": 2, "name": None, "confidence": 0.0},
         ]
 
         fr = make_frame()
@@ -214,7 +216,9 @@ class TestP1_02_StallRecoveryBondIdentity:
         med._bond_refresh_affordable = lambda f: (True, 500, 20)
 
         med._ocr_panel_slots = lambda f, k: [
-            {"index": 0, "name": "急速(1/3)", "confidence": 0.95, "rarity": "R"}
+            {"index": 0, "name": "急速(1/3)", "confidence": 0.95, "rarity": "R"},
+            {"index": 1, "name": None, "confidence": 0.0},
+            {"index": 2, "name": None, "confidence": 0.0},
         ]
 
         fr = make_frame()
@@ -280,6 +284,7 @@ class TestP1_03_PassengerTreasureNegativeGate:
         med._ocr_panel_slots = lambda f, k: [
             {"index": 0, "name": "透支力量", "confidence": 0.95, "rarity": "N"},
             {"index": 1, "name": "防御神符", "confidence": 0.95, "rarity": "R"},
+            {"index": 2, "name": None, "confidence": 0.0},
         ]
 
         fr = make_frame()
@@ -298,6 +303,7 @@ class TestP1_03_PassengerTreasureNegativeGate:
         med._ocr_panel_slots = lambda f, k: [
             {"index": 0, "name": "普通铁剑", "confidence": 0.95, "rarity": "N"},
             {"index": 1, "name": "英雄卡·关羽", "confidence": 0.95, "rarity": "SR"},
+            {"index": 2, "name": None, "confidence": 0.0},
         ]
 
         fr = make_frame()

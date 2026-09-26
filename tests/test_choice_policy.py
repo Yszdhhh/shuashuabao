@@ -34,6 +34,7 @@ from shuabao.choice_policy import (
     choose_action,
     panel_priority,
     slot_fingerprint,
+    template_family_sufficient,
     _rank_skill_candidates,
 )
 
@@ -417,7 +418,7 @@ class TestBondTreasureUnknown(unittest.TestCase):
                 self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))
 
     def test_missing_basic_bond_beats_advanced_on_the_same_page(self):
-        """Owner 2026-09-24：预设基础羁绊与高级羁绊同屏时先拿基础。"""
+        """Owner 2026-09-26：祝福 > 成长/经济 > 当前高级组 > 其它白名单。"""
         for root, member in (
             ("齐天大圣", "大圣残躯"),
             ("封神", "封神榜"),
@@ -438,8 +439,29 @@ class TestBondTreasureUnknown(unittest.TestCase):
                     ),
                     SessionState(),
                 )
+                # Owner 2026-09-26：成长/经济先于当前高级组。
                 self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))
-                self.assertIn("基础羁绊优先", decision.reason)
+                self.assertIn("成长/经济羁绊优先", decision.reason)
+
+                # 祝福无需出现在旧设置白名单中仍然必拿
+                blessing_policy = settings(
+                    bond_presets=["祝福", "经济", "成长", root, member],
+                    bond_base_presets=["祝福", "经济", "成长"],
+                    bond_advanced_presets=[root, member],
+                    bond_advanced_groups=[(root, member)],
+                    bond_whitelist_mode="hard",
+                    bond_must_take=(),
+                )
+                blessing_decision = choose_action(
+                    bond_cands(
+                        [slot(0, member), slot(1, "祝福")],
+                        settings=blessing_policy,
+                        owned_bond_cards=(),
+                    ),
+                    SessionState(),
+                )
+                self.assertEqual((blessing_decision.action, blessing_decision.index), (PolicyAction.SELECT_SLOT, 1))
+                self.assertTrue("祝福" in blessing_decision.reason and ("优先" in blessing_decision.reason or "必拿" in blessing_decision.reason))
 
     def test_unselected_simple_ex_family_is_not_taken(self):
         policy = settings(
@@ -1483,13 +1505,16 @@ class TestAssemblePolicySettings(unittest.TestCase):
         self.assertEqual(ps.skill_archive_levels, (("asj", 47), ("jq", 13)))
 
     def test_cards_resolve_through_fetter_labels(self):
-        ps = assemble_policy_settings(
-            settings=self.fake_settings(["jq"], cards=["三国.png", "unknown_stem"]),
-            skill_labels=self.LABELS,
-            fetter_labels={"三国": "乱世三国"},
-            policy_doc={},
+        fetter_labels = json.loads(
+            (Path(__file__).resolve().parents[1] / "config/fetter_labels.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(ps.bond_presets, ("乱世三国", "unknown_stem"))
+        ps = assemble_policy_settings(
+            settings=self.fake_settings(["jq"], cards=["qiji.png", "unknown_stem"]),
+            skill_labels=self.LABELS,
+            fetter_labels=fetter_labels,
+            policy_doc={"bond": {"advanced_groups": [["unrelated"]]}},
+        )
+        self.assertEqual(ps.bond_presets, ("奇技", "unknown_stem"))
 
     def test_bonds_remain_base_when_cards_are_all_advanced(self):
         ps = assemble_policy_settings(
@@ -1514,15 +1539,15 @@ class TestAssemblePolicySettings(unittest.TestCase):
         self.assertEqual(ps.bond_advanced_groups[1][0], "海盗")
 
     def test_configured_simple_ex_chains_progress_but_yield_to_missing_basic(self):
-        """Owner 2026-09-24：EX 靠合成得到，不锁"从面板拿终卡"；锁的是链上成员照拿、
-        同页有还没拿到的基础羁绊时先拿基础（取代 09-24 早先的"起步后不让基础"）。"""
+        """Owner 2026-09-24，2026-09-25 修订：EX 靠合成得到，链上成员照拿；
+        同页顺序为祝福 > 成长/经济 > 当前高级组 > 其它白名单。"""
         policy_doc = json.loads(
             (Path(__file__).resolve().parents[1] / "config/choice_policy.json").read_text(encoding="utf-8")
         )
         for root, final in (("异火", "帝炎"), ("齐天大圣", "法天象地"), ("封神", "圣人")):
             with self.subTest(root=root):
                 policy = assemble_policy_settings(
-                    settings=self.fake_settings(["jq"], cards=[root], bonds=["经济", "成长"]),
+                    settings=self.fake_settings(["jq"], cards=[root], bonds=["经济", "成长", "祝福"]),
                     skill_labels=self.LABELS,
                     fetter_labels={},
                     policy_doc=policy_doc,
@@ -1538,6 +1563,7 @@ class TestAssemblePolicySettings(unittest.TestCase):
                     SessionState(),
                 )
                 self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))
+                # Owner 2026-09-26：经济优先于当前高级组。
                 decision = choose_action(
                     bond_cands(
                         [slot(0, "经济"), slot(1, member)],
@@ -1547,6 +1573,55 @@ class TestAssemblePolicySettings(unittest.TestCase):
                     SessionState(),
                 )
                 self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 0))
+
+                # 祝福是每局必拿项
+                decision_blessing = choose_action(
+                    bond_cands(
+                        [slot(0, "祝福"), slot(1, member)],
+                        settings=policy,
+                        owned_bond_cards=(started,),
+                    ),
+                    SessionState(),
+                )
+                self.assertEqual((decision_blessing.action, decision_blessing.index), (PolicyAction.SELECT_SLOT, 0))
+
+    def test_haizeiwang_group_recognized_from_real_config(self):
+        """Owner 2026-09-26：系列名和子卡同属高级组；同名 EX 海贼王看到也拿。"""
+        policy_doc = json.loads(
+            (Path(__file__).resolve().parents[1] / "config/choice_policy.json").read_text(encoding="utf-8")
+        )
+        policy = assemble_policy_settings(
+            settings=self.fake_settings(["jq"], cards=["见习海贼"], bonds=["经济", "成长", "祝福"]),
+            skill_labels=self.LABELS,
+            fetter_labels={},
+            policy_doc=policy_doc,
+        )
+        group = ("海贼王", "见习海贼", "超新星", "七武海", "凯多", "红发", "白胡子", "大妈")
+        self.assertIn(group, policy.bond_advanced_groups)
+        for name in group:
+            self.assertIn(name, policy.bond_advanced_presets)
+        self.assertIn("海贼王", policy.bond_presets)
+
+    def test_family_labels_with_progress_are_selected_from_configured_advanced_groups(self):
+        policy_doc = json.loads(
+            (Path(__file__).resolve().parents[1] / "config/choice_policy.json").read_text(encoding="utf-8")
+        )
+        for selected, label in (("海贼王", "海贼王"), ("异火", "异火(0/3)"), ("棍法", "棍法(2/3)")):
+            with self.subTest(label=label):
+                policy = assemble_policy_settings(
+                    settings=self.fake_settings(["jq"], cards=[selected], bonds=["经济", "成长", "祝福"]),
+                    skill_labels=self.LABELS,
+                    fetter_labels={},
+                    policy_doc=policy_doc,
+                )
+                decision = choose_action(
+                    bond_cands(
+                        [slot(0, label), slot(1, "经济")],
+                        settings=policy,
+                    ),
+                    SessionState(),
+                )
+                self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))
 
     def test_treasure_allow_negative_from_settings(self):
         ps = assemble_policy_settings(
@@ -1898,8 +1973,8 @@ class TestLiveRegressions20260822(unittest.TestCase):
         self.assertEqual(d.action, PolicyAction.SELECT_SLOT)
         self.assertEqual(d.index, 0)
 
-    def test_bond_hard_mode_refresh_then_close(self):
-        """硬模式：预算内 REFRESH，耗尽后 CLOSE（语义不变）。"""
+    def test_bond_hard_mode_refresh_then_select_current_card(self):
+        """硬模式：预算内刷新，预算耗尽后仍从当前页面选卡。"""
         ps = PolicySettings(bond_presets=("祝福",), bond_whitelist_mode=WHITELIST_HARD)
         cands = bond_cands(
             [slot(0, "修仙", rarity="red")],
@@ -1909,7 +1984,7 @@ class TestLiveRegressions20260822(unittest.TestCase):
         d = choose_action(cands, session=SessionState(refreshes=0, max_refreshes=3))
         self.assertEqual(d.action, PolicyAction.REFRESH)
         d2 = choose_action(cands, session=SessionState(refreshes=3, max_refreshes=3))
-        self.assertEqual(d2.action, PolicyAction.CLOSE)
+        self.assertEqual((d2.action, d2.index), (PolicyAction.SELECT_SLOT, 0))
 
     def test_unowned_preset_main_skill_beats_owned_family_stack(self):
         """trace 181735 tick42 复现：面板有红色预设主技能「剑气」，
@@ -2035,8 +2110,8 @@ class TestLiveRegressions20260822(unittest.TestCase):
         self.assertEqual(d.action, PolicyAction.SELECT_SLOT)
         self.assertEqual(d.index, 0)
 
-    def test_bond_capacity_full_slots_allows_core_preset_for_replace(self):
-        """当卡槽全满（free_slots == 0）时，白名单核心预设卡（如法宝、大圣）仍允许抓取以触发顶替，不直接判空关闭。"""
+    def test_bond_capacity_full_slots_rejects_core_preset_without_immediate_merge(self):
+        """Owner 2026-09-26：10/10 不能仅因白名单核心卡而顶替；必须证明本张立即合成。"""
         ps = settings(
             bond_presets=["法宝", "齐天大圣"],
             bond_whitelist_mode="soft",
@@ -2051,8 +2126,56 @@ class TestLiveRegressions20260822(unittest.TestCase):
             free_slots=0,
         )
         d = choose_action(cands, session=SessionState(refreshes=3, max_refreshes=3))
-        self.assertEqual(d.action, PolicyAction.SELECT_SLOT)
-        self.assertEqual(d.index, 0)
+        self.assertEqual(d.action, PolicyAction.CLOSE)
+
+
+class TestTemplateFamilySufficient(unittest.TestCase):
+    """Round 2（2026-09-26）：模板快路家族充分性门（纯函数）。"""
+
+    def test_single_preset_family_passes(self):
+        ok, _ = template_family_sufficient(
+            ("祝福", "挑战", "暴击", "体术"),
+            bond_presets=("祝福", "挑战"),
+        )
+        self.assertTrue(ok)
+
+    def test_no_relevant_family_fails(self):
+        ok, why = template_family_sufficient(
+            ("挑战", "暴击", "体术"),
+            bond_presets=("祝福",),
+        )
+        self.assertFalse(ok)
+        self.assertIn("无决策相关", why)
+
+    def test_duplicate_relevant_family_fails(self):
+        ok, why = template_family_sufficient(
+            ("祝福", "祝福", "挑战", "暴击"),
+            bond_presets=("祝福", "挑战"),
+        )
+        self.assertFalse(ok)
+        self.assertIn("祝福", why)
+
+    def test_duplicate_irrelevant_family_passes(self):
+        ok, _ = template_family_sufficient(
+            ("祝福", "刀刀", "刀刀", "挑战"),
+            bond_presets=("祝福",),
+        )
+        self.assertTrue(ok)
+
+    def test_owned_identity_needs_suffix(self):
+        ok, _ = template_family_sufficient(
+            ("祝福", "挑战", "暴击"),
+            bond_presets=("祝福",),
+            owned_bond_cards=("祝福(2/3)",),
+        )
+        self.assertFalse(ok)
+
+    def test_empty_slot_fails_closed(self):
+        ok, _ = template_family_sufficient(
+            ("祝福", "", "挑战"),
+            bond_presets=("祝福",),
+        )
+        self.assertFalse(ok)
 
 
 if __name__ == "__main__":

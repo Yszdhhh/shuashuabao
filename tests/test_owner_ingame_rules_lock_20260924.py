@@ -22,6 +22,7 @@ from shuabao.mediator import LoopAction, Mediator
 from shuabao.runtime_mediator import Mediator as RuntimeMediator
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
+from shuabao.choice_policy import PanelCandidates, PolicyAction, PolicySettings, SessionState, SlotCandidate, choose_action
 
 ROOT = Path(__file__).resolve().parents[1]
 # 真机 2026-09-14：「点击进化」金条亮着，物品栏 2–6 五格全满。
@@ -50,9 +51,21 @@ OWNER_RULES: tuple[tuple[str, str, str], ...] = (
     ("木材充足（≥1000）时羁绊压过技能积压",
      "Owner 2026-09-15",
      "tests/test_solo_planner_20260915.py::test_high_wood_bonds_preempt_the_skill_backlog"),
-    ("勾选的基础羁绊与高级羁绊同页：先拿还没拿到的基础（高级卡组起步前后都一样，只让位于差一张合成）",
-     "Owner 2026-09-24；同日追加：起步后也先拿基础",
+    ("同页优先级：祝福 > 成长/经济 > 当前高级组 > 其它白名单",
+     "Owner 2026-09-26 新口径",
      "tests/test_choice_policy.py::TestBondTreasureUnknown::test_missing_basic_bond_beats_advanced_on_the_same_page"),
+    ("祝福没拿完前只压过进化、英雄选择、神器；拾取、装备、黑商、背包清理照常轮换",
+     "Owner 2026-09-26 04:59：前期先把祝福拿完，再做点击进化、英雄选择、神器",
+     "tests/test_blessing_priority_scope_20260926.py::test_blessing_does_not_preempt_pickup_equipment_merchant"),
+    ("为祝福开 F 守羁绊冷却且不每帧连点；冷却中仍不放神器/进化/英雄",
+     "Owner 2026-09-26 04:59（范围）；冷却与节流为实现约束",
+     "tests/test_blessing_priority_scope_20260926.py::test_blessing_pending_still_holds_artifact_while_bond_cools_down"),
+    ("祝福套装未凑满（need=3）前同页必拿且优先于成长/经济/高级组（已有1、2张时仍优先）",
+     "Owner 2026-09-26（恢复口径）",
+     "tests/test_owner_ingame_rules_lock_20260924.py::test_blessing_uncompleted_beats_growth_economy_and_advanced_on_same_page"),
+    ("三国四选三：哪国先出先拿该国启动卡，拿满 3 国后不再拿第四国",
+     "Owner 2026-09-26 03:03",
+     "tests/test_sanguo_three_of_four_20260926.py::test_fourth_faction_is_never_taken_once_three_are_owned"),
     ("宝物在自己那一步能打开，不被 F 饿死",
      "Owner 2026-09-15",
      "tests/test_solo_planner_20260915.py::test_pending_treasure_is_opened_on_its_step"),
@@ -62,9 +75,12 @@ OWNER_RULES: tuple[tuple[str, str, str], ...] = (
     ("技能面板点真正的【刷新(N)】，不点「刷新次数+1」文字",
      "Owner 2026-09-24",
      "tests/contract/test_skill_refresh_btn_priority_contract.py::SkillRefreshClicksRealButton::test_giveup_panel_fixture_clicks_real_refresh_button"),
-    ("满槽顶替只点 OCR 认出的非目标卡，认不出零输入",
-     "AGENTS.md §5；Owner 2026-09-24 审查",
-     "tests/test_bond_replace_and_hero_focus_20260924.py::test_bond_slot_replacement_never_guesses_unread_slots"),
+    ("10/10 只拿能立即合成的已持有卡；暂时不能合成不得为拿入而顶替已有卡",
+     "Owner 2026-09-26 最新口径",
+     "tests/test_p1_choice_fsm_contracts.py::test_bond_zero_slots_accepts_only_real_owned_merge"),
+    ("立即合成后若仍确需顶替，只能点 OCR 认出的非目标卡；合成已腾格或证据不足零输入",
+     "Owner 2026-09-26 最新口径；AGENTS.md §5",
+     "tests/test_bond_replace_and_hero_focus_20260924.py::test_bond_slot_replacement_clicks_only_an_ocr_identified_non_target"),
     ("负面宝物默认不拿（OCR 读不到描述也拦）",
      "Owner 2026-09-22",
      "tests/contract/test_treasure_negative_fixtures_contract.py::TreasureNegativeNameAndDescription::test_default_negative_names_blocked_even_with_empty_description"),
@@ -95,21 +111,67 @@ OWNER_RULES: tuple[tuple[str, str, str], ...] = (
     ("EX 靠合成链得到，不从面板拿",
      "Owner 2026-09-24",
      "tests/test_slow_pack_pickup_lock_20260924.py::test_slow_pack_ex_final_is_never_picked_from_the_panel"),
+    ("每个高级卡组的白名单都含卡族名本身（海贼王、异火等看到就拿）",
+     "Owner 2026-09-26",
+     "tests/test_owner_pack_whitelist_lock_20260926.py::test_ticked_pack_whitelist_contains_the_family_name"),
+    ("刀刀含 8 件装备、修仙含五极山、海盗含藏宝图",
+     "Owner 2026-09-26",
+     "tests/test_owner_pack_whitelist_lock_20260926.py::test_owner_named_pack_cards_are_taken"),
+    ("高级卡组之间的先后由看板优先级决定",
+     "Owner 2026-09-26 03:10",
+     "tests/test_owner_pack_whitelist_lock_20260926.py::test_advanced_pack_order_follows_dashboard_priority"),
+    ("预设高级卡组尚未全部拿完时，刷新耗尽/无法刷新后的兜底只能拿非高级卡组可读卡",
+     "Owner 2026-09-26 最新口径",
+     "tests/test_owner_pack_whitelist_lock_20260926.py::test_refresh_fallback_before_all_advanced_complete_only_takes_non_advanced"),
+    ("预设高级卡组全部拿完后，刷新耗尽/无法刷新后的兜底允许任意高级或基础卡组",
+     "Owner 2026-09-26 最新口径",
+     "tests/test_owner_pack_whitelist_lock_20260926.py::test_refresh_fallback_after_all_advanced_complete_allows_any_advanced_or_base"),
+    ("羁绊没有放弃：100 木材刷新最多 3 次，还没目标就从当前页按优先级拿一张",
+     "Owner 2026-09-26 03:33",
+     "tests/test_solo_bond_refresh_limits_20260915.py::test_refresh_exhaustion_selects_best_readable_card_even_outside_whitelist"),
+    ("有标签模板的卡族匹配到就直接拿，不做 OCR",
+     "Owner 2026-09-26 04:59/05:09",
+     "tests/test_direct_family_pick_20260926.py::test_direct_family_pick_obeys_owner_priority_and_skips_rarity_reads"),
+    ("同一卡族优先拿高等级卡（徽标 N<R<SR<SSR<UR）",
+     "Owner 2026-09-26",
+     "tests/test_direct_family_pick_20260926.py::test_direct_family_pick_uses_rarity_only_for_same_priority_ties"),
+    ("开局四挑战一次连点再核对，漏了补点（木材漏点要补）",
+     "Owner 2026-09-26 04:59/05:09",
+     "tests/test_direct_family_pick_20260926.py::test_four_challenge_batch_retries_still_off_wood_immediately"),
+    ("木材溢出（≥500）且不缺吞噬丹：不去黑商，专心合 EX",
+     "Owner 2026-09-26 03:43",
+     "tests/test_solo_r2_issue2_merchant_bypass.py::test_solo_does_not_want_merchant_when_pill_and_wood_are_available"),
+    ("装备词条按颜色 橙>紫>蓝>绿>白",
+     "Owner 2026-09-25",
+     "tests/test_solo_r2_issue6_affix_priority.py::test_equipment_affix_color_hierarchy"),
+    ("背包清理看板开关默认关，关着零输入",
+     "Owner 2026-09-25",
+     "tests/test_backpack_clean_20260925.py::test_backpack_clean_disabled_zero_input"),
+    ("背包清理认不出就退出不重试，45 秒未确认即停",
+     "Owner 2026-09-25",
+     "tests/test_backpack_clean_20260925.py::test_backpack_clean_45s_hard_cap_converges_and_no_retry"),
     ("刀刀/修仙/海盗/亡灵按看板勾选从首卡拿到白名单末卡",
      "Owner 2026-09-24（上线主线：卡组拿取跑通）",
      "tests/test_slow_pack_pickup_lock_20260924.py::test_slow_pack_is_walked_from_first_to_last_card"),
-    ("单人默认吃吞噬丹（看板不加开关），羁绊栏超过一半（≥6/10）就吃（亡灵例外见下）",
-     "Owner 2026-09-24（吞噬只腾格子，不影响合成进度）",
+    ("单人默认吃吞噬丹（看板不加开关），羁绊栏空位≤2（≥8/10）就吃（亡灵例外见下）",
+     "Owner 2026-09-24；Owner 2026-09-25 改为 ≥8/10（吞噬只腾格子，不影响合成进度）",
      "tests/test_p0_devour_failclosed_20260917.py::test_solo_eats_pill_over_half_even_with_saved_false"),
-    ("羁绊栏过半没丹、木材 < 500：插队去黑商，绕一趟回到被打断的步骤",
-     "Owner 2026-09-24",
+    ("羁绊栏空位≤2没丹、木材 < 500：插队去黑商，绕一趟回到被打断的步骤",
+     "Owner 2026-09-24；Owner 2026-09-25",
      "tests/test_urgent_merchant_20260924.py::test_main_line_tick_detours_to_merchant_when_urgent"),
-    ("黑商一步按 H 开店：羁绊栏过半找吞噬丹，木材 < 500 买木材",
-     "Owner 2026-09-24",
+    ("黑商一步按 H 开店：羁绊栏空位≤2找吞噬丹，木材 < 500 买木材",
+     "Owner 2026-09-24；Owner 2026-09-25",
      "tests/test_urgent_merchant_20260924.py::test_merchant_step_opens_the_shop_with_h"),
     ("亡灵卡组进行中（持有亡灵卡、兵主 EX 未出）不吃吞噬丹：提前吞倒计时卡会断碎片",
      "Owner 2026-09-24",
      "tests/test_p0_devour_failclosed_20260917.py::test_undead_pack_in_progress_holds_the_pill"),
+    ("亡灵卡组进行中不为吞噬丹去黑商：_devour_hold_reason 判定 hold 时不因缺丹占格≥8去黑商",
+     "Owner 2026-09-26（恢复口径）",
+     "tests/test_owner_ingame_rules_lock_20260924.py::test_undead_pack_in_progress_does_not_visit_merchant_for_pill"),
+    ("吞噬丹暂停只对亡灵：属性链等其它卡组照常拿、照常吃丹",
+     "Owner 2026-09-26 06:57 原话：正常应该是专心做亡灵这一个高级 agent 的时候停止使用吞噬丹，"
+     "等他自行时间到触发碎片获取。其他的都没有这个逻辑正常拿就好了，属性跟吞噬丹一直都没有什么冲突呀",
+     "tests/test_attribute_line_protection_20260926.py::test_devour_is_not_held_by_attribute_chains"),
     ("木材 < 500 以支线循环为主：F 每次最多 1 张（500–1000 两张，≥1000 十五张）",
      "Owner 2026-09-24",
      "tests/test_solo_l1_starvation_20260915.py::test_wood_tiers_visit_cap"),
@@ -169,6 +231,90 @@ def test_rule_evolve_before_item_bar_while_evolve_bar_is_lit(cls) -> None:
 
     med._evolve_awaiting_hero_pick = False
     med._evolve_ok_this_cycle = True
+    # 金条再次亮起：重置 _evolve_ok_this_cycle，且一律不点物品栏
     with patch.object(med, "act_click", return_value=True) as click:
-        assert med._maybe_use_inventory_slot(frame, 300.0) is LoopAction.Continue
+        assert med._maybe_use_inventory_slot(frame, 300.0) is None
+        assert med._maybe_use_inventory_item(frame) is None
+        assert med._evolve_ok_this_cycle is False
+    click.assert_not_called()
+
+
+    # 进化已完成且金条不再亮起：恢复逐格试用
+    med._evolve_ok_this_cycle = True
+    with patch.object(med, "_has_evolve_button", return_value=False), \
+         patch.object(med, "act_click", return_value=True) as click:
+        assert med._maybe_use_inventory_slot(frame, 400.0) is LoopAction.Continue
     assert str(click.call_args.args[1]).startswith("UseInventorySlot")
+
+def test_blessing_uncompleted_beats_growth_economy_and_advanced_on_same_page() -> None:
+    """Owner 2026-09-26：祝福套装未凑满（need=3）前，已有1、2张时同页祝福仍优先于成长/经济/高级卡组。"""
+    settings = PolicySettings(
+        bond_presets=("祝福", "成长", "经济", "齐天大圣", "大圣残躯"),
+        bond_base_presets=("祝福", "成长", "经济"),
+        bond_advanced_presets=("齐天大圣", "大圣残躯"),
+        bond_advanced_groups=(("齐天大圣", "大圣残躯"),),
+    )
+    for owned in ((), ("祝福",), ("祝福(1/3)",), ("祝福", "祝福"), ("祝福(2/3)",)):
+        decision = choose_action(
+            PanelCandidates(
+                panel_kind="bond",
+                slots=(
+                    SlotCandidate(index=0, name="成长", confidence=0.99),
+                    SlotCandidate(index=1, name="经济", confidence=0.99),
+                    SlotCandidate(index=2, name="齐天大圣", confidence=0.99),
+                    SlotCandidate(index=3, name="祝福", confidence=0.99),
+                ),
+                owned_bond_cards=owned,
+                settings=settings,
+            ),
+            SessionState(),
+        )
+        assert decision.action is PolicyAction.SELECT_SLOT
+        assert decision.index == 3, f"owned={owned}: {decision.reason}"
+
+    # 满 3 张不再抢占成长
+    decision_full = choose_action(
+        PanelCandidates(
+            panel_kind="bond",
+            slots=(
+                SlotCandidate(index=0, name="成长", confidence=0.99),
+                SlotCandidate(index=1, name="经济", confidence=0.99),
+                SlotCandidate(index=2, name="齐天大圣", confidence=0.99),
+                SlotCandidate(index=3, name="祝福", confidence=0.99),
+            ),
+            owned_bond_cards=("祝福", "祝福", "祝福"),
+            settings=settings,
+        ),
+        SessionState(),
+    )
+    assert decision_full.action is PolicyAction.SELECT_SLOT
+    assert decision_full.index == 0
+
+
+def test_undead_pack_in_progress_does_not_visit_merchant_for_pill() -> None:
+    """Owner 2026-09-26：亡灵卡组进行中（_devour_hold_reason 判定 hold 时），不因缺吞噬丹且占格≥8去黑商。"""
+    med = Mediator(Settings(ocr_mode="off", cards=["亡灵", "亡灵天灾"]), ROOT)
+    frame = Frame(np.zeros((600, 800, 3), dtype=np.uint8), window_title="英雄三国KK", hwnd=10001, role="l1")
+    med._bond_cards_owned = ["亡灵天灾"]
+    assert med._devour_hold_reason() is not None
+
+    with patch.object(med, "_inventory_has_swallow_pill", return_value=False), \
+         patch.object(med, "_bond_bar_occupancy", return_value=8):
+        # 木材充足（2000）：不因缺丹去黑商
+        med._wood_balance = 2000
+        assert med._solo_wants_merchant(frame) is False
+        assert med._urgent_merchant_reason(frame, 100.0) is None
+
+        # 木材不足（200）：正常循环去黑商买木材，但不因缺丹紧急插队
+        med._wood_balance = 200
+        assert med._solo_wants_merchant(frame) is True
+        assert med._urgent_merchant_reason(frame, 100.0) is None
+
+    # 亡灵卡组完成后解除 hold，恢复缺丹去黑商
+    med._advanced_groups_completed = 1
+    assert med._devour_hold_reason() is None
+    with patch.object(med, "_inventory_has_swallow_pill", return_value=False), \
+         patch.object(med, "_bond_bar_occupancy", return_value=8):
+        med._wood_balance = 2000
+        assert med._solo_wants_merchant(frame) is True
+        assert med._urgent_merchant_reason(frame, 100.0) == "物品栏没有吞噬丹"

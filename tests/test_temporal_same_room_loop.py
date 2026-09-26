@@ -189,11 +189,11 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
             action = self.med._tick_main_line(frame)
 
         # 20260822 语义：未知面板不再盲选、也不再 ERROR 停机——由面板
-        # episode hard deadline（panel_hard_deadline_s，默认 15s）强制 COOLDOWN
-        # 脱困，运行继续。
+        # episode hard deadline（panel_hard_deadline_s，默认 15s）转 CLOSING，
+        # 待物理隐藏面板后再继续主线。
         self.assertEqual(LoopAction.Continue, action)
         self.assertEqual(Phase.MAIN_LINE, self.med.phase)
-        self.assertEqual(PanelState.COOLDOWN, self.med._panel_state)
+        self.assertEqual(PanelState.CLOSING, self.med._panel_state)
         # 全程零输入：未知面板绝不盲点（旧行为是 3 次 HideUnknownSelection
         # 点击，2026-08-20 一度回归为 3s 品质盲选，均已封死）
         self.assertEqual([], self.actions)
