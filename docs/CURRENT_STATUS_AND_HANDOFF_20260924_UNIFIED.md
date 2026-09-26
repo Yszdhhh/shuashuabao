@@ -204,3 +204,11 @@ EX 模板（`a57d697`）：从 Owner 的卡面截图 `fixtures/ex_finals_2026081
 - 配置将“海贼王”系列名放到海贼王高级组首位，并从 EX 终卡剥离名单删除。Owner 规则：家族槽位按系列名快速命中；同名 EX 海贼王也看到就拿。异火及大圣多子卡组继续通过现有家族匹配命中；同页只有未获得的祝福优先于勾选高级卡组。
 - 两份 solo 真机 trace 未记录海贼王槽位；同批 trace 确认槽位含原始进度文本（如“齐天大圣(0/3)”“棍法(2/3)”，OCR 输出规范家族名）。抽帧未找到清晰的独立海贼王系列标签，未新增合成或裁切模板。
 - 发布门禁本次结果：pytest 阶段 FAIL（2228 passed、1 failed、2 xfailed、16 skipped、373 subtests；pytest 生成失败详情时发生 MemoryError，退出前未输出失败 traceback）；冻结回放、模板完整性、contract 三阶段 PASS。模板资产 430 与 manifest 一致，未更新基线。单独重跑失败项 `test_real_f0245_reads_card_rarity_badge_letters_and_bands` 为 1 passed；全量 pytest/release_gate 仍需在资源稳定时重跑至 0 退出码。海贼王家族标签仍需有清晰真帧时再确认原始文字与模板需求。
+
+## 2026-09-26 祝福优先与挑战批量开启提速
+
+- L1：羁绊模板家族达到 0.85 即按未完成祝福、成长/经济、当前高级组、其它目标顺序直接选卡；只有最高目标家族出现多个槽位时读取稀有度徽标，否则选最左槽。没有命中目标时保留现有 OCR 与充分性回退门。
+- L1：祝福集未满时优先进入羁绊选择，且不因羁绊访问成功次数上限推进；保留面板既有硬超时及 fail-closed 行为。自动技能队列的强制上限没有修改。
+- L1：四个挑战按固定控制顺序批量右键，随后截图检查；仍为 OFF 的控制在同 tick 立即补点，最多两次重试。输入门禁只对当前 tick 同一证据帧中的挑战批量右键开放；重试仍 OFF 时记录 `challenge_toggle_unverified` incident 并停止。
+- 离线 trace 重放：现场包 1/1 面板走直拿；指定旧 trace 两包共 93 面板中 64 面板直拿；总计 65/94 覆盖，65/65 与 trace OCR 的动作槽位一致，未发现不一致。直拿耗时中位数 162.617 ms、P90 271.987 ms（包含同家族并列时徽标识别）；均未启动游戏或发送真实输入。
+- 定向选择/模板测试 `160 passed, 37 subtests passed`；本次新增用例 `10 passed`；`tests/contract` 为 `68 passed, 232 subtests passed`。`tests/test_live_harness_refresh.py` 待重钉身份后运行。所有行为仍需后续 Owner 实机验证。

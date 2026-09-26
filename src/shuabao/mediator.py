@@ -958,6 +958,7 @@ class Mediator:
         self._last_slots_from_template: bool = False
         self._challenge_done: set[str] = set()
         self._challenge_attempts: dict[str, int] = {}
+        self._challenge_batch_input_active: bool = False
         self._challenge_unknown_since: dict[str, float] = {}
         self._challenge_pending_since: dict[str, float] = {}
         self._challenge_next_observe_at: dict[str, float] = {}
@@ -2074,6 +2075,13 @@ class Mediator:
         ev = self._evidence
         if ev is None or self._tick_gen is None:
             return True
+        if (
+            getattr(self, "_challenge_batch_input_active", False)
+            and reason.endswith("Challenge-right_click")
+            and ev is self._tick_evidence
+            and ev.gen == self._tick_gen
+        ):
+            return True
         if self._tick_input_seq is not None and self._input_seq != self._tick_input_seq:
             print(f"[med] stale evidence: 动作被拒（{reason}：本 tick 已有成功输入）")
             if len(self._trace_scenes) < 12:
@@ -3061,7 +3069,7 @@ class Mediator:
         return bands
 
     def _template_slots_family_sufficient(self, frame: Frame, slots_raw: list[dict]) -> bool:
-        """L1 家族充分性门：模板槽只有家族名时，决策是否只依赖卡族。
+        """L1 回退门：模板槽只有家族名时，非直拿决策是否只依赖卡族。
 
         纯本地判断（策略快照 + 已持有状态 + 羁绊栏 CV 计数），零 IPC。
         不充分就回退 OCR，绝不降阈值。
@@ -3091,11 +3099,63 @@ class Mediator:
         )
         return ok
 
+    def _direct_template_bond_pick(self, frame: Frame, slots_raw: list[dict]) -> int | None:
+        """Choose the highest-priority registered family without OCR or rarity reads."""
+        policy = self._policy_settings()
+        owned = self._confirmed_bond_cards()
+        blessing_count = sum(1 for name in owned if matches_bond_preset(name, ("祝福",)))
+        advanced = policy.bond_advanced_presets
+        if policy.bond_advanced_groups:
+            group = min(self._advanced_groups_completed, len(policy.bond_advanced_groups) - 1)
+            advanced = policy.bond_advanced_groups[group]
+        priorities = (
+            (0, ("祝福",)) if blessing_count < 3 else (99, ()),
+            (1, tuple(name for name in policy.bond_presets if matches_bond_preset(name, ("成长", "经济")))),
+            (2, tuple(advanced)),
+            (3, tuple(policy.bond_presets)),
+        )
+        for _rank, targets in priorities:
+            hits = [
+                slot for slot in slots_raw
+                if slot.get("name")
+                and float(slot.get("template_score", 0.0)) >= 0.85
+                and matches_bond_preset(str(slot["name"]), targets)
+                and not matches_bond_preset(str(slot["name"]), policy.bond_negative_names)
+            ]
+            if not hits:
+                continue
+            target_ranks = {
+                str(name): rank for rank, name in enumerate(targets)
+            }
+            ranked_hits = []
+            for slot in hits:
+                name = str(slot["name"])
+                rank = min(
+                    (rank for target, rank in target_ranks.items() if matches_bond_preset(name, (target,))),
+                    default=len(targets),
+                )
+                ranked_hits.append((rank, slot))
+            best_rank = min(rank for rank, _slot in ranked_hits)
+            hits = [slot for rank, slot in ranked_hits if rank == best_rank]
+            family = str(hits[0]["name"])
+            same_family = [slot for slot in hits if str(slot["name"]) == family]
+            if len(same_family) == 1:
+                return int(same_family[0]["index"])
+            rarities = []
+            for slot in same_family:
+                _letter, band = self._read_slot_rarity_badge(
+                    frame, "bond", int(slot["index"]), slot_count=len(slots_raw)
+                )
+                rarities.append((dict(self.RARITY_BANDS).get(band, -1), int(slot["index"])))
+            return min(rarities, key=lambda item: (-item[0], item[1]))[1]
+        return None
+
     def _ocr_panel_slots(self, frame: Frame, kind: str) -> list[dict]:
         """Read title (+ treasure description) lines with deterministic layout=3 or 4 detection.
         When layout is determined, name ROI, desc ROI, rarity ROI and click centers MUST use the same layout.
         """
         # 只在固定槽位全部达到高置信时走模板快路，部分识别仍交给 OCR。
+        self._last_template_direct_pick = None
         if getattr(frame, "bgr", None) is not None:
             tpl_res = match_card_slots_by_template(
                 frame,
@@ -3107,23 +3167,22 @@ class Mediator:
             if tpl_res is not None:
                 slot_count, slots_raw = tpl_res
                 indexes = [int(slot.get("index", -1)) for slot in slots_raw]
-                complete = (
+                valid_layout = (
                     slot_count in (3, 4)
                     and len(slots_raw) == slot_count
                     and sorted(indexes) == list(range(slot_count))
-                    and all(
-                        slot.get("source") == "template"
-                        and slot.get("name")
-                        and float(slot.get("template_score", 0.0)) >= 0.85
-                        for slot in slots_raw
-                    )
+                    and all(slot.get("source") == "template" for slot in slots_raw)
                 )
-                if (
-                    complete
-                    and kind == "bond"
-                    and not self._template_slots_family_sufficient(frame, slots_raw)
-                ):
-                    complete = False
+                complete = valid_layout and all(
+                    slot.get("name") and float(slot.get("template_score", 0.0)) >= 0.85
+                    for slot in slots_raw
+                )
+                if valid_layout and kind == "bond":
+                    self._last_template_direct_pick = self._direct_template_bond_pick(frame, slots_raw)
+                    if self._last_template_direct_pick is not None:
+                        complete = True
+                    elif complete:
+                        complete = self._template_slots_family_sufficient(frame, slots_raw)
                 if complete:
                     self._last_slots_from_template = True
                     return slots_raw
@@ -3541,6 +3600,13 @@ class Mediator:
     def _confirmed_bond_cards(self) -> tuple[str, ...]:
         """已确认持有的羁绊卡名（含重复次数；传给 PanelCandidates）。"""
         return tuple(self._bond_cards_owned)
+
+    def _blessing_set_pending(self) -> bool:
+        """The three-card blessing set stays ahead of the ordinary L1 cycle."""
+        return sum(
+            1 for name in self._confirmed_bond_cards()
+            if matches_bond_preset(name, ("祝福",))
+        ) < 3
 
     def _bond_base_progress_pending(self) -> bool:
         """基础卡未达到 80% 时，F 面板独占主动选卡循环。"""
@@ -4132,7 +4198,12 @@ class Mediator:
                 round_elapsed_s=self._round_elapsed_s(),
                 completed_advanced_groups=self._advanced_groups_completed,
             )
-            decision = choose_action(bond_candidates, self._choice_session)
+            direct_pick = getattr(self, "_last_template_direct_pick", None) if kind == "bond" else None
+            decision = (
+                PolicyDecision.select(direct_pick, f"羁绊模板家族直拿 @ slot {direct_pick}")
+                if direct_pick is not None
+                else choose_action(bond_candidates, self._choice_session)
+            )
         _obs_from, _obs_why = None, ""
         if kind == "bond" and decision.action == PolicyAction.REFRESH:
             affordable, wood, price = self._bond_refresh_affordable(frame)
@@ -4723,6 +4794,12 @@ class Mediator:
     _EXIT_REARM_LIMIT = 2
 
     def _l1_step_visit_exhausted(self, now: float) -> bool:
+        if (
+            not self._passenger_mode()
+            and getattr(self, "_l1_cycle_step", None) == "bond"
+            and self._blessing_set_pending()
+        ):
+            return False
         # One visit rule with the solo planner:
         # F: wood >= 1000 -> 15 (狂暴抽卡，充分转化木材资源), 500..1000 -> 2 (让步给技能与支线), < 500 -> 1;
         # G 5, everything else 3; plus the 30s/60s ceiling below.
@@ -10591,9 +10668,111 @@ class Mediator:
             value = 30.0
         return max(5.0, min(300.0, value))
 
+    def _ensure_four_challenges_fast(self, frame: Frame, now: float) -> LoopAction | None:
+        """Batch fixed OFF toggles and immediately retry any still OFF, up to twice."""
+        controls = (
+            ("coin_challenge", "金币"),
+            ("wood_challenge", "木材"),
+            ("experience_challenge", "经验"),
+            ("treasure_challenge", "宝物"),
+        )
+        if self._passenger_mode() or self._challenge_pending_since:
+            return None
+        observed = []
+        for key, label in controls:
+            found = self._find_challenge_button(frame, key)
+            if found is None:
+                return None
+            label_hit, click_hit = found
+            state = self._resolve_challenge_state(frame, label_hit)
+            if state == ChallengeState.UNKNOWN:
+                return None
+            observed.append((key, label, label_hit, click_hit, state))
+        if len({item[3].center for item in observed}) != len(controls):
+            return None
+        if not any(item[4] == ChallengeState.OFF for item in observed):
+            return None
+        retry_keys = {item[0] for item in observed if item[4] == ChallengeState.OFF}
+        initial_clicks = [
+            (key, label, label_hit, click_hit)
+            for key, label, label_hit, click_hit, state in observed
+            if state == ChallengeState.OFF
+        ]
+        current_frame = frame
+        self._challenge_batch_input_active = True
+        try:
+            for pass_index in range(3):
+                pending_clicks = initial_clicks if pass_index == 0 else []
+                if pass_index > 0:
+                    for key, label in controls:
+                        if key not in retry_keys:
+                            continue
+                        found = self._find_challenge_button(current_frame, key)
+                        label_hit, click_hit = found if found else (None, None)
+                        state = self._resolve_challenge_state(current_frame, label_hit)
+                        if state == ChallengeState.ON:
+                            self._challenge_done.add(key)
+                            self._challenge_states[key] = ChallengeState.ON
+                            retry_keys.discard(key)
+                            continue
+                        if state != ChallengeState.OFF or click_hit is None:
+                            self._challenge_states[key] = state
+                            retry_keys.discard(key)
+                            continue
+                        attempts = self._challenge_attempts.get(key, 0)
+                        if attempts >= 3:
+                            self._record_environment_incident("challenge_toggle_unverified", 0.0)
+                            self.set_phase(Phase.ERROR, f"{key} remained OFF after two retries")
+                            self.stop()
+                            return LoopAction.Break
+                        pending_clicks.append((key, label, label_hit, click_hit))
+                if not pending_clicks:
+                    break
+                if len({item[3].center for item in pending_clicks}) != len(pending_clicks):
+                    break
+                retry_keys.clear()
+                for key, label, label_hit, click_hit in pending_clicks:
+                    self._challenge_attempts[key] = self._challenge_attempts.get(key, 0) + 1
+                    self._trace_challenge_control(key, ChallengeState.OFF, 0, label_hit, click_hit, None)
+                    if not self.act_right_click(click_hit, f"{label}Challenge-right_click"):
+                        if self.phase == Phase.ERROR or self.stop_signal.is_set():
+                            return LoopAction.Break
+                        return LoopAction.Continue
+                verified = self._capture_best(self._capture_title(), "l1")
+                if verified is None:
+                    break
+                current_frame = self._last_frame = verified
+                for key, label in controls:
+                    found = self._find_challenge_button(verified, key)
+                    label_hit, click_hit = found if found else (None, None)
+                    state = self._resolve_challenge_state(verified, label_hit)
+                    self._trace_challenge_control(
+                        key, state, self._challenge_green_count(verified, label_hit), label_hit, click_hit, None
+                    )
+                    self._challenge_states[key] = state
+                    if state == ChallengeState.ON:
+                        self._challenge_done.add(key)
+                        self._challenge_recheck_at[key] = now + self._challenge_recheck_delay()
+                        self._record_hitch_challenge(f"{label}(确认开启)")
+                    elif state == ChallengeState.OFF:
+                        retry_keys.add(key)
+                        if self._challenge_attempts.get(key, 0) >= 3:
+                            self._record_environment_incident("challenge_toggle_unverified", 0.0)
+                            self.set_phase(Phase.ERROR, f"{key} remained OFF after two retries")
+                            self.stop()
+                            return LoopAction.Break
+                    else:
+                        retry_keys.discard(key)
+        finally:
+            self._challenge_batch_input_active = False
+        return LoopAction.Continue
+
     def _ensure_challenge_buttons(self, frame: Frame) -> LoopAction | None:
         """Enable four challenge toggles in fixed order with post-click settle windows."""
         now = time.time()
+        fast = self._ensure_four_challenges_fast(frame, now)
+        if fast is not None:
+            return fast
         for scene_key, label in (
             ("coin_challenge", "金币"),
             ("wood_challenge", "木材"),
@@ -19632,6 +19811,20 @@ class Mediator:
             and not self._has_active_transaction(frame)
             and surface == InteractionSurface.HUD_ONLY
         ):
+            if self._blessing_set_pending() and getattr(self.settings, "auto_bond", True):
+                if self.act_click(
+                    self._hud_button_hit(frame, "bond_button", self.CHOICE_BUTTON_RATIOS["bond"]),
+                    "OpenBondPanel-BlessingPriority",
+                ):
+                    self._last_bond_attempt = now
+                    self._panel_opened_by_us = "bond"
+                    self._panel_kind = "bond"
+                    self._panel_state = PanelState.OPEN_REQUESTED
+                    self._l1_cycle_owned_panel = True
+                    self._l1_cycle_selected = False
+                    print("[L1] 祝福套装未成，优先开羁绊面板")
+                return LoopAction.Continue
+
             yinyue_res = self._maybe_opportunistic_yinyue_crystal(frame, now)
             if yinyue_res is not None:
                 self._main_line_since = now
