@@ -651,15 +651,15 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertTrue(med._evolve_awaiting_hero_pick)
         self.assertFalse(med._evolve_ok_this_cycle)
 
-    def test_missing_hero_modal_releases_evolve_and_continues_cycle(self) -> None:
+    def test_missing_hero_modal_fails_closed_after_bounded_wait(self) -> None:
         med = self._evolve_ready_med()
         med._evolve_awaiting_hero_pick = True
         med._evolve_awaiting_hero_pick_at = time.time() - 16.0
-        with self._evolve_main_line_ctx(med, evolve_hit=None):
-            self.assertIs(med._tick_main_line(frame()), LoopAction.Continue)
+        with self._evolve_main_line_ctx(med, evolve_hit=None), patch.object(med, "stop") as stop:
+            self.assertIs(med._tick_main_line(frame()), LoopAction.Break)
         self.assertFalse(med._evolve_awaiting_hero_pick)
-        self.assertEqual(med._l1_cycle_step, "equipment")
-        self.assertGreater(med._evolve_click_cooldown_until, time.time() + 30.0)
+        self.assertEqual(med.phase, Phase.ERROR)
+        stop.assert_called_once()
 
     def test_evolution_modal_handling_advances_evolve_step(self) -> None:
         # P0-2：进化面板真实出现并被处理 = 点击成功反馈 → L1 循环从 evolve 推进
