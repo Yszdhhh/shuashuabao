@@ -68,7 +68,7 @@ class A3BondHardDisableCutsBypass(unittest.TestCase):
                 patch.object(med, "_fallback_choice") as fallback:
             hit = med._ocr_reward_choice(_frame(), "bond")
         self.assertIsNotNone(hit)
-        self.assertEqual(hit.name, "ocr_bond:亡灵")
+        self.assertEqual(hit.name, "ocr_bond:军团")
         rarity.assert_not_called()
         fallback.assert_not_called()
 

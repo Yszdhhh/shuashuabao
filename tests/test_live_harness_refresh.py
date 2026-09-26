@@ -363,28 +363,27 @@ def test_evolve_click_routes_real_two_card_panel_before_shared_skill_buttons() -
     assert med._evolve_ok_this_cycle is True
 
 
-def test_unresolved_evolve_panel_wait_fails_closed_after_bounded_wait() -> None:
+def test_unresolved_evolve_panel_wait_releases_lock_without_stopping() -> None:
+    """Owner 2026-09-26：等不到英雄面板只解锁、不停机。"""
     med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT)
     med.set_phase(Phase.MAIN_LINE)
     med._evolve_awaiting_hero_pick = True
     med._evolve_awaiting_hero_pick_at = 100.0
     clock = FakeClock(start=100.0)
-    incidents: list[str] = []
 
     with clock.install(), \
          patch.object(med, "_selection_anchor", return_value=None), \
          patch.object(med, "_find_equipment_affix_choice", return_value=None), \
          patch.object(med, "_post_game_state", return_value=None), \
-         patch.object(med, "_record_fail_closed_incident", side_effect=incidents.append), \
          patch.object(med, "stop") as stop:
         clock.advance(15.1)
         result = med._tick_main_line(_blank_frame())
 
-    assert result == LoopAction.Break
-    assert med.phase == Phase.ERROR
+    assert result == LoopAction.Continue
+    assert med.phase == Phase.MAIN_LINE
     assert med._evolve_awaiting_hero_pick is False
-    assert incidents == ["evolve hero-choice panel unresolved"]
-    stop.assert_called_once()
+    assert med._evolve_click_cooldown_until >= 115.1 + 60.0 - 0.01
+    stop.assert_not_called()
 
 
 def test_harness_source_does_not_reimplement_production_fsms() -> None:

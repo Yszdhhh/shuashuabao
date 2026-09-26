@@ -19536,10 +19536,15 @@ class Mediator:
                     return feedback_res
         if getattr(self, "_evolve_awaiting_hero_pick", False) and evolution_choice is None:
             if now - getattr(self, "_evolve_awaiting_hero_pick_at", now) >= 15.0:
+                # Owner 2026-09-26：等不到英雄面板只解锁、不停机。「▲ 选择英雄」提示
+                # 和前台校验失败的英雄卡点击都会置等待，但不一定真会弹面板；
+                # 停机会断掉整局。解锁后进化冷却 60 秒，避免立刻重入同一等待。
+                print("[L1] 等待英雄面板超时(15s)，释放进化等待锁，继续主线")
+                self._note_decision("zero_input", "英雄面板15秒未出现，释放进化等待锁")
                 self._evolve_awaiting_hero_pick = False
-                self.set_phase(Phase.ERROR, "evolve hero-choice panel unresolved")
-                self.stop()
-                return LoopAction.Break
+                self._evolve_click_cooldown_until = now + 60.0
+                if self._l1_cycle_step == "evolve":
+                    self._advance_l1_cycle("evolve")
             return LoopAction.Continue
         # 20260822（trace 181735 结尾 2.69s 冲突停机）：底部按钮行已定性为
         # skill/bond/treasure/card 的面板绝不可能是进化弹窗——进化弹窗没有
