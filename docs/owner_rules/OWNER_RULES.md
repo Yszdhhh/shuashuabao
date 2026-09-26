@@ -12,14 +12,14 @@
 - 拿不准的口径写进文末「待 Owner 确认」，不要猜。
 - 状态：✅ 已实现且有锁 · ⚠️ 被削弱或扩大（写明谁在修）· ❌ 没实现 · ❓ 待确认
 
-对账基准：PR 51 头 06f5c9d（2026-09-26）。
+对账基准：round4 头 1a292e5（2026-09-26，已含 #55/#57/#58/#59/#60 与 omp 规则恢复）。
 
 ## 1. 调度与拿卡顺序
 
 | # | 规则 | Owner 原话时间 | 代码 | 锁定测试 | 状态 |
 |---|---|---|---|---|---|
 | 1.1 | 羁绊主路径（含吞噬丹）> 技能 > 宝物、黑商、其它；开局先花木材点羁绊 | 09-15 / 09-20 / 09-24 | `mediator._L1_CYCLE_ORDER`、`_l1_step_visit_exhausted` | 锁表「木材 <500 先技能」「木材 ≥500 先羁绊」「≥1000 羁绊压技能」 | ✅ |
-| 1.2 | 前期先把祝福拿完，再做点击进化、英雄选择、神器 | 09-26 04:59 | `mediator._blessing_set_pending`、HUD「OpenBondPanel-BlessingPriority」、`_direct_template_bond_pick` | `test_direct_family_pick_20260926` 祝福相关三条 | ⚠️ OCR 路径必拿分支只看"一张祝福都没有"，第 2、3 张会被成长/经济抢。omp 分支 fix/restore-owner-rules-20260926 在修 |
+| 1.2 | 前期先把祝福拿完，再做点击进化、英雄选择、神器 | 09-26 04:59 | `mediator._blessing_set_pending`、HUD「OpenBondPanel-BlessingPriority」、`_direct_template_bond_pick` | `test_blessing_uncompleted_beats_growth_economy_and_advanced_on_same_page`（锁表文件内）+ `test_direct_family_pick_20260926` 祝福三条 | ✅（5bb5d9a 恢复） |
 | 1.3 | 有标签模板的卡族匹配到就直接拿，不做 OCR；全没命中才走 OCR | 09-26 04:59 / 05:09 | `mediator._direct_template_bond_pick` | `test_direct_family_pick_obeys_owner_priority_and_skips_rarity_reads` | ✅ |
 | 1.4 | 祝福不看等级不看内容直接拿；从看板移除勾选项，每局默认必拿、最高 | 09-26 02:16 / 04:59 | ui-v2 `pushBondsAndAttributes` 总附祝福；`DEFAULT_BOND_MUST_TAKE` | 锁表「同页优先级」 | ✅ |
 | 1.5 | 羁绊同页：祝福 > 成长/经济 > 当前高级卡组 > 其它白名单；贪婪、固守等其余基础卡与普通卡组同级 | 09-26 02:16 | `choice_policy.choose_action` 羁绊分支 | 锁表「同页优先级」「基础羁绊同页顺序」 | ✅ |
@@ -44,7 +44,7 @@
 |---|---|---|---|---|
 | 3.1 | 羁绊没有放弃，必须拿一张；100 木材刷新最多 3 次，还没目标就按优先级拿一张（白名单优先、再按稀有度） | `DEFAULT_MAX_REFRESHES=3`、`_best_available_bond_pick` | `test_refresh_exhaustion_selects_best_readable_card_even_outside_whitelist` | ✅ |
 | 3.2 | 兜底不拿未勾选高级卡组的卡 | `_best_available_bond_pick` | `test_refresh_fallback_never_takes_an_unticked_advanced_pack` | ✅ |
-| 3.3 | 禁拿名单默认空、看板可配，禁拿卡永远不拿 | `bond_candidate_allowed`（现只剩禁字法/安身法） | 无 | ⚠️ `bond_negative_names` 被删；"PR 51 云端审查与 debug"线程在恢复 |
+| 3.3 | 禁拿名单默认空、看板可配，禁拿卡永远不拿 | `bond_candidate_allowed` + 禁拿名单 | `test_banned_card_is_never_taken_on_normal_or_fallback_path` | ✅（#58 恢复） |
 | 3.4 | 满槽顶替只点 OCR 认出的非目标卡，认不出零输入 | `_bond_capacity_candidates` | 锁表 | ✅ |
 
 ## 4. 吞噬丹与亡灵
@@ -52,8 +52,8 @@
 | # | 规则 | Owner 原话时间 | 代码 | 锁定测试 | 状态 |
 |---|---|---|---|---|---|
 | 4.1 | 羁绊栏 ≥8/10 才吃，每吃一颗重读，降下来就停；单人默认吃（看板不加开关） | 09-24 / 09-25 | `_DEVOUR_BOND_OCCUPANCY` | 锁表 | ✅ |
-| 4.2 | 只有专心做亡灵时停吃丹；其它卡组（含属性链）照常吃 | 09-26 06:57 | `_devour_hold_reason` | 锁表「亡灵卡组进行中不吃」 | ⚠️ 被扩到属性链，#57 在修 |
-| 4.3 | 亡灵进行中也不为丹去黑商 | 09-26 | `_solo_wants_merchant`、`_urgent_merchant_reason` 都没看 `_devour_hold_reason` | 无 | ⚠️ omp 在修 |
+| 4.2 | 只有专心做亡灵时停吃丹；其它卡组（含属性链）照常吃 | 09-26 06:57 | `_devour_hold_reason` | 锁表「亡灵卡组进行中不吃」+ `test_devour_is_not_held_by_attribute_chains` | ✅（#57） |
+| 4.3 | 亡灵进行中也不为丹去黑商 | 09-26 | `_solo_wants_merchant`、`_urgent_merchant_reason` | `test_undead_pack_in_progress_does_not_visit_merchant_for_pill` | ✅（5bb5d9a 恢复） |
 | 4.4 | 羁绊栏空位 ≤2 没丹、木材 <500：插队去黑商，回到被打断的步骤；黑商一步按 H | 09-24 / 09-25 | `_urgent_merchant_reason`、merchant 步 | 锁表两条 | ✅ |
 | 4.5 | 亡灵：三种碎片各 10 再拿亡者大厅；邪爆初版不上 | 09-26 | 无 | 无 | ❌ Owner 已延后（看板标实验） |
 
@@ -70,7 +70,7 @@
 | 异火 | 同上，看到就拿 | yihuo | ✅ |
 | 刀刀 | 旋涡、风之杖、纷争面纱、风神杖、灵匣、绝刃、雷神之锤、希瓦的守护都是刀刀装备，和起手三件（幽灵系带/护腕/空灵挂坠）、萌新、大成一起进刀刀组，按游戏实际名字 | daodao | ✅（#59 补 8 件装备）。**完整逻辑待 Owner 补充，见 §5.1** |
 | 修仙 | 五极山属修仙，拿满 5 个提高出大乘概率；终卡大乘期 | 仓库暂无（本机待合入） | ✅（#59 补五极山） |
-| 三国 | 魏蜀吴群雄四选三：哪国先出先拿该国启动卡，拿满 3 国不拿第四国；已选 3 国有啥拿啥、高等级优先 | sanguo | ❌ #55 在做 |
+| 三国 | 魏蜀吴群雄四选三：哪国先出先拿该国启动卡，拿满 3 国不拿第四国；已选 3 国有啥拿啥、高等级优先 | sanguo | ✅（#55，`test_fourth_faction_is_never_taken_once_three_are_owned`） |
 | 海盗 | 藏宝图(三)开池；终形态 UR 毁灭战舰 | cangbaotu | ✅（#59 补藏宝图） |
 | 亡灵 | 见 §4 | wangling | 只到拿卡 |
 | 封神 | — | fengshen | ✅ |
