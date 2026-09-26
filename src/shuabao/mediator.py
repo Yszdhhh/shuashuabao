@@ -5309,7 +5309,15 @@ class Mediator:
             and longest_vertical_edge(784) >= max(100, int(250 * transform.scale))
             and longest_vertical_edge(816) >= max(70, int(150 * transform.scale))
             and longest_vertical_edge(1050) >= max(70, int(150 * transform.scale))
-            and max(longest_vertical_edge(370), longest_vertical_edge(408), longest_vertical_edge(1201))
+            # 272 是四卡面板最左卡的左边框：四卡羁绊/技能面板中间两张卡的边框
+            # 正好落在 550/784/816/1050，只有这条能把它和英雄二选一分开
+            # （fengshen_roushen_f0245 羁绊面板 272 处竖边 359，英雄帧 ≤28）。
+            and max(
+                longest_vertical_edge(272),
+                longest_vertical_edge(370),
+                longest_vertical_edge(408),
+                longest_vertical_edge(1201),
+            )
             < max(40, int(60 * transform.scale))
         )
         legacy_card_frame = (
