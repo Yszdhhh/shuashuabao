@@ -6,29 +6,24 @@ on:
       - claude/round4-live-20260926
 
 jobs:
-  audit:
+  strategy:
     if: github.head_ref == 'gpt/owner-bond-fallback-20260926'
     runs-on: windows-latest
-    timeout-minutes: 120
+    timeout-minutes: 40
     steps:
-      - name: Checkout PR head
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
-
       - name: Install Python dependencies
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
           pip install pytest pytest-subtests opencv-python-headless numpy PySide6 mss pyautogui Pillow cryptography
           pip install -r requirements-build.txt
-
       - name: Strategy and production-path tests
         shell: pwsh
         run: |
@@ -37,8 +32,25 @@ jobs:
           Write-Host "STRATEGY_EXIT_CODE=$code"
           exit $code
 
+  contract:
+    if: github.head_ref == 'gpt/owner-bond-fallback-20260926'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install Python dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-subtests opencv-python-headless numpy PySide6 mss pyautogui Pillow cryptography
+          pip install -r requirements-build.txt
       - name: Contract tests
-        if: always()
         shell: pwsh
         run: |
           python -m pytest tests/contract -q --tb=short -p no:faulthandler
@@ -46,8 +58,25 @@ jobs:
           Write-Host "CONTRACT_EXIT_CODE=$code"
           exit $code
 
+  gate:
+    if: github.head_ref == 'gpt/owner-bond-fallback-20260926'
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install Python dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-subtests opencv-python-headless numpy PySide6 mss pyautogui Pillow cryptography
+          pip install -r requirements-build.txt
       - name: Release gate
-        if: always()
         shell: pwsh
         run: |
           python tools/release_gate.py
