@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_is_target_synthetic_bond():
-    med = Mediator(Settings(), ROOT)
+    med = Mediator(Settings(ocr_mode="off"), ROOT)
     
     # 目标合成卡组：大圣系列、封神系列、法宝、基础卡
     assert med._is_target_synthetic_bond("齐天大圣") is True
@@ -46,13 +46,29 @@ _FULL_BAR = [
 
 
 def _replace_med(monkeypatch, texts, incoming=None):
-    med = Mediator(Settings(), ROOT)
+    med = Mediator(Settings(ocr_mode="off"), ROOT)
     med._ocr_client = _FakeOcr(texts) if texts is not None else None
     med._bond_replace_incoming = incoming
+    med._bond_replace_authorized = True
     clicked = []
     monkeypatch.setattr(med, "act_click", lambda hit, reason="": clicked.append((hit, reason)) or True)
+    monkeypatch.setattr(med, "_bond_bar_occupancy", lambda _frame: 10)
     frame = Frame(bgr=np.zeros((900, 1600, 3), dtype=np.uint8), left=0, top=0, hwnd=123)
     return med, frame, clicked
+
+
+def test_bond_slot_replacement_requires_immediate_merge_authorization(monkeypatch):
+    med, frame, clicked = _replace_med(monkeypatch, _FULL_BAR)
+    med._bond_replace_authorized = False
+    assert med._maybe_execute_bond_slot_replacement(frame) is False
+    assert clicked == []
+
+
+def test_bond_slot_replacement_cancels_after_merge_frees_a_slot(monkeypatch):
+    med, frame, clicked = _replace_med(monkeypatch, _FULL_BAR)
+    monkeypatch.setattr(med, "_bond_bar_occupancy", lambda _frame: 9)
+    assert med._maybe_execute_bond_slot_replacement(frame) is False
+    assert clicked == []
 
 
 def test_bond_slot_replacement_clicks_only_an_ocr_identified_non_target(monkeypatch):
@@ -84,7 +100,7 @@ def test_bond_slot_replacement_skips_the_card_just_taken(monkeypatch):
 
 
 def _select_hero_med(monkeypatch, *, hud: bool):
-    med = Mediator(Settings(), ROOT)
+    med = Mediator(Settings(ocr_mode="off"), ROOT)
     fake_hit = MatchResult("select_hero", 0.95, 800, 600, 50, 20, 800, 600)
     monkeypatch.setattr(med, "find", lambda f, names, **kw: fake_hit if "select_hero" in names else None)
     monkeypatch.setattr(med, "_is_in_game_hud", lambda f: hud)

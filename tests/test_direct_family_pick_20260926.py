@@ -14,19 +14,24 @@ sys.path.insert(0, str(ROOT / "src"))
 from shuabao.choice_policy import PolicySettings
 from shuabao.loop_action import LoopAction
 from shuabao.mediator import Mediator
+from shuabao.runtime_mediator import Mediator as RuntimeMediator
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
 
 
 def _mediator() -> Mediator:
-    med = Mediator(Settings(ocr_mode="live"), ROOT)
+    # 模板快路必须在 OCR 完全关闭时也成立；否则测试会把外部 OCR 启动误当依赖。
+    med = Mediator(Settings(ocr_mode="off"), ROOT)
     med._cached_policy_settings = PolicySettings(
         bond_presets=("祝福", "成长", "经济", "海盗"),
+        bond_base_presets=("祝福", "成长", "经济"),
         bond_must_take=("祝福",),
         bond_advanced_presets=("海盗",),
         bond_advanced_groups=(("海盗",),),
     )
     med._advanced_groups_completed = 0
+    # 策略单测不重复跑视觉栏位占用识别；容量专项用 patch.object 覆盖为 10。
+    med._bond_bar_occupancy = lambda _frame: 5
     return med
 
 
@@ -96,6 +101,84 @@ def test_direct_family_pick_accepts_a_confident_target_with_other_unrecognized_s
     for slot in slots[1:]:
         slot["template_score"] = 0.0
     assert med._direct_template_bond_pick(frame, slots) == 0
+
+
+
+
+def test_direct_family_pick_obeys_current_advanced_group_sequence() -> None:
+    med = _mediator()
+    med._cached_policy_settings = PolicySettings(
+        bond_presets=("祝福", "成长", "经济", "海盗", "白赚海盗", "异火"),
+        bond_must_take=("祝福",),
+        bond_advanced_presets=("海盗", "白赚海盗", "异火"),
+        bond_advanced_groups=(("海盗", "白赚海盗"), ("异火",)),
+    )
+    med._bond_cards_owned = ["祝福"] * 3
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
+    with patch.object(med, "_bond_bar_occupancy", return_value=5):
+        assert med._direct_template_bond_pick(frame, _slots("异火", "海盗")) == 1
+        med._advanced_groups_completed = 1
+        assert med._direct_template_bond_pick(frame, _slots("异火", "海盗")) == 0
+
+
+def test_direct_family_pick_obeys_prerequisite_gate() -> None:
+    med = _mediator()
+    med._cached_policy_settings = PolicySettings(
+        bond_presets=("祝福", "安身法", "禁字法"),
+        bond_advanced_presets=("安身法", "禁字法"),
+        bond_advanced_groups=(("安身法", "禁字法"),),
+    )
+    med._bond_cards_owned = ["祝福"] * 3
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
+    with patch.object(med, "_bond_bar_occupancy", return_value=5):
+        assert med._direct_template_bond_pick(frame, _slots("禁字法", "无关")) is None
+        med._bond_cards_owned.append("安身法")
+        assert med._direct_template_bond_pick(frame, _slots("禁字法", "无关")) == 0
+
+
+def test_direct_family_pick_obeys_full_bar_immediate_merge_only() -> None:
+    med = _mediator()
+    med._cached_policy_settings = PolicySettings(
+        bond_presets=("成长",),
+        bond_base_presets=("成长",),
+        bond_whitelist_mode="hard",
+    )
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
+    with patch.object(med, "_bond_bar_occupancy", return_value=10):
+        med._bond_cards_owned = ["成长", "成长"]
+        assert med._direct_template_bond_pick(frame, _slots("成长", "无关")) is None
+        med._bond_cards_owned = ["成长", "成长", "成长"]
+        assert med._direct_template_bond_pick(frame, _slots("成长", "无关")) == 0
+
+
+def test_production_ocr_path_rechecks_policy_instead_of_trusting_direct_index() -> None:
+    med = RuntimeMediator(Settings(ocr_mode="off"), ROOT)
+    med._cached_policy_settings = PolicySettings(
+        bond_presets=("海盗", "异火"),
+        bond_advanced_presets=("海盗", "异火"),
+        bond_advanced_groups=(("海盗",), ("异火",)),
+    )
+    med._bond_cards_owned = ["祝福"] * 3
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=1)
+    # 生产槽位几何只接受真实 3/4 槽布局；用 4 槽验证最终点击映射。
+    slots = _slots("异火", "海盗", "无关", "其他")
+
+    def panel_slots(_frame, _kind):
+        med._last_template_direct_pick = 0
+        med._last_slots_from_template = True
+        return slots
+
+    with (
+        patch.object(med, "_ocr_panel_slots", side_effect=panel_slots),
+        patch.object(med, "_panel_can_refresh", return_value=True),
+        patch.object(med, "_panel_has_giveup", return_value=False),
+        patch.object(med, "_extract_live_set_progress", return_value=None),
+        patch.object(med, "_bond_bar_occupancy", return_value=5),
+        patch.object(med, "_bond_refresh_affordable", return_value=(True, 9999, 40)),
+    ):
+        hit = med._ocr_reward_choice(frame, "bond")
+    assert hit is not None
+    assert hit.name == "ocr_bond:海盗"
 
 
 def test_four_challenges_are_clicked_then_verified_from_one_fresh_frame() -> None:

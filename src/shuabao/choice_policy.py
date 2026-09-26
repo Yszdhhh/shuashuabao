@@ -1355,6 +1355,29 @@ def _is_uncompleted_merge_upgrade(
     return True
 
 
+def _is_proven_merge_upgrade(
+    slot: SlotCandidate, owned_cards: tuple[str, ...]
+) -> bool:
+    """10/10 专用：必须证明“拿这一张就立即合成”，不能只证明未来可合成。"""
+    if not slot.name or not owned_cards:
+        return False
+    if not _is_uncompleted_merge_upgrade(slot, owned_cards):
+        return False
+
+    progress = _slot_stack_progress(slot)
+    if progress is not None:
+        have, need = progress
+        return have + 1 >= need
+
+    from shuabao.bond_capacity import stack_need
+
+    need = stack_need(slot.name)
+    if need is None:
+        return False
+    have = sum(1 for item in owned_cards if item and same_bond_identity(slot.name, item))
+    return have + 1 >= need
+
+
 def _drop_completed_bond_slots(
     slots: tuple[SlotCandidate, ...], owned_bonds: tuple[str, ...]
 ) -> tuple[SlotCandidate, ...]:
@@ -1476,30 +1499,46 @@ def sanguo_blocked_faction(name: str | None, owned_bonds: tuple[str, ...] | list
 
 
 def bond_banned(name: str | None, settings: PolicySettings) -> bool:
-    """Owner 2026-09-26 03:33：禁拿名单里的羁绊卡永远不拿（常规路径、兜底、模板直拿）。"""
+    """Owner 2026-09-26 03:33：禁拿名单里的羁绊卡永远不拿。"""
     return bool(name) and matches_bond_preset(name, settings.bond_negative_names)
 
 
+def _advanced_groups_complete(cands: PanelCandidates, settings: PolicySettings) -> bool:
+    groups = settings.bond_advanced_groups
+    if not groups:
+        # “没选高级组”不是“所选高级组全部完成”。只要还有已知未选高级卡族，
+        # 兜底就不得因此放开它们。
+        return not bool(settings.bond_unselected_advanced_names)
+    return max(0, int(cands.completed_advanced_groups or 0)) >= len(groups)
+
+
+def _is_any_advanced_bond(name: str | None, settings: PolicySettings) -> bool:
+    if not name:
+        return False
+    selected = tuple(item for group in settings.bond_advanced_groups for item in group)
+    return matches_bond_preset(name, selected) or _is_unselected_advanced_bond(name, settings)
+
+
 def _best_available_bond_pick(cands, settings, active_adv) -> SlotCandidate | None:
-    """Pick the best readable card after refreshes, reusing the normal safety gate."""
+    """刷新耗尽/无法刷新后的兜底；继续遵守前置、组顺序与容量安全。"""
     owned = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
+    advanced_done = _advanced_groups_complete(cands, settings)
     available = [
         slot for slot in cands.slots
         if slot.name and str(slot.name).strip()
         and slot.confidence >= settings.min_confidence
         and bond_candidate_allowed(slot.name, cands.owned_bond_cards)
-        # 兜底入口最后一道检查：禁拿名单（本函数）与未勾选卡组（omp 护栏）一律不拿。
         and not bond_banned(slot.name, settings)
-        and not (
-            _is_unselected_advanced_bond(slot.name, settings)
-            and not _is_uncompleted_merge_upgrade(slot, owned)
-        )
+        and (advanced_done or not _is_any_advanced_bond(slot.name, settings))
     ]
     if not available:
         return None
 
-    # 满栏时兜底只拿能合成/差一张的卡，避免非合成卡占格导致溢出
-    if cands.free_slots is not None and cands.free_slots <= 1:
+    if cands.free_slots is not None and cands.free_slots <= 0:
+        available = [slot for slot in available if _is_proven_merge_upgrade(slot, owned)]
+        if not available:
+            return None
+    elif cands.free_slots is not None and cands.free_slots <= 1:
         available = [
             slot for slot in available
             if _is_merge_or_near_complete(slot, cands, settings, owned)
@@ -1575,11 +1614,12 @@ def _bond_capacity_candidates(
     kept: list[SlotCandidate] = []
     for slot in slots:
         merge = bool(slot.name and _is_uncompleted_merge_upgrade(slot, owned))
+        proven_merge = bool(slot.name and _is_proven_merge_upgrade(slot, owned))
         core = _is_bond_must_take(slot.name, settings.bond_must_take) or matches_bond_preset(
             slot.name, settings.bond_presets
         )
         if free <= 0:
-            allowed = merge or core or slot.zero_cost
+            allowed = proven_merge
         elif free == 1:
             allowed = merge or core or slot.name in tier_names
         else:
@@ -1688,9 +1728,10 @@ def _decide_collectible(
                         or matches_bond_preset(slot.name, settings.bond_base_presets)
                         or matches_bond_preset(slot.name, settings.bond_chain_presets)
                         or matches_bond_preset(slot.name, active_adv)
-                        # A past run may already contain another pack's card.
-                        # Let its duplicate finish/merge, but never start it.
-                        or _is_uncompleted_merge_upgrade(slot, owned_bonds)
+                        or (
+                            _is_uncompleted_merge_upgrade(slot, owned_bonds)
+                            and not _is_any_advanced_bond(slot.name, settings)
+                        )
                     )
                 )
                 if not eligible:
@@ -1828,7 +1869,9 @@ def _active_advanced_presets(cands: PanelCandidates, settings: PolicySettings) -
     if not groups:
         return settings.bond_advanced_presets
     done = max(0, int(cands.completed_advanced_groups or 0))
-    return groups[min(done, len(groups) - 1)]
+    if done >= len(groups):
+        return ()
+    return groups[done]
 
 
 def _no_safe_candidate(

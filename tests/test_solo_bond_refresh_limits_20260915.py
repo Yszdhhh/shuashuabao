@@ -21,14 +21,14 @@ def _frame() -> Frame:
 
 
 def test_bond_refresh_cap_is_three_per_panel_group() -> None:
-    med = Mediator(Settings(), ROOT)
+    med = Mediator(Settings(ocr_mode="off"), ROOT)
     anchor = MatchResult("bond_hide_btn", 0.99, 580, 552, 10, 10, 580, 552)
     med._enter_panel_episode(_frame(), anchor, "bond", opened=True)
     assert med._choice_session.max_refreshes == 3
 
 
 def test_bond_refresh_cost_follows_40_60_80_100_ladder() -> None:
-    med = Mediator(Settings(), ROOT)
+    med = Mediator(Settings(ocr_mode="off"), ROOT)
     assert [
         (setattr(med, "_bond_picks_round", picks), med._bond_refresh_price())[1]
         for picks in range(6)
@@ -36,7 +36,7 @@ def test_bond_refresh_cost_follows_40_60_80_100_ladder() -> None:
 
 
 def test_refresh_exhaustion_selects_best_readable_card_even_outside_whitelist() -> None:
-    med = Mediator(Settings(cards=["大圣"], bonds=["成长", "经济"]), ROOT)
+    med = Mediator(Settings(ocr_mode="off", cards=["大圣"], bonds=["成长", "经济"]), ROOT)
     policy = med._policy_settings()
     slots = (
         SlotCandidate(index=0, name="普通白名单", confidence=0.99),
@@ -52,7 +52,7 @@ def test_refresh_exhaustion_selects_best_readable_card_even_outside_whitelist() 
 
 
 def test_growth_or_economy_beats_current_advanced_pack_when_refresh_unavailable() -> None:
-    med = Mediator(Settings(cards=["大圣"], bonds=["成长", "经济"]), ROOT)
+    med = Mediator(Settings(ocr_mode="off", cards=["大圣"], bonds=["成长", "经济"]), ROOT)
     policy = med._policy_settings()
     decision = choose_action(
         PanelCandidates(
@@ -68,7 +68,7 @@ def test_growth_or_economy_beats_current_advanced_pack_when_refresh_unavailable(
 
 
 def test_unaffordable_bond_refresh_reselects_instead_of_hiding() -> None:
-    med = Mediator(Settings(), ROOT)
+    med = Mediator(Settings(ocr_mode="off"), ROOT)
     close = MatchResult("bond_hide_btn", 0.99, 580, 552, 10, 10, 580, 552)
     slots = (SlotCandidate(index=0, name="非白名单", confidence=0.99),)
     with (

@@ -6,7 +6,8 @@
 - 刀刀含 8 件装备（旋涡、风之杖、纷争面纱、风神杖、灵匣、绝刃、雷神之锤、希瓦的守护）；
 - 修仙含五极山（五座山 + 元禾五极山）；海盗含藏宝图；
 - 高级卡组之间的先后由看板优先级（勾选顺序）决定；
-- 刷新耗尽兜底永不拿未勾选高级卡组的卡。
+- 预设高级组未全部完成时，刷新耗尽兜底只拿非高级卡；
+- 预设高级组全部完成后，允许任意高级或基础卡参与兜底。
 """
 from __future__ import annotations
 
@@ -82,13 +83,14 @@ def _slot(index: int, name: str) -> SlotCandidate:
     return SlotCandidate(index=index, name=name, confidence=0.95, rarity=None, description="")
 
 
-def _decide(policy, names, *, refreshes=0, can_refresh=False, free_slots=None):
+def _decide(policy, names, *, refreshes=0, can_refresh=False, free_slots=None, completed_advanced_groups=0):
     cands = PanelCandidates(
         panel_kind=PANEL_BOND,
         slots=tuple(_slot(i, n) for i, n in enumerate(names)),
         settings=policy,
         can_refresh=can_refresh,
         free_slots=free_slots,
+        completed_advanced_groups=completed_advanced_groups,
     )
     return choose_action(cands, SessionState(refreshes=refreshes))
 
@@ -135,11 +137,37 @@ def test_advanced_pack_order_follows_dashboard_priority() -> None:
     assert (_decide(second, ["旋涡", "异火"]).index) == 0
 
 
-def test_refresh_fallback_never_takes_an_unticked_advanced_pack() -> None:
-    """Owner 2026-09-26：刷新 3 次后兜底按优先级随便拿，但不拿未勾选高级卡组的卡。"""
-    policy = _policy(["daodao"], bonds=("祝福",))
-    decision = _decide(policy, ["见习海贼", "贪婪", "异火"], refreshes=3, can_refresh=True)
+def test_refresh_fallback_before_all_advanced_complete_only_takes_non_advanced() -> None:
+    policy = _policy(["daodao", "yihuo"], bonds=("祝福",))
+    decision = _decide(
+        policy, ["异火", "见习海贼", "贪婪"],
+        refreshes=3, can_refresh=True, completed_advanced_groups=0,
+    )
+    assert (decision.action, decision.index) == (PolicyAction.SELECT_SLOT, 2), decision.reason
+
+
+def test_refresh_fallback_after_all_advanced_complete_allows_any_advanced_or_base() -> None:
+    policy = _policy(["daodao", "yihuo"], bonds=("祝福",))
+    decision = _decide(
+        policy, ["见习海贼", "贪婪"],
+        refreshes=3, can_refresh=True, completed_advanced_groups=2,
+    )
+    assert (decision.action, decision.index) == (PolicyAction.SELECT_SLOT, 0), decision.reason
+
+
+def test_no_advanced_pack_selected_does_not_unlock_unselected_advanced_fallback() -> None:
+    policy = _policy([], bonds=("祝福",))
+    decision = _decide(
+        policy, ["见习海贼", "贪婪"],
+        refreshes=3, can_refresh=False, completed_advanced_groups=0,
+    )
     assert (decision.action, decision.index) == (PolicyAction.SELECT_SLOT, 1), decision.reason
+
+    only_advanced = _decide(
+        policy, ["见习海贼", "异火"],
+        refreshes=3, can_refresh=False, completed_advanced_groups=0,
+    )
+    assert only_advanced.action is not PolicyAction.SELECT_SLOT
 
 
 def test_refresh_is_used_before_the_fallback() -> None:
