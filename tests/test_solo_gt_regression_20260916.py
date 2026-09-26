@@ -528,7 +528,7 @@ def test_owned_off_whitelist_debt_lifecycle_and_release():
     assert dec_must.index == 1
     assert "羁绊系统必拿" in dec_must.reason
 
-    # 15. free_slots=0/1 下真实未完成同卡债务仍不能被 capacity 意外过滤
+    # 15. 10/10 只接受立即合成；尚有 1 格时仍允许继续补已持有债务
     for free in (0, 1):
         cands_cap = PanelCandidates(
             panel_kind="bond",
@@ -539,6 +539,9 @@ def test_owned_off_whitelist_debt_lifecycle_and_release():
             settings=off_whitelist_settings,
         )
         dec_cap = choose_action(cands_cap, SessionState())
-        assert dec_cap.action == PolicyAction.SELECT_SLOT
-        assert "已持有合成优先" in dec_cap.reason
+        if free == 0:
+            assert dec_cap.action == PolicyAction.REFRESH
+        else:
+            assert dec_cap.action == PolicyAction.SELECT_SLOT
+            assert "已持有合成优先" in dec_cap.reason
 
