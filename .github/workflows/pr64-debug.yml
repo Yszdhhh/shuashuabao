@@ -1,0 +1,47 @@
+name: PR64 Debug Matrix
+
+on:
+  push:
+    branches:
+      - gpt/pr64-debug-20260926
+
+jobs:
+  strategy-file:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - tests/test_choice_policy.py
+          - tests/test_p1_choice_fsm_contracts.py
+          - tests/test_policy_bond_identity_20260916.py
+          - tests/test_owner_pack_whitelist_lock_20260926.py
+          - tests/test_direct_family_pick_20260926.py
+          - tests/test_bond_replace_and_hero_focus_20260924.py
+          - tests/test_solo_bond_refresh_limits_20260915.py
+          - tests/test_runtime_bond_policy_authorization_20260926.py
+          - tests/test_owner_ingame_rules_lock_20260924.py
+          - tests/test_sanguo_three_of_four_20260926.py
+          - tests/test_p0_devour_failclosed_20260917.py
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 0f5dfa9247e07716039b24e695087f626775a7ba
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - name: Install deps
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-subtests opencv-python-headless numpy PySide6 mss pyautogui Pillow cryptography
+          pip install -r requirements-build.txt
+      - name: Run one strategy file
+        shell: pwsh
+        run: |
+          python -m pytest "${{ matrix.test }}" -q --tb=short -p no:faulthandler
+          $code = $LASTEXITCODE
+          Write-Host "FILE_EXIT_CODE=$code TEST=${{ matrix.test }}"
+          exit $code
