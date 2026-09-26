@@ -44,10 +44,11 @@
 |---|---|---|---|---|
 | 3.1 | 羁绊没有放弃；100 木材刷新最多 3 次，刷新耗尽或无法刷新时进入兜底 | `DEFAULT_MAX_REFRESHES=3`、`_best_available_bond_pick` | `test_refresh_exhaustion_selects_best_readable_card_even_outside_whitelist` | ✅ |
 | 3.2 | 预设高级卡组尚未全部完成时，兜底只能拿**非高级卡组**的可读卡；不能借兜底启动下一高级组、未勾选高级组或回头推进其它高级组 | `_advanced_groups_complete`、`_is_any_advanced_bond`、`_best_available_bond_pick` | `test_refresh_fallback_before_all_advanced_complete_only_takes_non_advanced` | ✅ |
-| 3.3 | 预设高级卡组全部完成后，兜底允许从任意高级或基础卡组选择可读卡 | 同上 | `test_refresh_fallback_after_all_advanced_complete_allows_any_advanced_or_base` | ✅ |
-| 3.4 | Owner **没有**提出无条件永久羁绊禁拿名单；不得用 `bond.negative_names` / `bond_banned` 永久拦卡。禁字法需安身法、三国四选三等有明确前置/互斥的规则继续保留 | `bond_candidate_allowed`、`sanguo_blocked_faction` | 禁字法/三国现有锁 | ✅ |
-| 3.5 | 满栏（0 空位）只允许已持有且有明确配方/进度证据、这次获取会真实合成的卡；未持有散卡、zero-cost 或仅“同名已持有但配方未知”都不能作为满栏点击依据 | `_is_proven_merge_upgrade`、`_bond_capacity_candidates` | `test_bond_zero_slots_accepts_only_real_owned_merge` | ✅ |
-| 3.6 | 满槽顶替只点 OCR 认出的非目标卡，认不出零输入 | `_bond_capacity_candidates` | 锁表 | ✅ |
+| 3.3 | 预设高级卡组全部完成后，兜底允许从任意高级或基础卡组选择可读卡；**未选任何高级组不等于“全部完成”**，默认/空选择仍不得靠兜底拿未选高级卡族 | 同上 | `test_refresh_fallback_after_all_advanced_complete_allows_any_advanced_or_base` + `test_no_advanced_pack_selected_does_not_unlock_unselected_advanced_fallback` | ✅ |
+| 3.4 | Owner **没有**提出无条件永久羁绊禁拿名单；不得用 `bond.negative_names` / `bond_banned` 永久拦卡。禁字法需安身法、三国四选三等有明确前置/互斥的规则继续保留；模板直拿同样必须走这些条件门 | `bond_candidate_allowed`、`sanguo_blocked_faction`、`mediator._direct_template_bond_pick` | 禁字法/三国现有锁 + `test_direct_family_pick_obeys_prerequisite_gate` | ✅ |
+| 3.5 | **10/10 时只拿“这一张拿下就会立即合成”的已持有卡**（如 3/4→4/4）；2/4→3/4、未知配方、zero-cost、未持有散卡都不能因为“以后能合”而拿。可先用吞噬丹、悬赏令/其它可用消耗品，或等待异火／海贼王／三国自身吞噬自然腾格，再往空格拿 | `_is_proven_merge_upgrade`、`_bond_capacity_candidates`；物品栏/家族吞噬沿既有调度 | `test_bond_zero_slots_accepts_only_real_owned_merge` + 吞噬丹现有近满锁 | ✅ |
+| 3.6 | 不得为“拿入后暂时不能合成”的卡顶替已有卡。只有策略已证明**立即合成**、点击后 fresh frame 仍为 10/10 且确实需要顶替时，才进入旧顶替流；此时只能点 OCR 认出的**非目标卡**。合成已经自然腾出空格、占用未知、OCR 认不出牺牲位时都零输入 | `mediator._bond_replace_authorized`、`_maybe_execute_bond_slot_replacement` | `test_bond_slot_replacement_requires_immediate_merge_authorization`、`test_bond_slot_replacement_cancels_after_merge_frees_a_slot`、`test_bond_slot_replacement_clicks_only_an_ocr_identified_non_target` | ✅ |
+| 3.7 | 模板直拿只是省 OCR，不得形成第二套策略：当前高级组顺序、前置、容量、刷新兜底均由 `choose_action` 最终授权；生产入口不得信任缓存的 direct index 绕过策略 | `mediator._direct_template_bond_pick`、`_ocr_reward_choice` | `test_direct_family_pick_obeys_current_advanced_group_sequence`、`test_direct_family_pick_obeys_full_bar_immediate_merge_only`、`test_production_ocr_path_rechecks_policy_instead_of_trusting_direct_index` | ✅ |
 
 ## 4. 吞噬丹与亡灵
 
