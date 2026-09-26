@@ -3611,10 +3611,30 @@ class Mediator:
 
     def _blessing_set_pending(self) -> bool:
         """The three-card blessing set stays ahead of the ordinary L1 cycle."""
+        return self._blessing_owned_count() < 3
+
+    def _blessing_owned_count(self) -> int:
         return sum(
             1 for name in self._confirmed_bond_cards()
             if matches_bond_preset(name, ("祝福",))
-        ) < 3
+        )
+
+    # 祝福优先的有限次退出（临时口径，待 Owner 规则问题 1 裁决）：连续这么多次
+    # 为祝福开 F 都没多拿到一张祝福，本局不再让祝福抢占循环，避免三张合成后
+    # 计数永远凑不到 3 时整局饿死。
+    _BLESSING_PRIORITY_MAX_DRY_OPENS = 8
+    # 两次“为祝福开 F”之间的最短间隔：面板没打开时不每帧连点（确认拿卡后会清零）。
+    _BLESSING_OPEN_MIN_INTERVAL_S = 3.0
+
+    def _blessing_priority_active(self) -> bool:
+        """Owner 2026-09-26 04:59：前期先把祝福拿完，再做点击进化、英雄选择、神器。"""
+        count = self._blessing_owned_count()
+        if count != getattr(self, "_blessing_seen_count", 0):
+            self._blessing_seen_count = count
+            self._blessing_dry_opens = 0
+        if count >= 3:
+            return False
+        return getattr(self, "_blessing_dry_opens", 0) < self._BLESSING_PRIORITY_MAX_DRY_OPENS
 
     def _bond_base_progress_pending(self) -> bool:
         """基础卡未达到 80% 时，F 面板独占主动选卡循环。"""
@@ -4864,7 +4884,7 @@ class Mediator:
         if (
             not self._passenger_mode()
             and getattr(self, "_l1_cycle_step", None) == "bond"
-            and self._blessing_set_pending()
+            and self._blessing_priority_active()
         ):
             return False
         # One visit rule with the solo planner:
@@ -11944,6 +11964,8 @@ class Mediator:
             self._pending_action_unconfirmed_count = 0
             self._last_skill_panel = 0.0
             self._last_bond_attempt = 0.0
+            self._blessing_seen_count = 0
+            self._blessing_dry_opens = 0
             self._last_treasure_attempt = 0.0
             self._artifact_next_q = 0.0
             self._artifact_next_w = 0.0
@@ -19943,11 +19965,19 @@ class Mediator:
                 self._detour_l1_cycle("merchant")
                 self._main_line_since = now
                 return LoopAction.Continue
+            # Owner 2026-09-26 04:59：祝福只压过进化、英雄选择、神器；拾取、装备、
+            # 黑商、背包清理照常轮换。开 F 仍守羁绊冷却，面板没打开时不每帧连点。
+            blessing_first = self._blessing_priority_active()
+            if blessing_first and self._l1_cycle_step == "evolve":
+                self._advance_l1_cycle("evolve")
             if (
-                self._l1_cycle_step != "merchant"
-                and self._blessing_set_pending()
+                blessing_first
+                and self._l1_cycle_step not in ("merchant", "pickup", "equipment", "backpack_clean")
                 and getattr(self.settings, "auto_bond", True)
+                and now >= self._panel_cooldown_until.get("bond", 0.0)
+                and now - self._last_bond_attempt >= self._BLESSING_OPEN_MIN_INTERVAL_S
             ):
+                self._blessing_dry_opens = getattr(self, "_blessing_dry_opens", 0) + 1
                 if self.act_click(
                     self._hud_button_hit(frame, "bond_button", self.CHOICE_BUTTON_RATIOS["bond"]),
                     "OpenBondPanel-BlessingPriority",
@@ -19966,15 +19996,16 @@ class Mediator:
                 self._main_line_since = now
                 return yinyue_res
 
-            # HUD Opportunistic 微操：神器 CD 到期独立触发
-            artifact_res = self._maybe_fire_artifacts(frame)
+            # HUD Opportunistic 微操：神器 CD 到期独立触发（祝福未拿完前不放神器）
+            artifact_res = None if blessing_first else self._maybe_fire_artifacts(frame)
             if artifact_res is not None:
                 self._main_line_since = now
                 return artifact_res
 
             # 机会点击进化：进化的频次不高，在周期内未完成进化且有金条时穿插触发
             if (
-                self._l1_cycle_step != "evolve"
+                not blessing_first
+                and self._l1_cycle_step != "evolve"
                 and now >= getattr(self, "_evolve_click_cooldown_until", 0.0)
                 and (not getattr(self, "_evolve_ok_this_cycle", False) or self._has_evolve_button(frame))
             ):
@@ -20039,7 +20070,10 @@ class Mediator:
 
 
             # 机会使用英雄卡：在 HUD 空闲、无点击进化按钮时使用背包英雄卡（4s CD）
-            hero_card_res = self._maybe_opportunistic_hero_card(frame, now)
+            # 祝福未拿完前不做英雄选择（Owner 2026-09-26 04:59）。
+            hero_card_res = (
+                None if self._blessing_priority_active() else self._maybe_opportunistic_hero_card(frame, now)
+            )
             if hero_card_res is not None:
                 self._main_line_since = now
                 return hero_card_res
