@@ -1,6 +1,6 @@
 {
     "schema_version": 1,
-    "candidate_sha": "2a4d22cd7a7ba5d14500ff2c9ded9978bf82ce90",
+    "candidate_sha": "0dcdfb1fef736182f876da416abf702db77999de",
     "anchored_at": "2026-09-26T13:00:00+08:00",
     "branch": "claude/round4-live-20260926",
     "note": "PR #51 audit candidate: policy-authorized bond picks + shared 禁字法 gate; evolve-only anchorless hero geometry; clipped final-stage confirmation; stale bond-ban wording removed."
