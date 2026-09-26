@@ -2,7 +2,7 @@
   "version": 1,
   "kb_id": "official_game_mechanics",
   "ingested_at": "2026-08-15",
-  "updated_at": "2026-09-20",
+  "updated_at": "2026-09-26",
   "wired_to_decision": false,
   "status": "official_help",
   "_comment": "游戏内官方说明底库。比攻略优先。整份 JSON 仍不驱动公式。partially_wired 只列源码真接上的。白绿先刷 / 目录压 OCR / 审判排斥 曾误登记，见 skill_card_colors。不要把截图 PNG 复制进仓库。2026-08-17 新增批次契约条目标注为 status=wired_contract，非游戏机制。",
@@ -2679,6 +2679,14 @@
           "set": "海盗",
           "rarity": "UR",
           "note": "海盗无EX。卡面开池 N利刃/战斗/冲浪+SSR重拳先生。攻略另称黄金猿清海盗池、开宝藏。"
+        },
+        {
+          "name": "海贼王",
+          "set": "海贼王",
+          "rarity": "EX",
+          "cannot_devour": true,
+          "source": "Owner 2026-09-26 card-face screenshot; third-party video capture",
+          "note": "海贼王 EX 终卡已确认；现有羁绊栏 EX 模板无海贼王模板，当前决策侧组完成检测存在无法推进下一组的风险。"
         }
       ]
     },
