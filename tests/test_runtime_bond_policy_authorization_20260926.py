@@ -30,6 +30,9 @@ def _run_runtime_bond(
     can_refresh: bool,
     refreshes: int,
 ) -> tuple[str, MatchResult] | None:
+    # Construct RuntimeMediator with OCR off so tests never bootstrap Paddle;
+    # then restore the production decision branch while _ocr_panel_slots stays patched.
+    med.settings.ocr_mode = "live"
     med._panel_opened_by_us = "bond"
     med._panel_kind = "bond"
     med._choice_session = SessionState(refreshes=refreshes, max_refreshes=3)
