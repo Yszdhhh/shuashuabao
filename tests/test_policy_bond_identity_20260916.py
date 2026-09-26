@@ -89,7 +89,7 @@ def test_runtime_mediator_stages_policy_authorized_nonpreset_bond_card():
     """点击已由 Core 策略授权；Runtime 不得再用预设卡组过滤确认账本。"""
     from shuabao.runtime_mediator import Mediator as RuntimeMediator
 
-    med = RuntimeMediator(Settings(cards=[]), ROOT)
+    med = RuntimeMediator(Settings(ocr_mode="off", cards=[]), ROOT)
     med._bond_cards_owned = ["海盗"]
     med._bond_cards_pending.clear()
 
