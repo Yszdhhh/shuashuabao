@@ -211,4 +211,4 @@ EX 模板（`a57d697`）：从 Owner 的卡面截图 `fixtures/ex_finals_2026081
 - L1：祝福集未满时优先进入羁绊选择，且不因羁绊访问成功次数上限推进；保留面板既有硬超时及 fail-closed 行为。自动技能队列的强制上限没有修改。
 - L1：四个挑战按固定控制顺序批量右键，随后截图检查；仍为 OFF 的控制在同 tick 立即补点，最多两次重试。输入门禁只对当前 tick 同一证据帧中的挑战批量右键开放；重试仍 OFF 时记录 `challenge_toggle_unverified` incident 并停止。
 - 离线 trace 重放：现场包 1/1 面板走直拿；指定旧 trace 两包共 93 面板中 64 面板直拿；总计 65/94 覆盖，65/65 与 trace OCR 的动作槽位一致，未发现不一致。直拿耗时中位数 162.617 ms、P90 271.987 ms（包含同家族并列时徽标识别）；均未启动游戏或发送真实输入。
-- 定向选择/模板测试 `160 passed, 37 subtests passed`；本次新增用例 `10 passed`；`tests/contract` 为 `68 passed, 232 subtests passed`。`tests/test_live_harness_refresh.py` 待重钉身份后运行。所有行为仍需后续 Owner 实机验证。
+- 定向选择/模板测试 `160 passed, 37 subtests passed`；本次新增用例 `10 passed`；`tests/contract` 为 `68 passed, 232 subtests passed`；身份重钉后 `tests/test_live_harness_refresh.py` 为 `23 passed`。`tests/test_live_run_205044_regressions.py` 为 `54 passed, 2 failed`：失败是 hard whitelist 场景仍被既有耗尽回退选卡，未由本次模板直拿命中；本次未扩展修复该策略行为。所有新行为仍需后续 Owner 实机验证。
