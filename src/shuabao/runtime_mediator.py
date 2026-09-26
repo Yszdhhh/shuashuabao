@@ -753,25 +753,23 @@ class Mediator(CoreMediator):
 
         label, hit = result
         hit_name = getattr(hit, "name", "")
+        if not hit_name:
+            self._choice_policy_idle = True
+            self._choice_policy_last_reason = "羁绊策略返回不可读卡名，runtime 零输入拦截"
+            return None
         if not self._is_bond_card_click_name(hit_name):
             return result
 
-        # 非预设羁绊否决只对硬禁用模式生效；soft 模式保留策略结果。
-        if str(getattr(self.settings, "bond_whitelist_mode", "soft") or "soft") != "hard":
-            return result
-
         canonical = self._canonical_bond_name(hit_name)
-        remaining = set(self._remaining_bond_presets())
-        if matches_bond_preset(canonical, tuple(remaining)) or any(same_bond_identity(canonical, c) for c in self._confirmed_bond_cards()):
-            return result
+        if not canonical:
+            self._choice_policy_idle = True
+            self._choice_policy_last_reason = "羁绊策略返回不可读卡名，runtime 零输入拦截"
+            return None
 
-        close_hit = self._verified_panel_close(frame, "bond")
-        if close_hit is not None:
-            return ("bond", close_hit)
-        self._choice_policy_idle = True
-        self._choice_policy_last_reason = "羁绊仅出现已确认预设，等待 Fail-Forward 收口"
-        self._arm_runtime_unknown_panel(frame, kind)
-        return None
+        # 策略层已经完成 whitelist_mode=hard、刷新预算与耗尽兜底裁决。
+        # Runtime 只做“卡名可读”校验，绝不能再次以白名单否决已授权选择：
+        # 否则祝福必拿和刷新耗尽后的白名单外兜底都会在生产入口被拦掉。
+        return result
 
 
     def panel_episode_diagnostics(self) -> dict:
