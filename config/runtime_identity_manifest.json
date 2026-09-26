@@ -1,7 +1,7 @@
 {
     "schema_version": 1,
-    "candidate_sha": "0f5d3f07cfb19a15878b23e96973cc5720665435",
-    "anchored_at": "2026-09-26T10:42:00+08:00",
-    "branch": "feat/owner-sched-decisions-20260926",
-    "note": "Owner 2026-09-26 scheduler decisions: merchant gate, bond refresh fallback, mandatory blessing priority."
+    "candidate_sha": "2d5740eff9906ef0094b372e288ceaa8438b578a",
+    "anchored_at": "2026-09-26T13:00:00+08:00",
+    "branch": "claude/round4-live-20260926",
+    "note": "PR #51 audit candidate: bond runtime authorization + shared 禁字法 safety gate; evolve-only anchorless hero geometry; clipped final-stage confirmation."
 }
