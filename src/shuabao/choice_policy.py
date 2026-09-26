@@ -1626,8 +1626,8 @@ def _decide_collectible(
         return PolicyDecision.select(preset_hit, f"{kind} 预设命中：{name} @ slot {preset_hit}")
 
     if kind == PANEL_BOND:
-        # Owner 2026-09-26：白名单未命中先刷新；预算耗尽或木材不足时允许兜底，
-        # 但显式负面名单始终由 _best_available_bond_pick 排除。
+        # Owner 2026-09-26：白名单未命中先刷新；预算耗尽或木材不足时允许兜底。
+        # 兜底与常规路径共用 bond_candidate_allowed（当前仅禁字法/安身法条件门）。
         # 老行为（软模式直接品质降级）导致羁绊整局只拿 4 张且从不刷新。
         if state.refreshes < state.max_refreshes and getattr(cands, "can_refresh", False):
             return PolicyDecision(
