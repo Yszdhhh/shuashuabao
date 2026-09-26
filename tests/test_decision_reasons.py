@@ -70,12 +70,12 @@ def test_note_decision_never_raises_and_defaults_to_empty() -> None:
 
 
 def test_solo_skip_merchant_notes_decision_reasons() -> None:
-    """单人木材充足跳过黑商：真实 _solo_wants_merchant 判 False，trace 留下 skip。"""
+    """单人木材充足且背包有吞噬丹时跳过黑商，trace 留下 skip。"""
     med = _make_mediator()
     frame = _hud_frame()
     med._l1_cycle_step = "merchant"
     med._l1_cycle_index = med._L1_CYCLE_ORDER.index("merchant")
-    # 800：≥500 且羁绊未满 → 真实 _solo_wants_merchant 为 False；
+    # 800 且背包有吞噬丹时，真实 _solo_wants_merchant 为 False；
     # 又 <1000，不触发“木材充足羁绊优先”编排，能走到 merchant 步骤。
     med._wood_balance = 800
     med._DEVOUR_BOND_OCCUPANCY = 8
@@ -83,7 +83,7 @@ def test_solo_skip_merchant_notes_decision_reasons() -> None:
     with patch.object(med, "_refresh_solo_signals", return_value=None), \
         patch.object(med, "_evolve_button_hit", return_value=None), \
         patch.object(med, "_bond_bar_occupancy", return_value=6), \
-        patch.object(med, "_inventory_has_swallow_pill", return_value=False), \
+        patch.object(med, "_inventory_has_swallow_pill", return_value=True), \
         patch.object(med, "_devour_hold_reason", return_value=None), \
         patch.object(med, "_maybe_black_merchant") as mock_merchant:
         assert not med._solo_wants_merchant(frame)

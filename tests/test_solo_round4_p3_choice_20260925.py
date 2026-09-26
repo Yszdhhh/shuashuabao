@@ -30,7 +30,7 @@ def load_fixture_f0118() -> Frame:
     return Frame(bgr, window_title="英雄三国KK", hwnd=1)
 
 
-def test_f0118_dasheng_chosen_over_greed_under_20260925_rule() -> None:
+def test_f0118_dasheng_chosen_over_greed_under_20260926_rule() -> None:
     """真实帧 f0118（单人第四轮第一局 02:15 Tick 108）：
 
     【面板四槽与识别】：
@@ -42,11 +42,10 @@ def test_f0118_dasheng_chosen_over_greed_under_20260925_rule() -> None:
     【已有羁绊】：
       已持有 [祝福, 经济, 成长]，贪婪尚未持有。
 
-    【Owner 2026-09-25 新规则下同级为何选 Slot 0 齐天大圣】：
-      1. 画面中无「祝福」：Step 2.5 规则收紧为仅「祝福」优先于高级卡组，此处不触发；
+    【Owner 2026-09-26 新规则下贪婪仍低于当前高级组】：
+      1. 画面中无未入手「祝福」或「成长/经济」卡；
       2. 画面中无已持有卡需要合成：已持有祝福/经济/成长，4 槽均未持有，Step 3 不触发；
-      3. 高级卡组与其余基础卡（成长/经济/贪婪/挑战/属性等）平级：
-         未持有的「贪婪」不再享有抢先插队高级卡的特权；
+      3. 贪婪与普通卡组同级，排在当前高级卡组之后；
       4. 当前推进的高级卡组为第一组「齐天大圣」（active_adv），
          Slot 0 的「齐天大圣」在 Step 4（当前高级卡组持续推进）中被优先命中；
       5. 因此决策明确选取 Slot 0「齐天大圣」，理由为“当前高级卡组持续推进：齐天大圣 @ slot 0”。
@@ -112,7 +111,7 @@ def test_f0118_dasheng_chosen_over_greed_under_20260925_rule() -> None:
     decision_step25 = choose_action(cands_step25, SessionState())
     assert decision_step25.action == PolicyAction.SELECT_SLOT
     assert decision_step25.index == 1
-    assert "祝福羁绊优先" in decision_step25.reason
+    assert "羁绊系统必拿" in decision_step25.reason
 
     # 3. 真实帧 anchor 验证
     frame = load_fixture_f0118()

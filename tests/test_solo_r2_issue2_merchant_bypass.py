@@ -15,48 +15,47 @@ def _make_mediator(**kwargs) -> Mediator:
     return med
 
 
-def test_solo_does_not_want_merchant_when_wood_is_abundant_and_bonds_not_full():
+def test_solo_does_not_want_merchant_when_pill_and_wood_are_available():
     med = _make_mediator()
     frame = Frame(None)
     med._wood_balance = 2347
 
     with patch.object(med, "_bond_bar_occupancy", return_value=6), \
-         patch.object(med, "_inventory_has_swallow_pill", return_value=False), \
+         patch.object(med, "_inventory_has_swallow_pill", return_value=True), \
          patch.object(med, "_devour_hold_reason", return_value=None):
-        # 6/10 bonds with wood 2347 does not want merchant when occupancy threshold is 8
-        # (and even with 6, if occupancy < threshold it's False)
+        # 6/10 bonds are irrelevant when the bag has a pill and wood is abundant.
         med._DEVOUR_BOND_OCCUPANCY = 8
         assert not med._solo_wants_merchant(frame)
 
 
-def test_solo_wants_merchant_only_when_wood_low_or_pill_needed():
+def test_solo_wants_merchant_only_when_pill_missing_or_wood_low():
     med = _make_mediator()
     frame = Frame(None)
 
-    # 1. Wood < 500 -> wants merchant
+    # Low wood is a fallback even when the bag already has a pill.
     med._wood_balance = 450
     with patch.object(med, "_bond_bar_occupancy", return_value=3), \
-         patch.object(med, "_inventory_has_swallow_pill", return_value=False):
+         patch.object(med, "_inventory_has_swallow_pill", return_value=True):
         assert med._solo_wants_merchant(frame)
 
-    # 2. Wood >= 500 and bond >= 8 without pill -> wants merchant
+    # A missing pill alone is enough, regardless of occupancy or wood.
     med._wood_balance = 1500
     med._DEVOUR_BOND_OCCUPANCY = 8
-    with patch.object(med, "_bond_bar_occupancy", return_value=8), \
+    with patch.object(med, "_bond_bar_occupancy", return_value=3), \
          patch.object(med, "_inventory_has_swallow_pill", return_value=False), \
          patch.object(med, "_devour_hold_reason", return_value=None):
         assert med._solo_wants_merchant(frame)
 
-    # 3. Wood >= 500 and bond >= 8 BUT already has pill -> does not want merchant
+    # Both needs satisfied means no merchant detour.
     with patch.object(med, "_bond_bar_occupancy", return_value=8), \
          patch.object(med, "_inventory_has_swallow_pill", return_value=True), \
          patch.object(med, "_devour_hold_reason", return_value=None):
         assert not med._solo_wants_merchant(frame)
 
-    # 4. Wood is None (unreadable) -> conservative rule: does NOT assume abundant, still wants merchant
+    # Unknown wood remains fail-closed when pill presence is confirmed.
     med._wood_balance = None
     with patch.object(med, "_bond_bar_occupancy", return_value=3), \
-         patch.object(med, "_inventory_has_swallow_pill", return_value=False):
+         patch.object(med, "_inventory_has_swallow_pill", return_value=True):
         assert med._solo_wants_merchant(frame)
 
     # 5. Wood is None and bond >= 8 without pill -> wants merchant for swallow pill

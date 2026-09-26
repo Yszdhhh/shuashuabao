@@ -417,7 +417,7 @@ class TestBondTreasureUnknown(unittest.TestCase):
                 self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))
 
     def test_missing_basic_bond_beats_advanced_on_the_same_page(self):
-        """Owner 2026-09-24，2026-09-25 修订：仅祝福优先于高级卡，高级卡与其余基础卡平级。"""
+        """Owner 2026-09-26：祝福 > 成长/经济 > 当前高级组 > 其它白名单。"""
         for root, member in (
             ("齐天大圣", "大圣残躯"),
             ("封神", "封神榜"),
@@ -438,11 +438,11 @@ class TestBondTreasureUnknown(unittest.TestCase):
                     ),
                     SessionState(),
                 )
-                # Owner 2026-09-25 改为：仅祝福优先于高级卡，高级卡与其余基础卡平级
-                self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 0))
-                self.assertIn("当前高级卡组持续推进", decision.reason)
+                # Owner 2026-09-26：成长/经济先于当前高级组。
+                self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))
+                self.assertIn("成长/经济羁绊优先", decision.reason)
 
-                # 仅祝福享有超越高级卡的优先特权（显式验证 Step 2.5 祝福优先）
+                # 祝福无需出现在旧设置白名单中仍然必拿
                 blessing_policy = settings(
                     bond_presets=["祝福", "经济", "成长", root, member],
                     bond_base_presets=["祝福", "经济", "成长"],
@@ -1536,7 +1536,7 @@ class TestAssemblePolicySettings(unittest.TestCase):
 
     def test_configured_simple_ex_chains_progress_but_yield_to_missing_basic(self):
         """Owner 2026-09-24，2026-09-25 修订：EX 靠合成得到，链上成员照拿；
-        同页拿卡时仅祝福优先于高级卡，高级卡与其余基础卡平级。"""
+        同页顺序为祝福 > 成长/经济 > 当前高级组 > 其它白名单。"""
         policy_doc = json.loads(
             (Path(__file__).resolve().parents[1] / "config/choice_policy.json").read_text(encoding="utf-8")
         )
@@ -1559,7 +1559,7 @@ class TestAssemblePolicySettings(unittest.TestCase):
                     SessionState(),
                 )
                 self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))
-                # 经济与高级卡平级，按高级卡组推进规则优先拿链上成员
+                # Owner 2026-09-26：经济优先于当前高级组。
                 decision = choose_action(
                     bond_cands(
                         [slot(0, "经济"), slot(1, member)],
@@ -1568,10 +1568,9 @@ class TestAssemblePolicySettings(unittest.TestCase):
                     ),
                     SessionState(),
                 )
-                # Owner 2026-09-25 改为：仅祝福优先于高级卡，高级卡与其余基础卡平级
-                self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))
+                self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 0))
 
-                # 仅祝福享有超越高级卡的优先特权
+                # 祝福是每局必拿项
                 decision_blessing = choose_action(
                     bond_cands(
                         [slot(0, "祝福"), slot(1, member)],
@@ -1949,8 +1948,8 @@ class TestLiveRegressions20260822(unittest.TestCase):
         self.assertEqual(d.action, PolicyAction.SELECT_SLOT)
         self.assertEqual(d.index, 0)
 
-    def test_bond_hard_mode_refresh_then_close(self):
-        """硬模式：预算内 REFRESH，耗尽后 CLOSE（语义不变）。"""
+    def test_bond_hard_mode_refresh_then_select_current_card(self):
+        """硬模式：预算内刷新，预算耗尽后仍从当前页面选卡。"""
         ps = PolicySettings(bond_presets=("祝福",), bond_whitelist_mode=WHITELIST_HARD)
         cands = bond_cands(
             [slot(0, "修仙", rarity="red")],
@@ -1960,7 +1959,7 @@ class TestLiveRegressions20260822(unittest.TestCase):
         d = choose_action(cands, session=SessionState(refreshes=0, max_refreshes=3))
         self.assertEqual(d.action, PolicyAction.REFRESH)
         d2 = choose_action(cands, session=SessionState(refreshes=3, max_refreshes=3))
-        self.assertEqual(d2.action, PolicyAction.CLOSE)
+        self.assertEqual((d2.action, d2.index), (PolicyAction.SELECT_SLOT, 0))
 
     def test_unowned_preset_main_skill_beats_owned_family_stack(self):
         """trace 181735 tick42 复现：面板有红色预设主技能「剑气」，
