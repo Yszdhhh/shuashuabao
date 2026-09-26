@@ -2,7 +2,7 @@
   "version": 1,
   "kb_id": "official_game_mechanics",
   "ingested_at": "2026-08-15",
-  "updated_at": "2026-09-20",
+  "updated_at": "2026-09-26",
   "wired_to_decision": false,
   "status": "official_help",
   "_comment": "游戏内官方说明底库。比攻略优先。整份 JSON 仍不驱动公式。partially_wired 只列源码真接上的。白绿先刷 / 目录压 OCR / 审判排斥 曾误登记，见 skill_card_colors。不要把截图 PNG 复制进仓库。2026-08-17 新增批次契约条目标注为 status=wired_contract，非游戏机制。",
@@ -1477,7 +1477,40 @@
             "aliases": []
           }
         ]
-      }
+      },
+      "owner_20260926": {
+        "source_level": "owner",
+        "source": "素材/系列标签/README_Owner口径.md 标签规格章节 + 分类确认2026-09-26 11:15章节",
+        "name_correction": "攻略写的“西瓦的守护”是错名，以游戏内“希瓦的守护”为准（Owner优先于旧拆解西瓦写法）",
+        "equipment_labels_all_daodao": [
+          "旋涡",
+          "风之杖",
+          "纷争面纱",
+          "风神杖",
+          "灵匣",
+          "绝刃",
+          "雷神之锤",
+          "希瓦的守护"
+        ],
+        "script_rule": "刀刀进行中看到刀刀装备系列就拿"
+      },
+      "ex_breakdown_20260926": {
+        "source_level": "video_11ex",
+        "source": "nightwatch/ex11_video_analysis.md GAP-3/Findings-§2，t=710s cards_0710s.jpg / t=782s cards_0782s.jpg / t=1000s cards_1000s.jpg / t=1101s t_1101s.jpg / t=1105s t_1105s.jpg / t=1109s t_1109s.jpg",
+        "starter_live": "启动need=3确为幽灵系带+护腕+空灵挂坠，集齐→刀刀萌新",
+        "dacheng_devour": "刀刀大成卡面明确“吞噬外刀刀卡并将UR图纸放入卡池”（卡牌栏自身以外的刀刀卡牌）",
+        "dianjinshou": "点金手SR图纸自吞",
+        "ur_name_correction": "UR关键图纸卡面实写为“暗海猎手”，非旧拆解“暗夜猎手”（以本实机为准）",
+        "also_seen": [
+          "圣者遗物",
+          "慧夜对剑",
+          "阿哈利姆神杖"
+        ],
+        "open_issue": "圣剑掷骰吞几张未解决（ex10_gap_audit.md Unverified-3），需实机整局跑通"
+      },
+      "conflicts": [
+        "2026-09-26 Owner纠正：西瓦的守护为错名，canonical=希瓦的守护；guide.phase1_blueprints内旧名待改名，以Owner为准"
+      ]
     },
     "dasheng_chain": {
       "name": "大圣/神通三阶段：齐天大圣启动→六根残躯(6)→专属套装(5)→五大神通大成(15)→EX法天象地",
@@ -1573,7 +1606,22 @@
         "【速做节奏】：前两阶段残躯+套装木材消耗极低，开局抽到启动卡后优先做完拿基础增伤buff",
         "【格子管理】：第三阶段素材多，成型前可用吞噬丹吞掉多余素材防卡槽卡死",
         "【万能流派搭配】：海盗经济 + 三国成长 + 大圣增伤 + 主输出（奥术/亡灵/刀刀）"
-      ]
+      ],
+      "owner_20260926": {
+        "source_level": "owner",
+        "source": "素材/系列标签/README_Owner口径.md 大圣再临章节",
+        "dashengzailin_not_selectable": "大圣再临不是羁绊面板可选卡；是大圣套装合成后自动进化出的UR卡（卡名齐天大圣，标签<大圣再临>，效果4：开启神通卡组，1-15及以后关卡开放）",
+        "script_rule": "不需要标签模板，不要放进面板白名单作为可选目标"
+      },
+      "ex_breakdown_20260926": {
+        "source_level": "video_11ex",
+        "source": "nightwatch/ex11_video_analysis.md GAP-6/Findings-§2，t=50s bond_bar_0050s.jpg / t=170s bond_bar_0170s.jpg / t=674s cards_0674s.jpg / t=810s cards_0810s.jpg",
+        "bond_bar_early": "前期羁绊栏标签实写为大圣再临",
+        "advance_to": "进阶为神通；F面板青色EX终卡确为法天象地（备注绝世神通/无坚不摧）",
+        "set_membership": "法天象地 set_membership=神通（synthesis_chains.json:629-633），检测终阶不可只搜“大圣”二字",
+        "pool_type": "移池型：EX达成后彻底移池（GAP-8，t=1040s t_1040s.jpg；与龙族/军团持续成长型区分）",
+        "caution": "开局170秒内秒合的时刻表本轮未复核（macro_strategy.md 分歧-6），机制方向可用，时刻不可当时刻表"
+      }
     },
     "fengshen_chain": {
       "name": "封神：姜子牙→封神榜→天仙法宝跳→圣人",
@@ -1713,7 +1761,8 @@
       "conflicts": [
         "攻略总吞24张/2400木未上帧，不写 need",
         "圣人卡面是技能急速+30（无百分号）+技能伤害+30%+混元无极，不是攻略「最终伤害」一口价",
-        "技能卡无红；法宝 UR 不要叫红卡"
+        "技能卡无红；法宝 UR 不要叫红卡",
+        "2026-09-26 封神榜自动吞噬周期70s vs 90s未决，代码未接计时器；11EX亦未抓到悬停精确倒计时文本，需持续定格精测（ex11_video_analysis.md Unverified-1）"
       ],
       "ex": "圣人",
       "source": [
@@ -1760,6 +1809,13 @@
           "封神全流程与三国/修仙/海盗可并行发育",
           "第一阶段格子紧张时直接用吞噬丹吞神将卡加速"
         ]
+      },
+      "ex_breakdown_20260926": {
+        "source_level": "video_11ex",
+        "source": "nightwatch/ex11_video_analysis.md GAP-4/Findings-§2，t=710s cards_0710s.jpg / t=1290s tooltip_1290s.jpg / t=1364s ffmpeg_ex_1364s.jpg / t=1500s bond_bar_1500s.jpg",
+        "starter_face": "姜子牙卡面：累积获得6张封神卡时将SSR封神榜置入卡牌栏",
+        "fabao_refine": "火尖枪/黄金棍/乾坤尺/落宝金钱卡面均标[吞噬条件]通过炼化效果吞噬",
+        "route": "姜子牙6封神卡出封神榜，炼化法宝终出圣人EX（移除法宝池）"
       }
     },
     "wangling_chain": {
@@ -1910,7 +1966,13 @@
         "guide_20260815"
       ],
       "status": "mixed",
-      "wired_to_decision": false
+      "wired_to_decision": false,
+      "ex_breakdown_20260926": {
+        "source_level": "video_11ex",
+        "source": "nightwatch/ex11_video_analysis.md Findings-§2（t=160s ffmpeg_ex_0160s.jpg）；动机存档见 macro_10ex_b_guide.md Details第三部分第4阶段章节（source_level=guide，时刻不可用）",
+        "start_11ex": "11EX称t=160s抓亡灵天灾（亡者大厅回魂攒残骸）",
+        "motive_archive": "b报告动机称亡灵EX兵主成型后稳住5-5至8-1主线与大秘境入口压力（仅动机存档，不作机制事实）"
+      }
     },
     "shenshou_chain": {
       "name": "神兽：异兽蛋→同名进化→祖龙",
@@ -2000,7 +2062,13 @@
         "guide_20260815"
       ],
       "status": "mixed",
-      "wired_to_decision": false
+      "wired_to_decision": false,
+      "ex_breakdown_20260926": {
+        "source_level": "video_11ex",
+        "source": "nightwatch/ex11_video_analysis.md GAP-1/Findings-§2，t=160s ffmpeg_ex_0160s.jpg / t=414s ffmpeg_ex_0414s.jpg / t=620s cards_0620s.jpg",
+        "corroboration": "11EX佐证：t=160s抓异兽蛋60s自吞开神兽池；小鱼人/小坤坤50杀敌互吞升级；集齐四大圣兽触发弹窗激活吞噬置入祖龙EX清空槽位",
+        "scope_note": "机制存在≠初版做：初版不上神兽/三国/龙族/军团（macro_strategy.md Summary，Owner本轮口径）"
+      }
     },
     "juntuan_chain": {
       "name": "军团：燃烧的远征→扭曲虚空点爆→萨格拉斯",
@@ -2081,7 +2149,13 @@
         "guide_20260815"
       ],
       "status": "mixed",
-      "wired_to_decision": false
+      "wired_to_decision": false,
+      "ex_breakdown_20260926": {
+        "source_level": "video_11ex",
+        "source": "nightwatch/ex11_video_analysis.md Findings-§2；吞食天地吃军团叠层高可信见 macro_strategy.md 一致-6（sample_2500s.jpg约43:56聊天已吞噬5张/6张军团卡全属性+1%）",
+        "route": "燃烧远征累吞27军团卡+扭曲虚空点爆（guide口径，未上帧，不写need）",
+        "late_role": "后期抓廉价军团杂卡喂吞食天地换永久全属性滚雪球；EX后不停池，完成后只降权"
+      }
     },
     "longzu_chain": {
       "name": "龙族：巨龙军团→巨龙之魂→迦拉克隆→世界末日",
@@ -2182,7 +2256,13 @@
         "guide_20260815"
       ],
       "status": "mixed",
-      "wired_to_decision": false
+      "wired_to_decision": false,
+      "ex_breakdown_20260926": {
+        "source_level": "video_11ex",
+        "source": "nightwatch/ex11_video_analysis.md Findings-§2/GAP-8，t=1040s t_1040s.jpg / t=1800s t_1800s.jpg / t=2680s end_2680s.jpg",
+        "route": "五色龙300杀进巨龙之魂，瑞亚丝塔萨+纯净龙巢进世界末日迦拉克隆EX（t=1040s入栏）",
+        "pool_type": "持续成长型：EX出现后绝不停池，终局羁绊栏龙族计数达16；代码必须区分移池型与持续成长型"
+      }
     },
     "sanguo_chain": {
       "name": "三国：魏蜀吴羁绊→桃园结义/五虎上将→三国争霸(EX)",
@@ -2241,7 +2321,32 @@
           }
         ]
       },
-      "ex": "吞食天地"
+      "ex": "吞食天地",
+      "owner_20260926": {
+        "source_level": "owner",
+        "source": "素材/系列标签/README_Owner口径.md 三国规则章节（Owner 2026-09-26 11:04原话要点）+ 补充2三国章节",
+        "labels": [
+          "三国",
+          "魏国",
+          "蜀国",
+          "吴国",
+          "群雄"
+        ],
+        "max_three_kingdoms": "魏/蜀/吴/群雄四国里最多拿3个国家；哪个国家启动卡先出现先拿，先出前3个即本局三国；拿满后第4国卡不再拿（否则吞噬不过来）",
+        "within_pick": "已选定3国家有啥拿啥，同卡族等级高优先；也是杀敌吞噬；3国家可同时拿",
+        "ex_live": "凑满3张UR武将后游戏自动吞噬全部三国卡、移出卡池、置入EX吞食天地（11EX录屏t≈755s）"
+      },
+      "ex_breakdown_20260926": {
+        "source_level": "video_11ex",
+        "source": "nightwatch/ex11_video_analysis.md Summary-2/Findings-§2/GAP-8，t=754s t_0754s.jpg / t=755s bbar_first_0755s.jpg / t=1040s t_1040s.jpg；吞食天地后期引擎高可信见 macro_strategy.md 一致-6（sample_2500s.jpg约43:56聊天已吞噬5张/6张军团卡全属性+1%）",
+        "hub_role": "拿卡节奏枢纽：3UR达成瞬间吞食天地自动吞噬全三国并移池，一次性腾空槽，接760-1150s黄金窗口并行推进海贼王/修仙/刀刀（时刻未复核，枢纽机制可用）",
+        "engine": "吞食天地：每击杀400随机吞噬1张，每吞噬1张全属性增幅+1%，无法吞噬（词典live卡面句）",
+        "pool_type": "移池型：EX达成后彻底移池（GAP-8）"
+      },
+      "conflicts": [
+        "2026-09-26 11EX“t=620s开魏蜀吴群四国武将池全拿”做法与Owner“最多3国”冲突时以Owner为准",
+        "2026-09-26 旧summary天下归心/三国争霸与终名吞食天地+移池冲突：Owner+11EX卡面+b报告三源定案吞食天地，旧名存档备查（deck_feasibility.md当时不建议整链评级仍有效，需模板像素核对）"
+      ]
     },
     "xiuxian_chain": {
       "name": "修仙：炼气→筑基丹→金丹大道→元神出窍(EX)",
@@ -2293,7 +2398,24 @@
         ]
       },
       "ex": "大乘期",
-      "ex_conflict_note": "canonical_ex=大乘期@user_card; guide_ex=元神出窍 guide_only"
+      "ex_conflict_note": "canonical_ex=大乘期@user_card; guide_ex=元神出窍 guide_only",
+      "owner_20260926": {
+        "source_level": "owner",
+        "source": "素材/系列标签/README_Owner口径.md 补充2修仙章节 + 分类确认2026-09-26 11:15章节",
+        "stage_labels": "修仙阶段标签：修仙 / 五行灵根 / 大乘；五极山归属修仙卡组（拿满5个增加大乘概率）",
+        "label_scope": "标签归类以KB为准；KB没写清归属的先问Owner，不要猜"
+      },
+      "ex_breakdown_20260926": {
+        "source_level": "video_11ex",
+        "source": "nightwatch/ex11_video_analysis.md GAP-2/Findings-§2，t=700s cards_0700s.jpg / t=764s cards_0764s.jpg / t=773s cards_0773s.jpg / t=830s cards_0830s.jpg / t=890s cards_0890s.jpg / t=1125s t_1125s.jpg",
+        "starter_live": "启动need=3确为神秘戒指+流星泪+小绿瓶（700-773s拿齐置入练气期）",
+        "first_member": "首个成员卡面实写为“练气期”非“炼”；终阶确为“大乘期”，元神出窍彻底证伪",
+        "mid": "木灵根（五行灵根→SSR化神期）；六九天劫50%成功进UR合体期"
+      },
+      "conflicts": [
+        "2026-09-26 本条目name/guide.ex仍写元神出窍，与11EX实机（终阶大乘期）冲突，不覆盖原文，以大乘期为准；ex/ex_conflict_note字段已是canoncial大乘期",
+        "2026-09-26 首个live成员练气期当时不在推进组内（choice_policy.json:199-206）；要不要进组取决于Owner是否认为看到就该拿，后续境界无live配方（deck_feasibility.md 修仙章节）"
+      ]
     },
     "haidao_chain": {
       "name": "海盗：藏宝图→毁灭战舰；黄金猿开宝藏",
@@ -2520,6 +2642,19 @@
         "rogers": "300木→悬赏；不可被悬赏吞",
         "after_ship": "攻略称宝藏顶掉海盗池；与战舰300杀置入conflict",
         "bounty_use_tip": "低品清低阶；高品留给高阶"
+      },
+      "owner_20260926": {
+        "source_level": "owner",
+        "source": "素材/系列标签/README_Owner口径.md 补充2宝藏章节",
+        "baozang_belongs_to_haidao": "宝藏归海盗链"
+      },
+      "ex_breakdown_20260926": {
+        "source_level": "video_11ex",
+        "source": "nightwatch/ex11_video_analysis.md Findings-1/GAP-10，t=758s cards_0758s.jpg / t=1196s tooltip_1196s.jpg；macro_10ex_a.md Findings-3，bob_coarse_0003/0004/0007.jpg约10/15/30s（source_level=video_10ex）",
+        "bounty_card_face": "悬赏令卡面：使用后随机吞噬一个SSR级及以下海贼卡（优先吞品阶高），按稀有度给奖励；场上无海贼卡时使用毫无收益",
+        "do_not_confuse": "此处写的是海贼卡，不可混为海盗组内吞噬",
+        "early_frames_10ex": "天空舰长帕奇斯卡面有击杀200自动吞噬描述；劫掠海盗吞噬条件走悬赏令；白赚海盗木材加成+可重复获取（机制方向，整局优先级不可据此推断）",
+        "open_issue": "海盗吞12 vs 橙悬赏出毁灭战舰未解决（ex10_gap_audit.md Unverified-3）"
       }
     },
     "kongao_ring": {
@@ -2680,7 +2815,13 @@
           "rarity": "UR",
           "note": "海盗无EX。卡面开池 N利刃/战斗/冲浪+SSR重拳先生。攻略另称黄金猿清海盗池、开宝藏。"
         }
-      ]
+      ],
+      "ex_breakdown_20260926": {
+        "source_level": "video_11ex",
+        "source": "nightwatch/ex11_video_analysis.md Findings-1（t=1040s t_1040s.jpg / t=2650s t_2650s.jpg）；三国移池另见 sanguo_chain.owner_20260926/sanguo_chain.ex_breakdown_20260926",
+        "haizeiwang_final": "海贼王栏名终卡（红发头像，红色UR边框，数字7→501）；青色EX形态未验证，本表暂不新增青色条目",
+        "tunshitiandi_pool": "吞食天地移池三源定案（Owner+11EX卡面+b报告），本表cards吞食天地条目缺remove_pool字段，待补（只补KB字段，不涉决策接线）"
+      }
     },
     "yihuo_chain": {
       "name": "异火：火种→异火融合(SR/SSR)→帝炎(EX)",
@@ -2708,6 +2849,16 @@
           "requirement": "集齐并融合全部核心异火",
           "effect": "全属性+50%，攻击附带全屏焚尽特效，无视抗性"
         }
+      ],
+      "ex_breakdown_20260926": {
+        "source_level": "video_11ex",
+        "source": "nightwatch/ex11_video_analysis.md Findings-§2，t=1040s t_1040s.jpg",
+        "ex_live": "终阶EX为帝炎（与 yihuo_fenjue_pool live 一致）；11EX称升地阶/天阶合出帝炎（时刻未复核，仅终名可用）",
+        "starter_note": "焚诀·黄阶启动只开N池；11EX“200杀吞噬”说法与拆解“黄→玄=3 live”阶段口径不同，不可混为同一阈值（ex10_gap_audit.md 表5）",
+        "kill_self_devour": "异火、海贼推进是击杀自吞，不靠店里丹（macro_strategy.md 改法-3）"
+      },
+      "conflicts": [
+        "2026-09-26 本条目stages仍是火种/佛怒火莲旧口径，已被 yihuo_fenjue_pool live（焚诀阶位决定卡池/帝炎EX）取代；旧stages仅存档，不删，以live为准"
       ]
     },
     "post_game_dungeons": {
@@ -3305,6 +3456,120 @@
         "神通+三国",
         "修仙保命"
       ]
+    },
+    "haizeiwang_chain_11ex": {
+      "name": "海贼王（11EX实机）：悬赏令开池→杀敌吞噬→栏名海贼王终局",
+      "status": "mixed",
+      "wired_to_decision": false,
+      "owner_20260926": {
+        "source_level": "owner",
+        "source": "素材/系列标签/README_Owner口径.md 海贼王章节 + 补充2海贼王/稀有度章节",
+        "rules": [
+          "看到海贼王卡族卡越快拿越好（杀敌吞噬，同异火）",
+          "没有(x/y)进度，全是单独卡，一张张杀敌吞噬，不自己合成，逻辑同异火",
+          "标签只写海贼王",
+          "同一卡族优先拿高等级 N<R<SR<SSR<UR（徽标图用于读稀有度）"
+        ]
+      },
+      "live_11ex": {
+        "source_level": "video_11ex",
+        "source": "nightwatch/ex11_video_analysis.md Findings-1/Summary-1，t=756s chat_0756s.jpg / t=765s chat_0765s.jpg / t=773-912s cards系列帧 / t=960s cards_0960s.jpg / t=1040s t_1040s.jpg / t=2650s t_2650s.jpg",
+        "open_pool": "海盗UR毁灭战舰（技能劫掠）杀敌触发，或局内打破礼盒掉落N/R/SR/SSR/UR级悬赏令",
+        "r_members": [
+          "恶龙（攻击+100(+41)，[效果1]普通海贼）",
+          "猫爪船长（敏捷+100(+41)）",
+          "东海霸主（力量+100(+41)）"
+        ],
+        "sr_members": [
+          "怪僧（力量+200(+82)，怪僧：力量增幅+8%）",
+          "少将（敏捷+200(+82)，赤旗：敏捷增幅+8%）",
+          "打碟人（攻击+100(+41)/智力+100(+41)，海鸣：技能伤害+8%）"
+        ],
+        "ssr_members": [
+          "沙鳄鱼（沙漠之王：最终全属性+3%）",
+          "海侠（海侠：最终伤害+7%）",
+          "女帝（女帝：魔法暴击+5%/暴伤+15%）",
+          "大剑豪（鹰眼：物理暴击+5%/暴伤+15%）",
+          "多弗朗明哥（羁绊栏见）"
+        ],
+        "ur_members": [
+          "红发（攻击+500(+205)，最终攻击+10%/最终伤害+10%，神避2%概率2000%攻击自适应伤害，最强霸气增幅+50%）",
+          "凯多（羁绊栏见）"
+        ],
+        "devour_condition_all": "全阶吞噬条件统一写“通过海贼王成长卡的效果吞噬”",
+        "final_state": "羁绊栏Slot3显式名海贼王（红发头像，红色UR边框，右上角数字7递增至501）；作者视同第11套成型终卡"
+      },
+      "conflicts": [
+        "青色EX形态未验证：同栏其余6组为青色EX框，海贼王始终深红UR边框，是否存在更高杀敌青色变体未知；深红UR顶阶即目前实机终态仅为推断（ex11_video_analysis.md Unverified-2）",
+        "阶段数4/9/14/4与每200杀吞仍是外部攻略（haizeiwang_chain_guide），稀疏录像没走完，不可硬编码为need（macro_strategy.md 分歧-8）",
+        "约8:25密帧（dense_0390_0231.jpg，视频约505s）黄框在刀刀，UR大妈同页无选择证据；旧报告凯多红发记法以此密帧更正（video_haizeiwang_wangling_haidao.md Findings-1）",
+        "竞品21张停 vs 吞14+四皇4合EX矛盾未决（沿用 haizeiwang_chain_guide.conflicts）"
+      ],
+      "script_notes": [
+        "海贼王留在海盗之后（悬赏令来自海盗战舰或礼盒）；阶段数未上帧，不能靠每200杀自动切组（macro_strategy.md 改法-1）",
+        "普通海盗链与海贼王链分开独立建模，不折叠成一个吞卡数（video_haizeiwang_wangling_haidao.md 配置差异章节）",
+        "终卡留在栏里继续叠杀敌（红发501为例），收尾终卡靠合成进栏不从F点"
+      ]
+    },
+    "wujishan_20260926": {
+      "name": "五极山（修仙卡组）：集满增大大乘概率，自吞腾格",
+      "status": "mixed",
+      "wired_to_decision": false,
+      "owner_20260926": {
+        "source_level": "owner",
+        "source": "素材/系列标签/README_Owner口径.md 分类确认2026-09-26 11:15章节 + 补充2目检/修仙章节",
+        "belongs_to": "五极山：修仙卡组。拿满5个增加大乘概率",
+        "frame_seen": "补充2目检含3五极山"
+      },
+      "live_11ex": {
+        "source_level": "video_11ex",
+        "source": "nightwatch/ex11_video_analysis.md Findings-§2自吞清单（帧未指定）",
+        "self_devour": "五极山3件自吞（与祝福3件/四大圣兽/三国3UR/刀刀大成/悬赏令并列的机制自吞清单）"
+      }
+    },
+    "zhufu_blessing_20260926": {
+      "name": "祝福：每局默认必拿，优先级高于当前高级卡组",
+      "status": "mixed",
+      "wired_to_decision": false,
+      "owner_20260926": {
+        "source_level": "owner",
+        "source": "素材/系列标签/README_Owner口径.md 优先级章节",
+        "rules": [
+          "祝福（看板移除，每局默认必拿）> 成长、经济 > 当前高级卡组 > 其它（贪婪、固守等与普通卡同级）"
+        ]
+      },
+      "live_11ex": {
+        "source_level": "video_11ex",
+        "source": "nightwatch/ex11_video_analysis.md Findings-§2，t=15s t_0015s.jpg",
+        "self_devour": "优先拿祝福（敏捷/力量祝福）触发套装自动吞噬：激活并吞噬祝福套装"
+      },
+      "policy_note": {
+        "source_level": "guide",
+        "source": "nightwatch/attribute_lines_ur_check.md 默认必拿/看板章节（仓库分析，非实机帧）",
+        "must_take": "默认必拿硬编码为祝福/智力祝福/敏捷祝福/力量祝福四张，看板bond_must_take存空也清不掉；同页有时属性链让路"
+      }
+    },
+    "attribute_lines_basic_20260926": {
+      "name": "基础/属性系列：力量线收束屠戮者；魔法师元素师是基础卡非属性线",
+      "status": "mixed",
+      "wired_to_decision": false,
+      "owner_20260926": {
+        "source_level": "owner",
+        "source": "素材/系列标签/README_Owner口径.md 分类确认2026-09-26 11:15章节 + 补充2稀有度章节",
+        "rules": [
+          "魔法师、元素师：基础卡组，不是属性线，只是加智力属性（lexicon里set_membership=智力仅表示加智力，不代表属于智力链）",
+          "屠戮者：力量线UR，力量属性链到此结束",
+          "高级卡组之间的优先级由看板设置，不在代码里写默认顺序",
+          "同一卡族优先拿高等级 N<R<SR<SSR<UR；徽标图用于读稀有度"
+        ]
+      },
+      "lines_guide": {
+        "source_level": "guide",
+        "source": "nightwatch/attribute_lines_ur_check.md 配方/终名章节（仓库分析+lab，非实机帧）",
+        "strength_line": "力量 → 屠戮者：杀敌力量+0.2，所有伤害结算×1.05；散件战斗咆哮/屠戮之刃/杀戮之血各属屠戮者套；lab屠戮者(0/3)(1/3)",
+        "basic_cards": "辅助（不随线展开）：法术、魔能、魔术、魔法师、元素师",
+        "naming": "选牌用终名屠戮者；skill_routes ur_links.liliang仍写不动尊为旧错误（src不读ur_links）；dashboard_mechanics.json已标不动尊为旧错误"
+      }
     }
   },
   "multiplayer": {
