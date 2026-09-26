@@ -1337,10 +1337,24 @@ def _is_uncompleted_merge_upgrade(
     from shuabao.bond_capacity import stack_need
 
     need = stack_need(slot.name)
-    if need is None:
+    if need is not None:
+        have = len(matching)
+        if have >= need:
+            return False
+    return True
+
+
+def _is_proven_merge_upgrade(
+    slot: SlotCandidate, owned_cards: tuple[str, ...]
+) -> bool:
+    """满栏专用：只有明确进度或已知 stack 配方能证明本次获取会合成。"""
+    if not _is_uncompleted_merge_upgrade(slot, owned_cards):
         return False
-    have = len(matching)
-    return have < need
+    if _slot_stack_progress(slot) is not None:
+        return True
+    from shuabao.bond_capacity import stack_need
+
+    return stack_need(slot.name) is not None
 
 
 def _drop_completed_bond_slots(
@@ -1492,7 +1506,7 @@ def _best_available_bond_pick(cands, settings, active_adv) -> SlotCandidate | No
         return None
 
     if cands.free_slots is not None and cands.free_slots <= 0:
-        available = [slot for slot in available if _is_uncompleted_merge_upgrade(slot, owned)]
+        available = [slot for slot in available if _is_proven_merge_upgrade(slot, owned)]
         if not available:
             return None
     elif cands.free_slots is not None and cands.free_slots <= 1:
@@ -1571,11 +1585,12 @@ def _bond_capacity_candidates(
     kept: list[SlotCandidate] = []
     for slot in slots:
         merge = bool(slot.name and _is_uncompleted_merge_upgrade(slot, owned))
+        proven_merge = bool(slot.name and _is_proven_merge_upgrade(slot, owned))
         core = _is_bond_must_take(slot.name, settings.bond_must_take) or matches_bond_preset(
             slot.name, settings.bond_presets
         )
         if free <= 0:
-            allowed = merge
+            allowed = proven_merge
         elif free == 1:
             allowed = merge or core or slot.name in tier_names
         else:
