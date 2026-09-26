@@ -1,7 +1,7 @@
 {
     "schema_version": 1,
-    "candidate_sha": "c8b06bf6da329708732a663d87465c90be2995ea",
-    "anchored_at": "2026-09-26T10:42:00+08:00",
-    "branch": "feat/owner-sched-decisions-20260926",
-    "note": "Owner 2026-09-26 scheduler decisions: merchant gate, bond refresh fallback, mandatory blessing priority."
+    "candidate_sha": "c58aee03ec1265915e7ae89e688d5c15b2411d00",
+    "anchored_at": "2026-09-26T12:12:24+08:00",
+    "branch": "fix/converge-sched-20260926",
+    "note": "Owner 2026-09-26: bond fallback after three refreshes with explicit negatives blocked; merchant cycle follows the wood overflow threshold."
 }
