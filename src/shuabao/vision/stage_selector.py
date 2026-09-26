@@ -521,10 +521,14 @@ def verify_stage_selection(
     return True
 
 
-def _row_border_bright_ratio(gray: np.ndarray, row: StageRow, scale: float) -> float:
+def _row_border_bright_ratio(gray: np.ndarray, row: StageRow, scale: float, sides_only: bool = False) -> float:
     """选中行整圈是奶白亮边（>200）；未选中行只有细灰边。返回边框环亮像素占比。
 
     实测 20260814_002537 客户端帧：选中的 1-1 占比 0.52，其余 11 行全为 0.000。
+
+    sides_only 只统计左右竖边：列表末行被底部裁掉上半截时（实机 20260926
+    solo 1-23 只露上半截），底边取不到而整圈被稀释，但竖边仍亮（0.206，
+    其余行 0.000），可作为截断行的选中确认。
     """
     half_h = max(6, int(round(22 * scale)))
     inner_h = max(4, int(round(16 * scale)))
@@ -546,6 +550,11 @@ def _row_border_bright_ratio(gray: np.ndarray, row: StageRow, scale: float) -> f
         band(cy - half_h, cy + half_h, cx - half_w, cx - inner_w),
         band(cy - half_h, cy + half_h, cx + inner_w, cx + half_w),
     ])
+    if sides_only:
+        ring = np.concatenate([
+            band(cy - half_h, cy + half_h, cx - half_w, cx - inner_w),
+            band(cy - half_h, cy + half_h, cx + inner_w, cx + half_w),
+        ])
     if ring.size == 0:
         return 0.0
     return float((ring > 200).mean())
@@ -553,6 +562,50 @@ def _row_border_bright_ratio(gray: np.ndarray, row: StageRow, scale: float) -> f
 
 SELECTED_RING_RATIO = 0.15
 SELECTED_RING_MARGIN = 3.0
+
+# 列表扫描 ROI 底部同 visible_stage_rows()（0.88h）：末行中心离它不到一整行
+# 步距（实机行距约 54px）且下方无下一行时，视为底部截断行。
+_TRUNCATED_LAST_ROW_EDGE_MARGIN = 48
+_TRUNCATED_ROW_BELOW_MIN = 25
+_TRUNCATED_ROW_BELOW_MAX = 80
+
+
+def _truncated_last_row_fallback(
+    frame: Frame,
+    rows: list[StageRow],
+    gray: np.ndarray,
+    scale: float,
+) -> StageRow | None:
+    """底部截断末行的选中确认（实机 20260926 solo 1-23 只露上半截）。
+
+    整圈环在截断行上被稀释到阈值下（1-23 仅约 0.04），但竖边仍亮（0.206，
+    其余行 0.000）。只在“真是末行 + 贴着 ROI 底边 + 竖边证据 + 相对余量”
+    四者齐备时确认，否则返回 None（fail-closed，不发明高亮）。
+    """
+    last = max(rows, key=lambda row: row.center_y)
+    roi_bottom = int(frame.height * 0.88)
+    if roi_bottom - last.center_y > _TRUNCATED_LAST_ROW_EDGE_MARGIN:
+        return None
+    if any(
+        _TRUNCATED_ROW_BELOW_MIN <= other.center_y - last.center_y <= _TRUNCATED_ROW_BELOW_MAX
+        for other in rows
+        if other is not last
+    ):
+        return None
+    side_best = _row_border_bright_ratio(gray, last, scale, sides_only=True)
+    if side_best < SELECTED_RING_RATIO:
+        return None
+    side_runner = max(
+        (
+            _row_border_bright_ratio(gray, other, scale, sides_only=True)
+            for other in rows
+            if other is not last
+        ),
+        default=0.0,
+    )
+    if side_runner > 0 and side_best < side_runner * SELECTED_RING_MARGIN:
+        return None
+    return last
 
 
 def selected_stage_row(frame: Frame, images_dir: Path) -> StageRow | None:
@@ -571,12 +624,12 @@ def selected_stage_row(frame: Frame, images_dir: Path) -> StageRow | None:
         key=lambda item: (-item[0], str(item[1].stage_id)),
     )
     best_ratio, best_row = scored[0]
-    if best_ratio < SELECTED_RING_RATIO:
-        return None
-    runner_up = scored[1][0] if len(scored) > 1 else 0.0
-    if runner_up > 0 and best_ratio < runner_up * SELECTED_RING_MARGIN:
-        return None
-    return best_row
+    if best_ratio >= SELECTED_RING_RATIO:
+        runner_up = scored[1][0] if len(scored) > 1 else 0.0
+        if runner_up <= 0 or best_ratio >= runner_up * SELECTED_RING_MARGIN:
+            return best_row
+    # 整圈无确信高亮时，再试底部截断末行（竖边确认）；仍无证据则 None。
+    return _truncated_last_row_fallback(frame, rows, gray, scale)
 
 
 def configured_stage_id(

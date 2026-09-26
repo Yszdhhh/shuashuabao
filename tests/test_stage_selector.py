@@ -7,6 +7,7 @@ import numpy as np
 
 from shuabao.loop_action import LoopAction
 from shuabao.mediator import Mediator, Phase
+from shuabao.runtime_mediator import Mediator as RuntimeMediator
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
 from shuabao.vision.matcher import MatchResult, _load_template
@@ -126,6 +127,71 @@ class StageSelectorTests(unittest.TestCase):
     def test_selected_stage_row_none_when_nothing_highlighted(self):
         frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="英雄三国KK", hwnd=1000)
         self.assertIsNone(selected_stage_row(frame, IMAGES))
+
+    def _live_20260926_truncated_frame(self, name: str) -> Frame:
+        path = ROOT / "fixtures/stage_select_1_23_truncated_20260926" / name
+        img = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_COLOR)
+        return Frame(img, window_title="英雄三国KK", hwnd=1000)
+
+    def test_selected_stage_row_reads_truncated_last_row(self):
+        """20260926 solo：1-23 在列表底部只露上半截但已金边选中，必须读出。"""
+        frame = self._live_20260926_truncated_frame(
+            "selected_1_23_bottom_truncated_client_1600x900.png"
+        )
+        row = selected_stage_row(frame, IMAGES)
+        self.assertIsNotNone(row)
+        self.assertEqual(str(row.stage_id), "1-23")
+
+    def test_selected_stage_row_keeps_true_highlight_before_truncated_click(self):
+        """点选前高亮在 1-18：截断兜底不得提前宣布 1-23，也不得盖掉真高亮。"""
+        frame = self._live_20260926_truncated_frame(
+            "highlight_on_1_18_before_click_client_1600x900.png"
+        )
+        row = selected_stage_row(frame, IMAGES)
+        self.assertIsNotNone(row)
+        self.assertEqual(str(row.stage_id), "1-18")
+
+    def test_runtime_mediator_starts_when_truncated_target_highlighted(self):
+        """20260926 回归：_stage_selected 已立、高亮在截断的 1-23，必须点开始游戏。
+
+        旧逻辑里 selected_stage_row() 返回 None，LIVE 覆写判定“缺少正向高亮确认”
+        而重置 _stage_selected，于是 tick 48/51/54 反复重点击 1-23 直到预算耗尽。
+        """
+        med = RuntimeMediator(Settings(stage_targets=["1-23"], auto_reputation=False), ROOT)
+        med.set_phase(Phase.STAGE_SELECT)
+        frame = self._live_20260926_truncated_frame(
+            "selected_1_23_bottom_truncated_client_1600x900.png"
+        )
+        med._last_frame = frame
+        med._stage_selected = True
+        med._stage_target_name = "stage_target_1-23"
+        med._stage_click_cooldown_until = 0.0
+        with patch.object(med, "_detect_context", return_value="STAGE_SELECT"), \
+             patch.object(med, "_maybe_switch_to_archaeology", return_value=None), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_l0(frame)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertTrue(med._stage_selected)
+        self.assertEqual(click.call_args.args[1], "StageStart")
+
+    def test_runtime_mediator_still_resets_when_highlight_is_on_another_stage(self):
+        """截断兜底不得把错位高亮当选中：目标 1-8、高亮 1-23 时仍必须重点。"""
+        med = RuntimeMediator(Settings(stage_targets=["1-8"], auto_reputation=False), ROOT)
+        med.set_phase(Phase.STAGE_SELECT)
+        frame = self._live_20260926_truncated_frame(
+            "selected_1_23_bottom_truncated_client_1600x900.png"
+        )
+        med._last_frame = frame
+        med._stage_selected = True
+        med._stage_target_name = "stage_target_1-8"
+        med._stage_click_cooldown_until = 0.0
+        with patch.object(med, "_detect_context", return_value="STAGE_SELECT"), \
+             patch.object(med, "_maybe_switch_to_archaeology", return_value=None), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_l0(frame)
+        self.assertEqual(action, LoopAction.Continue)
+        click.assert_not_called()
+        self.assertFalse(med._stage_selected)
 
     def test_mediator_reclicks_target_when_highlight_sits_on_another_stage(self):
         """20260814：高亮在 1-1、目标是 1-8，不得点开始游戏。"""
