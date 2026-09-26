@@ -30,6 +30,8 @@ def _mediator() -> Mediator:
         bond_advanced_groups=(("海盗",),),
     )
     med._advanced_groups_completed = 0
+    # 策略单测不重复跑视觉栏位占用识别；容量专项用 patch.object 覆盖为 10。
+    med._bond_bar_occupancy = lambda _frame: 5
     return med
 
 
