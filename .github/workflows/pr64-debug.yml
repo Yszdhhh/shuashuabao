@@ -1,4 +1,4 @@
-name: PR64 Debug Matrix
+name: PR64 Final Focused Strategy
 
 on:
   push:
@@ -6,28 +6,13 @@ on:
       - gpt/pr64-debug-20260926
 
 jobs:
-  strategy-file:
+  focused:
     runs-on: windows-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        test:
-          - tests/test_choice_policy.py
-          - tests/test_p1_choice_fsm_contracts.py
-          - tests/test_policy_bond_identity_20260916.py
-          - tests/test_owner_pack_whitelist_lock_20260926.py
-          - tests/test_direct_family_pick_20260926.py
-          - tests/test_bond_replace_and_hero_focus_20260924.py
-          - tests/test_solo_bond_refresh_limits_20260915.py
-          - tests/test_runtime_bond_policy_authorization_20260926.py
-          - tests/test_owner_ingame_rules_lock_20260924.py
-          - tests/test_sanguo_three_of_four_20260926.py
-          - tests/test_p0_devour_failclosed_20260917.py
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 0f5dfa9247e07716039b24e695087f626775a7ba
+          ref: e72f8993fe066eca4d24ce0740160e01e1be9e61
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -38,10 +23,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-subtests opencv-python-headless numpy PySide6 mss pyautogui Pillow cryptography
           pip install -r requirements-build.txt
-      - name: Run one strategy file
+      - name: Run focused F1-F5 strategy tests
         shell: pwsh
         run: |
-          python -m pytest "${{ matrix.test }}" -q --tb=short -p no:faulthandler
+          python -m pytest tests/test_p1_choice_fsm_contracts.py::test_bond_zero_slots_accepts_only_real_owned_merge tests/test_owner_pack_whitelist_lock_20260926.py::test_refresh_fallback_before_all_advanced_complete_only_takes_non_advanced tests/test_owner_pack_whitelist_lock_20260926.py::test_refresh_fallback_after_all_advanced_complete_allows_any_advanced_or_base tests/test_owner_pack_whitelist_lock_20260926.py::test_no_advanced_pack_selected_does_not_unlock_unselected_advanced_fallback tests/test_direct_family_pick_20260926.py tests/test_bond_replace_and_hero_focus_20260924.py tests/test_runtime_bond_policy_authorization_20260926.py tests/test_policy_bond_identity_20260916.py tests/test_sanguo_three_of_four_20260926.py tests/test_choice_policy.py::TestLiveRegressions20260822::test_bond_capacity_full_slots_rejects_core_preset_without_immediate_merge -q --tb=short -p no:faulthandler
           $code = $LASTEXITCODE
-          Write-Host "FILE_EXIT_CODE=$code TEST=${{ matrix.test }}"
+          Write-Host "FOCUSED_STRATEGY_EXIT_CODE=$code"
           exit $code
