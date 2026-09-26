@@ -10,6 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import cv2
 import numpy as np
 
 import tools.live_harness_identity as identity
@@ -19,6 +20,8 @@ from shuabao.loop_action import LoopAction
 from shuabao.mediator import Mediator, Phase
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult
+from tests.test_scenario_replay import FakeClock
 from tools.live_scenario_capture import (
     LONG_CHAIN_TARGETS,
     TARGETED_PROBE_MENU,
@@ -310,6 +313,78 @@ def test_targeted_probes_call_production_handlers_not_copies() -> None:
         "inventory_hero_card", "black_merchant", "archive_challenge",
         "heirloom", "secret_realm", "lobby_search", "public_backpack_deposit",
     ]
+
+
+def test_evolve_click_routes_real_two_card_panel_before_shared_skill_buttons() -> None:
+    fixture = ROOT / "tests" / "fixtures" / "evolve_deadlock_20260926" / "hero_evolve_two_choice_f0030.png"
+    bgr = cv2.imdecode(np.fromfile(str(fixture), dtype=np.uint8), cv2.IMREAD_COLOR)
+    assert bgr is not None
+    frame = Frame(bgr, window_title="英雄三国KK", hwnd=10001, role="l1")
+    med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT)
+    med.set_phase(Phase.MAIN_LINE)
+    med._l1_cycle_step = "bond"
+    med._panel_cooldown_until["bond"] = 200.0
+    med._auto_task_done = True
+    med._main_line_started_at = 100.0
+    clock = FakeClock(start=100.0)
+    clicks: list[tuple[str, tuple[int, int]]] = []
+    evolve_btn = MatchResult("evolve_hud", 1.0, 800, 700, 40, 12, 800, 700)
+
+    with clock.install(), \
+         patch.object(med, "act_click", side_effect=lambda hit, reason, *a, **k: clicks.append((reason, hit.center)) or True), \
+         patch.object(med, "_has_evolve_button", return_value=True), \
+         patch.object(med, "_evolve_button_hit", return_value=evolve_btn):
+        assert med._maybe_opportunistic_evolve(_blank_frame(), clock.now()) == LoopAction.Continue
+        assert med._evolve_feedback_pending is True
+        clock.advance(0.5)
+        with patch.object(med, "_is_in_game_hud", return_value=True), \
+             patch.object(med, "_post_game_state", return_value=None), \
+             patch.object(med, "_ensure_auto_task_enabled", return_value=None), \
+             patch.object(med, "_ensure_challenge_buttons", return_value=None), \
+             patch.object(med, "_maybe_ensure_hero_panel_focus", return_value=None), \
+             patch.object(med, "_maybe_click_tqtz", return_value=None), \
+             patch.object(med, "_maybe_clear_pressure_monsters", return_value=None), \
+             patch.object(med, "_handle_self_opened_compact_panel", return_value=None), \
+             patch.object(med, "_find_equipment_affix_choice", return_value=None), \
+             patch.object(med, "_hud_wood_balance", return_value=5000):
+            assert med._selection_anchor(frame).name == "skill_refresh_btn"
+            assert med._classify_choice_panel(frame) is None
+            choice = med._find_reward_choice(frame)
+            assert choice is not None
+            assert choice[1].name == "evolution_card_1_rank_6"
+            assert med._tick_main_line(frame) == LoopAction.Continue
+
+    assert clicks == [
+        ("ClickEvolve", (800, 700)),
+        ("SelectEvolutionCard", (933, 300)),
+    ]
+    assert med._evolve_feedback_pending is False
+    assert med._evolve_awaiting_hero_pick is False
+    assert med._evolve_ok_this_cycle is True
+
+
+def test_unresolved_evolve_panel_wait_fails_closed_after_bounded_wait() -> None:
+    med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT)
+    med.set_phase(Phase.MAIN_LINE)
+    med._evolve_awaiting_hero_pick = True
+    med._evolve_awaiting_hero_pick_at = 100.0
+    clock = FakeClock(start=100.0)
+    incidents: list[str] = []
+
+    with clock.install(), \
+         patch.object(med, "_selection_anchor", return_value=None), \
+         patch.object(med, "_find_equipment_affix_choice", return_value=None), \
+         patch.object(med, "_post_game_state", return_value=None), \
+         patch.object(med, "_record_fail_closed_incident", side_effect=incidents.append), \
+         patch.object(med, "stop") as stop:
+        clock.advance(15.1)
+        result = med._tick_main_line(_blank_frame())
+
+    assert result == LoopAction.Break
+    assert med.phase == Phase.ERROR
+    assert med._evolve_awaiting_hero_pick is False
+    assert incidents == ["evolve hero-choice panel unresolved"]
+    stop.assert_called_once()
 
 
 def test_harness_source_does_not_reimplement_production_fsms() -> None:

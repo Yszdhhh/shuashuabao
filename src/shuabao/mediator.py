@@ -19323,6 +19323,25 @@ class Mediator:
         has_recovery = (self.phase == Phase.RECOVER_FAILURE) or bool(getattr(self, "_recovery_step", None) and self._recovery_step != "DONE")
         has_affix = self._find_equipment_affix_choice(frame) is not None
         anchor = self._selection_anchor(frame)
+        evolution_choice = self._find_evolution_choice(frame, anchor) if anchor else None
+        if getattr(self, "_evolve_feedback_pending", False):
+            if evolution_choice is not None:
+                self._evolve_feedback_pending = False
+                self._evolve_fail_count = 0
+                self._evolve_baseline = None
+                self._evolve_awaiting_hero_pick = True
+                self._evolve_awaiting_hero_pick_at = now
+            else:
+                feedback_res = self._tick_evolve_feedback_pending(frame, now)
+                if feedback_res is not None:
+                    return feedback_res
+        if getattr(self, "_evolve_awaiting_hero_pick", False) and evolution_choice is None:
+            if now - getattr(self, "_evolve_awaiting_hero_pick_at", now) >= 15.0:
+                self._evolve_awaiting_hero_pick = False
+                self.set_phase(Phase.ERROR, "evolve hero-choice panel unresolved")
+                self.stop()
+                return LoopAction.Break
+            return LoopAction.Continue
         # 20260822（trace 181735 结尾 2.69s 冲突停机）：底部按钮行已定性为
         # skill/bond/treasure/card 的面板绝不可能是进化弹窗——进化弹窗没有
         # 刷新/放弃/隐藏按钮行。此前宝物面板被边缘计数误判成进化弹窗，
@@ -19336,7 +19355,7 @@ class Mediator:
             anchor
             and (_panel_class is None or inventory_hero_probe)
             and (self._evolve_hero_choice_pending() or inventory_hero_probe)
-            and self._find_evolution_choice(frame, anchor)
+            and evolution_choice is not None
         )
         has_card = (not has_hero) and (bool(anchor) or self._panel_state != PanelState.CLOSED)
         # 商店检测在存在中央选卡/进化/词条弹窗或主线处于前置主动步骤(F/G/V/进化/装备/拾取)时严格抑制，绝不插队抢点击
@@ -19628,23 +19647,6 @@ class Mediator:
 
         # 推进装备租约观察确认（使得非 equipment 步骤下的机会强化能够正常结算）
         self._tick_equipment_pending(frame, now)
-
-        # 进化事务管理：feedback_pending 或 awaiting_hero_pick 时独占主线，严禁启动 G/F/V 等新动作
-        if self._evolve_hero_choice_pending():
-            feedback_res = self._tick_evolve_feedback_pending(frame, now)
-            if feedback_res is not None:
-                self._main_line_since = now
-                return feedback_res
-            if getattr(self, "_evolve_awaiting_hero_pick", False):
-                if now - getattr(self, "_evolve_awaiting_hero_pick_at", now) >= 15.0:
-                    print("[L1] 等待英雄模态弹窗超时(15s)，释放 evolve 事务锁")
-                    self._evolve_awaiting_hero_pick = False
-                    self._evolve_click_cooldown_until = now + 60.0
-                    if self._l1_cycle_step == "evolve":
-                        self._advance_l1_cycle("evolve")
-                    return LoopAction.Continue
-                else:
-                    return LoopAction.Continue
 
         if (
             not self._passenger_mode()
