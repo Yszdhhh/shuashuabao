@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
-"""已勾选属性线的链上卡：满栏顶替保护 + 吞噬丹暂停（2026-09-26）。
+"""已勾选属性线的链上卡：满栏顶替保护；吞噬丹照常吃（2026-09-26）。
 
 - 顶替：_is_target_synthetic_bond 对已勾选线的链上卡（含 UR 散件）返回 True，
   未勾选线的链上卡与散卡仍为 False（可顶替）。
-- 吞噬丹：占格阈值 8 不变；链上卡 0 < 已持有 < stack_need 时 _devour_hold_reason
-  返回暂停原因（套用亡灵结构）；UR 散件无目录张数，持有即保守暂停——吞噬目标
-  由游戏侧决定，脚本选不了受害者，只能整段不吃。
+- 吞噬丹：Owner 2026-09-26 06:57 定，只有专心做亡灵时停丹，属性链照常吃丹。
+  链上卡未完成、UR 散件持有都不得触发 _devour_hold_reason。
 
 零真实输入：只调纯查询方法与 mock 执行器。
 """
@@ -57,53 +56,26 @@ def test_no_attributes_selected_changes_nothing() -> None:
 
 
 @pytest.mark.parametrize("cls", [CoreMediator, RuntimeMediator])
-def test_devour_holds_while_chain_card_is_unfinished(cls) -> None:
-    med = _med(cls, attributes=["int"], bonds=[], cards=[])
-    med._bond_cards_owned = ["智力", "智力"]
-    assert med._devour_hold_reason() is not None
+def test_devour_is_not_held_by_attribute_chains(cls) -> None:
+    """Owner 2026-09-26 06:57：属性跟吞噬丹没有冲突，链上卡未完成、UR 散件都照常吃丹。"""
+    med = _med(cls, attributes=["int", "agi"], bonds=[], cards=[])
+    for owned in ([], ["智力", "智力"], ["智力"] * 4, ["野蛮人", "野蛮人"], ["亡者之轮"]):
+        med._bond_cards_owned = list(owned)
+        assert med._devour_hold_reason() is None, owned
 
 
 @pytest.mark.parametrize("cls", [CoreMediator, RuntimeMediator])
-def test_devour_resumes_when_chain_ring_is_complete_or_empty(cls) -> None:
-    med = _med(cls, attributes=["int"], bonds=[], cards=[])
-    med._bond_cards_owned = []
-    assert med._devour_hold_reason() is None
-
-    med._bond_cards_owned = ["智力", "智力", "智力", "智力"]
-    assert med._devour_hold_reason() is None
-
-
-@pytest.mark.parametrize("cls", [CoreMediator, RuntimeMediator])
-def test_devour_ignores_unselected_lines(cls) -> None:
-    med = _med(cls, attributes=["int"], bonds=[], cards=[])
-    med._bond_cards_owned = ["野蛮人", "野蛮人"]
-    assert med._devour_hold_reason() is None
-
-
-@pytest.mark.parametrize("cls", [CoreMediator, RuntimeMediator])
-def test_devour_holds_conservatively_for_pieces_without_catalog_need(cls) -> None:
-    """UR 散件无 bond_stack_catalog 张数条目：持有即暂停，不赌进度。"""
-    med = _med(cls, attributes=["agi"], bonds=[], cards=[])
-    med._bond_cards_owned = ["亡者之轮"]
-    reason = med._devour_hold_reason()
-    assert reason is not None
-    assert "亡者之轮" in reason
-
-
-@pytest.mark.parametrize("cls", [CoreMediator, RuntimeMediator])
-def test_devour_hold_blocks_the_pill_gate_at_8_occupancy(cls) -> None:
+def test_unfinished_chain_does_not_block_the_pill_gate_at_8_occupancy(cls) -> None:
     import numpy as np
 
     from shuabao.vision.capture import Frame
-    from shuabao.vision.matcher import MatchResult
 
     med = _med(cls, attributes=["int"], bonds=[], cards=[])
     med._bond_cards_owned = ["智力", "智力"]
-    pill = MatchResult("danGif", 0.95, 1100, 780, 20, 20, 1100, 780)
     bgr = np.zeros((900, 1600, 3), dtype=np.uint8)
     for cx in (603, 655, 707, 759, 811, 863, 915, 967)[:8]:
         bgr[635:680, cx - 20:cx + 20] = (255, 0, 0)
     frame = Frame(bgr, window_title="英雄三国KK", hwnd=10001, role="l1")
     assert med._bond_bar_occupancy(frame) == 8
-    assert med._can_consume_inventory_swallow_pill(frame) is False
+    assert med._can_consume_inventory_swallow_pill(frame) is True
     assert med.executor.mock_calls == []

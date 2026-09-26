@@ -110,6 +110,10 @@ OWNER_RULES: tuple[tuple[str, str, str], ...] = (
     ("亡灵卡组进行中（持有亡灵卡、兵主 EX 未出）不吃吞噬丹：提前吞倒计时卡会断碎片",
      "Owner 2026-09-24",
      "tests/test_p0_devour_failclosed_20260917.py::test_undead_pack_in_progress_holds_the_pill"),
+    ("吞噬丹暂停只对亡灵：属性链等其它卡组照常拿、照常吃丹",
+     "Owner 2026-09-26 06:57 原话：正常应该是专心做亡灵这一个高级 agent 的时候停止使用吞噬丹，"
+     "等他自行时间到触发碎片获取。其他的都没有这个逻辑正常拿就好了，属性跟吞噬丹一直都没有什么冲突呀",
+     "tests/test_attribute_line_protection_20260926.py::test_devour_is_not_held_by_attribute_chains"),
     ("木材 < 500 以支线循环为主：F 每次最多 1 张（500–1000 两张，≥1000 十五张）",
      "Owner 2026-09-24",
      "tests/test_solo_l1_starvation_20260915.py::test_wood_tiers_visit_cap"),
