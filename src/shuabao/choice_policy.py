@@ -1441,7 +1441,6 @@ def bond_candidate_allowed(name: str | None, owned_bonds: tuple[str, ...] | list
     return True
 
 
-<<<<<<< HEAD
 # Owner 2026-09-26 03:03：三国是魏、蜀、吴、群雄四选三。哪国先出来就先拿该国启动卡，
 # 拿满 3 国后不再拿第四国。国别卡名来自 config/choice_lexicon.json（启动牌 + UR），
 # 国名本身是系列标签模板的家族名。按卡名严格身份匹配，不用子串（魏延≠魏）。
@@ -1474,11 +1473,11 @@ def sanguo_blocked_faction(name: str | None, owned_bonds: tuple[str, ...] | list
         found for found in (sanguo_faction(item) for item in (owned_bonds or ())) if found
     }
     return len(owned_factions) >= SANGUO_MAX_FACTIONS and faction not in owned_factions
-=======
+
+
 def bond_banned(name: str | None, settings: PolicySettings) -> bool:
     """Owner 2026-09-26 03:33：禁拿名单里的羁绊卡永远不拿（常规路径、兜底、模板直拿）。"""
     return bool(name) and matches_bond_preset(name, settings.bond_negative_names)
->>>>>>> cloud/pr58
 
 
 def _best_available_bond_pick(cands, settings, active_adv) -> SlotCandidate | None:
