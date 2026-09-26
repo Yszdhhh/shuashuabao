@@ -80,16 +80,15 @@ def test_runtime_default_settings_allows_exhausted_off_whitelist_fallback() -> N
 
 def test_runtime_default_settings_refreshes_before_fallback() -> None:
     med = RuntimeMediator(Settings(), ROOT)
-    result = _run_runtime_bond(
-        med,
-        [
-            {"index": 0, "name": "白名单外甲", "confidence": 0.99, "rarity": "blue"},
-            {"index": 1, "name": "白名单外乙", "confidence": 0.99, "rarity": "red"},
-            {"index": 2, "name": "白名单外丙", "confidence": 0.99, "rarity": "orange"},
-        ],
-        can_refresh=True,
-        refreshes=0,
-    )
+    slots = [
+        {"index": 0, "name": "白名单外甲", "confidence": 0.99, "rarity": "blue"},
+        {"index": 1, "name": "白名单外乙", "confidence": 0.99, "rarity": "red"},
+        {"index": 2, "name": "白名单外丙", "confidence": 0.99, "rarity": "orange"},
+    ]
+    # OCR 刷新决策要第二帧确认：第一帧零输入，第二帧才点刷新。
+    assert _run_runtime_bond(med, slots, can_refresh=True, refreshes=0) is None
+    med._choice_policy_idle = False
+    result = _run_runtime_bond(med, slots, can_refresh=True, refreshes=0)
     assert result is not None
     assert result[1].name == "bond_refresh_btn"
 
