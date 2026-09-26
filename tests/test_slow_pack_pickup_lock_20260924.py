@@ -13,7 +13,8 @@
 - 同一时刻只推进一组：前一组合成出 EX（海盗为 UR）之前，后一组的卡不拿；
 - EX 终卡（解放的圣剑/大乘期/毁灭战舰/兵主）靠合成得到，不从面板拿。
 
-海盗藏宝图、修仙练气期等成员的卡顶标题未经实机确认（审计第二节第 2 条），这里不锁。
+修仙练气期等成员的卡顶标题未经实机确认（审计第二节第 2 条），这里不锁；Owner 2026-09-26 点名的
+刀刀装备、五极山、藏宝图由 tests/test_owner_pack_whitelist_lock_20260926.py 锁。
 """
 from __future__ import annotations
 
@@ -87,8 +88,12 @@ def _decide(policy, names, *, owned=(), completed=0):
 def test_dashboard_pack_is_one_whole_advanced_group(pack: str) -> None:
     policy = _policy(pack)
     cards = tuple(PACK_CARDS[pack])
-    assert policy.bond_advanced_groups == (cards,)
-    assert policy.bond_advanced_presets == cards
+    # 看板勾一组 = 整组进白名单。组里可以比看板列表多（Owner 2026-09-26：刀刀 8 件
+    # 装备、修仙五极山、海盗藏宝图在 config 组里补齐），看板列出的卡按原顺序打头。
+    assert len(policy.bond_advanced_groups) == 1
+    group = policy.bond_advanced_groups[0]
+    assert group[: len(cards)] == cards
+    assert policy.bond_advanced_presets == group
     assert policy.bond_base_presets == ("祝福", "成长", "经济", "挑战", "贪婪")
     assert policy.bond_whitelist_mode == "hard"
 
