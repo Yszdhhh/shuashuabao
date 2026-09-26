@@ -277,7 +277,7 @@ function pushBondsAndAttributes(): void {
   const validBonds = ["祝福", "成长", "经济", "贪婪", "挑战"];
   const growthList = Array.isArray(state.growth) ? state.growth : Array.from(state.growth || []);
   const bondsList = Array.isArray(state.bonds) ? state.bonds : Array.from(state.bonds || []);
-  const combinedBonds = Array.from(new Set([...growthList, ...bondsList])).filter((b: string) => validBonds.includes(b)) as ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[];
+  const combinedBonds = Array.from(new Set([...growthList, ...bondsList, "祝福"])).filter((b: string) => validBonds.includes(b)) as ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[];
   // 空选择同样要落盘，不能偷偷回退成“全拿”。局内 hard 白名单只读此列表和 cards。
   const activeBonds = combinedBonds;
 
