@@ -57,13 +57,15 @@ KB：`card_pool_rules.haidao_chain.owner_20260926` /
 怎么进阶：R 普通海贼 3（恶龙/猫爪船长/东海霸主）→SR 超新星 3
 （怪僧/少将/打碟人）→SSR 七武海 5（沙鳄鱼/海侠/女帝/大剑豪/多弗朗明哥）
 →UR 四皇（红发/凯多），全阶"通过海贼王成长卡的效果吞噬"；
-EX 是什么：羁绊栏 Slot3 栏名"海贼王"（红发头像，红色 UR 边框，
-数字 7→501），青色 EX 形态未验证；
+EX 是什么：EX 海贼王（品级 EX，不可吞噬；卡面已由 Owner 截图
+`素材/机制抽帧/owner_screens/haizeiwang_EX_owner_20260926.webp`
+逐字确认，见 KB `ex_card`）；11EX 录屏只看到深红 UR 顶阶
+（Slot3 栏名"海贼王"，红发头像，数字 7→501），说明该局未到 EX（推断）；
 脚本注意：Owner 口径无 (x/y) 进度、单卡杀敌吞噬、标签只写"海贼王"、
 见快拿、同族高等级优先；阶段数 4/9/14/4 仍是攻略不可硬编码；
 海贼王排海盗之后；与普通海盗链分开建模。
-KB：`card_pool_rules.haizeiwang_chain_11ex`（新条目；旧
-`card_pool_rules.haizeiwang_chain_guide` 攻略桩不动）。
+KB：`card_pool_rules.haizeiwang_chain_11ex`（新条目，EX 卡面见
+`ex_card`；旧 `card_pool_rules.haizeiwang_chain_guide` 攻略桩不动）。
 
 ## 封神
 
@@ -148,6 +150,8 @@ KB：`card_pool_rules.zhufu_blessing_20260926`（新条目）/
 2. `yihuo_chain` 火种/佛怒火莲旧口径 → 以 `yihuo_fenjue_pool` live 为准。
 3. `xiuxian_chain` name/guide.ex 元神出窍 → 以 11EX 大乘期为准；练气期进组待 Owner 定。
 4. `sanguo_chain` 11EX 全拿四国 → 以 Owner 最多 3 国为准；旧名天下归心/三国争霸存档。
-5. 封神榜 70s vs 90s 未决；海贼王青色 EX 未验证；4/9/14/4 仍是攻略；
+5. 海贼王青色 EX 已解决：EX 卡面由 Owner 截图确认存在
+（旧"青色 EX 未验证"表述作废，见 KB conflicts）；
+4/9/14/4 仍是攻略；
    圣剑掷骰数、海盗吞 12 vs 橙悬赏均未决（见各条目）。
 6. `ex_capstones` 吞食天地条目缺 remove_pool 字段待补（只补 KB，不涉接线）。

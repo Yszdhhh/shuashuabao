@@ -2814,12 +2814,20 @@
           "set": "海盗",
           "rarity": "UR",
           "note": "海盗无EX。卡面开池 N利刃/战斗/冲浪+SSR重拳先生。攻略另称黄金猿清海盗池、开宝藏。"
+        },
+        {
+          "name": "海贼王",
+          "set": "海贼王",
+          "rarity": "EX",
+          "cannot_devour": true,
+          "source": "owner_20260926 haizeiwang EX card face (third-party video screenshot)",
+          "note": "效果见 haizeiwang_chain_11ex.ex_card；旧青色未验证表述已被此取代"
         }
       ],
       "ex_breakdown_20260926": {
         "source_level": "video_11ex",
         "source": "nightwatch/ex11_video_analysis.md Findings-1（t=1040s t_1040s.jpg / t=2650s t_2650s.jpg）；三国移池另见 sanguo_chain.owner_20260926/sanguo_chain.ex_breakdown_20260926",
-        "haizeiwang_final": "海贼王栏名终卡（红发头像，红色UR边框，数字7→501）；青色EX形态未验证，本表暂不新增青色条目",
+        "haizeiwang_final": "EX 海贼王卡面已由 Owner 截图确认存在（品级 EX、不可吞噬，见 haizeiwang_chain_11ex.ex_card）；11EX 录屏深红 UR 顶阶说明该局未到 EX（推断）。旧「青色EX形态未验证、本表暂不新增青色条目」表述作废。",
         "tunshitiandi_pool": "吞食天地移池三源定案（Owner+11EX卡面+b报告），本表cards吞食天地条目缺remove_pool字段，待补（只补KB字段，不涉决策接线）"
       }
     },
@@ -3497,10 +3505,10 @@
           "凯多（羁绊栏见）"
         ],
         "devour_condition_all": "全阶吞噬条件统一写“通过海贼王成长卡的效果吞噬”",
-        "final_state": "羁绊栏Slot3显式名海贼王（红发头像，红色UR边框，右上角数字7递增至501）；作者视同第11套成型终卡"
+        "final_state": "羁绊栏Slot3显式名海贼王（红发头像，红色UR边框，右上角数字7递增至501）；作者视同第11套成型终卡。2026-09-26 更新：EX 海贼王卡面已由 Owner 截图确认存在（品级 EX、不可吞噬）；11EX 录屏只看到深红 UR 顶阶，说明该局未到 EX（推断）。"
       },
       "conflicts": [
-        "青色EX形态未验证：同栏其余6组为青色EX框，海贼王始终深红UR边框，是否存在更高杀敌青色变体未知；深红UR顶阶即目前实机终态仅为推断（ex11_video_analysis.md Unverified-2）",
+        "旧表述「青色EX形态未验证 / 深红UR顶阶即实机终态」已被 Owner 证据取代：EX 海贼王卡面已由 Owner 截图确认存在（品级 EX、不可吞噬，见本条目 ex_card）；11EX 录屏里只看到深红 UR 顶阶，说明该局未到 EX，这是推断",
         "阶段数4/9/14/4与每200杀吞仍是外部攻略（haizeiwang_chain_guide），稀疏录像没走完，不可硬编码为need（macro_strategy.md 分歧-8）",
         "约8:25密帧（dense_0390_0231.jpg，视频约505s）黄框在刀刀，UR大妈同页无选择证据；旧报告凯多红发记法以此密帧更正（video_haizeiwang_wangling_haidao.md Findings-1）",
         "竞品21张停 vs 吞14+四皇4合EX矛盾未决（沿用 haizeiwang_chain_guide.conflicts）"
@@ -3509,7 +3517,23 @@
         "海贼王留在海盗之后（悬赏令来自海盗战舰或礼盒）；阶段数未上帧，不能靠每200杀自动切组（macro_strategy.md 改法-1）",
         "普通海盗链与海贼王链分开独立建模，不折叠成一个吞卡数（video_haizeiwang_wangling_haidao.md 配置差异章节）",
         "终卡留在栏里继续叠杀敌（红发501为例），收尾终卡靠合成进栏不从F点"
-      ]
+      ],
+      "ex_card": {
+        "source_level": "owner",
+        "source": "G:\\刷刷宝\\素材\\机制抽帧\\owner_screens\\haizeiwang_EX_owner_20260926.webp（Owner 2026-09-26 提供，截自第三方抖音视频；以下逐字转录）",
+        "name": "海贼王（副标题 海贼王）",
+        "rarity": "EX",
+        "label": "<海贼王>",
+        "base": "全属性+500；最终力量+20%；最终敏捷+20%；最终智力+20%；最终伤害+20%",
+        "effect_1": "[效果1] 见闻色霸气-预见未来：命中+15%，闪避+15%；每隔30秒获得遇见未来效果，命中+75%，闪避+75%，持续5秒(不受冷却影响)",
+        "effect_2": "[效果2] 武装色霸气-流樱：最终伤害+15%，伤害减免+15%，造成伤害时额外附加15%攻击力的伤害",
+        "effect_3": "[效果3] 霸王色霸气-缠绕：无视护甲+5%，造成的所有伤害提高30%，无视护甲每溢出1%，该伤害数值额外提高1%(溢出10%无视护甲，则造成的所有伤害提高40%)",
+        "devour_condition": "[吞噬条件] 该卡牌无法吞噬（最后一字被水印遮挡，按「无法吞噬」理解）",
+        "notes": [
+          "「遇见未来」按卡面原样保留，疑为游戏内「预见未来」笔误",
+          "截图截自第三方视频，非本仓库实机帧；品级 EX、不可吞噬以此卡面为准"
+        ]
+      }
     },
     "wujishan_20260926": {
       "name": "五极山（修仙卡组）：集满增大大乘概率，自吞腾格",
@@ -3568,7 +3592,8 @@
         "source": "nightwatch/attribute_lines_ur_check.md 配方/终名章节（仓库分析+lab，非实机帧）",
         "strength_line": "力量 → 屠戮者：杀敌力量+0.2，所有伤害结算×1.05；散件战斗咆哮/屠戮之刃/杀戮之血各属屠戮者套；lab屠戮者(0/3)(1/3)",
         "basic_cards": "辅助（不随线展开）：法术、魔能、魔术、魔法师、元素师",
-        "naming": "选牌用终名屠戮者；skill_routes ur_links.liliang仍写不动尊为旧错误（src不读ur_links）；dashboard_mechanics.json已标不动尊为旧错误"
+        "naming": "选牌用终名屠戮者；skill_routes ur_links.liliang仍写不动尊为旧错误（src不读ur_links）；dashboard_mechanics.json已标不动尊为旧错误",
+        "lexicon_note": "choice_lexicon 中魔法师/元素师 set_membership=智力只表示加智力，属基础卡组，不是属性线（Owner 2026-09-26 分类确认；不改 choice_lexicon.json 本身）"
       }
     }
   },
