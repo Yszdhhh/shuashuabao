@@ -38,6 +38,8 @@ def _run_runtime_bond(
     med._choice_session = SessionState(refreshes=refreshes, max_refreshes=3)
     refresh = MatchResult("bond_refresh_btn", 0.99, 1038, 575, 56, 26, 1038, 575)
     with (
+        # 该测试验证 policy/runtime 授权，不重复跑黑帧面板视觉分类。
+        patch.object(med, "_classify_choice_panel", return_value="bond"),
         patch.object(med, "_panel_kind_of", return_value="bond"),
         patch.object(med, "_ocr_panel_slots", return_value=slots),
         patch.object(med, "_panel_can_refresh", return_value=can_refresh),
