@@ -1480,7 +1480,9 @@ def sanguo_blocked_faction(name: str | None, owned_bonds: tuple[str, ...] | list
 def _advanced_groups_complete(cands: PanelCandidates, settings: PolicySettings) -> bool:
     groups = settings.bond_advanced_groups
     if not groups:
-        return True
+        # “没选高级组”不是“所选高级组全部完成”。只要还有已知未选高级卡族，
+        # 兜底就不得因此放开它们。
+        return not bool(settings.bond_unselected_advanced_names)
     return max(0, int(cands.completed_advanced_groups or 0)) >= len(groups)
 
 

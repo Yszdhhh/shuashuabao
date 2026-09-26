@@ -113,9 +113,9 @@ from shuabao.choice_policy import (
     PolicySettings,
     SessionState,
     SlotCandidate,
+    _is_proven_merge_upgrade,
     _is_uncompleted_merge_upgrade,
     assemble_policy_settings,
-    bond_banned,
     bond_candidate_allowed,
     choose_action,
     hitch_treasure_pick,
@@ -1032,6 +1032,7 @@ class Mediator:
         self._battle_view_f2_next_at: float = 0.0
         self._bond_replace_pending: bool = False
         self._bond_replace_incoming: str | None = None
+        self._bond_replace_authorized: bool = False
         self._bond_replace_at: float = 0.0
         self._merchant_open_next_at: float = 0.0
         self._opportunistic_merchant_next_at: float = 0.0
@@ -3106,56 +3107,55 @@ class Mediator:
         return ok
 
     def _direct_template_bond_pick(self, frame: Frame, slots_raw: list[dict]) -> int | None:
-        """Choose the highest-priority registered family without OCR or rarity reads."""
+        """模板快路只省 OCR，不拥有第二套拿卡策略。
+
+        模板命中仍交给 choose_action，因此当前高级组顺序、卡牌前置和 10/10
+        容量规则只有一个权威实现。同名并列时才补读徽标，保留等级 tie-break。
+        """
         policy = self._policy_settings()
         owned = self._confirmed_bond_cards()
-        blessing_count = sum(1 for name in owned if matches_bond_preset(name, ("祝福",)))
-        advanced = policy.bond_advanced_presets
-        if policy.bond_advanced_groups:
-            group = min(self._advanced_groups_completed, len(policy.bond_advanced_groups) - 1)
-            advanced = policy.bond_advanced_groups[group]
-        priorities = (
-            (0, ("祝福",)) if blessing_count < 3 else (99, ()),
-            (1, tuple(name for name in policy.bond_presets if matches_bond_preset(name, ("成长", "经济")))),
-            (2, tuple(advanced)),
-            (3, tuple(policy.bond_presets)),
+        prepared: list[dict] = []
+        confident_names = [
+            str(slot.get("name") or "").strip()
+            for slot in slots_raw
+            if slot.get("name") and float(slot.get("template_score", 0.0) or 0.0) >= 0.85
+        ]
+        duplicate_names = {name for name in confident_names if confident_names.count(name) > 1}
+        for slot in slots_raw:
+            item = dict(slot)
+            score = float(item.get("template_score", 0.0) or 0.0)
+            name = str(item.get("name") or "").strip()
+            if not name or score < 0.85:
+                item["name"] = None
+                item["confidence"] = 0.0
+            else:
+                item["confidence"] = max(float(item.get("confidence", 0.0) or 0.0), score)
+                if name in duplicate_names:
+                    letter, band = self._read_slot_rarity_badge(
+                        frame, "bond", int(item.get("index", 0)), slot_count=len(slots_raw)
+                    )
+                    item["rarity_letter"] = letter
+                    item["rarity"] = band
+            prepared.append(item)
+
+        self._sync_choice_session_refreshes()
+        candidates = PanelCandidates(
+            panel_kind="bond",
+            slots=self._slots_to_candidates(frame, "bond", prepared),
+            set_progress=self._extract_live_set_progress(frame),
+            free_slots=self._extract_live_free_slots(frame),
+            can_refresh=True,
+            settings=policy,
+            owned_bond_cards=owned,
+            round_elapsed_s=self._round_elapsed_s(),
+            completed_advanced_groups=self._advanced_groups_completed,
         )
-        for _rank, targets in priorities:
-            hits = [
-                slot for slot in slots_raw
-                if slot.get("name")
-                and float(slot.get("template_score", 0.0)) >= 0.85
-                and matches_bond_preset(str(slot["name"]), targets)
-                and bond_candidate_allowed(str(slot["name"]), owned)
-                and not bond_banned(str(slot["name"]), policy)
-            ]
-            if not hits:
-                continue
-            target_ranks = {
-                str(name): rank for rank, name in enumerate(targets)
-            }
-            ranked_hits = []
-            for slot in hits:
-                name = str(slot["name"])
-                rank = min(
-                    (rank for target, rank in target_ranks.items() if matches_bond_preset(name, (target,))),
-                    default=len(targets),
-                )
-                ranked_hits.append((rank, slot))
-            best_rank = min(rank for rank, _slot in ranked_hits)
-            hits = [slot for rank, slot in ranked_hits if rank == best_rank]
-            family = str(hits[0]["name"])
-            same_family = [slot for slot in hits if str(slot["name"]) == family]
-            if len(same_family) == 1:
-                return int(same_family[0]["index"])
-            rarities = []
-            for slot in same_family:
-                _letter, band = self._read_slot_rarity_badge(
-                    frame, "bond", int(slot["index"]), slot_count=len(slots_raw)
-                )
-                rarities.append((dict(self.RARITY_BANDS).get(band, -1), int(slot["index"])))
-            return min(rarities, key=lambda item: (-item[0], item[1]))[1]
-        return None
+        decision = choose_action(candidates, self._choice_session)
+        return (
+            int(decision.index)
+            if decision.action == PolicyAction.SELECT_SLOT and decision.index is not None
+            else None
+        )
 
     def _ocr_panel_slots(self, frame: Frame, kind: str) -> list[dict]:
         """Read title (+ treasure description) lines with deterministic layout=3 or 4 detection.
@@ -4018,12 +4018,14 @@ class Mediator:
     _BOND_REPLACE_MIN_SCORE = 0.6
 
     def _maybe_execute_bond_slot_replacement(self, frame: Frame) -> bool:
-        """满槽选卡后的顶替：在上方卡槽排里随机点一张 OCR 认出的非目标卡。
-
-        Fail-closed（AGENTS.md 第 5 条）：只有 OCR 读出名字、且不属于目标合成
-        卡组、也不是刚拿的同名卡的槽位才是候选；一张都认不出就零输入，
-        绝不按拿卡顺序猜槽位或在 10 格里盲点（可能顶掉大圣/封神核心卡）。
-        """
+        """立即合成确实仍需顶替时，只动 OCR 认出的非目标卡。"""
+        if not getattr(self, "_bond_replace_authorized", False):
+            print("[L1] 顶替未获立即合成授权，零输入")
+            return False
+        occupancy = self._bond_bar_occupancy(frame)
+        if occupancy is None or occupancy < 10:
+            print(f"[L1] 顶替执行帧 occupancy={occupancy}，无需/无法证明顶替，零输入")
+            return False
         if frame.bgr is None or not LayoutTransform.is_supported(frame.width, frame.height):
             return False
         ocr_client = getattr(self, "_ocr_client", None)
@@ -4207,11 +4209,8 @@ class Mediator:
                 completed_advanced_groups=self._advanced_groups_completed,
             )
             direct_pick = getattr(self, "_last_template_direct_pick", None) if kind == "bond" else None
-            decision = (
-                PolicyDecision.select(direct_pick, f"羁绊模板家族直拿 @ slot {direct_pick}")
-                if direct_pick is not None
-                else choose_action(bond_candidates, self._choice_session)
-            )
+            # 模板直拿只负责跳过 OCR，生产授权仍由同一个策略重新判定。
+            decision = choose_action(bond_candidates, self._choice_session)
         _obs_from, _obs_why = None, ""
         if kind == "bond" and decision.action == PolicyAction.REFRESH:
             affordable, wood, price = self._bond_refresh_affordable(frame)
@@ -4226,6 +4225,14 @@ class Mediator:
             # 羁绊一定走上面的 else 分支（蹭车分支只处理宝物），bond_candidates/direct_pick 已定义。
             if self._bond_refresh_miss_wait(frame, bond_candidates, decision, direct_pick):
                 return None
+
+        self._bond_replace_authorized = False
+        if kind == "bond" and decision.action == PolicyAction.SELECT_SLOT and live_free_slots == 0:
+            chosen = next((slot for slot in slots if slot.index == decision.index), None)
+            self._bond_replace_authorized = bool(
+                chosen is not None
+                and _is_proven_merge_upgrade(chosen, self._confirmed_bond_cards())
+            )
         _obs = self._observe_log()
         if _obs is not None:
             try:
@@ -11871,6 +11878,7 @@ class Mediator:
             self._reset_battle_view_home()
             self._bond_replace_pending = False
             self._bond_replace_incoming = None
+            self._bond_replace_authorized = False
             self._bond_replace_at = 0.0
             self._merchant_open_next_at = 0.0
             self._merchant_urgent_next_at = 0.0
@@ -17846,12 +17854,24 @@ class Mediator:
         """
         st = self._panel_state
 
-        # 满槽选卡后的顶替动作处理：点上面一排让替换中随机选择非你要合成卡组替换
+        # 仅“立即合成授权 + 新鲜帧仍为 10/10”才允许旧顶替流。
         if getattr(self, "_bond_replace_pending", False):
             if now >= getattr(self, "_bond_replace_at", 0.0):
                 self._bond_replace_pending = False
-                print("[L1] 满槽选卡后执行顶替点击：点上面一排随机非目标合成卡组")
+                occupancy = self._bond_bar_occupancy(frame)
+                if not self._bond_replace_authorized or occupancy is None or occupancy < 10:
+                    print(
+                        f"[L1] 顶替取消：authorized={self._bond_replace_authorized} "
+                        f"occupancy={occupancy}；已有空格或证据不足"
+                    )
+                    self._bond_replace_incoming = None
+                    self._bond_replace_authorized = False
+                    self._panel_last_input_at = now
+                    return LoopAction.Continue
+                print("[L1] 立即合成后仍 10/10，执行 OCR 非目标卡顶替")
                 self._maybe_execute_bond_slot_replacement(frame)
+                self._bond_replace_incoming = None
+                self._bond_replace_authorized = False
                 self._panel_last_input_at = now
                 return LoopAction.Continue
 
@@ -18096,10 +18116,18 @@ class Mediator:
                         self._stage_bond_card(hit.name)
                         occupancy = self._bond_bar_occupancy(frame)
                         if occupancy is not None and occupancy >= 10:
-                            print("[L1] 羁绊栏已满（10/10），挂起顶替操作（即将随机点击非目标合成卡槽）")
-                            self._bond_replace_pending = True
-                            self._bond_replace_incoming = hit.name
-                            self._bond_replace_at = now + 0.15
+                            if self._bond_replace_authorized:
+                                print("[L1] 10/10 且本次为立即合成，挂起有条件顶替复核")
+                                self._bond_replace_pending = True
+                                self._bond_replace_incoming = hit.name
+                                self._bond_replace_at = now + 0.15
+                            else:
+                                print("[L1] 10/10 非立即合成授权：不顶替，等待消耗/吞噬腾格")
+                                self._bond_replace_pending = False
+                                self._bond_replace_incoming = None
+                                self._bond_replace_authorized = False
+                        else:
+                            self._bond_replace_authorized = False
                     if action_kind == "select" and getattr(self, "_evolve_awaiting_hero_pick", False):
                         self._complete_evolve_hero_pick()
                     self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
