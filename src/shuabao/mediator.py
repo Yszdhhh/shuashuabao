@@ -1129,6 +1129,8 @@ class Mediator:
         self._choice_policy_idle = False
         self._choice_policy_last_reason = ""
         self._ocr_confirm_key: tuple | None = None
+        # 羁绊面板刷新钮连续未命中的帧数（单帧漏检不得直接兜底，见 _bond_refresh_miss_wait）。
+        self._bond_refresh_miss_frames = 0
         self._hitch_last_treasure_kill_balance: int | None = None
         self._hitch_treasure_kill_none_skips: int = 0
         self._hitch_treasure_kill_none_first_at: float | None = None
@@ -3646,6 +3648,7 @@ class Mediator:
         self._choice_policy_idle = False
         self._choice_policy_last_reason = ""
         self._ocr_confirm_key = None
+        self._bond_refresh_miss_frames = 0
 
     def _record_choice_session(self, decision: PolicyDecision) -> None:
         """Update SessionState after a policy decision.
@@ -4219,6 +4222,10 @@ class Mediator:
                     replace(bond_candidates, can_refresh=False), self._choice_session,
                 )
                 self._note_decision("pick", "羁绊刷新不可支付，改选当前页面", wood=wood, price=price)
+        elif kind == "bond":
+            # 羁绊一定走上面的 else 分支（蹭车分支只处理宝物），bond_candidates/direct_pick 已定义。
+            if self._bond_refresh_miss_wait(frame, bond_candidates, decision, direct_pick):
+                return None
         _obs = self._observe_log()
         if _obs is not None:
             try:
@@ -4325,6 +4332,53 @@ class Mediator:
         return mapped[1]
 
     _SINGLE_FRAME_PICK_CONFIDENCE = 0.95
+    _BOND_REFRESH_MISS_FRAMES = 3
+
+    def _bond_refresh_miss_wait(
+        self,
+        frame: Frame,
+        cands: PanelCandidates,
+        decision: PolicyDecision,
+        direct_pick: int | None,
+    ) -> bool:
+        """刷新钮单帧漏检不得直接兜底（2026-09-26 审查）。
+
+        只拦一种情况：策略本来要刷新（本页无目标、刷新次数没用完），却因为这一帧
+        没找到刷新钮而改成了兜底选卡。此时零输入等下一帧，连续
+        _BOND_REFRESH_MISS_FRAMES 帧都看不到刷新钮才放行兜底；木材确认不够刷新
+        时不等（那是正当的兜底）。看到刷新钮或不需要刷新时清零。
+        """
+        if (
+            cands.can_refresh
+            or direct_pick is not None
+            or decision.action != PolicyAction.SELECT_SLOT
+            or self._choice_session.refreshes >= self._choice_session.max_refreshes
+        ):
+            self._bond_refresh_miss_frames = 0
+            return False
+        wanted = choose_action(replace(cands, can_refresh=True), self._choice_session)
+        if wanted.action != PolicyAction.REFRESH:
+            self._bond_refresh_miss_frames = 0
+            return False
+        affordable, wood, price = self._bond_refresh_affordable(frame)
+        if not affordable:
+            self._bond_refresh_miss_frames = 0
+            return False
+        self._bond_refresh_miss_frames += 1
+        if self._bond_refresh_miss_frames >= self._BOND_REFRESH_MISS_FRAMES:
+            self._bond_refresh_miss_frames = 0
+            self._note_decision(
+                "pick", "羁绊刷新钮连续多帧不可见，改选当前页面", frames=self._BOND_REFRESH_MISS_FRAMES,
+            )
+            return False
+        self._choice_policy_idle = True
+        self._choice_policy_last_reason = (
+            f"bond 本页无目标但未看到刷新钮（第 {self._bond_refresh_miss_frames}/"
+            f"{self._BOND_REFRESH_MISS_FRAMES} 帧），零输入等下一帧"
+        )
+        print(f"[L1] {self._choice_policy_last_reason}")
+        self._note_decision("zero_input", "羁绊本页无目标但未看到刷新钮，等下一帧", frames=self._bond_refresh_miss_frames)
+        return True
 
     def _live_ocr_miss_refresh(self, frame: Frame, kind: str) -> MatchResult | None:
         """OCR 没读到名字时禁止刷新。预选卡可能已经在画面上。"""
