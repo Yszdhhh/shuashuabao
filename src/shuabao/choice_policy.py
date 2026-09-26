@@ -565,6 +565,15 @@ def assemble_policy_settings(
     ))
     if ex_final_names:
         bond_presets = [name for name in bond_presets if name not in ex_final_names]
+    # Owner 2026-09-26 03:03：勾了三国，四国的启动卡和国别卡都在白名单里，
+    # 哪国先出就先拿；第四国由 bond_candidate_allowed 按已持有国别拦下。
+    root_at = next((i for i, name in enumerate(bond_presets) if name in SANGUO_PRESET_ROOTS), None)
+    if root_at is not None:
+        extra = [
+            member for members in SANGUO_FACTIONS.values() for member in members
+            if member not in bond_presets
+        ]
+        bond_presets[root_at + 1:root_at + 1] = extra
 
     selected_group_names = tuple(name for group in selected_groups for name in group)
     advanced_presets = tuple(
@@ -1416,7 +1425,43 @@ def bond_candidate_allowed(name: str | None, owned_bonds: tuple[str, ...] | list
         return False
     if same_bond_identity(text, "禁字法"):
         return any(same_bond_identity(str(item), "安身法") for item in (owned_bonds or ()))
+    if sanguo_blocked_faction(text, owned_bonds):
+        return False
     return True
+
+
+# Owner 2026-09-26 03:03：三国是魏、蜀、吴、群雄四选三。哪国先出来就先拿该国启动卡，
+# 拿满 3 国后不再拿第四国。国别卡名来自 config/choice_lexicon.json（启动牌 + UR），
+# 国名本身是系列标签模板的家族名。按卡名严格身份匹配，不用子串（魏延≠魏）。
+SANGUO_FACTIONS: dict[str, tuple[str, ...]] = {
+    "魏": ("魏", "曹操", "司马懿"),
+    "蜀": ("蜀", "刘备", "赵云"),
+    "吴": ("吴", "孙权", "孙策"),
+    "群雄": ("群雄", "董卓", "吕布"),
+}
+SANGUO_MAX_FACTIONS = 3
+SANGUO_PRESET_ROOTS = ("三国", "乱世三国")
+
+
+def sanguo_faction(name: str | None) -> str | None:
+    """卡名所属的三国国别；认不出返回 None。"""
+    if not name:
+        return None
+    for faction, members in SANGUO_FACTIONS.items():
+        if any(same_bond_identity(name, member) for member in members):
+            return faction
+    return None
+
+
+def sanguo_blocked_faction(name: str | None, owned_bonds: tuple[str, ...] | list[str]) -> bool:
+    """已持有 3 国时，第四国的卡一律不拿。"""
+    faction = sanguo_faction(name)
+    if faction is None:
+        return False
+    owned_factions = {
+        found for found in (sanguo_faction(item) for item in (owned_bonds or ())) if found
+    }
+    return len(owned_factions) >= SANGUO_MAX_FACTIONS and faction not in owned_factions
 
 
 def _best_available_bond_pick(cands, settings, active_adv) -> SlotCandidate | None:
