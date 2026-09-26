@@ -248,7 +248,6 @@ class PolicySettings:
     min_confidence: float = 0.0
     bond_whitelist_mode: str = WHITELIST_HARD
     bond_must_take: tuple[str, ...] = DEFAULT_BOND_MUST_TAKE
-    bond_negative_names: tuple[str, ...] = ()
     treasure_negative_patterns: tuple[str, ...] = DEFAULT_NEGATIVE_PATTERNS
     treasure_negative_names: tuple[str, ...] = DEFAULT_NEGATIVE_NAMES
     treasure_allow_negative: tuple[str, ...] = ()
@@ -330,7 +329,6 @@ class PolicySettings:
         neg_names = raw.get("treasure_negative_names")
         must_take = raw.get("treasure_must_take")
         bond_must_take = raw.get("bond_must_take")
-        bond_negative_names = raw.get("bond_negative_names")
         habit_raw = raw.get("habit_name_scores") or {}
         if isinstance(habit_raw, Mapping):
             habit_scores = tuple((str(k), float(v)) for k, v in habit_raw.items())
@@ -383,7 +381,6 @@ class PolicySettings:
                 DEFAULT_BOND_MUST_TAKE
                 + tuple(str(s) for s in (bond_must_take or ()))
             )),
-            bond_negative_names=tuple(str(s) for s in (bond_negative_names or ()) if str(s).strip()),
             treasure_negative_patterns=(
                 tuple(str(s) for s in neg) if neg is not None else DEFAULT_NEGATIVE_PATTERNS
             ),
@@ -641,7 +638,6 @@ def assemble_policy_settings(
                 + tuple(str(s) for s in (getattr(settings, "bond_must_take", None) or ()))
                 + tuple(str(s) for s in (bond_cfg.get("must_take_names") or ()))
             )),
-            "bond_negative_names": bond_cfg.get("negative_names", ()),
             "treasure_negative_patterns": treasure_cfg.get("negative_patterns"),
             "treasure_negative_names": treasure_cfg.get("negative_names"),
             "treasure_must_take": treasure_cfg.get("must_take_names"),
@@ -1332,13 +1328,27 @@ def _drop_completed_bond_slots(
     return tuple(kept)
 
 
+def bond_candidate_allowed(name: str | None, owned_bonds: tuple[str, ...] | list[str]) -> bool:
+    """Shared safety gate for normal bond selection and exhausted-refresh fallback.
+
+    禁字法献祭 50% 生命；Owner 现行口径要求持有安身法后才可拿。
+    这不是“羁绊永久负面名单”：条件满足后禁字法仍是正常候选。
+    """
+    text = str(name or "").strip()
+    if not text:
+        return False
+    if same_bond_identity(text, "禁字法"):
+        return any(same_bond_identity(str(item), "安身法") for item in (owned_bonds or ()))
+    return True
+
+
 def _best_available_bond_pick(cands, settings, active_adv) -> SlotCandidate | None:
-    """Pick a whitelisted card, then the best readable non-banned card after refreshes."""
+    """Pick the best readable card after refreshes, reusing the normal safety gate."""
     available = [
         slot for slot in cands.slots
         if slot.name and str(slot.name).strip()
         and slot.confidence >= settings.min_confidence
-        and not _is_explicit_bond_negative(slot.name, settings)
+        and bond_candidate_allowed(slot.name, cands.owned_bond_cards)
     ]
     if not available:
         return None
@@ -1358,10 +1368,6 @@ def _best_available_bond_pick(cands, settings, active_adv) -> SlotCandidate | No
         return tier, _rarity_rank(slot.rarity, settings.quality_order), int(slot.index)
 
     return min(available, key=priority)
-
-
-def _is_explicit_bond_negative(name: str | None, settings: PolicySettings) -> bool:
-    return matches_bond_preset(name, settings.bond_negative_names)
 
 
 def _bond_progress_hits(
@@ -1510,12 +1516,12 @@ def _decide_collectible(
     else:
         eligible = cands.slots
         if kind == PANEL_BOND:
+            owned_bonds = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
             eligible = tuple(
                 slot for slot in eligible
-                if not _is_explicit_bond_negative(slot.name, settings)
+                if bond_candidate_allowed(slot.name, owned_bonds)
             )
             eligible = _bond_capacity_candidates(cands, eligible, settings)
-            owned_bonds = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
             # Owner 2026-09-24：高级卡组不设基础 80% / 开局时间这类硬门槛；同一时刻
             # 只推进一组，合成出 EX（海盗为 UR）后才解锁下一组。
             active_adv = _active_advanced_presets(cands, settings)
@@ -1551,14 +1557,6 @@ def _decide_collectible(
                     or matches_bond_preset(slot.name, settings.bond_presets)
                     or _is_uncompleted_merge_upgrade(slot, owned_bonds)
                 )
-
-            # 禁字法避坑：献祭50%生命转高额攻击，必须在持有「安身法」百分比回血后才可选择，前期无安身法拿易暴毙
-            if any(slot.name == "禁字法" for slot in eligible):
-                has_anshen = any(
-                    "安身法" in str(b) for b in (cands.owned_bond_cards or ())
-                ) or any("安身法" in str(b) for b in (owned_bonds or ()))
-                if not has_anshen:
-                    eligible = tuple(slot for slot in eligible if slot.name != "禁字法")
 
             # 1. 必拿名单优先级最高（不受 near_complete 抢占）
             for slot in eligible:

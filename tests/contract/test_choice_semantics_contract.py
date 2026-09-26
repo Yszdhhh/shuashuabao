@@ -9,11 +9,10 @@
      「预设技能不是越稀有权重越高吗」——实机里预设里有橙色却选了紫/蓝。
      旧实现按槽位从左到右取第一个命中，稀有度完全没进排序。
 
-  S2 羁绊/卡牌未勾选 = 硬禁用
-     「海盗都明确 ban 了还是每次都拿海盗」——UI 勾选框此前只是「偏好」，
-     未命中就落到品质色/第一张兜底。现在：未勾选一律不选，三槽全未勾选
-     宁可刷新/放弃/隐藏，也不乱拿。硬禁用必须同时封住套装进度与品质降级
-     两条旁路，否则 ban 名单形同虚设。
+  S2 羁绊 whitelist_mode 仍为 hard，但刷新耗尽后允许未勾选兜底
+     Owner 2026-09-26 修订：有刷新预算时未勾选卡不能越过白名单；预算耗尽
+     或木材不足时必须从当前可读卡里兜底。羁绊没有永久负面名单；负面禁拿
+     只属于宝物。禁字法属于条件门：未持有安身法时任何路径都不得拿。
 
   S3 负面宝物默认不选，勾选后才放行
      形如「获得50万金币，5分钟后不再获得金币」「直接升到25级，之后不再升级」。
@@ -123,7 +122,7 @@ class S1SkillRarityPriority(unittest.TestCase):
 
 
 class S2BondWhitelistIsHard(unittest.TestCase):
-    """S2：刷新预算耗尽后可兜底拿未勾选卡，显式负面名单仍是硬禁用。"""
+    """S2：hard 约束刷新预算内的选择；耗尽后允许未勾选兜底。"""
 
     def test_unchecked_bond_is_fallback_when_refreshes_are_exhausted(self):
         """Owner 2026-09-26：羁绊刷新 3 次仍无目标时随便拿一张。"""
@@ -142,32 +141,41 @@ class S2BondWhitelistIsHard(unittest.TestCase):
         )
         self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 0))
 
-    def test_hard_ban_blocks_synthesis_bypass(self):
-        """显式负面名单不得被套装进度或刷新兜底绕过。"""
-        decision = choose_action(_panel(
-            PANEL_BOND,
-            [_slot(0, "利刃海盗"), _slot(1, "海盗劫掠者")],
-            set_progress={
-                "海盗": {
-                    "have": 1, "need": 2,
-                    "members": ["海盗", "利刃海盗", "海盗劫掠者"],
-                    "owned": ["海盗"],
-                }
-            },
-            can_refresh=False,
-            settings=PolicySettings(bond_presets=("暴击",), bond_negative_names=("海盗",)),
-        ), SessionState(refreshes=3, max_refreshes=3))
+    def test_unchecked_bond_refreshes_while_budget_remains(self):
+        decision = choose_action(
+            _panel(
+                PANEL_BOND,
+                [_slot(0, "海盗", rarity="red")],
+                can_refresh=True,
+                settings=PolicySettings(bond_presets=("暴击",)),
+            ),
+            SessionState(refreshes=0, max_refreshes=3),
+        )
+        self.assertEqual(decision.action, PolicyAction.REFRESH)
+
+    def test_jinzifa_requires_anshen_even_after_refresh_exhaustion(self):
+        decision = choose_action(
+            _panel(
+                PANEL_BOND,
+                [_slot(0, "禁字法", rarity="red")],
+                can_refresh=False,
+                settings=PolicySettings(bond_presets=("禁字法",)),
+            ),
+            SessionState(refreshes=3, max_refreshes=3),
+        )
         self.assertIn(decision.action, NO_PICK_ACTIONS)
 
-    def test_hard_ban_blocks_quality_bypass(self):
-        """品质兜底不得绕过显式负面名单。"""
-        decision = choose_action(_panel(
-            PANEL_BOND,
-            [_slot(0, "海盗", rarity="red")],
-            can_refresh=False,
-            settings=PolicySettings(bond_presets=("暴击",), bond_negative_names=("海盗",)),
-        ), SessionState(refreshes=3, max_refreshes=3))
-        self.assertIn(decision.action, NO_PICK_ACTIONS)
+        allowed = choose_action(
+            _panel(
+                PANEL_BOND,
+                [_slot(0, "禁字法", rarity="red")],
+                can_refresh=False,
+                owned_bond_cards=("安身法",),
+                settings=PolicySettings(bond_presets=("禁字法",)),
+            ),
+            SessionState(refreshes=3, max_refreshes=3),
+        )
+        self.assertEqual((allowed.action, allowed.index), (PolicyAction.SELECT_SLOT, 0))
 
     def test_whitelisted_bond_is_still_selected(self):
         """硬禁用不是「什么都不拿」：勾选过的照常拿。"""
