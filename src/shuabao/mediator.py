@@ -2654,6 +2654,8 @@ class Mediator:
 
     def _classify_choice_panel(self, frame: Frame) -> str | None:
         """Distinguish skill / bond / treasure choice panels by their unique buttons."""
+        if Mediator._find_evolution_choice(self, frame) is not None:
+            return None
         opened = getattr(self, "_panel_opened_by_us", None)
         if opened in ("skill", "bond"):
             return opened
@@ -5279,14 +5281,7 @@ class Mediator:
             return None
         if self._post_game_state(frame) is not None:
             return None
-        # 如果当前锚点属于明确非英雄面板（如羁绊/宝物/技能放弃等），绝非英雄进化二选一
         anc = anchor if anchor is not None else self._selection_anchor(frame)
-        if anc is not None and (
-            anc.name.startswith("bond_")
-            or anc.name.startswith("treasure_")
-            or anc.name in ("skill_giveup_btn", "skill_hide", "giveUp")
-        ):
-            return None
         # 装备十级词缀弹窗互斥：词缀弹窗绝非英雄进化二选一
         if self._find_equipment_affix_choice(frame) is not None:
             return None
@@ -5299,14 +5294,38 @@ class Mediator:
             rx1, ry1, rx2, ry2 = transform.logical_roi(x - 4, 150, x + 5, 510)
             return int((gradient[ry1:ry2, rx1:rx2] > 80).sum())
 
+        def longest_vertical_edge(x: int) -> int:
+            rx1, ry1, rx2, ry2 = transform.logical_roi(x - 4, 150, x + 5, 510)
+            rows = (gradient[ry1:ry2, rx1:rx2] > 80).any(axis=1)
+            longest = current = 0
+            for row in rows:
+                current = current + 1 if row else 0
+                longest = max(longest, current)
+            return longest
+
         scale_area = transform.scale * transform.scale
-        if not (
+        paired_card_frame = (
+            longest_vertical_edge(550) >= max(70, int(150 * transform.scale))
+            and longest_vertical_edge(784) >= max(100, int(250 * transform.scale))
+            and longest_vertical_edge(816) >= max(70, int(150 * transform.scale))
+            and longest_vertical_edge(1050) >= max(70, int(150 * transform.scale))
+            and max(longest_vertical_edge(370), longest_vertical_edge(408), longest_vertical_edge(1201))
+            < max(40, int(60 * transform.scale))
+        )
+        legacy_card_frame = (
             edge_count(816) >= max(50, int(350 * scale_area))
             and edge_count(1050) >= max(30, int(100 * scale_area))
             and edge_count(370) < max(20, int(100 * scale_area))
             and edge_count(408) < max(20, int(100 * scale_area))
             and edge_count(1201) < max(20, int(100 * scale_area))
-        ):
+        )
+        if not (paired_card_frame or legacy_card_frame):
+            return None
+        if anc is not None and (
+            anc.name.startswith("bond_")
+            or anc.name.startswith("treasure_")
+            or anc.name in ("skill_giveup_btn", "skill_hide", "giveUp")
+        ) and not paired_card_frame:
             return None
         hsv = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2HSV)
 
@@ -17131,6 +17150,8 @@ class Mediator:
         比「锁模板单独命中」或中间花屏更可信。
         """
         opened = getattr(self, "_panel_opened_by_us", None)
+        if self._find_evolution_choice(frame, anchor) is not None:
+            return "card"
         # 放弃按钮是技能面板独有（放弃/giveUp）；宝物面板绝无放弃按钮。
         if anchor.name in {"skill_giveup_btn"}:
             return "skill"
@@ -19302,6 +19323,25 @@ class Mediator:
         has_recovery = (self.phase == Phase.RECOVER_FAILURE) or bool(getattr(self, "_recovery_step", None) and self._recovery_step != "DONE")
         has_affix = self._find_equipment_affix_choice(frame) is not None
         anchor = self._selection_anchor(frame)
+        evolution_choice = self._find_evolution_choice(frame, anchor) if anchor else None
+        if getattr(self, "_evolve_feedback_pending", False):
+            if evolution_choice is not None:
+                self._evolve_feedback_pending = False
+                self._evolve_fail_count = 0
+                self._evolve_baseline = None
+                self._evolve_awaiting_hero_pick = True
+                self._evolve_awaiting_hero_pick_at = now
+            else:
+                feedback_res = self._tick_evolve_feedback_pending(frame, now)
+                if feedback_res is not None:
+                    return feedback_res
+        if getattr(self, "_evolve_awaiting_hero_pick", False) and evolution_choice is None:
+            if now - getattr(self, "_evolve_awaiting_hero_pick_at", now) >= 15.0:
+                self._evolve_awaiting_hero_pick = False
+                self.set_phase(Phase.ERROR, "evolve hero-choice panel unresolved")
+                self.stop()
+                return LoopAction.Break
+            return LoopAction.Continue
         # 20260822（trace 181735 结尾 2.69s 冲突停机）：底部按钮行已定性为
         # skill/bond/treasure/card 的面板绝不可能是进化弹窗——进化弹窗没有
         # 刷新/放弃/隐藏按钮行。此前宝物面板被边缘计数误判成进化弹窗，
@@ -19315,7 +19355,7 @@ class Mediator:
             anchor
             and (_panel_class is None or inventory_hero_probe)
             and (self._evolve_hero_choice_pending() or inventory_hero_probe)
-            and self._find_evolution_choice(frame, anchor)
+            and evolution_choice is not None
         )
         has_card = (not has_hero) and (bool(anchor) or self._panel_state != PanelState.CLOSED)
         # 商店检测在存在中央选卡/进化/词条弹窗或主线处于前置主动步骤(F/G/V/进化/装备/拾取)时严格抑制，绝不插队抢点击
@@ -19607,23 +19647,6 @@ class Mediator:
 
         # 推进装备租约观察确认（使得非 equipment 步骤下的机会强化能够正常结算）
         self._tick_equipment_pending(frame, now)
-
-        # 进化事务管理：feedback_pending 或 awaiting_hero_pick 时独占主线，严禁启动 G/F/V 等新动作
-        if self._evolve_hero_choice_pending():
-            feedback_res = self._tick_evolve_feedback_pending(frame, now)
-            if feedback_res is not None:
-                self._main_line_since = now
-                return feedback_res
-            if getattr(self, "_evolve_awaiting_hero_pick", False):
-                if now - getattr(self, "_evolve_awaiting_hero_pick_at", now) >= 15.0:
-                    print("[L1] 等待英雄模态弹窗超时(15s)，释放 evolve 事务锁")
-                    self._evolve_awaiting_hero_pick = False
-                    self._evolve_click_cooldown_until = now + 60.0
-                    if self._l1_cycle_step == "evolve":
-                        self._advance_l1_cycle("evolve")
-                    return LoopAction.Continue
-                else:
-                    return LoopAction.Continue
 
         if (
             not self._passenger_mode()

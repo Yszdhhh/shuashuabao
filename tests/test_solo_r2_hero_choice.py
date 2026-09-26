@@ -49,6 +49,23 @@ def test_solo_r2_hero_choice_selects_ssr_without_hiding() -> None:
     assert close_hit is None
 
 
+def test_two_card_hero_panel_beats_shared_skill_giveup_and_refresh_anchors() -> None:
+    fixture = ROOT / "tests" / "fixtures" / "evolve_deadlock_20260926" / "hero_evolve_two_choice_f0030.png"
+    assert fixture.is_file(), f"Fixture missing: {fixture}"
+    bgr = cv2.imdecode(np.fromfile(str(fixture), dtype=np.uint8), cv2.IMREAD_COLOR)
+    assert bgr is not None
+    frame = Frame(bgr)
+    med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT)
+
+    anchor = med._selection_anchor(frame)
+    assert anchor is not None
+    assert anchor.name == "skill_refresh_btn"
+    assert med._classify_choice_panel(frame) is None
+    assert med._find_evolution_choice(frame, anchor).name == "evolution_card_1_rank_6"
+    assert med._panel_kind_of(frame, anchor) == "card"
+    assert med._find_reward_choice(frame, anchor) == ("card", med._find_evolution_choice(frame, anchor))
+
+
 def test_hero_awaiting_does_not_click_or_hide_bond_panel() -> None:
     """When awaiting hero choice, an appearing bond panel must NOT be clicked as hero or hidden."""
     bond_fixture = ROOT / "tests" / "fixtures" / "solo_r2_20260925" / "bond_choice_f0342.png"
