@@ -52,6 +52,21 @@ class TestMediatorChoiceFourSlotIntegration(unittest.TestCase):
         self.assertTrue(self.med._last_slots_from_template)
         self.med._ocr_client.shadow_predict.assert_not_called()
 
+    def test_template_fast_path_makes_zero_ocr_calls(self):
+        # Round 2: the fast path must stay IPC-free (no title OCR, no badge
+        # OCR); rarity stays None by design — 93-panel replay shows decisions
+        # agree with the OCR path 90/93, other 3 are listed OCR misses.
+        frame_path = ROOT / "fixtures/card_template_assertions/positives/bond_choice_3.png"
+        data = np.fromfile(str(frame_path), dtype=np.uint8)
+        frame = Frame(cv2.imdecode(data, cv2.IMREAD_COLOR))
+        self.med._ocr_client = MagicMock()
+
+        slots = self.med._ocr_panel_slots(frame, "bond")
+        self.assertTrue(self.med._last_slots_from_template)
+        cands = self.med._slots_to_candidates(frame, "bond", slots)
+        self.assertEqual(len(cands), 3)
+        self.med._ocr_client.shadow_predict.assert_not_called()
+
     def test_incomplete_template_slots_fall_back_to_ocr(self):
         template_slots = [
             {"index": i, "name": "祝福" if i < 3 else None,
@@ -386,12 +401,11 @@ class TestMediatorChoiceFourSlotIntegration(unittest.TestCase):
         slots = med._ocr_panel_slots(frame, "bond")
         self.assertEqual(len(slots), 4)
         names = [s["name"] for s in slots]
-        self.assertIsNone(names[0])
-        self.assertIsNone(names[1])
-        self.assertEqual(names[2], "挑战")
-        self.assertEqual(names[3], "暴击")
-        self.assertGreaterEqual(slots[2]["confidence"], 0.80)
-        self.assertGreaterEqual(slots[3]["confidence"], 0.80)
+        # Round 2: sanguo/daodao templates (cut from 20260925 live frames)
+        # now name the first two slots; frame truth is 三国/刀刀(0/3)/挑战(2/3)/暴击(0/2).
+        self.assertEqual(names, ["三国", "刀刀", "挑战", "暴击"])
+        for s in slots:
+            self.assertGreaterEqual(s["confidence"], 0.80)
 
     def test_8_official_jj_title_template_names_jingji_when_ocr_blank(self):
         med = self.med
@@ -401,11 +415,12 @@ class TestMediatorChoiceFourSlotIntegration(unittest.TestCase):
         self._empty_ocr(med)
         slots = med._ocr_panel_slots(frame, "bond")
         self.assertEqual(len(slots), 4)
-        self.assertEqual(slots[0]["name"], "经济")
-        self.assertGreaterEqual(slots[0]["confidence"], 0.80)
-        self.assertIsNone(slots[1]["name"])
-        self.assertIsNone(slots[2]["name"])
-        self.assertIsNone(slots[3]["name"])
+        # Round 2: frame truth is 经济(0/3)/刀刀(0/3)/藏宝图(0/3)/刀刀(0/3);
+        # daodao/cangbaotu templates now name slots 1-3 as well.
+        names = [s["name"] for s in slots]
+        self.assertEqual(names, ["经济", "刀刀", "藏宝图(三)", "刀刀"])
+        for s in slots:
+            self.assertGreaterEqual(s["confidence"], 0.80)
 
     def test_9_stuck_four_slot_takes_near_complete_tiaozhan_from_title_template(self):
         settings = Settings(

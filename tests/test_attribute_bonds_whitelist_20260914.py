@@ -111,6 +111,12 @@ def test_real_frame_selects_agility_with_owner_attributes() -> None:
 
     # 2. 不带 attributes 策略：不选敏捷，触发刷新
     med_no_attr = Mediator(Settings(ocr_mode="live", **{**OWNER, "attributes": []}), ROOT)
+    # Round 2 起模板快路零 IPC：_hud_counter 只用已拉起的 worker，
+    # 冷 worker 下木材核验直接 None 并降级隐藏（fail-closed）。
+    # 实机 worker 常驻有流量，这里先打一次真实 IPC 拉起，再断言刷新授权。
+    med_no_attr._ocr_client.shadow_predict(
+        frame, "warmup", {"index": 0, "bbox": (100, 100, 200, 150), "kind": "bond"}
+    )
     choice_no_attr = med_no_attr._find_reward_choice(frame)
     assert choice_no_attr is not None, "Expected refresh on bond selection panel"
     kind_no_attr, hit_no_attr = choice_no_attr

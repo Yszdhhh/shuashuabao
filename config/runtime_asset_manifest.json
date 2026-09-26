@@ -898,12 +898,28 @@
       "sha256": "ccc68b3f96c68da62ba3ce1dec66c3d5667d74bb5ba8f450691790808e11e713"
     },
     {
+      "path": "assets/Images/cards/cangbaotu.png",
+      "purpose": "runtime_template",
+      "provenance": "cropped from live solo capture solo_ingame_chain_20260925_230841_870781/f0161_action_before slot 2 (bond series-label; grayscale)",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 1157,
+      "sha256": "85411fff367d34bd09482bab2f51abee7f9222fd00595ff3299238fdca76ce56"
+    },
+    {
       "path": "assets/Images/cards/chengzhang.png",
       "purpose": "runtime_template",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
       "reason_required": "runtime visual matching template",
       "size_bytes": 2224,
       "sha256": "272e19dd82a737ac3b4f8dc5fd733a4a4d7b56e1794951a17e1928c2cf0953d1"
+    },
+    {
+      "path": "assets/Images/cards/daodao.png",
+      "purpose": "runtime_template",
+      "provenance": "cropped from live solo capture solo_ingame_chain_20260925_230841_870781/f0068_action_before slot 2 (bond series-label; grayscale)",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 254,
+      "sha256": "273f419bcdc0063cf833d078b0ba9f45bcd302ad37d61a227c4516e1283450ac"
     },
     {
       "path": "assets/Images/cards/dapao.png",
@@ -946,6 +962,14 @@
       "sha256": "34edec97523497eaf1b963edbcf61ebda5b54958c53a5c69b9c296fff3c9c79c"
     },
     {
+      "path": "assets/Images/cards/fengshen.png",
+      "purpose": "runtime_template",
+      "provenance": "cropped from live solo capture solo_ingame_chain_20260925_230841_870781/f0140_action_before slot 3 (bond series-label; grayscale)",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 766,
+      "sha256": "7c4ec6e872ec155b837bdfdf8fc7f097c025a8fdf731ee2b75c97741a26ec6a8"
+    },
+    {
       "path": "assets/Images/cards/fs.png",
       "purpose": "runtime_template",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
@@ -956,10 +980,10 @@
     {
       "path": "assets/Images/cards/genji.png",
       "purpose": "runtime_template",
-      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "provenance": "cropped from live solo capture solo_ingame_chain_20260925_230841_870781/f0187_action_before slot 0 (bond series-label; grayscale)",
       "reason_required": "runtime visual matching template",
-      "size_bytes": 2039,
-      "sha256": "d6031eda83034e922c1cde659946b421f7807c6464568e631c695d43feaef6f9"
+      "size_bytes": 780,
+      "sha256": "f4b96b2211184fb5301f2c4ce7423bb2cb023edb49b6b33efe4cc5b44d079641"
     },
     {
       "path": "assets/Images/cards/gongshen.png",
@@ -984,6 +1008,14 @@
       "reason_required": "runtime visual matching template",
       "size_bytes": 1585,
       "sha256": "ec8c4f83c31399ce417963e4bcf49c5e13eb76b6859347571b419ff5d029825b"
+    },
+    {
+      "path": "assets/Images/cards/jianshu.png",
+      "purpose": "runtime_template",
+      "provenance": "cropped from live solo capture solo_ingame_chain_20260925_230841_870781/f0170_state_change slot 0 (bond series-label; grayscale)",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 933,
+      "sha256": "3c83ad4d669734a5b8dc8c12fb694aee40256fb3a4c42707e3ae61e9a5cccdf9"
     },
     {
       "path": "assets/Images/cards/jisu.png",
@@ -1050,12 +1082,20 @@
       "sha256": "7eaaf42b0429a1f34c72959d56752c73e56dafbf34eae6e8d9213b1fc7bd9636"
     },
     {
+      "path": "assets/Images/cards/sanguo.png",
+      "purpose": "runtime_template",
+      "provenance": "cropped from live solo capture solo_ingame_chain_20260925_190942_836832/f0281_action_before slot 0 (bond series-label; grayscale)",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 693,
+      "sha256": "109368ac74bef2e7c2564bf2686d755f1211c2eb623952244a9023ae6519cbe0"
+    },
+    {
       "path": "assets/Images/cards/shenfa.png",
       "purpose": "runtime_template",
-      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "provenance": "cropped from live solo capture solo_ingame_chain_20260925_230841_870781/f0204_state_change slot 0 (bond series-label; grayscale)",
       "reason_required": "runtime visual matching template",
-      "size_bytes": 2144,
-      "sha256": "d45fb230813fce64d47f5081c436db6f4506ec0e2e7e2c3057a2c552def48922"
+      "size_bytes": 788,
+      "sha256": "fd692870d3a3d82319a064e15f9fc89d942985a709f83579028ef5f82d4e3fac"
     },
     {
       "path": "assets/Images/cards/shengming.png",
@@ -1112,6 +1152,14 @@
       "reason_required": "runtime visual matching template",
       "size_bytes": 2398,
       "sha256": "3f172eba6a688cd7ae94a69e8f60789d4b348ad0aa4b4ca65bda706e1cfd2253"
+    },
+    {
+      "path": "assets/Images/cards/wangling.png",
+      "purpose": "runtime_template",
+      "provenance": "cropped from live solo capture solo_ingame_chain_20260925_230841_870781/f0170_state_change slot 3 (bond series-label; grayscale)",
+      "reason_required": "runtime visual matching template",
+      "size_bytes": 592,
+      "sha256": "d11430243a40b7edfbc65ecc53dd2ea9f021663043cb5425785cde74d37beec5"
     },
     {
       "path": "assets/Images/cards/xianzhen.png",
