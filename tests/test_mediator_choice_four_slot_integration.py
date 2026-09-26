@@ -40,6 +40,39 @@ class TestMediatorChoiceFourSlotIntegration(unittest.TestCase):
         self.frame_1600 = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="game", hwnd=1)
 
     def test_confident_complete_template_slots_skip_ocr(self):
+        # Round 2: gate passes (single relevant family 挑战, no duplicates,
+        # no owned hits) -> fast path, zero IPC.
+        settings = Settings()
+        settings.cards = []
+        settings.bonds = ["挑战"]
+        settings.bond_must_take = []
+        med = Mediator(settings, ROOT)
+        frame_path = ROOT / "fixtures/card_template_assertions/positives/bond_choice_4_20260829.jpg"
+        data = np.fromfile(str(frame_path), dtype=np.uint8)
+        frame = Frame(cv2.imdecode(data, cv2.IMREAD_COLOR))
+        med._ocr_client = MagicMock()
+
+        slots = med._ocr_panel_slots(frame, "bond")
+
+        self.assertEqual(len(slots), 4)
+        self.assertTrue(all(slot.get("source") == "template" for slot in slots))
+        self.assertTrue(med._last_slots_from_template)
+        med._ocr_client.shadow_predict.assert_not_called()
+
+    def test_duplicate_must_take_family_falls_back_to_ocr(self):
+        # Round 2 L1 gate: 祝福x3 are all must-take duplicates (confidence /
+        # rarity ordering hazard) -> fail-closed to OCR, never fast.
+        slots_raw = [
+            {"index": i, "name": "祝福", "confidence": 0.97,
+             "template_score": 0.97, "source": "template"}
+            for i in range(3)
+        ] + [
+            {"index": 3, "name": "体术", "confidence": 0.97,
+             "template_score": 0.97, "source": "template"}
+        ]
+        self.assertFalse(
+            self.med._template_slots_family_sufficient(self.frame_1600, slots_raw)
+        )
         frame_path = ROOT / "fixtures/card_template_assertions/positives/bond_choice_3.png"
         data = np.fromfile(str(frame_path), dtype=np.uint8)
         frame = Frame(cv2.imdecode(data, cv2.IMREAD_COLOR))
@@ -47,25 +80,30 @@ class TestMediatorChoiceFourSlotIntegration(unittest.TestCase):
 
         slots = self.med._ocr_panel_slots(frame, "bond")
 
-        self.assertEqual(len(slots), 3)
-        self.assertTrue(all(slot.get("source") == "template" for slot in slots))
-        self.assertTrue(self.med._last_slots_from_template)
-        self.med._ocr_client.shadow_predict.assert_not_called()
+        self.assertFalse(self.med._last_slots_from_template)
+        self.assertTrue(
+            not slots or any(slot.get("source") != "template" for slot in slots)
+        )
 
     def test_template_fast_path_makes_zero_ocr_calls(self):
         # Round 2: the fast path must stay IPC-free (no title OCR, no badge
-        # OCR); rarity stays None by design — 93-panel replay shows decisions
-        # agree with the OCR path 90/93, other 3 are listed OCR misses.
-        frame_path = ROOT / "fixtures/card_template_assertions/positives/bond_choice_3.png"
+        # OCR); rarity stays None by design — 93-panel replay: 42 fast panels
+        # agree with the new-code OCR path 42/42.
+        settings = Settings()
+        settings.cards = []
+        settings.bonds = ["挑战"]
+        settings.bond_must_take = []
+        med = Mediator(settings, ROOT)
+        frame_path = ROOT / "fixtures/card_template_assertions/positives/bond_choice_4_20260829.jpg"
         data = np.fromfile(str(frame_path), dtype=np.uint8)
         frame = Frame(cv2.imdecode(data, cv2.IMREAD_COLOR))
-        self.med._ocr_client = MagicMock()
+        med._ocr_client = MagicMock()
 
-        slots = self.med._ocr_panel_slots(frame, "bond")
-        self.assertTrue(self.med._last_slots_from_template)
-        cands = self.med._slots_to_candidates(frame, "bond", slots)
-        self.assertEqual(len(cands), 3)
-        self.med._ocr_client.shadow_predict.assert_not_called()
+        slots = med._ocr_panel_slots(frame, "bond")
+        self.assertTrue(med._last_slots_from_template)
+        cands = med._slots_to_candidates(frame, "bond", slots)
+        self.assertEqual(len(cands), 4)
+        med._ocr_client.shadow_predict.assert_not_called()
 
     def test_incomplete_template_slots_fall_back_to_ocr(self):
         template_slots = [
