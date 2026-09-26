@@ -114,57 +114,46 @@ class TestP1A2ChallengeControls(unittest.TestCase):
 
         self.med.act_right_click = mock_act_right_click
 
-        # Tick 1: Should trigger coin_challenge only
-        res1 = self.med._ensure_challenge_buttons(self.frame_off)
-        self.assertEqual(res1, LoopAction.Continue)
-        self.assertEqual(len(recorded_calls), 1)
-        self.assertEqual(recorded_calls[0], "金币Challenge-right_click")
-        self.assertEqual(self.med._challenge_attempts.get("coin_challenge"), 1)
-        self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.PENDING)
-        self.assertNotIn("coin_challenge", self.med._challenge_done, "Right click success must NOT mark done immediately")
-
-        # If on tick 2 coin_challenge is now ON (simulate via _challenge_done)
-        self.med._challenge_done.add("coin_challenge")
-        res2 = self.med._ensure_challenge_buttons(self.frame_off)
-        self.assertEqual(res2, LoopAction.Continue)
-        self.assertEqual(len(recorded_calls), 2)
-        self.assertEqual(recorded_calls[1], "木材Challenge-right_click")
-
-        # Tick 3: wood_challenge now ON
-        self.med._challenge_done.add("wood_challenge")
-        res3 = self.med._ensure_challenge_buttons(self.frame_off)
-        self.assertEqual(res3, LoopAction.Continue)
-        self.assertEqual(len(recorded_calls), 3)
-        self.assertEqual(recorded_calls[2], "经验Challenge-right_click")
-
-        # Tick 4: experience_challenge now ON
-        self.med._challenge_done.add("experience_challenge")
-        res4 = self.med._ensure_challenge_buttons(self.frame_off)
-        self.assertEqual(res4, LoopAction.Continue)
-        self.assertEqual(len(recorded_calls), 4)
-        self.assertEqual(recorded_calls[3], "宝物Challenge-right_click")
-
-        # Tick 5: treasure_challenge now ON -> all done -> returns None
-        self.med._challenge_done.add("treasure_challenge")
-        res5 = self.med._ensure_challenge_buttons(self.frame_off)
-        self.assertIsNone(res5)
+        with patch.object(self.med, "_capture_best", return_value=self.frame_on) as capture:
+            result = self.med._ensure_challenge_buttons(self.frame_off)
+        self.assertEqual(result, LoopAction.Continue)
+        self.assertEqual(recorded_calls, [
+            "金币Challenge-right_click",
+            "木材Challenge-right_click",
+            "经验Challenge-right_click",
+            "宝物Challenge-right_click",
+        ])
+        self.assertEqual(self.med._challenge_attempts, {
+            "coin_challenge": 1,
+            "wood_challenge": 1,
+            "experience_challenge": 1,
+            "treasure_challenge": 1,
+        })
+        self.assertEqual(self.med._challenge_done, {
+            "coin_challenge",
+            "wood_challenge",
+            "experience_challenge",
+            "treasure_challenge",
+        })
+        capture.assert_called_once()
 
     def test_post_verification_requires_green_auto_on_subsequent_frame(self):
         """4. Check post-verification: right-click does NOT mark challenge ON immediately."""
         self.med._auto_task_done = True
         self.med.act_right_click = MagicMock(return_value=True)
 
-        # First tick: right-clicks coin_challenge
-        res = self.med._ensure_challenge_buttons(self.frame_off)
+        with patch.object(self.med, "_capture_best", return_value=self.frame_on) as capture:
+            res = self.med._ensure_challenge_buttons(self.frame_off)
         self.assertEqual(res, LoopAction.Continue)
-        self.assertNotIn("coin_challenge", self.med._challenge_done)
-        self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.PENDING)
-
-        # Second tick with frame_on (green auto visible): now marks ON
-        res_on = self.med._ensure_challenge_buttons(self.frame_on)
-        self.assertIsNone(res_on)  # frame_on marks all ON -> returns None
-        self.assertIn("coin_challenge", self.med._challenge_done)
+        self.assertEqual(self.med.act_right_click.call_count, 4)
+        self.assertEqual(self.med._challenge_done, {
+            "coin_challenge",
+            "wood_challenge",
+            "experience_challenge",
+            "treasure_challenge",
+        })
         self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.ON)
+        capture.assert_called_once()
 
     def test_retry_limit_enters_phase_error_and_stops(self):
         """Three unconfirmed retries still Fail-Closed, with 1.5s observation spacing."""
@@ -172,7 +161,7 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         self.med.act_right_click = MagicMock(return_value=True)
         clock = FakeClock(start=100.0)
 
-        with clock.install():
+        with patch.object(self.med, "_ensure_four_challenges_fast", return_value=None), clock.install():
             # Attempt 1
             res1 = self.med._ensure_challenge_buttons(self.frame_off)
             self.assertEqual(res1, LoopAction.Continue)
@@ -421,7 +410,8 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         """Regression 2: Right click failure on attempt 1 increments attempt, returns Continue, and blocks stage select."""
         self.med._auto_task_done = True
 
-        with patch.object(self.med.executor, "right_click", return_value=ActionResult(success=False, status="FAILED")) as mock_rc, \
+        with patch.object(self.med, "_ensure_four_challenges_fast", return_value=None), \
+             patch.object(self.med.executor, "right_click", return_value=ActionResult(success=False, status="FAILED")) as mock_rc, \
              patch("shuabao.mediator.find_stage_labels") as mock_stage_find:
 
             res = self.med._tick_main_line(self.frame_off)
@@ -438,11 +428,11 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         with patch.object(self.med.executor, "right_click", return_value=ActionResult(success=False, status="FAILED")) as mock_rc, \
              patch("shuabao.mediator.find_stage_labels") as mock_stage_find:
 
+            # Owner 2026-09-26: a challenge toggle that keeps failing is recorded
+            # and retried later; it must not stop the whole run.
             res = self.med._tick_main_line(self.frame_off)
-            self.assertEqual(res, LoopAction.Break)
-            self.assertEqual(self.med.phase, Phase.ERROR)
-            self.assertFalse(self.med._running)
-            mock_stage_find.assert_not_called()
+            self.assertEqual(res, LoopAction.Continue)
+            self.assertNotEqual(self.med.phase, Phase.ERROR)
 
     def test_explicit_on_state_produces_zero_click(self):
         """Regression 4: Explicit ON state (green auto text >= 30) produces zero clicks."""
