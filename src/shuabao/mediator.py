@@ -121,6 +121,7 @@ from shuabao.choice_policy import (
     matches_bond_preset,
     same_bond_identity,
     slot_fingerprint,
+    template_family_sufficient,
 )
 from shuabao.interaction_surface import (
     ActionLifecycle,
@@ -3059,6 +3060,37 @@ class Mediator:
                 break
         return bands
 
+    def _template_slots_family_sufficient(self, frame: Frame, slots_raw: list[dict]) -> bool:
+        """L1 家族充分性门：模板槽只有家族名时，决策是否只依赖卡族。
+
+        纯本地判断（策略快照 + 已持有状态 + 羁绊栏 CV 计数），零 IPC。
+        不充分就回退 OCR，绝不降阈值。
+        """
+        policy = self._policy_settings()
+        presets: list[str] = []
+        for group in (
+            getattr(policy, "bond_presets", ()),
+            getattr(policy, "bond_base_presets", ()),
+            getattr(policy, "bond_chain_presets", ()),
+            getattr(policy, "bond_advanced_presets", ()),
+        ):
+            for item in group or ():
+                text = str(item or "").strip()
+                if text and text not in presets:
+                    presets.append(text)
+        try:
+            progress = self._extract_live_set_progress(frame) or {}
+        except Exception:
+            progress = {}
+        ok, _why = template_family_sufficient(
+            tuple(str(slot.get("name") or "").strip() for slot in slots_raw),
+            bond_presets=tuple(presets),
+            bond_must_take=tuple(getattr(policy, "bond_must_take", ()) or ()),
+            owned_bond_cards=tuple(self._confirmed_bond_cards() or ()),
+            progress_names=tuple(str(key) for key in progress.keys()),
+        )
+        return ok
+
     def _ocr_panel_slots(self, frame: Frame, kind: str) -> list[dict]:
         """Read title (+ treasure description) lines with deterministic layout=3 or 4 detection.
         When layout is determined, name ROI, desc ROI, rarity ROI and click centers MUST use the same layout.
@@ -3086,6 +3118,12 @@ class Mediator:
                         for slot in slots_raw
                     )
                 )
+                if (
+                    complete
+                    and kind == "bond"
+                    and not self._template_slots_family_sufficient(frame, slots_raw)
+                ):
+                    complete = False
                 if complete:
                     self._last_slots_from_template = True
                     return slots_raw

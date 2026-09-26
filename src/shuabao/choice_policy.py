@@ -1721,6 +1721,58 @@ def matches_bond_preset(name: str | None, presets: tuple[str, ...]) -> bool:
     return bool(text and any(preset and (text == preset or preset in text) for preset in presets))
 
 
+def template_family_sufficient(
+    slot_names: tuple[str, ...] | list[str],
+    *,
+    bond_presets: tuple[str, ...] = (),
+    bond_must_take: tuple[str, ...] = (),
+    owned_bond_cards: tuple[str, ...] = (),
+    progress_names: tuple[str, ...] = (),
+) -> tuple[bool, str]:
+    """模板快路家族充分性门（纯函数，无 I/O）。
+
+    模板槽只有系列标签家族名：无稀有度徽标、无 (x/y) 后缀、confidence 是
+    模板分而非 OCR 分。只有面板决策不可能依赖这些缺失信息时才允许直判：
+    - 至少含一个决策相关家族（预设/必拿/已持有/进度成员），否则品质降级
+      等回退分支两边可能分歧；
+    - 决策相关家族不得在面板出现 2 次及以上（_near_complete 按 confidence
+      取 max、_match_bond_preset 按稀有度 tie-break，两边排序键不同）；
+    - 决策相关槽不得命中已持有身份（合并/满卡让路依赖 (x/y) 后缀，模板没有）。
+    重复的非决策家族不影响。稀有度徽标不做 OCR 补读（快路零 IPC）：
+    _match_bond_preset 的稀有度 tie-break 只在同预设序命中之间生效，即同族
+    重复，已被上一条覆盖。
+    """
+    names = [str(item or "").strip() for item in (slot_names or ())]
+    if not names or any(not item for item in names):
+        return False, "模板槽位不完整"
+    presets = tuple(item for item in (bond_presets or ()) if str(item or "").strip())
+    owned = tuple(item for item in (owned_bond_cards or ()) if str(item or "").strip())
+    progs = tuple(item for item in (progress_names or ()) if str(item or "").strip())
+
+    def _relevant(name: str) -> bool:
+        if matches_bond_preset(name, presets):
+            return True
+        if _is_must_take(name, bond_must_take, is_bond=True):
+            return True
+        if any(same_bond_identity(name, have) for have in owned):
+            return True
+        return any(p in name or name in p for p in progs)
+
+    relevant = [item for item in names if _relevant(item)]
+    if not relevant:
+        return False, "面板无决策相关家族"
+    counts: dict[str, int] = {}
+    for item in relevant:
+        counts[item] = counts.get(item, 0) + 1
+    dupes = sorted(item for item, total in counts.items() if total >= 2)
+    if dupes:
+        return False, f"决策相关家族重复：{','.join(dupes)}"
+    for item in relevant:
+        if any(same_bond_identity(item, have) for have in owned):
+            return False, f"已持有相关【{item}】需后缀，走 OCR"
+    return True, "家族充分"
+
+
 def _match_bond_preset(
     slots: tuple[SlotCandidate, ...],
     presets: tuple[str, ...],

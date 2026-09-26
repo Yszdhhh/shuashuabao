@@ -34,6 +34,7 @@ from shuabao.choice_policy import (
     choose_action,
     panel_priority,
     slot_fingerprint,
+    template_family_sufficient,
     _rank_skill_candidates,
 )
 
@@ -2124,6 +2125,55 @@ class TestLiveRegressions20260822(unittest.TestCase):
         d = choose_action(cands, session=SessionState(refreshes=3, max_refreshes=3))
         self.assertEqual(d.action, PolicyAction.SELECT_SLOT)
         self.assertEqual(d.index, 0)
+
+
+class TestTemplateFamilySufficient(unittest.TestCase):
+    """Round 2（2026-09-26）：模板快路家族充分性门（纯函数）。"""
+
+    def test_single_preset_family_passes(self):
+        ok, _ = template_family_sufficient(
+            ("祝福", "挑战", "暴击", "体术"),
+            bond_presets=("祝福", "挑战"),
+        )
+        self.assertTrue(ok)
+
+    def test_no_relevant_family_fails(self):
+        ok, why = template_family_sufficient(
+            ("挑战", "暴击", "体术"),
+            bond_presets=("祝福",),
+        )
+        self.assertFalse(ok)
+        self.assertIn("无决策相关", why)
+
+    def test_duplicate_relevant_family_fails(self):
+        ok, why = template_family_sufficient(
+            ("祝福", "祝福", "挑战", "暴击"),
+            bond_presets=("祝福", "挑战"),
+        )
+        self.assertFalse(ok)
+        self.assertIn("祝福", why)
+
+    def test_duplicate_irrelevant_family_passes(self):
+        ok, _ = template_family_sufficient(
+            ("祝福", "刀刀", "刀刀", "挑战"),
+            bond_presets=("祝福",),
+        )
+        self.assertTrue(ok)
+
+    def test_owned_identity_needs_suffix(self):
+        ok, _ = template_family_sufficient(
+            ("祝福", "挑战", "暴击"),
+            bond_presets=("祝福",),
+            owned_bond_cards=("祝福(2/3)",),
+        )
+        self.assertFalse(ok)
+
+    def test_empty_slot_fails_closed(self):
+        ok, _ = template_family_sufficient(
+            ("祝福", "", "挑战"),
+            bond_presets=("祝福",),
+        )
+        self.assertFalse(ok)
 
 
 if __name__ == "__main__":

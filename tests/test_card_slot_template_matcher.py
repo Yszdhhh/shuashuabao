@@ -18,6 +18,7 @@ from shuabao.vision.matcher import (
     clear_template_cache,
     match_card_slots_by_template,
     _CARD_FAMILY_TEMPLATES_CACHE,
+    _get_card_family_templates,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -84,6 +85,48 @@ class CardSlotTemplateMatcherTests(unittest.TestCase):
     def test_none_frame_returns_none(self):
         res = match_card_slots_by_template(None, IMAGES_DIR, kind="bond", fetter_labels=FETTER_LABELS)
         self.assertIsNone(res)
+
+    # Round 2 (2026-09-26): 6 new families cut from live bundle frames
+    # (solo_ingame_chain_20260925_*), genji/shenfa re-cut. Each strip asserts
+    # argmax identity + online gate score over ALL family templates.
+    def test_round2_new_family_strips_argmax(self):
+        cases = {
+            "strip_jianshu_20260926.png": ("jianshu", "箭术"),
+            "strip_cangbaotu_20260926.png": ("cangbaotu", "藏宝图(三)"),
+            "strip_wangling_20260926.png": ("wangling", "亡灵"),
+            "strip_sanguo_20260926.png": ("sanguo", "三国"),
+            "strip_daodao_20260926.png": ("daodao", "刀刀"),
+            "strip_genji_20260926.png": ("genji", "根基"),
+            "strip_shenfa_20260926.png": ("shenfa", "身法"),
+            "strip_fengshen_20260926.png": ("fengshen", "封神"),
+        }
+        templates = _get_card_family_templates(IMAGES_DIR, FETTER_LABELS)
+        self.assertGreaterEqual(len(templates), 45)
+        by_code = {code: tpl for code, _label, tpl in templates}
+        for fname, (code, label) in cases.items():
+            with self.subTest(strip=fname):
+                data = np.fromfile(
+                    str(ROOT / "fixtures/card_template_assertions/positives" / fname),
+                    dtype=np.uint8,
+                )
+                strip = cv2.imdecode(data, cv2.IMREAD_GRAYSCALE)
+                self.assertIsNotNone(strip)
+                best_code, best_score = "", -1.0
+                for cand_code, tpl in by_code.items():
+                    th, tw = tpl.shape[:2]
+                    if strip.shape[0] < th or strip.shape[1] < tw:
+                        continue
+                    res = cv2.matchTemplate(strip, tpl, cv2.TM_CCOEFF_NORMED)
+                    val = float(cv2.minMaxLoc(res)[1])
+                    if val > best_score:
+                        best_score, best_code = val, cand_code
+                self.assertEqual(best_code, code)
+                self.assertGreaterEqual(best_score, 0.90)
+                self.assertEqual(FETTER_LABELS[code], label)
+
+    def test_qiji_label_is_canonical_qiji(self):
+        # Live OCR spells it 奇技 (10/12 slots in the two bundles); 奇迹 is an alias.
+        self.assertEqual(FETTER_LABELS["qiji"], "奇技")
 
     def test_cache_clearing(self):
         f = _load_frame(ROOT / "fixtures/card_template_assertions/positives/bond_choice_3.png")
