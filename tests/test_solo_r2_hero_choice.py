@@ -107,3 +107,19 @@ def test_hero_choice_unrecognized_fails_closed_without_blind_click() -> None:
         # Must return None (zero-input wait), NOT evolution_card_0_fallback @ (666, 300)
         assert choice is None
 
+
+
+def test_four_card_bond_panel_is_not_a_two_card_hero_choice() -> None:
+    """四卡羁绊面板中间两张卡的边框与英雄二选一重合，不得被判成英雄面板。"""
+    fixture = ROOT / "tests" / "fixtures" / "solo_live_20260914" / "fengshen_roushen_f0245.png"
+    bgr = cv2.imdecode(np.fromfile(str(fixture), dtype=np.uint8), cv2.IMREAD_COLOR)
+    assert bgr is not None
+    frame = Frame(bgr)
+    med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT)
+
+    anchor = med._selection_anchor(frame)
+    assert anchor is not None and anchor.name == "bond_hide_btn"
+    assert med._find_evolution_choice(frame, anchor) is None
+    assert med._find_evolution_choice(frame, None) is None
+    assert med._classify_choice_panel(frame) == "bond"
+    assert med._panel_kind_of(frame, anchor) == "bond"
