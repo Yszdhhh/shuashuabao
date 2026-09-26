@@ -82,6 +82,8 @@ def _med(**kw) -> Mediator:
     )
     med = Mediator(settings, ROOT)
     med.set_phase(Phase.MAIN_LINE)
+    # 这些用例测的是祝福拿完之后的循环（Owner 2026-09-26 04:59：祝福先于进化/英雄/神器）。
+    med._bond_cards_owned = ["祝福", "祝福", "祝福"]
     return med
 
 

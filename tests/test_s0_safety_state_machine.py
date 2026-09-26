@@ -479,7 +479,9 @@ class S0PanelFsmTests(unittest.TestCase):
                 patch.object(med, "_maybe_use_inventory_item", return_value=None), \
                 patch.object(med, "_hud_item_bar_overflowed", return_value=False), \
                 patch.object(med, "_urgent_merchant_reason", return_value=None), \
+                patch.object(med, "_blessing_priority_active", return_value=False), \
                 patch.object(med, "act_click", side_effect=lambda _h, reason="": clicked.append(reason) or True):
+            # 祝福优先已结束：本例测 G 面板的可见窗（Owner 2026-09-26 04:59 祝福先于进化/英雄/神器）。
             # tick1：主动打开技能面板（G）（噪声帧的羁绊栏读成满格，插队黑商不在本用例范围）
             clock.set(100.5)
             self.assertIs(med.tick(), LoopAction.Continue)
@@ -518,6 +520,7 @@ class S0PanelFsmTests(unittest.TestCase):
                 patch.object(med2, "_maybe_use_inventory_item", return_value=None), \
                 patch.object(med2, "_hud_item_bar_overflowed", return_value=False), \
                 patch.object(med2, "_urgent_merchant_reason", return_value=None), \
+                patch.object(med2, "_blessing_priority_active", return_value=False), \
                 patch.object(med2, "act_click", side_effect=lambda _h, reason="": clicked2.append(reason) or True):
             clock2.set(200.5)
             med2.tick()  # 打开
