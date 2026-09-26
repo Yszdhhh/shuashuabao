@@ -47,7 +47,7 @@ def _run_runtime_bond(
 
 
 def test_runtime_default_settings_allows_mandatory_blessing() -> None:
-    med = RuntimeMediator(Settings(), ROOT)
+    med = RuntimeMediator(Settings(ocr_mode="off"), ROOT)
     result = _run_runtime_bond(
         med,
         [
@@ -63,7 +63,7 @@ def test_runtime_default_settings_allows_mandatory_blessing() -> None:
 
 
 def test_runtime_default_settings_allows_exhausted_off_whitelist_fallback() -> None:
-    med = RuntimeMediator(Settings(), ROOT)
+    med = RuntimeMediator(Settings(ocr_mode="off"), ROOT)
     result = _run_runtime_bond(
         med,
         [
@@ -79,7 +79,7 @@ def test_runtime_default_settings_allows_exhausted_off_whitelist_fallback() -> N
 
 
 def test_runtime_default_settings_refreshes_before_fallback() -> None:
-    med = RuntimeMediator(Settings(), ROOT)
+    med = RuntimeMediator(Settings(ocr_mode="off"), ROOT)
     slots = [
         {"index": 0, "name": "白名单外甲", "confidence": 0.99, "rarity": "blue"},
         {"index": 1, "name": "白名单外乙", "confidence": 0.99, "rarity": "red"},
@@ -94,7 +94,7 @@ def test_runtime_default_settings_refreshes_before_fallback() -> None:
 
 
 def test_runtime_blocks_unreadable_policy_selection() -> None:
-    med = RuntimeMediator(Settings(), ROOT)
+    med = RuntimeMediator(Settings(ocr_mode="off"), ROOT)
     unreadable = MatchResult("ocr_bond:", 1.0, 560, 330, 1, 1, 560, 330)
     with (
         patch.object(med, "_panel_kind_of", return_value="bond"),
@@ -105,7 +105,7 @@ def test_runtime_blocks_unreadable_policy_selection() -> None:
 
 
 def test_runtime_jinzifa_only_page_is_zero_input_without_anshen() -> None:
-    med = RuntimeMediator(Settings(), ROOT)
+    med = RuntimeMediator(Settings(ocr_mode="off"), ROOT)
     result = _run_runtime_bond(
         med,
         [{"index": 0, "name": "禁字法", "confidence": 0.99, "rarity": "red"}],
