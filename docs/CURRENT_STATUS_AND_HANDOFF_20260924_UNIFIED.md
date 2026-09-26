@@ -10,7 +10,10 @@
 - `2150c1071f563ed558e2e2af964098b3413b1015` — `fix(l1): preserve policy-authorized bond selections`：删除 RuntimeMediator 对策略已授权羁绊选择的二次白名单否决；仅保留不可读卡名零输入拦截。删除 `bond.negative_names` 配置/字段/过滤；抽出普通选择与刷新耗尽兜底共用的禁字法条件门（无安身法不得拿）。`whitelist_mode` 保持 `hard`，刷新次数文案统一为 3。
 - `824f471b82079b50e3f9042a7bd4a19ef593f6d3` — `fix(l1): scope anchorless hero geometry to evolve`：只有 `_evolve_feedback_pending` / `_evolve_awaiting_hero_pick` 事务允许在 anchor 缺失时采用双卡几何；补 f0030 正样本与羁绊/技能/宝物/HUD/结算负样本。
 - `2d5740eff9906ef0094b372e288ceaa8438b578a` — `fix(l0): require real clipping for last-stage fallback`：末行兜底要求环框下沿真实超出列表 ROI/帧底，48/25/80 像素阈值随 scale 缩放；两行整圈同时高亮时 fail-closed，不进入截断兜底；补末行未选中、未截断、双高亮与 1280×720 回归。
-- `c2ea2cbde578bfe7cffc9c1d439e6a166c9f7506` — `chore(release): pin round4 audit candidate`：运行身份锚点钉到最后一个修改 `src/shuabao` 的 `2d5740e`，保证 live-harness 的 production-code diff 可按正确 candidate 判定。
+- `c2ea2cbde578bfe7cffc9c1d439e6a166c9f7506` — `chore(release): pin round4 audit candidate`：首次把运行身份锚点钉到 `2d5740e`。
+- `e60bb017afbebb23d9e70609913a533cbdf9f1ee` — `docs: record PR51 audit closure status`：回写本节提交列表、资产门禁证据和真机重验项。
+- `be037d5e6ea958caabad470265ff6662d3cd5ec3` — `docs(policy): remove stale bond-ban wording`：清除策略源码注释与旧交接段落中残留的“羁绊永久负面名单”措辞；这是最后一个触碰 `src/shuabao` 的提交。
+- `1eeb59c1b810b2fe53a1c0eec9ca930ee11f8731` — `chore(release): repin audited runtime identity`：最终运行身份锚点改钉到 `be037d5e`，后续仅允许 baseline/文档门禁提交，不再修改 `src/shuabao`。
 
 资产门禁事实已复核：`bc8d331` 有意新增 6 张羁绊家族模板（箭术/藏宝图/亡灵/三国/刀刀/封神）并替换 genji/shenfa；`113185c` 又从真机帧重切这 8 张模板并同步 runtime asset manifest。当前 manifest 为 436 条，基线为 430，差值正好 6；8 个家族都有正样本 strip，`test_round2_new_family_strips_argmax` 对当前全模板做 argmax 且要求分数 ≥0.90。基线不得手改；必须在 Windows 上实际执行完整 `python tools/release_gate.py --update-baseline --reason "..."` 生成单独 baseline commit，然后在该新 HEAD 再跑 `python tools/release_gate.py`，要求 4/4、退出码 0。
 
