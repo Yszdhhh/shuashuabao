@@ -4794,7 +4794,8 @@ class Mediator:
     _SKILL_VISIT_PICKS = 5
     # F draw price: 20/40/60/80 for the first draws, then 100 (live panel text).
     _BOND_REFRESH_MARGIN = 40
-    _BOND_REFRESH_MAX_PER_GROUP = 2
+    # Owner 2026-09-26: refresh at most 3 times (~100 wood), then take a card.
+    _BOND_REFRESH_MAX_PER_GROUP = 3
     _BOND_REFRESH_PRICES = (40, 60, 80, 100)
 
     def _bond_next_price(self) -> int:

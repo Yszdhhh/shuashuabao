@@ -115,8 +115,9 @@ def test_fast_pack_is_walked_from_first_to_last_pickable_card(pack: str) -> None
         assert (decision.action, decision.index) == (PolicyAction.SELECT_SLOT, 1), (step, card, decision.reason)
         decision_blessing = _decide(policy, [card, "祝福"], owned=owned)
         assert (decision_blessing.action, decision_blessing.index) == (PolicyAction.SELECT_SLOT, 1), (step, card, decision_blessing.reason)
+        # Owner 2026-09-26：祝福 > 成长/经济 > 当前高级组，经济同页先拿。
         decision_econ = _decide(policy, [card, "经济"], owned=owned)
-        assert (decision_econ.action, decision_econ.index) == (PolicyAction.SELECT_SLOT, 0), (step, card, decision_econ.reason)
+        assert (decision_econ.action, decision_econ.index) == (PolicyAction.SELECT_SLOT, 1), (step, card, decision_econ.reason)
         owned.append(card)
     # EX 终卡通常靠合成；海贼王与系列同名，按 Owner 2026-09-26 口径拿。
     decision = _decide(policy, [EX_FINAL[pack]], owned=owned)
