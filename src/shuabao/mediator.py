@@ -115,6 +115,7 @@ from shuabao.choice_policy import (
     SlotCandidate,
     _is_uncompleted_merge_upgrade,
     assemble_policy_settings,
+    bond_banned,
     bond_candidate_allowed,
     choose_action,
     hitch_treasure_pick,
@@ -3124,6 +3125,7 @@ class Mediator:
                 and float(slot.get("template_score", 0.0)) >= 0.85
                 and matches_bond_preset(str(slot["name"]), targets)
                 and bond_candidate_allowed(str(slot["name"]), owned)
+                and not bond_banned(str(slot["name"]), policy)
             ]
             if not hits:
                 continue

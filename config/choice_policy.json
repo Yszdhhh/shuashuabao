@@ -25,7 +25,7 @@
   "bond": {
     "whitelist_mode": "hard",
     "_whitelist_source": "Settings.bonds + Settings.cards（看板羁绊配置）",
-    "_note": "whitelist_mode 保持 hard：看板勾选项构成常规选择白名单；未勾选普通羁绊只在刷新预算耗尽或木材不足时进入兜底，不存在羁绊永久负面名单（负面禁拿仅属于宝物）。Owner 2026-09-24：高级卡组不设硬门槛；同一时刻只推进一组，羁绊栏出现蓝色 EX（海盗为 UR）后解锁下一组。Owner 2026-09-26：祝福不由看板勾选、每局必拿；同页顺序为祝福 > 成长/经济 > 当前高级卡组 > 其它白名单，再按品质和最左位置。羁绊面板每次打开最多刷新 3 次；预算耗尽或木材不足时必须从当前可读卡中按此顺序选一张。base_completion_ratio / advanced_unlock_s 只用于调度（木材 ≥500 时基础羁绊未成型先点 F），不再拦拿卡。",
+    "_note": "whitelist_mode 保持 hard：看板勾选项构成常规选择白名单；未勾选普通羁绊只在刷新预算耗尽或木材不足时进入兜底，禁拿卡由 bond.negative_names + 看板 bond_banned 决定、任何路径都不拿；看板未勾选的高级卡组在兜底时也不拿（bond_unselected_advanced_names）。Owner 2026-09-24：高级卡组不设硬门槛；同一时刻只推进一组，羁绊栏出现蓝色 EX（海盗为 UR）后解锁下一组。Owner 2026-09-26：祝福不由看板勾选、每局必拿；同页顺序为祝福 > 成长/经济 > 当前高级卡组 > 其它白名单，再按品质和最左位置。羁绊面板每次打开最多刷新 3 次；预算耗尽或木材不足时必须从当前可读卡中按此顺序选一张。base_completion_ratio / advanced_unlock_s 只用于调度（木材 ≥500 时基础羁绊未成型先点 F），不再拦拿卡。",
     "base_completion_ratio": 0.8,
     "advanced_names": [
       "海贼王",
@@ -259,6 +259,8 @@
     ],
     "_ex_final_names_note": "Owner 2026-09-24：终卡（海盗为 UR）靠合成得到，不从面板拿；Owner 2026-09-26：海贼王家族名与终卡同名，看到就拿，不进入剥离名单。assemble 在装配 bond_presets 时统一剥离本名单（advanced_groups 保留终卡只为链路归属与既有契约不断）；旧 Qt 外壳另有 main_window._advanced_pack_tokens 的 banned+exclude_ex 过滤。2026-09-26 首个正式版卡组收敛补齐。",
     "must_take_names": [],
+    "negative_names": [],
+    "_negative_names_note": "Owner 2026-09-26 03:33「禁拿卡永远不拿」：羁绊禁拿名单，默认空。看板 Settings.bond_banned 与本名单合并，常规拿卡、模板直拿、刷新耗尽兜底都排除命中卡。亡灵等可勾选卡组不放这里：未勾选卡组只在兜底时由 bond_unselected_advanced_names 排除。",
     "advanced_unlock_s": 480,
     "_advanced_unlock_note": "2026-09-15 起是基础卡门槛（base_completion_ratio）的时间兜底；Owner 2026-09-24 取消拿卡硬门槛后，只用来结束调度上的\"基础羁绊未成型，F 优先\"。"
   },

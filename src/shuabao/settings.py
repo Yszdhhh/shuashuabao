@@ -165,6 +165,8 @@ class Settings:
     # Unknown bond cards must not bypass the declared strategy.
     bond_whitelist_mode: str = "hard"
     bond_must_take: list[str] = field(default_factory=list)
+    # Owner 2026-09-26 03:33：羁绊禁拿名单（看板可配，默认空），命中的卡永远不拿。
+    bond_banned: list[str] = field(default_factory=list)
     # 负面宝物放行名单（拿了会断资源/断成长的卡，默认一张都不选）。
     # 面板『宝物 · 负面卡』折叠区逐张打勾后写入；放行是逐卡的，不是全局开关。
     # 语义与判定见 config/choice_policy.json 与 shuabao.choice_policy。
@@ -301,7 +303,7 @@ class Settings:
                     clean[k] = ""
                 elif k in (
                     "skills", "cards", "stage_targets", "treasure_allow_negative",
-                    "bond_must_take", "bonds", "attributes", "smart_route_disabled_amplifiers",
+                    "bond_must_take", "bond_banned", "bonds", "attributes", "smart_route_disabled_amplifiers",
                     "skill_priority", "skill_custom_routes",
                 ):
                     clean[k] = []
@@ -450,6 +452,14 @@ class Settings:
                 clean.pop("bond_must_take")
             else:
                 clean["bond_must_take"] = []
+        if "bond_banned" in clean:
+            raw_banned = clean["bond_banned"]
+            if isinstance(raw_banned, (list, tuple)):
+                clean["bond_banned"] = list(dict.fromkeys(str(v).strip() for v in raw_banned if str(v).strip()))
+            elif fallback is not None:
+                clean.pop("bond_banned")
+            else:
+                clean["bond_banned"] = []
         if "bond_whitelist_mode" in clean:
             mode = str(clean["bond_whitelist_mode"]).strip().lower()
             if mode in {"soft", "hard"}:
@@ -599,7 +609,7 @@ class Settings:
         errors: list[str] = []
         known = cls.__dataclass_fields__
         string_lists = {
-            "stage_targets", "skills", "cards", "bond_must_take", "treasure_allow_negative",
+            "stage_targets", "skills", "cards", "bond_must_take", "bond_banned", "treasure_allow_negative",
             "smart_route_disabled_amplifiers", "skill_priority", "bonds", "attributes",
         }
         for key, value in data.items():

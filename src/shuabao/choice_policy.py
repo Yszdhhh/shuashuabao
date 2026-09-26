@@ -258,6 +258,9 @@ class PolicySettings:
     min_confidence: float = 0.0
     bond_whitelist_mode: str = WHITELIST_HARD
     bond_must_take: tuple[str, ...] = DEFAULT_BOND_MUST_TAKE
+    # Owner 2026-09-26 03:33「禁拿卡永远不拿」：常规、模板直拿、刷新耗尽兜底都排除。
+    # 来源 = config bond.negative_names + 看板 Settings.bond_banned，默认空。
+    bond_negative_names: tuple[str, ...] = ()
     bond_unselected_advanced_names: tuple[str, ...] = ()
     treasure_negative_patterns: tuple[str, ...] = DEFAULT_NEGATIVE_PATTERNS
     treasure_negative_names: tuple[str, ...] = DEFAULT_NEGATIVE_NAMES
@@ -340,6 +343,7 @@ class PolicySettings:
         neg_names = raw.get("treasure_negative_names")
         must_take = raw.get("treasure_must_take")
         bond_must_take = raw.get("bond_must_take")
+        bond_negative_names = raw.get("bond_negative_names")
         habit_raw = raw.get("habit_name_scores") or {}
         if isinstance(habit_raw, Mapping):
             habit_scores = tuple((str(k), float(v)) for k, v in habit_raw.items())
@@ -394,6 +398,9 @@ class PolicySettings:
             bond_must_take=tuple(dict.fromkeys(
                 DEFAULT_BOND_MUST_TAKE
                 + tuple(str(s) for s in (bond_must_take or ()))
+            )),
+            bond_negative_names=tuple(dict.fromkeys(
+                str(s).strip() for s in (bond_negative_names or ()) if str(s).strip()
             )),
             treasure_negative_patterns=(
                 tuple(str(s) for s in neg) if neg is not None else DEFAULT_NEGATIVE_PATTERNS
@@ -668,6 +675,10 @@ def assemble_policy_settings(
                 + tuple(str(s) for s in (getattr(settings, "bond_must_take", None) or ()))
                 + tuple(str(s) for s in (bond_cfg.get("must_take_names") or ()))
             )),
+            "bond_negative_names": (
+                tuple(str(s) for s in (bond_cfg.get("negative_names") or ()))
+                + tuple(str(s) for s in (getattr(settings, "bond_banned", None) or ()))
+            ),
             "treasure_negative_patterns": treasure_cfg.get("negative_patterns"),
             "treasure_negative_names": treasure_cfg.get("negative_names"),
             "treasure_must_take": treasure_cfg.get("must_take_names"),
@@ -1430,6 +1441,7 @@ def bond_candidate_allowed(name: str | None, owned_bonds: tuple[str, ...] | list
     return True
 
 
+<<<<<<< HEAD
 # Owner 2026-09-26 03:03：三国是魏、蜀、吴、群雄四选三。哪国先出来就先拿该国启动卡，
 # 拿满 3 国后不再拿第四国。国别卡名来自 config/choice_lexicon.json（启动牌 + UR），
 # 国名本身是系列标签模板的家族名。按卡名严格身份匹配，不用子串（魏延≠魏）。
@@ -1462,6 +1474,11 @@ def sanguo_blocked_faction(name: str | None, owned_bonds: tuple[str, ...] | list
         found for found in (sanguo_faction(item) for item in (owned_bonds or ())) if found
     }
     return len(owned_factions) >= SANGUO_MAX_FACTIONS and faction not in owned_factions
+=======
+def bond_banned(name: str | None, settings: PolicySettings) -> bool:
+    """Owner 2026-09-26 03:33：禁拿名单里的羁绊卡永远不拿（常规路径、兜底、模板直拿）。"""
+    return bool(name) and matches_bond_preset(name, settings.bond_negative_names)
+>>>>>>> cloud/pr58
 
 
 def _best_available_bond_pick(cands, settings, active_adv) -> SlotCandidate | None:
@@ -1472,6 +1489,8 @@ def _best_available_bond_pick(cands, settings, active_adv) -> SlotCandidate | No
         if slot.name and str(slot.name).strip()
         and slot.confidence >= settings.min_confidence
         and bond_candidate_allowed(slot.name, cands.owned_bond_cards)
+        # 兜底入口最后一道检查：禁拿名单（本函数）与未勾选卡组（omp 护栏）一律不拿。
+        and not bond_banned(slot.name, settings)
         and not (
             _is_unselected_advanced_bond(slot.name, settings)
             and not _is_uncompleted_merge_upgrade(slot, owned)
@@ -1656,6 +1675,7 @@ def _decide_collectible(
             eligible = tuple(
                 slot for slot in eligible
                 if bond_candidate_allowed(slot.name, owned_bonds)
+                and not bond_banned(slot.name, settings)
             )
             eligible = _bond_capacity_candidates(cands, eligible, settings)
             # Owner 2026-09-24：高级卡组不设基础 80% / 开局时间这类硬门槛；同一时刻
