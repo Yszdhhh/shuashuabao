@@ -1328,6 +1328,32 @@ def _drop_completed_bond_slots(
     return tuple(kept)
 
 
+def _best_available_bond_pick(cands, settings, active_adv) -> SlotCandidate | None:
+    """Pick a readable current card after bond refreshes are exhausted."""
+    available = [
+        slot for slot in cands.slots
+        if slot.name and str(slot.name).strip() and slot.confidence >= settings.min_confidence
+    ]
+    if not available:
+        return None
+
+    def priority(slot: SlotCandidate) -> tuple[int, int, int]:
+        name = slot.name
+        if same_bond_identity(name, "祝福"):
+            tier = 0
+        elif matches_bond_preset(name, ("成长", "经济")):
+            tier = 1
+        elif matches_bond_preset(name, active_adv):
+            tier = 2
+        elif matches_bond_preset(name, settings.bond_presets):
+            tier = 3
+        else:
+            tier = 4
+        return tier, _rarity_rank(slot.rarity, settings.quality_order), int(slot.index)
+
+    return min(available, key=priority)
+
+
 def _bond_progress_hits(
     cands: PanelCandidates, slots: tuple[SlotCandidate, ...]
 ) -> tuple[tuple[SlotCandidate, int, int, str], ...]:
@@ -1483,7 +1509,7 @@ def _decide_collectible(
                 eligible = tuple(
                     slot for slot in eligible
                     if (
-                        _is_bond_must_take(slot.name, settings.bond_must_take)
+                        (same_bond_identity(slot.name, "祝福") or _is_bond_must_take(slot.name, settings.bond_must_take))
                         or matches_bond_preset(slot.name, settings.bond_base_presets)
                         or matches_bond_preset(slot.name, settings.bond_chain_presets)
                         or matches_bond_preset(slot.name, active_adv)
@@ -1499,11 +1525,15 @@ def _decide_collectible(
                             None,
                             f"当前高级卡组未完成，第 {state.refreshes + 1}/{state.max_refreshes} 次刷新",
                         )
-                    return _no_safe_candidate(cands, state, kind, "当前高级卡组未完成，本页无合法卡")
+                    fallback = _best_available_bond_pick(cands, settings, active_adv)
+                    if fallback is not None:
+                        return PolicyDecision.select(fallback.index, f"羁绊刷新耗尽，当前页兜底选择【{fallback.name}】")
+                    return _no_safe_candidate(cands, state, kind, "当前高级卡组未完成，本页无可读卡")
             if settings.bond_whitelist_mode == WHITELIST_HARD:
                 eligible = tuple(
                     slot for slot in eligible
-                    if _is_bond_must_take(slot.name, settings.bond_must_take)
+                    if same_bond_identity(slot.name, "祝福")
+                    or _is_bond_must_take(slot.name, settings.bond_must_take)
                     or matches_bond_preset(slot.name, settings.bond_presets)
                     or _is_uncompleted_merge_upgrade(slot, owned_bonds)
                 )
@@ -1520,13 +1550,33 @@ def _decide_collectible(
             for slot in eligible:
                 if (
                     slot.confidence >= settings.min_confidence
-                    and _is_bond_must_take(slot.name, settings.bond_must_take)
+                    and (same_bond_identity(slot.name, "祝福") or _is_bond_must_take(slot.name, settings.bond_must_take))
+                    and (
+                        not same_bond_identity(slot.name, "祝福")
+                        or not any(same_bond_identity(name, "祝福") for name in owned_bonds)
+                    )
                 ):
                     return PolicyDecision.select(
                         slot.index, f"羁绊系统必拿【{slot.name}】 @ slot {slot.index}"
                     )
 
-            # 2. 差一张合成秒选（受容量与门禁约束；满槽仅限已持有同卡合并）
+            growth_economy_hit = _match_bond_preset(
+                eligible,
+                tuple(name for name in settings.bond_presets if matches_bond_preset(name, ("成长", "经济"))),
+                settings.min_confidence,
+                settings.quality_order,
+            )
+            if growth_economy_hit is not None:
+                name = _slot_name(cands.slots, growth_economy_hit)
+                return PolicyDecision.select(growth_economy_hit, f"成长/经济羁绊优先：{name} @ slot {growth_economy_hit}")
+
+            if settings.bond_advanced_groups:
+                pack_hit = _match_bond_preset(
+                    eligible, active_adv, settings.min_confidence, settings.quality_order
+                )
+                if pack_hit is not None:
+                    name = _slot_name(cands.slots, pack_hit)
+                    return PolicyDecision.select(pack_hit, f"当前高级卡组持续推进：{name} @ slot {pack_hit}")
             near = _near_complete_bond_slots(cands, settings, slots=eligible)
             if cands.free_slots is not None and cands.free_slots <= 0:
                 near = tuple(s for s in near if _is_uncompleted_merge_upgrade(s, owned_bonds))
@@ -1536,30 +1586,6 @@ def _decide_collectible(
                     slot.index,
                     f"羁绊差一张合成秒选【{slot.name}】 @ slot {slot.index}",
                 )
-
-            # 2.5 Owner 2026-09-25：同页拿卡时只有「祝福」优先于高级卡组；高级卡组与其余基础卡平级。
-            #     排在"差一张合成"之后：差一张的卡本页不拿就可能丢掉整组合成。
-            #     只对还没拿到的祝福（及必拿）生效，已拿到的走下方合成/高级卡组/预设顺序。
-            blessing_tier = tuple(
-                name for name in settings.bond_presets
-                if same_bond_identity(name, "祝福") or name in settings.bond_must_take
-            )
-            if blessing_tier and settings.bond_advanced_presets:
-                missing_blessing = tuple(
-                    slot for slot in eligible
-                    if matches_bond_preset(slot.name, blessing_tier)
-                    and not any(same_bond_identity(name, slot.name) for name in owned_bonds)
-                )
-                base_hit = _match_bond_preset(
-                    missing_blessing, blessing_tier,
-                    settings.min_confidence, settings.quality_order,
-                )
-                if base_hit is not None:
-                    name = _slot_name(cands.slots, base_hit)
-                    return PolicyDecision.select(base_hit, f"祝福羁绊优先：{name} @ slot {base_hit}")
-
-            # 3. 20260822：已持有的羁绊卡合成跃升（如 1/3, 2/3 未满星卡牌）
-            # 只要手中已持有过某羁绊卡，且当前面板再次出现该卡，优先合成升级，绝不可刷新丢弃！
             for slot in eligible:
                 if (
                     slot.confidence >= settings.min_confidence
@@ -1568,15 +1594,6 @@ def _decide_collectible(
                     return PolicyDecision.select(
                         slot.index, f"羁绊已持有合成优先：{slot.name} @ slot {slot.index}"
                     )
-            # The active advanced pack keeps moving when one of its members
-            # appears; only a missing basic bond (2.5) goes before it.
-            if settings.bond_advanced_groups:
-                pack_hit = _match_bond_preset(
-                    eligible, active_adv, settings.min_confidence, settings.quality_order
-                )
-                if pack_hit is not None:
-                    name = _slot_name(cands.slots, pack_hit)
-                    return PolicyDecision.select(pack_hit, f"当前高级卡组持续推进：{name} @ slot {pack_hit}")
     if kind == PANEL_BOND:
         # 凑满让路：已完成环不再参与预设匹配，同页后环才能排到。
         # 必拿 / 差一张 / 已持有合成 / 高级卡组都在前面跑过，不受影响。
@@ -1606,13 +1623,17 @@ def _decide_collectible(
                 None,
                 f"羁绊未命中预设（第 {state.refreshes + 1}/{state.max_refreshes} 次木材刷新）",
             )
-        if settings.bond_whitelist_mode == WHITELIST_HARD:
-            return _no_safe_candidate(cands, state, kind, "白名单外不可选（硬禁用，刷新已耗尽）")
-
     synth_hit = _match_synthesis(cands, settings.min_confidence, slots=eligible)
     if synth_hit is not None:
         name = _slot_name(cands.slots, synth_hit)
         return PolicyDecision.select(synth_hit, f"{kind} 套装进度优先：{name} @ slot {synth_hit}")
+
+    if kind == PANEL_BOND and not (
+        state.refreshes < state.max_refreshes and getattr(cands, "can_refresh", False)
+    ):
+        fallback = _best_available_bond_pick(cands, settings, active_adv)
+        if fallback is not None:
+            return PolicyDecision.select(fallback.index, f"羁绊刷新耗尽，当前页兜底选择【{fallback.name}】")
 
     # 20260822 实机（trace 203910 20:42:19/22）：宝物面板橙/紫卡 OCR 读不出
     # 名字（conf=0）时品质降级只能在"可读的绿卡"里挑——用户裁决：宝物走红→

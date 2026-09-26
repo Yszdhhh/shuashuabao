@@ -4,8 +4,8 @@
 覆盖 grok 核查 attribute_lines_ur_check.md 的断点修复：
 - UR 散件名单槽出现时视同该线 UR 去拿（不再刷新）；
 - 门卡凑满后同页让路给下一环；
-- 与祝福同页时祝福先拿（Owner 规则，本轮不动，只锁定现状）；
-- 当前高级卡组先于未入手链上卡（Owner 2026-09-25 现状，本轮不动，只锁定）。
+- 与祝福同页时祝福无条件最高优先；
+- 当前高级卡组先于未入手属性链卡（Owner 2026-09-26：成长/经济除外）。
 
 全部走 choose_action / assemble_policy_settings 纯函数，零真实输入。
 """
@@ -137,7 +137,7 @@ def test_gate_to_ur_walk_for_one_selected_line() -> None:
 
 
 def test_blessing_still_beats_the_chain_on_the_same_page() -> None:
-    """Owner 规则（本轮不动）：只有祝福高于一切；同页有祝福系必拿先拿。"""
+    """Owner 2026-09-26：祝福无条件必拿且高于其它候选。"""
     decision = _decide(slots=["秘法师", "智力祝福"])
     assert decision.action == PolicyAction.SELECT_SLOT, decision.reason
     assert decision.index == 1, decision.reason
@@ -148,15 +148,14 @@ def test_blessing_still_beats_the_chain_on_the_same_page() -> None:
 
 
 def test_current_advanced_pack_still_beats_unowned_chain_card() -> None:
-    """Owner 2026-09-25 现状（本轮不动）：高级卡组与其余基础卡（含属性）平级，
-    实现为当前高级卡组先拿；已持有的链上卡靠补合成赢回来。"""
+    """Owner 2026-09-26：当前高级卡组高于其它白名单（属性线属于其它白名单）。"""
     decision = _decide(slots=["智力", "白赚海盗"], cards=list(HAIDAO))
     assert decision.action == PolicyAction.SELECT_SLOT, decision.reason
     assert decision.index == 1, decision.reason
 
     decision = _decide(slots=["智力", "白赚海盗"], owned=("智力",), cards=list(HAIDAO))
     assert decision.action == PolicyAction.SELECT_SLOT, decision.reason
-    assert decision.index == 0, decision.reason
+    assert decision.index == 1, decision.reason
 
 
 def test_skill_routes_ur_links_use_the_live_ur_names() -> None:

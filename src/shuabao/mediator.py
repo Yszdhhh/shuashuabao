@@ -3758,6 +3758,11 @@ class Mediator:
             self._note_decision("skip", "选卡策略放弃本面板", panel=kind, reason=decision.reason or "")
             return (label, give_up)
         if decision.action == PolicyAction.CLOSE:
+            if kind == "bond":
+                # 暂时隐藏只给调度器让路去处理地面/背包/其它面板；无目标不是隐藏理由，
+                # 保留当前四张并零输入等待可读候选。
+                self._choice_policy_idle = True
+                return None
             close_hit = self._close_current_panel(frame, kind)
             if close_hit is None:
                 self._choice_policy_idle = True
@@ -4075,33 +4080,31 @@ class Mediator:
                     self._treasure_consecutive_no_pick += 1
                     decision = PolicyDecision.close("蹭车宝物末段无非负面有效候选，安全关闭（禁止选择负面或未识别卡）")
         else:
-            decision = choose_action(
-                PanelCandidates(
-                    panel_kind=kind,
-                    slots=slots,
-                    set_progress=bond_progress,
-                    free_slots=live_free_slots,
-                    refresh_count=self._choice_session.refreshes,
-                    has_giveup=self._panel_has_giveup(frame, kind),
-                    can_refresh=can_refresh,
-                    settings=policy_settings,
-                    owned_skill_cards=self._confirmed_skill_cards(),
-                    owned_bond_cards=self._confirmed_bond_cards(),
-                    round_elapsed_s=self._round_elapsed_s(),
-                    completed_advanced_groups=self._advanced_groups_completed,
-                ),
-                self._choice_session,
+            bond_candidates = PanelCandidates(
+                panel_kind=kind,
+                slots=slots,
+                set_progress=bond_progress,
+                free_slots=live_free_slots,
+                refresh_count=self._choice_session.refreshes,
+                has_giveup=self._panel_has_giveup(frame, kind),
+                can_refresh=can_refresh,
+                settings=policy_settings,
+                owned_skill_cards=self._confirmed_skill_cards(),
+                owned_bond_cards=self._confirmed_bond_cards(),
+                round_elapsed_s=self._round_elapsed_s(),
+                completed_advanced_groups=self._advanced_groups_completed,
             )
+            decision = choose_action(bond_candidates, self._choice_session)
         _obs_from, _obs_why = None, ""
         if kind == "bond" and decision.action == PolicyAction.REFRESH:
             affordable, wood, price = self._bond_refresh_affordable(frame)
             if not affordable:
                 _obs_from = str(PolicyAction.REFRESH)
                 _obs_why = f"木材不足：需 {price}，当前 {wood if wood is not None else '未读出'}"
-                decision = PolicyDecision.close(
-                    f"羁绊刷新需 {price} 木，当前木头 {wood if wood is not None else '未读出'}，隐藏面板"
+                decision = choose_action(
+                    replace(bond_candidates, can_refresh=False), self._choice_session,
                 )
-                self._note_decision("hide", "羁绊刷新木材不足，隐藏面板", wood=wood, price=price)
+                self._note_decision("pick", "羁绊刷新不可支付，改选当前页面", wood=wood, price=price)
         _obs = self._observe_log()
         if _obs is not None:
             try:
@@ -5837,20 +5840,12 @@ class Mediator:
         ) is not None
 
     def _solo_wants_merchant(self, frame: Frame) -> bool:
-        """Solo only visits/interacts with merchant when wood < 500 (or unreadable) or devour pill is urgently needed."""
+        """Merchant is a quick path only when the bag lacks a devour pill or wood is low."""
         if self._passenger_mode() or not getattr(self.settings, "merchant_enabled", True):
             return False
-        # 1. 羁绊栏 >= 8/10 且背包无吞噬丹：急需前往黑商买丹（即使木材充足）
-        occupied = self._bond_bar_occupancy(frame)
-        if (
-            occupied is not None
-            and occupied >= self._DEVOUR_BOND_OCCUPANCY
-            and self._devour_hold_reason() is None
-            and not self._inventory_has_swallow_pill(frame)
-        ):
+        if not self._inventory_has_swallow_pill(frame):
             return True
-        # 2. 木材判断：读数为 None 时按保守规则处理（不可假定充足，仍去黑商）；
-        #    只有明确读出木材且 >= 500 时才认定充足跳过
+        # 木材读数 None 时继续 fail-closed：不能假定木材充足。
         wood = getattr(self, "_wood_balance", None)
         if wood is None or wood < self._SKILL_FIRST_WOOD:
             return True
@@ -5864,14 +5859,8 @@ class Mediator:
             return None
         if now < self._merchant_urgent_next_at or now < getattr(self, "_merchant_budget_retry_at", 0.0):
             return None
-        occupied = self._bond_bar_occupancy(frame)
-        if (
-            occupied is not None
-            and occupied >= self._DEVOUR_BOND_OCCUPANCY
-            and self._devour_hold_reason() is None
-            and not self._inventory_has_swallow_pill(frame)
-        ):
-            return f"羁绊栏已占 {occupied}/10 格且物品栏没有吞噬丹"
+        if not self._inventory_has_swallow_pill(frame):
+            return "物品栏没有吞噬丹"
         wood = getattr(self, "_wood_balance", None)
         if wood is not None and wood < self._SKILL_FIRST_WOOD:
             return f"木材 {wood} < {self._SKILL_FIRST_WOOD}"
