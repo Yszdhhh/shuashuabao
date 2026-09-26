@@ -1505,13 +1505,16 @@ class TestAssemblePolicySettings(unittest.TestCase):
         self.assertEqual(ps.skill_archive_levels, (("asj", 47), ("jq", 13)))
 
     def test_cards_resolve_through_fetter_labels(self):
-        ps = assemble_policy_settings(
-            settings=self.fake_settings(["jq"], cards=["三国.png", "unknown_stem"]),
-            skill_labels=self.LABELS,
-            fetter_labels={"三国": "乱世三国"},
-            policy_doc={},
+        fetter_labels = json.loads(
+            (Path(__file__).resolve().parents[1] / "config/fetter_labels.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(ps.bond_presets, ("乱世三国", "unknown_stem"))
+        ps = assemble_policy_settings(
+            settings=self.fake_settings(["jq"], cards=["qiji.png", "unknown_stem"]),
+            skill_labels=self.LABELS,
+            fetter_labels=fetter_labels,
+            policy_doc={"bond": {"advanced_groups": [["unrelated"]]}},
+        )
+        self.assertEqual(ps.bond_presets, ("奇技", "unknown_stem"))
 
     def test_bonds_remain_base_when_cards_are_all_advanced(self):
         ps = assemble_policy_settings(

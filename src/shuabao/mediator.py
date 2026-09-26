@@ -19899,7 +19899,20 @@ class Mediator:
             and not self._has_active_transaction(frame)
             and surface == InteractionSurface.HUD_ONLY
         ):
-            if self._blessing_set_pending() and getattr(self.settings, "auto_bond", True):
+            # 缺丹且占格 ≥8 的应急黑商先于祝福开面板；低木材仍走正常轮换。
+            urgent = self._urgent_merchant_reason(frame, now)
+            if urgent is not None:
+                print(f"[L1] {urgent}，插队去黑商")
+                self._note_decision("merchant", "紧急情况插队去黑商", reason=urgent)
+                self._merchant_urgent_next_at = now + self._MERCHANT_URGENT_COOLDOWN_S
+                self._detour_l1_cycle("merchant")
+                self._main_line_since = now
+                return LoopAction.Continue
+            if (
+                self._l1_cycle_step != "merchant"
+                and self._blessing_set_pending()
+                and getattr(self.settings, "auto_bond", True)
+            ):
                 if self.act_click(
                     self._hud_button_hit(frame, "bond_button", self.CHOICE_BUTTON_RATIOS["bond"]),
                     "OpenBondPanel-BlessingPriority",
@@ -19968,17 +19981,6 @@ class Mediator:
                     self._main_line_since = now
                     return LoopAction.Continue
 
-        # Owner 2026-09-24：羁绊栏超过一半没丹、木材不足时，黑商是当前最紧急的支线，
-        # 插队到黑商一步，不等轮换走完。
-        if surface == InteractionSurface.HUD_ONLY and anchor is None:
-            urgent = self._urgent_merchant_reason(frame, now)
-            if urgent is not None:
-                print(f"[L1] {urgent}，插队去黑商")
-                self._note_decision("merchant", "紧急情况插队去黑商", reason=urgent)
-                self._merchant_urgent_next_at = now + self._MERCHANT_URGENT_COOLDOWN_S
-                self._detour_l1_cycle("merchant")
-                self._main_line_since = now
-                return LoopAction.Continue
 
         # 技能/羁绊/宝物优先于会重复出现的进化按钮，避免 G/F/V 饿死。
         opened = self._maybe_open_choice_panel(frame, anchor=anchor)
