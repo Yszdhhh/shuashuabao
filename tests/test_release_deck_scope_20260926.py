@@ -5,7 +5,7 @@
 锁的是纯函数 `choose_action` 行为：
 - 看板勾选某组 pack cards 后，整组可拿成员都在白名单里；
 - 给定面板序列从首卡走到末卡，路人卡不拿；
-- 终卡（帝炎/法天象地/圣人/海贼王）靠合成得到，面板出现也不拿；
+- 帝炎/法天象地/圣人靠合成得到，面板出现也不拿；海贼王与系列同名，按 Owner 2026-09-26 规则看到就拿；
 - 前一组未合成出 EX（海盗为 UR）之前，下一组不开；看到 EX 计数后解锁下一组。
 
 慢卡组（刀刀/修仙/海盗/亡灵）的同类锁定见
@@ -87,7 +87,7 @@ def _group_of(policy, pack: str) -> tuple[str, ...]:
 
 
 @pytest.mark.parametrize("pack", FAST_PACKS)
-def test_fast_pack_group_covers_dashboard_cards_and_ex_never_in_presets(pack: str) -> None:
+def test_fast_pack_group_covers_dashboard_cards_and_ex_scope(pack: str) -> None:
     policy = _policy(pack)
     group = _group_of(policy, pack)
     final = EX_FINAL[pack]
@@ -95,9 +95,13 @@ def test_fast_pack_group_covers_dashboard_cards_and_ex_never_in_presets(pack: st
     for name in group:
         if name != final:
             assert name in policy.bond_presets, (pack, name)
-    assert final not in policy.bond_presets
-    assert final not in policy.bond_advanced_presets
-    assert final not in policy.bond_base_presets
+    if pack == "haizeiwang":
+        assert final in policy.bond_advanced_presets
+        assert final in policy.bond_presets
+    else:
+        assert final not in policy.bond_presets
+        assert final not in policy.bond_advanced_presets
+        assert final not in policy.bond_base_presets
 
 
 @pytest.mark.parametrize("pack", FAST_PACKS)
@@ -114,9 +118,12 @@ def test_fast_pack_is_walked_from_first_to_last_pickable_card(pack: str) -> None
         decision_econ = _decide(policy, [card, "经济"], owned=owned)
         assert (decision_econ.action, decision_econ.index) == (PolicyAction.SELECT_SLOT, 0), (step, card, decision_econ.reason)
         owned.append(card)
-    # 终卡靠合成：整组拿满后面板单独出现终卡也不拿。
+    # EX 终卡通常靠合成；海贼王与系列同名，按 Owner 2026-09-26 口径拿。
     decision = _decide(policy, [EX_FINAL[pack]], owned=owned)
-    assert decision.action != PolicyAction.SELECT_SLOT, decision.reason
+    if pack == "haizeiwang":
+        assert (decision.action, decision.index) == (PolicyAction.SELECT_SLOT, 0), decision.reason
+    else:
+        assert decision.action != PolicyAction.SELECT_SLOT, decision.reason
 
 
 @pytest.mark.parametrize(
