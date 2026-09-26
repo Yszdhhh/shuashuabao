@@ -14,12 +14,14 @@ sys.path.insert(0, str(ROOT / "src"))
 from shuabao.choice_policy import PolicySettings
 from shuabao.loop_action import LoopAction
 from shuabao.mediator import Mediator
+from shuabao.runtime_mediator import Mediator as RuntimeMediator
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
 
 
 def _mediator() -> Mediator:
-    med = Mediator(Settings(ocr_mode="live"), ROOT)
+    # 模板快路必须在 OCR 完全关闭时也成立；否则测试会把外部 OCR 启动误当依赖。
+    med = Mediator(Settings(ocr_mode="off"), ROOT)
     med._cached_policy_settings = PolicySettings(
         bond_presets=("祝福", "成长", "经济", "海盗"),
         bond_must_take=("祝福",),
@@ -147,7 +149,7 @@ def test_direct_family_pick_obeys_full_bar_immediate_merge_only() -> None:
 
 
 def test_production_ocr_path_rechecks_policy_instead_of_trusting_direct_index() -> None:
-    med = _mediator()
+    med = RuntimeMediator(Settings(ocr_mode="off"), ROOT)
     med._cached_policy_settings = PolicySettings(
         bond_presets=("海盗", "异火"),
         bond_advanced_presets=("海盗", "异火"),
