@@ -1347,14 +1347,24 @@ def _is_uncompleted_merge_upgrade(
 def _is_proven_merge_upgrade(
     slot: SlotCandidate, owned_cards: tuple[str, ...]
 ) -> bool:
-    """满栏专用：只有明确进度或已知 stack 配方能证明本次获取会合成。"""
+    """10/10 专用：必须证明“拿这一张就立即合成”，不能只证明未来可合成。"""
+    if not slot.name or not owned_cards:
+        return False
     if not _is_uncompleted_merge_upgrade(slot, owned_cards):
         return False
-    if _slot_stack_progress(slot) is not None:
-        return True
+
+    progress = _slot_stack_progress(slot)
+    if progress is not None:
+        have, need = progress
+        return have + 1 >= need
+
     from shuabao.bond_capacity import stack_need
 
-    return stack_need(slot.name) is not None
+    need = stack_need(slot.name)
+    if need is None:
+        return False
+    have = sum(1 for item in owned_cards if item and same_bond_identity(slot.name, item))
+    return have + 1 >= need
 
 
 def _drop_completed_bond_slots(
