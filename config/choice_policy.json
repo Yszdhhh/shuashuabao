@@ -259,6 +259,8 @@
     ],
     "_ex_final_names_note": "Owner 2026-09-24：终卡（海盗为 UR）靠合成得到，不从面板拿；Owner 2026-09-26：海贼王家族名与终卡同名，看到就拿，不进入剥离名单。assemble 在装配 bond_presets 时统一剥离本名单（advanced_groups 保留终卡只为链路归属与既有契约不断）；旧 Qt 外壳另有 main_window._advanced_pack_tokens 的 banned+exclude_ex 过滤。2026-09-26 首个正式版卡组收敛补齐。",
     "must_take_names": [],
+    "negative_names": [],
+    "_negative_names_note": "仅显式列入的羁绊卡无论白名单与刷新预算都禁止选择；未勾选白名单的普通卡只会在羁绊刷新用尽或木材不足时进入兜底。",
     "advanced_unlock_s": 480,
     "_advanced_unlock_note": "2026-09-15 起是基础卡门槛（base_completion_ratio）的时间兜底；Owner 2026-09-24 取消拿卡硬门槛后，只用来结束调度上的\"基础羁绊未成型，F 优先\"。"
   },

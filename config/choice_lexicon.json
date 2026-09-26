@@ -2238,6 +2238,7 @@
       "aliases": [],
       "kind": "bond",
       "version_seen": "live-20260813",
+      "_note": "Owner 2026-09-26：基础卡，只加智力属性，不属智力链；set_membership 仅记属性收益，不代表智力卡组归属。",
       "confusions": [
         "秘法师"
       ],
@@ -2247,6 +2248,7 @@
       "aliases": [],
       "kind": "bond",
       "version_seen": "live-20260813",
+      "_note": "Owner 2026-09-26：基础卡，只加智力属性，不属智力链；set_membership 仅记属性收益，不代表智力卡组归属。",
       "confusions": [],
       "set_membership": "智力"
     },

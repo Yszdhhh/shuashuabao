@@ -1603,7 +1603,7 @@ class TestAssemblePolicySettings(unittest.TestCase):
         policy_doc = json.loads(
             (Path(__file__).resolve().parents[1] / "config/choice_policy.json").read_text(encoding="utf-8")
         )
-        for selected, label in (("海贼王", "海贼王(1/4)"), ("异火", "异火(0/3)"), ("棍法", "棍法(2/3)")):
+        for selected, label in (("海贼王", "海贼王"), ("异火", "异火(0/3)"), ("棍法", "棍法(2/3)")):
             with self.subTest(label=label):
                 policy = assemble_policy_settings(
                     settings=self.fake_settings(["jq"], cards=[selected], bonds=["经济", "成长", "祝福"]),
@@ -1618,7 +1618,7 @@ class TestAssemblePolicySettings(unittest.TestCase):
                     ),
                     SessionState(),
                 )
-                self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 0))
+                self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))
 
     def test_treasure_allow_negative_from_settings(self):
         ps = assemble_policy_settings(
