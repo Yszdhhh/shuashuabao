@@ -22,6 +22,7 @@ from shuabao.mediator import LoopAction, Mediator
 from shuabao.runtime_mediator import Mediator as RuntimeMediator
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
+from shuabao.choice_policy import PanelCandidates, PolicyAction, PolicySettings, SessionState, SlotCandidate, choose_action
 
 ROOT = Path(__file__).resolve().parents[1]
 # 真机 2026-09-14：「点击进化」金条亮着，物品栏 2–6 五格全满。
@@ -53,6 +54,9 @@ OWNER_RULES: tuple[tuple[str, str, str], ...] = (
     ("同页优先级：祝福 > 成长/经济 > 当前高级组 > 其它白名单",
      "Owner 2026-09-26 新口径",
      "tests/test_choice_policy.py::TestBondTreasureUnknown::test_missing_basic_bond_beats_advanced_on_the_same_page"),
+    ("祝福套装未凑满（need=3）前同页必拿且优先于成长/经济/高级组（已有1、2张时仍优先）",
+     "Owner 2026-09-26（恢复口径）",
+     "tests/test_owner_ingame_rules_lock_20260924.py::test_blessing_uncompleted_beats_growth_economy_and_advanced_on_same_page"),
     ("宝物在自己那一步能打开，不被 F 饿死",
      "Owner 2026-09-15",
      "tests/test_solo_planner_20260915.py::test_pending_treasure_is_opened_on_its_step"),
@@ -110,6 +114,9 @@ OWNER_RULES: tuple[tuple[str, str, str], ...] = (
     ("亡灵卡组进行中（持有亡灵卡、兵主 EX 未出）不吃吞噬丹：提前吞倒计时卡会断碎片",
      "Owner 2026-09-24",
      "tests/test_p0_devour_failclosed_20260917.py::test_undead_pack_in_progress_holds_the_pill"),
+    ("亡灵卡组进行中不为吞噬丹去黑商：_devour_hold_reason 判定 hold 时不因缺丹占格≥8去黑商",
+     "Owner 2026-09-26（恢复口径）",
+     "tests/test_owner_ingame_rules_lock_20260924.py::test_undead_pack_in_progress_does_not_visit_merchant_for_pill"),
     ("木材 < 500 以支线循环为主：F 每次最多 1 张（500–1000 两张，≥1000 十五张）",
      "Owner 2026-09-24",
      "tests/test_solo_l1_starvation_20260915.py::test_wood_tiers_visit_cap"),
@@ -176,9 +183,83 @@ def test_rule_evolve_before_item_bar_while_evolve_bar_is_lit(cls) -> None:
         assert med._evolve_ok_this_cycle is False
     click.assert_not_called()
 
+
     # 进化已完成且金条不再亮起：恢复逐格试用
     med._evolve_ok_this_cycle = True
     with patch.object(med, "_has_evolve_button", return_value=False), \
          patch.object(med, "act_click", return_value=True) as click:
         assert med._maybe_use_inventory_slot(frame, 400.0) is LoopAction.Continue
     assert str(click.call_args.args[1]).startswith("UseInventorySlot")
+
+def test_blessing_uncompleted_beats_growth_economy_and_advanced_on_same_page() -> None:
+    """Owner 2026-09-26：祝福套装未凑满（need=3）前，已有1、2张时同页祝福仍优先于成长/经济/高级卡组。"""
+    settings = PolicySettings(
+        bond_presets=("祝福", "成长", "经济", "齐天大圣", "大圣残躯"),
+        bond_base_presets=("祝福", "成长", "经济"),
+        bond_advanced_presets=("齐天大圣", "大圣残躯"),
+        bond_advanced_groups=(("齐天大圣", "大圣残躯"),),
+    )
+    for owned in ((), ("祝福",), ("祝福(1/3)",), ("祝福", "祝福"), ("祝福(2/3)",)):
+        decision = choose_action(
+            PanelCandidates(
+                panel_kind="bond",
+                slots=(
+                    SlotCandidate(index=0, name="成长", confidence=0.99),
+                    SlotCandidate(index=1, name="经济", confidence=0.99),
+                    SlotCandidate(index=2, name="齐天大圣", confidence=0.99),
+                    SlotCandidate(index=3, name="祝福", confidence=0.99),
+                ),
+                owned_bond_cards=owned,
+                settings=settings,
+            ),
+            SessionState(),
+        )
+        assert decision.action is PolicyAction.SELECT_SLOT
+        assert decision.index == 3, f"owned={owned}: {decision.reason}"
+
+    # 满 3 张不再抢占成长
+    decision_full = choose_action(
+        PanelCandidates(
+            panel_kind="bond",
+            slots=(
+                SlotCandidate(index=0, name="成长", confidence=0.99),
+                SlotCandidate(index=1, name="经济", confidence=0.99),
+                SlotCandidate(index=2, name="齐天大圣", confidence=0.99),
+                SlotCandidate(index=3, name="祝福", confidence=0.99),
+            ),
+            owned_bond_cards=("祝福", "祝福", "祝福"),
+            settings=settings,
+        ),
+        SessionState(),
+    )
+    assert decision_full.action is PolicyAction.SELECT_SLOT
+    assert decision_full.index == 0
+
+
+def test_undead_pack_in_progress_does_not_visit_merchant_for_pill() -> None:
+    """Owner 2026-09-26：亡灵卡组进行中（_devour_hold_reason 判定 hold 时），不因缺吞噬丹且占格≥8去黑商。"""
+    med = Mediator(Settings(ocr_mode="off", cards=["亡灵", "亡灵天灾"]), ROOT)
+    frame = Frame(np.zeros((600, 800, 3), dtype=np.uint8), window_title="英雄三国KK", hwnd=10001, role="l1")
+    med._bond_cards_owned = ["亡灵天灾"]
+    assert med._devour_hold_reason() is not None
+
+    with patch.object(med, "_inventory_has_swallow_pill", return_value=False), \
+         patch.object(med, "_bond_bar_occupancy", return_value=8):
+        # 木材充足（2000）：不因缺丹去黑商
+        med._wood_balance = 2000
+        assert med._solo_wants_merchant(frame) is False
+        assert med._urgent_merchant_reason(frame, 100.0) is None
+
+        # 木材不足（200）：正常循环去黑商买木材，但不因缺丹紧急插队
+        med._wood_balance = 200
+        assert med._solo_wants_merchant(frame) is True
+        assert med._urgent_merchant_reason(frame, 100.0) is None
+
+    # 亡灵卡组完成后解除 hold，恢复缺丹去黑商
+    med._advanced_groups_completed = 1
+    assert med._devour_hold_reason() is None
+    with patch.object(med, "_inventory_has_swallow_pill", return_value=False), \
+         patch.object(med, "_bond_bar_occupancy", return_value=8):
+        med._wood_balance = 2000
+        assert med._solo_wants_merchant(frame) is True
+        assert med._urgent_merchant_reason(frame, 100.0) == "物品栏没有吞噬丹"

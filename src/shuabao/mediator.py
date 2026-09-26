@@ -5997,7 +5997,8 @@ class Mediator:
         if wood is not None and wood < self._SKILL_FIRST_WOOD:
             return True
         return (
-            not self._inventory_has_swallow_pill(frame)
+            self._devour_hold_reason() is None
+            and not self._inventory_has_swallow_pill(frame)
             and (self._bond_bar_occupancy(frame) or 0) >= self._DEVOUR_BOND_OCCUPANCY
         )
 
@@ -6010,7 +6011,8 @@ class Mediator:
         if now < self._merchant_urgent_next_at or now < getattr(self, "_merchant_budget_retry_at", 0.0):
             return None
         if (
-            not self._inventory_has_swallow_pill(frame)
+            self._devour_hold_reason() is None
+            and not self._inventory_has_swallow_pill(frame)
             and (self._bond_bar_occupancy(frame) or 0) >= self._DEVOUR_BOND_OCCUPANCY
         ):
             return "物品栏没有吞噬丹"

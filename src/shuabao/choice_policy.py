@@ -1193,7 +1193,32 @@ def _slot_stack_progress(slot: SlotCandidate) -> tuple[int, int] | None:
     return None
 
 
+def _is_blessing_uncompleted(
+    slot: SlotCandidate, owned_bonds: tuple[str, ...]
+) -> bool:
+    """祝福套装未凑满（need 见 config/bond_stack_catalog.json）前为 True。"""
+    prog = _slot_stack_progress(slot)
+    if prog is not None:
+        have, need = prog
+        return have < need
+    from shuabao.bond_capacity import stack_need
+
+    need = stack_need(slot.name) or 3
+    have = 0
+    for item in owned_bonds:
+        if not same_bond_identity(slot.name, item):
+            continue
+        have += 1
+        hit = _BOND_PROGRESS_RE.search(str(item))
+        if hit:
+            have = max(have, int(hit.group(1)))
+            need_o = int(hit.group(2))
+            if need_o > 1:
+                need = need_o
+    return have < need
+
 _BOND_PROGRESS_RATIO_RE = re.compile(r"[\[（(]\s*\d+\s*/\s*\d+\s*[\])）)]")
+
 
 
 def canonical_bond_identity(name: str | None) -> str:
@@ -1631,7 +1656,7 @@ def _decide_collectible(
                     and (same_bond_identity(slot.name, "祝福") or _is_bond_must_take(slot.name, settings.bond_must_take))
                     and (
                         not same_bond_identity(slot.name, "祝福")
-                        or not any(same_bond_identity(name, "祝福") for name in owned_bonds)
+                        or _is_blessing_uncompleted(slot, owned_bonds)
                     )
                 ):
                     return PolicyDecision.select(
