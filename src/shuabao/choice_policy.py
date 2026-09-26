@@ -87,6 +87,16 @@ WHITELIST_HARD = "hard"
 WHITELIST_SOFT = "soft"
 VALID_WHITELIST_MODES = frozenset({WHITELIST_HARD, WHITELIST_SOFT})
 DEFAULT_BOND_MUST_TAKE: tuple[str, ...] = ("祝福", "智力祝福", "敏捷祝福", "力量祝福")
+DEFAULT_ADVANCED_GROUPS: tuple[tuple[str, ...], ...] = (
+    ("刀刀", "幽灵系带", "护腕", "空灵挂坠", "刀刀萌新", "刀刀大成"),
+    ("异火", "焚诀·黄阶", "焚诀·玄阶", "焚诀·地阶", "焚诀·天阶", "阴阳双炎", "风怒龙炎", "幽冥毒火", "玄黄炎", "虚无吞炎", "净莲妖火", "金帝焚天炎", "生灵之焱", "八荒破灭焱", "九幽金祖火", "红莲业火", "三千焱炎火", "九龙雷罡火", "骨灵冷火", "陨落心炎", "海心焰", "青莲地心火", "龟灵地火", "火山石焰", "万兽灵火", "万火灵种", "初级兽火", "帝炎"),
+    ("齐天大圣", "大圣", "天命人", "大圣残躯", "眼看喜", "耳听怒", "鼻嗅爱", "舌尝思", "意见欲", "身本忧", "大圣套装", "如意金箍棒", "锁子黄金甲", "点翠", "飞龙臂", "点翠飞龙臂", "凤翅紫金冠", "藕丝步云履", "身法", "身法大成", "安身法", "纵跃身法", "金身护体", "棍法", "棍法大成", "武艺天赋", "体锻修行", "气力天赋", "术法", "术法大成", "禁字法", "进字法", "凝神法", "根系", "根基", "根系大成", "根基大成", "奇迹", "奇技", "奇迹大成", "奇技大成", "骑技大成", "法天象地"),
+    ("修仙", "筑基丹", "金丹大道", "修仙萌新", "修仙大成"),
+    ("封神", "法宝", "姜子牙", "吕岳", "封神榜", "打神鞭", "杏黄旗", "斩仙飞刀", "肉身成圣", "天庭", "天仙", "金仙", "大罗金仙", "山河社稷图", "十二品莲台", "奇珍宝树", "盘古幡", "太极图", "混沌钟", "圣人"),
+    ("海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏"),
+    ("亡灵", "亡灵天灾", "白骨复生", "魂火收割", "巫妖之躯"),
+    ("海贼王", "见习海贼", "超新星", "七武海", "凯多", "红发", "白胡子", "大妈"),
+)
 DEFAULT_SKILL_SLOT_CAP = 4
 DEFAULT_TREASURE_MUST_TAKE = ("全都要", "卡牌大师")
 _CATALOG_RARITY_TO_BAND = {
@@ -248,6 +258,7 @@ class PolicySettings:
     min_confidence: float = 0.0
     bond_whitelist_mode: str = WHITELIST_HARD
     bond_must_take: tuple[str, ...] = DEFAULT_BOND_MUST_TAKE
+    bond_unselected_advanced_names: tuple[str, ...] = ()
     bond_negative_names: tuple[str, ...] = ()
     treasure_negative_patterns: tuple[str, ...] = DEFAULT_NEGATIVE_PATTERNS
     treasure_negative_names: tuple[str, ...] = DEFAULT_NEGATIVE_NAMES
@@ -367,6 +378,9 @@ class PolicySettings:
             bond_presets=tuple(str(s) for s in (raw.get("bond_presets") or ())),
             bond_base_presets=tuple(str(s) for s in (raw.get("bond_base_presets") or ())),
             bond_advanced_presets=tuple(str(s) for s in (raw.get("bond_advanced_presets") or ())),
+            bond_unselected_advanced_names=tuple(
+                str(s).strip() for s in (raw.get("bond_unselected_advanced_names") or ()) if str(s).strip()
+            ),
             bond_chain_presets=tuple(str(s) for s in (raw.get("bond_chain_presets") or ())),
             bond_advanced_groups=tuple(
                 tuple(str(x).strip() for x in group if str(x).strip())
@@ -533,6 +547,8 @@ def assemble_policy_settings(
         names = tuple(str(x).strip() for x in (group or ()) if str(x).strip())
         if names:
             catalog_groups.append(names)
+    if not catalog_groups:
+        catalog_groups = [tuple(g) for g in DEFAULT_ADVANCED_GROUPS]
     selected_groups: list[tuple[str, ...]] = []
     used_groups: set[tuple[str, ...]] = set()
     for item in card_presets:
@@ -546,6 +562,10 @@ def assemble_policy_settings(
                     if name not in bond_presets:
                         bond_presets.append(name)
                 break
+    unselected_groups = [g for g in catalog_groups if g not in used_groups]
+    unselected_advanced_names = tuple(dict.fromkeys(
+        name for g in unselected_groups for name in g
+    ))
     if ex_final_names:
         bond_presets = [name for name in bond_presets if name not in ex_final_names]
 
@@ -627,6 +647,7 @@ def assemble_policy_settings(
             "bond_advanced_presets": advanced_presets,
             "bond_chain_presets": tuple(chain_presets),
             "bond_advanced_groups": tuple(selected_groups),
+            "bond_unselected_advanced_names": unselected_advanced_names,
             "bond_base_completion_ratio": bond_cfg.get("base_completion_ratio", 0.80),
             "bond_advanced_unlock_s": bond_cfg.get("advanced_unlock_s", 0.0),
             "treasure_presets": (),
@@ -1332,16 +1353,61 @@ def _drop_completed_bond_slots(
     return tuple(kept)
 
 
+def _is_unselected_advanced_bond(
+    name: str | None,
+    settings: PolicySettings,
+) -> bool:
+    unselected = getattr(settings, "bond_unselected_advanced_names", ())
+    if not name or not unselected:
+        return False
+    return matches_bond_preset(name, unselected)
+
+
+def _is_merge_or_near_complete(
+    slot: SlotCandidate,
+    cands: PanelCandidates,
+    settings: PolicySettings,
+    owned: tuple[str, ...],
+) -> bool:
+    if not slot.name:
+        return False
+    if _is_uncompleted_merge_upgrade(slot, owned):
+        return True
+    near = _near_complete_bond_slots(cands, settings, slots=(slot,))
+    if near:
+        return True
+    prog = _slot_stack_progress(slot)
+    if prog is not None:
+        have, need = prog
+        if need and have is not None and int(need) - int(have) == 1:
+            return True
+    return False
+
+
 def _best_available_bond_pick(cands, settings, active_adv) -> SlotCandidate | None:
     """Pick a whitelisted card, then the best readable non-banned card after refreshes."""
+    owned = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
     available = [
         slot for slot in cands.slots
         if slot.name and str(slot.name).strip()
         and slot.confidence >= settings.min_confidence
         and not _is_explicit_bond_negative(slot.name, settings)
+        and not (
+            _is_unselected_advanced_bond(slot.name, settings)
+            and not _is_uncompleted_merge_upgrade(slot, owned)
+        )
     ]
     if not available:
         return None
+
+    # 满栏时兜底只拿能合成/差一张的卡，避免非合成卡占格导致溢出
+    if cands.free_slots is not None and cands.free_slots <= 1:
+        available = [
+            slot for slot in available
+            if _is_merge_or_near_complete(slot, cands, settings, owned)
+        ]
+        if not available:
+            return None
 
     def priority(slot: SlotCandidate) -> tuple[int, int, int]:
         name = slot.name
