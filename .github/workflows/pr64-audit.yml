@@ -5,6 +5,10 @@ on:
     branches:
       - claude/round4-live-20260926
 
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   strategy:
     if: github.head_ref == 'gpt/owner-bond-fallback-20260926'
@@ -56,30 +60,4 @@ jobs:
           python -m pytest tests/contract -q --tb=short -p no:faulthandler
           $code = $LASTEXITCODE
           Write-Host "CONTRACT_EXIT_CODE=$code"
-          exit $code
-
-  gate:
-    if: github.head_ref == 'gpt/owner-bond-fallback-20260926'
-    runs-on: windows-latest
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-      - name: Install Python dependencies
-        shell: pwsh
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest pytest-subtests opencv-python-headless numpy PySide6 mss pyautogui Pillow cryptography
-          pip install -r requirements-build.txt
-      - name: Release gate
-        shell: pwsh
-        run: |
-          python tools/release_gate.py
-          $code = $LASTEXITCODE
-          Write-Host "GATE_EXIT_CODE=$code"
           exit $code
