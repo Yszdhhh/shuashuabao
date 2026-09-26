@@ -562,12 +562,39 @@ def _row_border_bright_ratio(gray: np.ndarray, row: StageRow, scale: float, side
 
 SELECTED_RING_RATIO = 0.15
 SELECTED_RING_MARGIN = 3.0
+TRUNCATED_SIDE_RATIO = 0.10
 
 # 列表扫描 ROI 底部同 visible_stage_rows()（0.88h）：末行中心离它不到一整行
 # 步距（实机行距约 54px）且下方无下一行时，视为底部截断行。
 _TRUNCATED_LAST_ROW_EDGE_MARGIN = 48
 _TRUNCATED_ROW_BELOW_MIN = 25
 _TRUNCATED_ROW_BELOW_MAX = 80
+
+
+def _ring_clipped_at_bottom(gray: np.ndarray, row: StageRow, scale: float) -> bool:
+    """选中环上沿亮线存在、而环高范围内找不到下沿亮线时为 True。
+
+    上沿在字心上方 8..30 像素（1600x900 基准）内找整行亮像素占比 ≥0.6 的横线；
+    下沿在上沿下方 12..48 像素内找同样的横线。找到下沿说明环是完整的，不是截断。
+    """
+    height = gray.shape[0]
+    half_w = max(16, int(round(90 * scale)))
+    x0 = max(0, row.center_x - half_w)
+    x1 = min(gray.shape[1], row.center_x + half_w)
+    if x1 <= x0:
+        return False
+
+    def is_line(y: int) -> bool:
+        return 0 <= y < height and float((gray[y, x0:x1] > 200).mean()) >= 0.6
+
+    top_lo = row.center_y - max(9, int(round(30 * scale)))
+    top_hi = row.center_y - max(3, int(round(8 * scale)))
+    top = next((y for y in range(top_lo, top_hi + 1) if is_line(y)), None)
+    if top is None:
+        return False
+    bottom_lo = top + max(4, int(round(12 * scale)))
+    bottom_hi = top + max(14, int(round(48 * scale)))
+    return not any(is_line(y) for y in range(bottom_lo, bottom_hi + 1))
 
 
 def _truncated_last_row_fallback(
@@ -590,11 +617,11 @@ def _truncated_last_row_fallback(
     if roi_bottom - last.center_y > edge_margin:
         return None
 
-    # 真截断证据：按与亮边采样相同的缩放后半高，选中环框的下沿必须已经
-    # 超出列表扫描 ROI（或极端裁剪时超出帧底）。仅仅“靠近底部”不够。
-    ring_half_h = max(6, int(round(22 * scale)))
-    ring_bottom = last.center_y + ring_half_h
-    if ring_bottom <= roi_bottom and ring_bottom <= frame.height:
+    # 真截断证据看像素而不是几何：选中环的上沿亮线在，下沿亮线却不在
+    # （列表视口把它裁掉了）。实机 1-23 行字心 756、上沿 741、视口止于 764，
+    # 环下沿按半高推算只到 778，仍在 0.88h ROI（792）之内，所以旧的
+    # “环下沿超出 ROI”判据会把真截断行拒掉。
+    if not _ring_clipped_at_bottom(gray, last, scale):
         return None
 
     # 末行还必须与上一条可读行保持一个真实行距；旧实现检查“last 下方还有行”
@@ -610,8 +637,10 @@ def _truncated_last_row_fallback(
     if not (row_gap_min <= row_gap <= row_gap_max):
         return None
 
+    # 上沿整条亮线已由 _ring_clipped_at_bottom 确认（未选中行上沿为 0），
+    # 竖边只需过截断专用的低阈值：1280x720 缩放后竖边被插值稀释到约 0.14。
     side_best = _row_border_bright_ratio(gray, last, scale, sides_only=True)
-    if side_best < SELECTED_RING_RATIO:
+    if side_best < TRUNCATED_SIDE_RATIO:
         return None
     side_runner = max(
         (
@@ -623,7 +652,27 @@ def _truncated_last_row_fallback(
     )
     if side_runner > 0 and side_best < side_runner * SELECTED_RING_MARGIN:
         return None
-    return last
+    # 截断行被金边压住半截字，缩放后可能误读（1280x720 实测 1-23 读成 7-29）。
+    # 上面两行同章连号时，末行编号按“上一行 +1”恢复，与 visible_stage_rows
+    # 对超高选中行的邻行恢复同一口径；上面两行不连号则 fail-closed。
+    expected = StageId(previous.stage_id.chapter, previous.stage_id.index + 1)
+    if last.stage_id == expected:
+        return last
+    before_previous = max(
+        (other for other in rows if other.center_y < previous.center_y),
+        key=lambda row: row.center_y,
+        default=None,
+    )
+    if before_previous is None or before_previous.stage_id != StageId(
+        previous.stage_id.chapter, previous.stage_id.index - 1
+    ):
+        return None
+    return StageRow(
+        label=f"{expected.chapter}-{expected.index}",
+        stage_id=expected,
+        center_x=last.center_x,
+        center_y=last.center_y,
+    )
 
 
 def selected_stage_row(frame: Frame, images_dir: Path) -> StageRow | None:
