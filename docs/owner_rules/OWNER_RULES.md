@@ -46,7 +46,7 @@
 | 3.2 | 预设高级卡组尚未全部完成时，兜底只能拿**非高级卡组**的可读卡；不能借兜底启动下一高级组、未勾选高级组或回头推进其它高级组 | `_advanced_groups_complete`、`_is_any_advanced_bond`、`_best_available_bond_pick` | `test_refresh_fallback_before_all_advanced_complete_only_takes_non_advanced` | ✅ |
 | 3.3 | 预设高级卡组全部完成后，兜底允许从任意高级或基础卡组选择可读卡 | 同上 | `test_refresh_fallback_after_all_advanced_complete_allows_any_advanced_or_base` | ✅ |
 | 3.4 | Owner **没有**提出无条件永久羁绊禁拿名单；不得用 `bond.negative_names` / `bond_banned` 永久拦卡。禁字法需安身法、三国四选三等有明确前置/互斥的规则继续保留 | `bond_candidate_allowed`、`sanguo_blocked_faction` | 禁字法/三国现有锁 | ✅ |
-| 3.5 | 满栏（0 空位）只允许已持有且有明确配方/进度证据、这次获取会真实合成的卡；未持有散卡、zero-cost 或仅“同名已持有但配方未知”都不能作为满栏点击依据 | `_is_uncompleted_merge_upgrade`、`_bond_capacity_candidates` | `test_bond_zero_slots_accepts_only_real_owned_merge` | ✅ |
+| 3.5 | 满栏（0 空位）只允许已持有且有明确配方/进度证据、这次获取会真实合成的卡；未持有散卡、zero-cost 或仅“同名已持有但配方未知”都不能作为满栏点击依据 | `_is_proven_merge_upgrade`、`_bond_capacity_candidates` | `test_bond_zero_slots_accepts_only_real_owned_merge` | ✅ |
 | 3.6 | 满槽顶替只点 OCR 认出的非目标卡，认不出零输入 | `_bond_capacity_candidates` | 锁表 | ✅ |
 
 ## 4. 吞噬丹与亡灵
