@@ -1,7 +1,7 @@
 {
     "schema_version": 1,
-    "candidate_sha": "563e324cf1e5a7b5bcd18f22e60984404ded4d4d",
-    "anchored_at": "2026-09-26T10:42:00+08:00",
-    "branch": "feat/owner-sched-decisions-20260926",
-    "note": "Owner 2026-09-26 scheduler decisions: merchant gate, bond refresh fallback, mandatory blessing priority."
+    "candidate_sha": "7d834b41a0caf8de3708263b7ff627624f307a02",
+    "anchored_at": "2026-09-26T13:40:00+08:00",
+    "branch": "fix/evolve-feedback-deadlock-20260926",
+    "note": "Two-card hero evolution classification and bounded L1 wait fix."
 }
