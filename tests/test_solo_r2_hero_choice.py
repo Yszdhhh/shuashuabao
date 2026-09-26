@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 import pytest
 from shuabao.mediator import Mediator, Frame, Settings, MatchResult
+from shuabao.runtime_mediator import Mediator as RuntimeMediator
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_PATH = ROOT / "tests" / "fixtures" / "solo_r2_20260925" / "hero_choice_f0300.png"
@@ -123,3 +124,54 @@ def test_four_card_bond_panel_is_not_a_two_card_hero_choice() -> None:
     assert med._find_evolution_choice(frame, None) is None
     assert med._classify_choice_panel(frame) == "bond"
     assert med._panel_kind_of(frame, anchor) == "bond"
+
+
+def test_pending_two_card_hero_is_detected_when_anchor_is_missing() -> None:
+    """f0030: only an active evolve transaction may adopt anchorless two-card geometry."""
+    fixture = ROOT / "tests" / "fixtures" / "evolve_deadlock_20260926" / "hero_evolve_two_choice_f0030.png"
+    bgr = cv2.imdecode(np.fromfile(str(fixture), dtype=np.uint8), cv2.IMREAD_COLOR)
+    assert bgr is not None
+    frame = Frame(bgr)
+    med = RuntimeMediator(Settings(dry_run=True, ocr_mode="off"), ROOT)
+    med._evolve_feedback_pending = True
+    med._panel_opened_by_us = None
+    with patch.object(med, "_selection_anchor", return_value=None):
+        hit = med._find_evolution_choice(frame, None)
+        assert hit is not None
+        assert hit.name == "evolution_card_1_rank_6"
+        assert med._evolve_feedback_seen(frame) is True
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "tests/fixtures/solo_r2_20260925/bond_choice_f0342.png",
+        "fixtures/ocr_choices/frames/reborn_wow_screens_20260806/skill_choice_3.png",
+        "fixtures/ocr_choices/frames/reborn_wow_screens_20260806/treasure_choice_3.png",
+        "fixtures/ocr_choices/negatives/rec1_ingame_boss_20260809/t_003s_局内HUD.png",
+        "fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_001s_victory.png",
+    ],
+)
+def test_anchorless_pending_hero_negative_frames_stay_none(relative: str) -> None:
+    """Even while pending, normal bond/skill/treasure/HUD/result frames are not hero modals."""
+    path = ROOT / relative
+    assert path.is_file(), f"Fixture missing: {path}"
+    bgr = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_COLOR)
+    assert bgr is not None
+    frame = Frame(bgr)
+    med = RuntimeMediator(Settings(dry_run=True, ocr_mode="off"), ROOT)
+    med._evolve_feedback_pending = True
+    med._panel_opened_by_us = None
+    with patch.object(med, "_selection_anchor", return_value=None):
+        assert med._find_evolution_choice(frame, None) is None
+
+
+def test_anchorless_two_card_geometry_is_not_global_without_pending_state() -> None:
+    fixture = ROOT / "tests" / "fixtures" / "evolve_deadlock_20260926" / "hero_evolve_two_choice_f0030.png"
+    bgr = cv2.imdecode(np.fromfile(str(fixture), dtype=np.uint8), cv2.IMREAD_COLOR)
+    assert bgr is not None
+    med = RuntimeMediator(Settings(dry_run=True, ocr_mode="off"), ROOT)
+    med._evolve_feedback_pending = False
+    med._evolve_awaiting_hero_pick = False
+    with patch.object(med, "_selection_anchor", return_value=None):
+        assert med._find_evolution_choice(Frame(bgr), None) is None

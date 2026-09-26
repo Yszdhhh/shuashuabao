@@ -5360,6 +5360,10 @@ class Mediator:
         if self._post_game_state(frame) is not None:
             return None
         anc = anchor if anchor is not None else self._selection_anchor(frame)
+        # anchor 丢失时，双卡几何只能在“刚点进化等待反馈/等待英雄选择”事务内授权。
+        # 普通 HUD/羁绊/技能/宝物页面不得仅凭中央竖边全局升级为英雄弹窗。
+        if anc is None and not self._evolve_hero_choice_pending():
+            return None
         # 装备十级词缀弹窗互斥：词缀弹窗绝非英雄进化二选一
         if self._find_equipment_affix_choice(frame) is not None:
             return None
@@ -5518,7 +5522,9 @@ class Mediator:
         只有画面证据才算成功推进。
         """
         anchor = self._selection_anchor(frame)
-        return anchor is not None and self._find_evolution_choice(frame, anchor) is not None
+        # feedback_pending 本身就是 anchorless 双卡几何的授权事务；锚点丢失时
+        # 仍要让真实英雄二选一完成反馈闭环，避免 2s 后误按 F1。
+        return self._find_evolution_choice(frame, anchor) is not None
 
     def _tick_evolve_feedback_pending(self, frame: Frame, now: float) -> LoopAction | None:
         """检查 evolve 点击后的反馈确认或超时。"""
@@ -19511,7 +19517,12 @@ class Mediator:
         has_recovery = (self.phase == Phase.RECOVER_FAILURE) or bool(getattr(self, "_recovery_step", None) and self._recovery_step != "DONE")
         has_affix = self._find_equipment_affix_choice(frame) is not None
         anchor = self._selection_anchor(frame)
-        evolution_choice = self._find_evolution_choice(frame, anchor) if anchor else None
+        hero_probe_pending = self._evolve_hero_choice_pending()
+        evolution_choice = (
+            self._find_evolution_choice(frame, anchor)
+            if anchor is not None or hero_probe_pending
+            else None
+        )
         if getattr(self, "_evolve_feedback_pending", False):
             if evolution_choice is not None:
                 self._evolve_feedback_pending = False
@@ -19540,9 +19551,9 @@ class Mediator:
             and getattr(self, "_panel_opened_by_us", None) is None
         )
         has_hero = bool(
-            anchor
+            (anchor is not None or hero_probe_pending)
             and (_panel_class is None or inventory_hero_probe)
-            and (self._evolve_hero_choice_pending() or inventory_hero_probe)
+            and (hero_probe_pending or inventory_hero_probe)
             and evolution_choice is not None
         )
         has_card = (not has_hero) and (bool(anchor) or self._panel_state != PanelState.CLOSED)
