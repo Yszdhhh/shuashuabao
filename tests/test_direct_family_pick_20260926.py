@@ -25,7 +25,6 @@ def _mediator() -> Mediator:
         bond_must_take=("祝福",),
         bond_advanced_presets=("海盗",),
         bond_advanced_groups=(("海盗",),),
-        bond_negative_names=("固守",),
     )
     med._advanced_groups_completed = 0
     return med
@@ -84,7 +83,7 @@ def test_direct_family_pick_uses_rarity_only_for_same_priority_ties() -> None:
     assert rarity.call_count == 2
 
 
-def test_direct_family_pick_never_selects_explicitly_negative_or_unmatched_slots() -> None:
+def test_direct_family_pick_ignores_unmatched_slots() -> None:
     med = _mediator()
     frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
     assert med._direct_template_bond_pick(frame, _slots("固守", "无关", "未知", "其他")) is None
