@@ -259,7 +259,15 @@ def test_opportunistic_merchant_single_buy():
     frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
     now = time.time()
 
-    with patch.object(med, "_black_merchant_present", return_value=True), \
+    # a605c4cf（Owner 2026-09-26 03:43 木材两种模式）：单人木材溢出、不缺丹时不去黑商。
+    with patch.object(med, "_solo_wants_merchant", return_value=False), \
+         patch.object(med, "_black_merchant_present", return_value=True), \
+         patch.object(med, "_maybe_black_merchant") as mock_merchant:
+        assert med._maybe_opportunistic_merchant(frame, now) is None
+        mock_merchant.assert_not_called()
+
+    with patch.object(med, "_solo_wants_merchant", return_value=True), \
+         patch.object(med, "_black_merchant_present", return_value=True), \
          patch.object(med, "_maybe_black_merchant") as mock_merchant:
         mock_merchant.return_value = LoopAction.Continue
         res = med._maybe_opportunistic_merchant(frame, now)

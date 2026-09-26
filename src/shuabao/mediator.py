@@ -19616,7 +19616,13 @@ class Mediator:
             or has_affix
             or mainline_proactive_active
             or hitch_bootstrap_pending
-            or (not self._passenger_mode() and not self._solo_wants_merchant(frame))
+            or (
+                not self._passenger_mode()
+                and not self._solo_wants_merchant(frame)
+                # 已进入黑商事务（确认/就绪/校验中）时商店还开着，不能因“不需要黑商”
+                # 就把画面当成 HUD_ONLY，否则 HUD 微操会点到商店窗口上。
+                and self._merchant_fsm.phase in (MerchantPhase.ABSENT, MerchantPhase.EVICTED)
+            )
         ) else self._black_merchant_present(frame)
 
         surface = resolve_interaction_surface(
