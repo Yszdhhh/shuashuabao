@@ -120,6 +120,10 @@ OWNER_RULES: tuple[tuple[str, str, str], ...] = (
     ("亡灵卡组进行中不为吞噬丹去黑商：_devour_hold_reason 判定 hold 时不因缺丹占格≥8去黑商",
      "Owner 2026-09-26（恢复口径）",
      "tests/test_owner_ingame_rules_lock_20260924.py::test_undead_pack_in_progress_does_not_visit_merchant_for_pill"),
+    ("吞噬丹暂停只对亡灵：属性链等其它卡组照常拿、照常吃丹",
+     "Owner 2026-09-26 06:57 原话：正常应该是专心做亡灵这一个高级 agent 的时候停止使用吞噬丹，"
+     "等他自行时间到触发碎片获取。其他的都没有这个逻辑正常拿就好了，属性跟吞噬丹一直都没有什么冲突呀",
+     "tests/test_attribute_line_protection_20260926.py::test_devour_is_not_held_by_attribute_chains"),
     ("木材 < 500 以支线循环为主：F 每次最多 1 张（500–1000 两张，≥1000 十五张）",
      "Owner 2026-09-24",
      "tests/test_solo_l1_starvation_20260915.py::test_wood_tiers_visit_cap"),

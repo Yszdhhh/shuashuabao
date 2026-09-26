@@ -5953,9 +5953,8 @@ class Mediator:
         """Owner 2026-09-24：吞噬只腾格子不影响进度，唯一例外是亡灵——提前吞掉它的
         倒计时卡会断碎片，兵主合成不了。吞噬丹吞哪张认不出，所以亡灵卡组进行中
         （手里有亡灵卡、羁绊栏还没出现它的 EX）整段不吃丹。
-        2026-09-26：已勾选属性线同理——吞噬目标由游戏侧决定、脚本选不了受害者，
-        链上卡 0 < 已持有 < stack_need 时整段不吃丹（套用亡灵结构）；UR 散件无
-        目录张数，认得出名字、认不出进度，持有即保守暂停。"""
+        Owner 2026-09-26 06:57：只有专心做亡灵时停丹，等它到时间自己触发碎片获取；
+        其它卡组（含属性链）都没有这个逻辑，照常拿、照常吃丹。"""
         policy = self._policy_settings()
         owned = self._confirmed_bond_cards()
         for index, group in enumerate(policy.bond_advanced_groups):
@@ -5965,23 +5964,6 @@ class Mediator:
                 break
             if any(matches_bond_preset(name, group) for name in owned):
                 return "亡灵卡组进行中，吞噬丹可能吞掉倒计时卡"
-        chain = tuple(dict.fromkeys(
-            str(name).strip()
-            for name in (getattr(policy, "bond_chain_presets", ()) or ())
-            if str(name).strip()
-        ))
-        if chain:
-            from shuabao.bond_capacity import stack_need
-
-            for name in chain:
-                matching = [b for b in owned if b and same_bond_identity(name, b)]
-                if not matching:
-                    continue
-                need = stack_need(name)
-                if need is None:
-                    return f"属性链{name}已持有但合成张数未知，吞噬丹可能吞掉链上卡"
-                if len(matching) < need:
-                    return f"属性链{name}未完成（{len(matching)}/{need}），吞噬丹可能吞掉链上卡"
         return None
 
     def _inventory_has_swallow_pill(self, frame: Frame) -> bool:
