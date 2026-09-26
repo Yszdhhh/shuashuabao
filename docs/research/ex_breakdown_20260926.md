@@ -155,3 +155,48 @@ KB：`card_pool_rules.zhufu_blessing_20260926`（新条目）/
 4/9/14/4 仍是攻略；
    圣剑掷骰数、海盗吞 12 vs 橙悬赏均未决（见各条目）。
 6. `ex_capstones` 吞食天地条目缺 remove_pool 字段待补（只补 KB，不涉接线）。
+
+## 录屏转录补充（2026-09-26，知识，不接决策）
+
+来源：`G:\刷刷宝\素材\机制抽帧\merged\merged_catalog.jsonl`（1353 条逐帧转录）、
+`treasures.csv`、`blackshop.csv`，Owner 口径见
+`G:\刷刷宝\素材\系列标签\README_Owner口径.md`（最高优先）。
+口径：卡面属性行括号内 `(+x)` 成长加成先去掉再比对；去后一致算同一条
+（留 confidence=clear 行最多的组，其余帧并入出处）；去后仍不同保留为
+variants，标 needs_verify，不挑版本。卡族以卡面标签为准，空为 null，不猜。
+名字对照另有任务在看图核对，本轮未改任何已有名字；未改 wired_to_decision、
+choice_lexicon.json、choice_policy.json 与任何代码。
+
+条数统计：
+
+- 羁绊卡面 872 行 → 409 个同名条目：240 个单版本，169 个多版本并存
+  （needs_verify）；卡族 78 个，未判定（family=null）66 行。
+  路径：`docs/research/card_faces_20260926.json`。
+- 宝物 83 条（KB `treasures_catalog_20260926`）：choice_lexicon 61 个
+  treasure 词条中拿到效果全文（exact）26 个，仍缺 35 个（名单见该条目
+  `lexicon_missing_effects`）。
+- 黑商 8 条（KB `blackshop_catalog_20260926`）。
+- 道具 53 / 图纸 18 / 合成配方 1 / 有机制信息的提示 116
+  （KB `items_catalog_20260926`；equipment 纯属性行无机制信息，本轮 0 条）。
+- 卡面总索引：KB 顶层 `card_faces_ref`（写明条数，指向卡面 JSON）。
+
+各链 `ex_breakdown_20260926.video_frames_20260926`（事实+出处帧，11 链）：
+
+- `yihuo_chain`：焚诀·黄阶 200 杀随机吞+累计 3 张进化玄阶；地阶佛怒火莲
+  25 秒/300 范围/350%（吞一张+10% 伤+20 范围）；帝炎 EX 8 种措辞并存待核对。
+- `wangling_chain`：100 份残骸→吞全部亡灵卡置入 UR 巫妖王、
+  R 三符文各≥10 额外置入 EX 兵主（转录见帧）；R60 秒/SR120 秒自吞；
+  N 僵尸/见习/贪尸鬼自吞得 10 残骸。
+- `haidao_chain`：毁灭战舰劫掠杀敌金币/木材+1%；吞 N 海盗得金币 1000/
+  木材 10；黄金猿（黑市 66666）用后移除牌库海盗卡组；藏宝图开进码头开卡组。
+- `sanguo_chain`：吞食天地触发全属性增幅+1%（转录帧佐证 engine 口径）。
+- `xiuxian_chain`：筑基丹 60% 成功进 R 筑基期/40% 失败回卡池，失败+10%。
+- `daodao_chain` / `dasheng_chain` / `fengshen_chain` / `shenshou_chain` /
+  `juntuan_chain` / `longzu_chain`：卡面计数与归一入口（事实详见卡面 JSON）。
+- 海贼王 20 个卡面条目只进卡面 JSON（`haizeiwang_chain_11ex` 无
+  ex_breakdown_20260926 子对象，本轮不动其结构；海贼/海盗不混）。
+
+新冲突（写进条目 conflicts，未覆盖原文）：
+
+- `wangling_chain`：旧“100 残骸/符文各≥10/邪爆 2 次未上帧”表述过时
+  （转录已见帧），need 仍不写入。

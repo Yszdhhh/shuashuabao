@@ -1506,7 +1506,19 @@
           "慧夜对剑",
           "阿哈利姆神杖"
         ],
-        "open_issue": "圣剑掷骰吞几张未解决（ex10_gap_audit.md Unverified-3），需实机整局跑通"
+        "open_issue": "圣剑掷骰吞几张未解决（ex10_gap_audit.md Unverified-3），需实机整局跑通",
+        "video_frames_20260926": {
+          "source_level": "video_frames",
+          "source": "G:\\刷刷宝\\素材\\机制抽帧\\merged\\merged_catalog.jsonl（1353 条逐帧转录，2026-09-26）",
+          "cards": 18,
+          "variants_needs_verify": 23,
+          "facts": [
+            {
+              "fact": "转录刀刀卡面多张，稀有度/成长括号已按规则归一，详见 card_faces（family=刀刀/圣剑/点金手/暗海猎手等）",
+              "frames": []
+            }
+          ]
+        }
       },
       "conflicts": [
         "2026-09-26 Owner纠正：西瓦的守护为错名，canonical=希瓦的守护；guide.phase1_blueprints内旧名待改名，以Owner为准"
@@ -1620,7 +1632,19 @@
         "advance_to": "进阶为神通；F面板青色EX终卡确为法天象地（备注绝世神通/无坚不摧）",
         "set_membership": "法天象地 set_membership=神通（synthesis_chains.json:629-633），检测终阶不可只搜“大圣”二字",
         "pool_type": "移池型：EX达成后彻底移池（GAP-8，t=1040s t_1040s.jpg；与龙族/军团持续成长型区分）",
-        "caution": "开局170秒内秒合的时刻表本轮未复核（macro_strategy.md 分歧-6），机制方向可用，时刻不可当时刻表"
+        "caution": "开局170秒内秒合的时刻表本轮未复核（macro_strategy.md 分歧-6），机制方向可用，时刻不可当时刻表",
+        "video_frames_20260926": {
+          "source_level": "video_frames",
+          "source": "G:\\刷刷宝\\素材\\机制抽帧\\merged\\merged_catalog.jsonl（1353 条逐帧转录，2026-09-26）",
+          "cards": 12,
+          "variants_needs_verify": 14,
+          "facts": [
+            {
+              "fact": "转录大圣系卡面多张（family=大圣套装/齐天大圣/神通/奇技/大圣残躯），详见 card_faces；实机卡族名奇技（奇迹/骑技仅识别兼容别名）",
+              "frames": []
+            }
+          ]
+        }
       }
     },
     "fengshen_chain": {
@@ -1815,7 +1839,19 @@
         "source": "nightwatch/ex11_video_analysis.md GAP-4/Findings-§2，t=710s cards_0710s.jpg / t=1290s tooltip_1290s.jpg / t=1364s ffmpeg_ex_1364s.jpg / t=1500s bond_bar_1500s.jpg",
         "starter_face": "姜子牙卡面：累积获得6张封神卡时将SSR封神榜置入卡牌栏",
         "fabao_refine": "火尖枪/黄金棍/乾坤尺/落宝金钱卡面均标[吞噬条件]通过炼化效果吞噬",
-        "route": "姜子牙6封神卡出封神榜，炼化法宝终出圣人EX（移除法宝池）"
+        "route": "姜子牙6封神卡出封神榜，炼化法宝终出圣人EX（移除法宝池）",
+        "video_frames_20260926": {
+          "source_level": "video_frames",
+          "source": "G:\\刷刷宝\\素材\\机制抽帧\\merged\\merged_catalog.jsonl（1353 条逐帧转录，2026-09-26）",
+          "cards": 28,
+          "variants_needs_verify": 12,
+          "facts": [
+            {
+              "fact": "封神榜相关转录 34 处提及；姜子牙累积 6 张封神卡置入 SSR 封神榜口径转录一致",
+              "frames": []
+            }
+          ]
+        }
       }
     },
     "wangling_chain": {
@@ -1957,7 +1993,8 @@
       "conflicts": [
         "实机亡灵天灾 need=3 vs 攻略单张启动。保持 need=3，不改 bond_stack",
         "英雄卡巫妖 vs 克尔苏加德（攻称巫妖UR）vs 生产者巫妖×5 vs 小亡灵巫妖王。四者不互设别名。词典收录英雄卡巫妖（set_membership=null）以免 OCR 认成巫妖王",
-        "100残骸/符文各≥10/邪爆2次未上帧，不写 need"
+        "100残骸/符文各≥10/邪爆2次未上帧，不写 need",
+        "2026-09-26 转录见累积消耗100份残骸→吞噬全部亡灵卡置入UR巫妖王、R三符文各≥10额外置入EX兵主的帧（见 video_frames_20260926），旧“100残骸/符文各≥10/邪爆2次未上帧”表述过时；need 仍不写入（本轮只合知识不接决策）"
       ],
       "ex": "兵主",
       "source": [
@@ -1971,7 +2008,35 @@
         "source_level": "video_11ex",
         "source": "nightwatch/ex11_video_analysis.md Findings-§2（t=160s ffmpeg_ex_0160s.jpg）；动机存档见 macro_10ex_b_guide.md Details第三部分第4阶段章节（source_level=guide，时刻不可用）",
         "start_11ex": "11EX称t=160s抓亡灵天灾（亡者大厅回魂攒残骸）",
-        "motive_archive": "b报告动机称亡灵EX兵主成型后稳住5-5至8-1主线与大秘境入口压力（仅动机存档，不作机制事实）"
+        "motive_archive": "b报告动机称亡灵EX兵主成型后稳住5-5至8-1主线与大秘境入口压力（仅动机存档，不作机制事实）",
+        "video_frames_20260926": {
+          "source_level": "video_frames",
+          "source": "G:\\刷刷宝\\素材\\机制抽帧\\merged\\merged_catalog.jsonl（1353 条逐帧转录，2026-09-26）",
+          "cards": 16,
+          "variants_needs_verify": 34,
+          "facts": [
+            {
+              "fact": "亡灵天灾：每击杀 50 名敌人获得 1 份残骸；实时检测累积消耗 100 份残骸后吞噬全部亡灵卡、置入 UR 巫妖王；已吞噬 R 鲜血/邪恶/冰霜符文各≥10 时额外置入 EX 兵主",
+              "frames": [
+                "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0012.jpg",
+                "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\panel_0065s.jpg"
+              ]
+            },
+            {
+              "fact": "亡者大厅：回魂每消耗 1 份残骸全属性 +5；将 2 张 SR（恐惧魔王/邪爆/骷髅等多版本并存）加入卡池",
+              "frames": [
+                "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\dense_0080_0038.jpg"
+              ]
+            },
+            {
+              "fact": "R 级 60 秒自吞（残骸≥3 换 1 张 R 符文）；SR 级 120 秒自吞（残骸≥5 换 2 张 R 符文/骷髅兵）；N 僵尸/见习/贪尸鬼获取时自动吞噬得 10 份残骸",
+              "frames": [
+                "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\sample_0120s.jpg",
+                "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0019.jpg"
+              ]
+            }
+          ]
+        }
       }
     },
     "shenshou_chain": {
@@ -2067,7 +2132,19 @@
         "source_level": "video_11ex",
         "source": "nightwatch/ex11_video_analysis.md GAP-1/Findings-§2，t=160s ffmpeg_ex_0160s.jpg / t=414s ffmpeg_ex_0414s.jpg / t=620s cards_0620s.jpg",
         "corroboration": "11EX佐证：t=160s抓异兽蛋60s自吞开神兽池；小鱼人/小坤坤50杀敌互吞升级；集齐四大圣兽触发弹窗激活吞噬置入祖龙EX清空槽位",
-        "scope_note": "机制存在≠初版做：初版不上神兽/三国/龙族/军团（macro_strategy.md Summary，Owner本轮口径）"
+        "scope_note": "机制存在≠初版做：初版不上神兽/三国/龙族/军团（macro_strategy.md Summary，Owner本轮口径）",
+        "video_frames_20260926": {
+          "source_level": "video_frames",
+          "source": "G:\\刷刷宝\\素材\\机制抽帧\\merged\\merged_catalog.jsonl（1353 条逐帧转录，2026-09-26）",
+          "cards": 4,
+          "variants_needs_verify": 9,
+          "facts": [
+            {
+              "fact": "转录神兽卡面多张，详见 card_faces（family=神兽）",
+              "frames": []
+            }
+          ]
+        }
       }
     },
     "juntuan_chain": {
@@ -2154,7 +2231,19 @@
         "source_level": "video_11ex",
         "source": "nightwatch/ex11_video_analysis.md Findings-§2；吞食天地吃军团叠层高可信见 macro_strategy.md 一致-6（sample_2500s.jpg约43:56聊天已吞噬5张/6张军团卡全属性+1%）",
         "route": "燃烧远征累吞27军团卡+扭曲虚空点爆（guide口径，未上帧，不写need）",
-        "late_role": "后期抓廉价军团杂卡喂吞食天地换永久全属性滚雪球；EX后不停池，完成后只降权"
+        "late_role": "后期抓廉价军团杂卡喂吞食天地换永久全属性滚雪球；EX后不停池，完成后只降权",
+        "video_frames_20260926": {
+          "source_level": "video_frames",
+          "source": "G:\\刷刷宝\\素材\\机制抽帧\\merged\\merged_catalog.jsonl（1353 条逐帧转录，2026-09-26）",
+          "cards": 14,
+          "variants_needs_verify": 20,
+          "facts": [
+            {
+              "fact": "转录军团卡面 39 行，详见 card_faces（family=军团）",
+              "frames": []
+            }
+          ]
+        }
       }
     },
     "longzu_chain": {
@@ -2261,7 +2350,19 @@
         "source_level": "video_11ex",
         "source": "nightwatch/ex11_video_analysis.md Findings-§2/GAP-8，t=1040s t_1040s.jpg / t=1800s t_1800s.jpg / t=2680s end_2680s.jpg",
         "route": "五色龙300杀进巨龙之魂，瑞亚丝塔萨+纯净龙巢进世界末日迦拉克隆EX（t=1040s入栏）",
-        "pool_type": "持续成长型：EX出现后绝不停池，终局羁绊栏龙族计数达16；代码必须区分移池型与持续成长型"
+        "pool_type": "持续成长型：EX出现后绝不停池，终局羁绊栏龙族计数达16；代码必须区分移池型与持续成长型",
+        "video_frames_20260926": {
+          "source_level": "video_frames",
+          "source": "G:\\刷刷宝\\素材\\机制抽帧\\merged\\merged_catalog.jsonl（1353 条逐帧转录，2026-09-26）",
+          "cards": 16,
+          "variants_needs_verify": 22,
+          "facts": [
+            {
+              "fact": "转录龙族卡面 34 行（含 family=迦拉克隆），详见 card_faces",
+              "frames": []
+            }
+          ]
+        }
       }
     },
     "sanguo_chain": {
@@ -2341,7 +2442,21 @@
         "source": "nightwatch/ex11_video_analysis.md Summary-2/Findings-§2/GAP-8，t=754s t_0754s.jpg / t=755s bbar_first_0755s.jpg / t=1040s t_1040s.jpg；吞食天地后期引擎高可信见 macro_strategy.md 一致-6（sample_2500s.jpg约43:56聊天已吞噬5张/6张军团卡全属性+1%）",
         "hub_role": "拿卡节奏枢纽：3UR达成瞬间吞食天地自动吞噬全三国并移池，一次性腾空槽，接760-1150s黄金窗口并行推进海贼王/修仙/刀刀（时刻未复核，枢纽机制可用）",
         "engine": "吞食天地：每击杀400随机吞噬1张，每吞噬1张全属性增幅+1%，无法吞噬（词典live卡面句）",
-        "pool_type": "移池型：EX达成后彻底移池（GAP-8）"
+        "pool_type": "移池型：EX达成后彻底移池（GAP-8）",
+        "video_frames_20260926": {
+          "source_level": "video_frames",
+          "source": "G:\\刷刷宝\\素材\\机制抽帧\\merged\\merged_catalog.jsonl（1353 条逐帧转录，2026-09-26）",
+          "cards": 37,
+          "variants_needs_verify": 12,
+          "facts": [
+            {
+              "fact": "吞食天地效果触发：全属性增幅 +1%（转录帧佐证 engine 口径）",
+              "frames": [
+                "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\cards_0770s.jpg"
+              ]
+            }
+          ]
+        }
       },
       "conflicts": [
         "2026-09-26 11EX“t=620s开魏蜀吴群四国武将池全拿”做法与Owner“最多3国”冲突时以Owner为准",
@@ -2410,7 +2525,21 @@
         "source": "nightwatch/ex11_video_analysis.md GAP-2/Findings-§2，t=700s cards_0700s.jpg / t=764s cards_0764s.jpg / t=773s cards_0773s.jpg / t=830s cards_0830s.jpg / t=890s cards_0890s.jpg / t=1125s t_1125s.jpg",
         "starter_live": "启动need=3确为神秘戒指+流星泪+小绿瓶（700-773s拿齐置入练气期）",
         "first_member": "首个成员卡面实写为“练气期”非“炼”；终阶确为“大乘期”，元神出窍彻底证伪",
-        "mid": "木灵根（五行灵根→SSR化神期）；六九天劫50%成功进UR合体期"
+        "mid": "木灵根（五行灵根→SSR化神期）；六九天劫50%成功进UR合体期",
+        "video_frames_20260926": {
+          "source_level": "video_frames",
+          "source": "G:\\刷刷宝\\素材\\机制抽帧\\merged\\merged_catalog.jsonl（1353 条逐帧转录，2026-09-26）",
+          "cards": 23,
+          "variants_needs_verify": 26,
+          "facts": [
+            {
+              "fact": "筑基丹：获取时判定 60% 成功吞噬进 R 筑基期 / 40% 失败回卡池，每次失败成功率 +10%",
+              "frames": [
+                "G:\\测试视频+抽帧\\录屏素材\\20260823_181553_frames\\t150.png"
+              ]
+            }
+          ]
+        }
       },
       "conflicts": [
         "2026-09-26 本条目name/guide.ex仍写元神出窍，与11EX实机（终阶大乘期）冲突，不覆盖原文，以大乘期为准；ex/ex_conflict_note字段已是canoncial大乘期",
@@ -2654,7 +2783,40 @@
         "bounty_card_face": "悬赏令卡面：使用后随机吞噬一个SSR级及以下海贼卡（优先吞品阶高），按稀有度给奖励；场上无海贼卡时使用毫无收益",
         "do_not_confuse": "此处写的是海贼卡，不可混为海盗组内吞噬",
         "early_frames_10ex": "天空舰长帕奇斯卡面有击杀200自动吞噬描述；劫掠海盗吞噬条件走悬赏令；白赚海盗木材加成+可重复获取（机制方向，整局优先级不可据此推断）",
-        "open_issue": "海盗吞12 vs 橙悬赏出毁灭战舰未解决（ex10_gap_audit.md Unverified-3）"
+        "open_issue": "海盗吞12 vs 橙悬赏出毁灭战舰未解决（ex10_gap_audit.md Unverified-3）",
+        "video_frames_20260926": {
+          "source_level": "video_frames",
+          "source": "G:\\刷刷宝\\素材\\机制抽帧\\merged\\merged_catalog.jsonl（1353 条逐帧转录，2026-09-26）",
+          "cards": 32,
+          "variants_needs_verify": 15,
+          "facts": [
+            {
+              "fact": "毁灭战舰劫掠：UR 毁灭战舰技能劫掠生效杀敌金币 +1%、杀敌木材 +1%",
+              "frames": [
+                "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\cards_0770s.jpg"
+              ]
+            },
+            {
+              "fact": "吞噬 N 级海盗：金币 +1000 或木材 +10",
+              "frames": [
+                "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\cards_0770s.jpg",
+                "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\cards_0850s.jpg"
+              ]
+            },
+            {
+              "fact": "黄金猿（黑市 66666）：使用后立即获得羁绊卡黄金猿；使用后直接移除牌库中的海盗卡组",
+              "frames": [
+                "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0174.jpg"
+              ]
+            },
+            {
+              "fact": "藏宝图：经验 +300，激活套装效果将一张 N 开进码头置入卡牌栏、开启藏宝图卡组",
+              "frames": [
+                "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\dense_0390_0288.jpg"
+              ]
+            }
+          ]
+        }
       }
     },
     "kongao_ring": {
@@ -2863,7 +3025,33 @@
         "source": "nightwatch/ex11_video_analysis.md Findings-§2，t=1040s t_1040s.jpg",
         "ex_live": "终阶EX为帝炎（与 yihuo_fenjue_pool live 一致）；11EX称升地阶/天阶合出帝炎（时刻未复核，仅终名可用）",
         "starter_note": "焚诀·黄阶启动只开N池；11EX“200杀吞噬”说法与拆解“黄→玄=3 live”阶段口径不同，不可混为同一阈值（ex10_gap_audit.md 表5）",
-        "kill_self_devour": "异火、海贼推进是击杀自吞，不靠店里丹（macro_strategy.md 改法-3）"
+        "kill_self_devour": "异火、海贼推进是击杀自吞，不靠店里丹（macro_strategy.md 改法-3）",
+        "video_frames_20260926": {
+          "source_level": "video_frames",
+          "source": "G:\\刷刷宝\\素材\\机制抽帧\\merged\\merged_catalog.jsonl（1353 条逐帧转录，2026-09-26）",
+          "cards": 27,
+          "variants_needs_verify": 27,
+          "facts": [
+            {
+              "fact": "焚诀·黄阶：每击杀 200 名敌人随机吞噬一个异火；累计吞噬 3 张进化为 R 焚诀·玄阶（只开 N 池）",
+              "frames": [
+                "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0796.jpg"
+              ]
+            },
+            {
+              "fact": "焚诀·地阶：佛怒火莲每 25 秒对 300 范围造成 350% 攻击火系伤害；每吞噬一张异火卡技能伤害 +10%、范围 +20",
+              "frames": [
+                "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\sample_0720s.jpg"
+              ]
+            },
+            {
+              "fact": "帝炎 EX：佛怒帝炎莲每 30 秒对 1200 范围造成 5000% 攻击自适应伤害（多版本措辞并存，见 card_faces 帝炎 variants）",
+              "frames": [
+                "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1040s.jpg"
+              ]
+            }
+          ]
+        }
       },
       "conflicts": [
         "2026-09-26 本条目stages仍是火种/佛怒火莲旧口径，已被 yihuo_fenjue_pool live（焚诀阶位决定卡池/帝炎EX）取代；旧stages仅存档，不删，以live为准"
@@ -3769,5 +3957,2730 @@
       "team_raid": "活动/副本 -> 团队集结 -> 开房间/匹配 -> 战斗就绪",
       "greater_rift": "主界面 -> 秘境 -> 选择大秘境层数/难度 -> 确认挑战"
     }
+  },
+  "treasures_catalog_20260926": {
+    "name": "宝物目录（录屏转录，知识，不接决策）",
+    "status": "not_wired",
+    "wired_to_decision": false,
+    "source_level": "video_frames",
+    "source": "G:\\刷刷宝\\素材\\机制抽帧\\merged\\treasures.csv（83 条）",
+    "count": 83,
+    "items": [
+      {
+        "name": "一星球",
+        "effect": "套装(0/7) / 技能点+1 / 集齐七颗龙珠，触发神龙许愿",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\tooltip_1048s.jpg"
+        ],
+        "lexicon": "一星球",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "之匣",
+        "effect": "宝藏 / 之匣 / 魔法伤害+5%(+2.25%) / 技能急速+5(+2) / 能量伤害+10%(+4.5%) / [吞噬条件] / 拥有宝藏卡数量≥3时自动吞噬",
+        "rarity": "SR",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\bob_early_t0070.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "全能神符",
+        "effect": "在接下来30秒内：生命增幅+30%，全属性增幅+30%，护甲+100，格挡+100",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\sample_0240s.jpg"
+        ],
+        "lexicon": "全能神符",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "冰晶爆裂",
+        "effect": "小冰箭会对原本的主目标造成1次伤害再释放，小冰箭数量+1",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0332.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "冰片飞溅",
+        "effect": "小冰片数量+1",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0590.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "刷新券",
+        "effect": "技能免费刷新次数+1 / 英雄免费刷新次数+1 / 宝物免费刷新次数+1",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\dense_0390_0212.jpg"
+        ],
+        "lexicon": "刷新券",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "刺骨寒霜",
+        "effect": "冰霜新星、寒冰箭伤害+80%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\gRY_coarse_0066.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "剑气增幅",
+        "effect": "剑气伤害+40%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1210s.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "力量提升",
+        "effect": "套装[0/3] / 力量增幅+10% / 集齐[力量提升]、[敏捷提升]、[智力提升]获得每秒全属性+0.6",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\v_check_15s.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "卡牌大师",
+        "effect": "?",
+        "rarity": null,
+        "frames": [
+          "G:\\刷刷宝\\GameScript-Local\\docs\\baselines\\O1_contact_sheet\\reborn_wow_screens_20260806_treasure_choice_3.png"
+        ],
+        "lexicon": "卡牌大师",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "双倍神符",
+        "effect": "?",
+        "rarity": null,
+        "frames": [
+          "G:\\刷刷宝\\GameScript-Local\\docs\\baselines\\O1_contact_sheet\\reborn_wow_screens_20260806_treasure_choice_3.png"
+        ],
+        "lexicon": "双倍神符",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "双倍神符",
+        "effect": "在接下来30秒内：攻击增幅+100%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0176.jpg"
+        ],
+        "lexicon": "双倍神符",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "吞噬丹大礼包",
+        "effect": "获得卡牌吞噬丹*3",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0186.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "吵吵号角",
+        "effect": "护甲+10(+4.1) / 格挡+5(+2.05)",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\panel_top_310s.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "四星球",
+        "effect": "套装[1/7] / 英雄卡*1 / 集齐七颗龙珠，触发神龙许愿",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\bob_coarse_0036.jpg"
+        ],
+        "lexicon": "四星球",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "地震",
+        "effect": "触发1次地震，延迟1秒后对范围内敌人造成300%攻击的物理伤害，并附加1秒眩晕",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0172.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "奥术激光",
+        "effect": "发射1道奥术激光，持续期间对触碰到的敌人持续造成140%攻击的[?]魔法伤害",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0172.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "奥术神符",
+        "effect": "在接下来30秒内：技能急速+200",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\bob_coarse_0036.jpg"
+        ],
+        "lexicon": "奥术神符",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "奥术神符",
+        "effect": "在接下来的30秒内：技能急速+200",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1800s.jpg"
+        ],
+        "lexicon": "奥术神符",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "射线增幅",
+        "effect": "奥术射线伤害+40%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0525.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "射线延续",
+        "effect": "奥术射线持续时间+75%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0332.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "小冰片",
+        "effect": "冰霜新星结束后分裂出1个穿透2可以造成300%攻击[冰系]魔法伤害的小冰片",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0455.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "属性神符",
+        "effect": "在接下来45秒内：每击杀1名敌人，获得1点随机属性",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\tooltip_1048s.jpg"
+        ],
+        "lexicon": "属性神符",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "巫妖王",
+        "effect": "巫妖王 / EX",
+        "rarity": "EX",
+        "frames": [
+          "G:\\\\测试视频+抽帧\\\\抽帧\\\\macro_10ex_a\\\\dense_gRY\\\\gRY_1s_0785.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "强力龙卷",
+        "effect": "龙卷风牵引力+50%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0629.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "强力龙卷",
+        "effect": "龙卷风牵引力度+50%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0525.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "强化冰箭",
+        "effect": "寒冰箭伤害+20%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0332.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "强化火箭",
+        "effect": "爆炎箭伤害+20%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1210s.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "强化龙卷",
+        "effect": "龙卷风伤害+20%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\gRY_progress_t1260.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "影舞者",
+        "effect": "智力增幅+15% / 魔法暴击+5% / 集齐[盗贼者]、[风舞者]、[影舞者]获得杀敌全属性+0.4",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0099.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "similar"
+      },
+      {
+        "name": "恢复神符",
+        "effect": "在接下来30秒内: 每秒恢复4%的最大生命值",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0368.jpg"
+        ],
+        "lexicon": "恢复神符",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "技能伤害",
+        "effect": "技能伤害+20% / [1星效果] / 技能伤害+3% / [2星效果] / 技能伤害+5% / [3星效果] / 技能急速+10",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0176.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "控符大师",
+        "effect": "每次触发神符效果，全属性增幅+5% / [1星效果] / 触发时额外提供1.5%所有伤害 / [2星效果] / 触发时额外提供1.5%攻击增幅",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\tooltip_1048s.jpg"
+        ],
+        "lexicon": "控符大师",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "敌法师",
+        "effect": "敌法师 / R / ★★★",
+        "rarity": "R",
+        "frames": [
+          "G:/测试视频+抽帧/抽帧/macro_10ex_a/dense_gRY/gRY_1s_0821.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "敏之极",
+        "effect": "立即扣除当前20%的力量与智力，将其转为敏捷 / [1星效果] / 敏捷增幅+3% / [2星效果] / 敏捷增幅+5% / [3星效果] / 转化值提高至30%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0368.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "similar"
+      },
+      {
+        "name": "新星增幅",
+        "effect": "冰霜新星伤害+40%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0455.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "新星扩张",
+        "effect": "冰霜新星范围+100%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0714.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "暴怒神符",
+        "effect": "在接下来30秒内：物理暴击+50%，魔法暴击+50%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0176.jpg"
+        ],
+        "lexicon": "暴怒神符",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "木材(中)",
+        "effect": "木材+150",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1800s.jpg"
+        ],
+        "lexicon": "木材(中)",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "木材(小)",
+        "effect": "木材+100",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\sample_0240s.jpg"
+        ],
+        "lexicon": "木材(小)",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "木材梭哈",
+        "effect": "55%的概率木材翻倍 / 45%的概率木材清0 / [1星效果] / 梭哈成功奖励倍率提高至2.5",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\v_check_15s.jpg"
+        ],
+        "lexicon": "木材梭哈",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "未知的进化",
+        "effect": "??? / 无法预知的进化内容",
+        "rarity": null,
+        "frames": [
+          "G:/测试视频+抽帧/抽帧/macro_10ex_a/dense_gRY/gRY_1s_0821.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "杀敌(中)",
+        "effect": "杀敌数+600",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0099.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "similar"
+      },
+      {
+        "name": "杀敌加成",
+        "effect": "杀敌加成+20% / [1星效果] / 杀敌加成+3% / 集齐[杀敌金币]、[杀敌加成]、[杀敌经验]获得每秒木材+0.3",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\dense_0390_0299.jpg"
+        ],
+        "lexicon": "杀敌加成",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "杀敌梭哈",
+        "effect": "55%的概率杀敌数翻倍 / 45%的概率杀敌数清 / [1星效果] / 梭哈成功奖励倍率提高至2.5",
+        "rarity": "紫色",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1045s.jpg"
+        ],
+        "lexicon": "杀敌梭哈",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "杀敌金币",
+        "effect": "套装[1/3] / 杀敌金币+20% / [1星效果] / 杀敌金币+3% / [2星效果] / 杀敌金币+5% / [3星效果] / 立即获得英雄等级×1500的金币",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\sample_0240s.jpg"
+        ],
+        "lexicon": "杀敌金币",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "杀敌金币",
+        "effect": "杀敌金币+20% / [1星效果] / 杀敌金币+3% / 集齐[杀敌金币]、[杀敌加成]、[杀敌经验]获得每秒木材+0.3",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0120.jpg"
+        ],
+        "lexicon": "杀敌金币",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "极速神符",
+        "effect": "在接下来30秒内：攻速+200%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\dense_0390_0212.jpg"
+        ],
+        "lexicon": "极速神符",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "法师斗篷",
+        "effect": "效果： / 根据购买数量增加30/60/120/240/480智力 / 立即生效",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0198.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "浮光掠影",
+        "effect": "宝藏 / 浮光掠影 / [效果1] / 吞噬效果：木材+200 / [吞噬条件] / 拥有宝藏卡数量≥3时自动吞噬",
+        "rarity": "SR",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\bob_early_t0070.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "焦点",
+        "effect": "奥术射线持续期间会使目标受到的伤害提高20%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0332.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "焦点爆破",
+        "effect": "奥术射线会在目标位置发生爆炸，对220范围内敌人造成75%攻击的[能量]魔法伤害",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0525.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "神圣秘籍",
+        "effect": "宝藏 / 神圣秘籍 / 智力+200(+90) / 智力增幅+7%(+3.15%) / 魔法伤害+7%(+3.15%) / [吞噬条件] / 拥有宝藏卡数量≥3时自动吞噬",
+        "rarity": "SSR",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\bob_early_t0070.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "神秘宝物",
+        "effect": "效果： / 获得1个宝物 / 立即生效",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1220s.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "神赐木材",
+        "effect": "木材+888，每秒木材+0.8",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\dense_0390_0212.jpg"
+        ],
+        "lexicon": "神赐木材",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "神赐金币",
+        "effect": "金币+111111，每秒金币+11",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0186.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "等级优势",
+        "effect": "立即获得当前等级*10的全属性",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0120.jpg"
+        ],
+        "lexicon": "等级优势",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "经验(中)",
+        "effect": "经验+600",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1340s.jpg"
+        ],
+        "lexicon": "经验(中)",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "经验(小)",
+        "effect": "经验+400",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\tooltip_1048s.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "similar"
+      },
+      {
+        "name": "藏宝图",
+        "effect": "经验+300 / 激活[藏宝图]套装效果：将一张N开进码头置入卡牌栏，开启藏宝图卡组",
+        "rarity": "N",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\dense_0390_0288.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "藏宝图",
+        "effect": "经验+300 / 激活[藏宝图]套装效果：将一张[N]开进码头置入卡牌栏，开启[藏宝图]卡组",
+        "rarity": "N",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\dense_0390_0286.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "藏宝图",
+        "effect": "金币+5000 / 激活[藏宝图]套装效果：",
+        "rarity": "N",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\dense_0390_0279.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "藏宝图（二）",
+        "effect": "木材+100 / 激活[藏宝图]套装效果：将一张N开进码头置入卡牌栏，开启藏宝图卡组",
+        "rarity": "N",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0099.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "蛮舞者",
+        "effect": "套装[0/3] / 力量增幅+15% / 最终伤害+5% / [效果] / ? / 集齐：?、[风舞者]、[影舞者]，?全属性+0.4",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\bob_coarse_0036.jpg"
+        ],
+        "lexicon": "蛮舞者",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "调焦",
+        "effect": "奥术射线持续期间伤害会不断提高，每0.2秒提高5%，最高提升120%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0455.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "贪婪献祭",
+        "effect": "?",
+        "rarity": null,
+        "frames": [
+          "G:\\刷刷宝\\GameScript-Local\\docs\\baselines\\O1_contact_sheet\\reborn_wow_screens_20260806_treasure_choice_3.png"
+        ],
+        "lexicon": "贪婪献祭",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "赏金神符",
+        "effect": "在接下来45秒内：杀敌金币+100%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\v_check_15s.jpg"
+        ],
+        "lexicon": "赏金神符",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "赏金神符",
+        "effect": "在接下来的45秒内：杀敌金币+100%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1800s.jpg"
+        ],
+        "lexicon": "赏金神符",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "金币(中)",
+        "effect": "金币+10000",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0099.jpg"
+        ],
+        "lexicon": "金币(中)",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "金币(大)",
+        "effect": "金币+20000",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\dense_0390_0299.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "similar"
+      },
+      {
+        "name": "金币(小)",
+        "effect": "金币+5000",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1800s.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "similar"
+      },
+      {
+        "name": "金转木",
+        "effect": "消耗全部金币，以0.5%的比例转化为木材 / 最低获得100木材，最高消耗200000金币获得1000木材",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1340s.jpg"
+        ],
+        "lexicon": "金转木",
+        "lexicon_match": "exact"
+      },
+      {
+        "name": "闪电链",
+        "effect": "发射1道可弹射的闪电链，对命中敌人造成200%攻击的电系魔法伤害",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\gRY_coarse_0066.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "阿曼苏尔",
+        "effect": "阿曼苏尔 / EX",
+        "rarity": "EX",
+        "frames": [
+          "G:\\\\测试视频+抽帧\\\\抽帧\\\\macro_10ex_a\\\\dense_gRY\\\\gRY_1s_0785.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "陨石",
+        "effect": "召唤1颗陨石，落地后对范围内敌人造成280%攻击的物理伤害",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0172.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "陨石",
+        "effect": "召唤1颗陨石，落地后对范围内敌人造成280%攻击的物系物理伤害",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\gRY_coarse_0066.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "魔法伤害",
+        "effect": "套装[0/2] / 魔法伤害+15% / [1星效果] / 魔法伤害+3% / [2星效果] / 魔法伤害+5% / [3星效果] / 魔法伤害+10%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\sample_0240s.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "魔法伤害",
+        "effect": "魔法伤害+15% / [1星效果] / 魔法伤害+3% / [2星效果] / 魔法伤害+5% / [3星效果] / 魔法伤害+10%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0368.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "魔法伤害",
+        "effect": "魔法伤害+15% / [1星效果] / 魔法伤害+3% / 集齐[物理伤害]、[魔法伤害]获得所有伤害+15%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0120.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "龙卷增幅",
+        "effect": "龙卷伤害+40%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1210s.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "龙卷增幅",
+        "effect": "龙卷风伤害+40%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\gRY_coarse_0192.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "龙卷扩张",
+        "effect": "龙卷风范围+60%",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\gRY_coarse_0210.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      },
+      {
+        "name": "龙卷风暴",
+        "effect": "龙卷风伤害+150%，额外再释放1个龙卷风",
+        "rarity": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\gRY_progress_t1140.jpg"
+        ],
+        "lexicon": null,
+        "lexicon_match": "none"
+      }
+    ],
+    "lexicon_note": "choice_lexicon 61 个 treasure 词条中本次拿到效果全文（exact）26 个；以下 35 个仍缺效果，待补帧：",
+    "lexicon_missing_effects": [
+      "ONEPIECE",
+      "一身神装",
+      "七星球",
+      "三星球",
+      "九曲灵升丹",
+      "二星球",
+      "五星球",
+      "伐木契约",
+      "六星球",
+      "力之极",
+      "压制",
+      "吞食丹",
+      "命运骰子",
+      "如意空空手",
+      "小绿瓶",
+      "屠夫之刃",
+      "挑战杀手",
+      "提高上限",
+      "攻坚",
+      "时间停止",
+      "智力提升",
+      "杀敌(小)",
+      "杀敌敏捷",
+      "杀敌经验",
+      "满级大佬",
+      "物理伤害",
+      "百宝箱",
+      "神圣刀锋",
+      "精英杀手",
+      "经验压制",
+      "至高进化",
+      "诅咒之力",
+      "透支力量",
+      "黄金之力",
+      "黄金猿"
+    ]
+  },
+  "blackshop_catalog_20260926": {
+    "name": "黑商目录（录屏转录，知识，不接决策）",
+    "status": "not_wired",
+    "wired_to_decision": false,
+    "source_level": "video_frames",
+    "source": "G:\\刷刷宝\\素材\\机制抽帧\\merged\\blackshop.csv（8 条：kind=blackshop 全部 + kind=item 中带价格/购买字样）",
+    "count": 8,
+    "items": [
+      {
+        "name": "吞噬丹",
+        "price": null,
+        "effect": "效果： / 吞噬丹+1 / 立即生效",
+        "limit": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1240s.jpg"
+        ]
+      },
+      {
+        "name": "技能刷新券(二)",
+        "price": "免费",
+        "effect": "效果： / 技能免费刷新次数+2 / 立即生效",
+        "limit": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1300s.jpg"
+        ]
+      },
+      {
+        "name": "蓝水晶",
+        "price": null,
+        "effect": "效果： / 根据购买数量增加0.1/0.2/0.3/0.4/0.5的每秒智力",
+        "limit": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1332.jpg"
+        ]
+      },
+      {
+        "name": "黄金猿",
+        "price": "66666",
+        "effect": "黄金猿 / 66666 / 物品品质：传说 / 物品分类：消耗品 / 使用后立即获得羁绊卡牌：黄金猿 / 在背包中出售也能卖个好价格 / 注：使用后会直接移除牌库中的海盗卡组",
+        "limit": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0174.jpg"
+        ]
+      },
+      {
+        "name": "黑市",
+        "price": "免费",
+        "effect": "快捷键[H] / 黑市每180秒获得1次免费刷新机会 / 黑市商店等级越高刷新出的物品越好，黑市每秒自动获得1点经验，消耗杀敌数购买商品也会获得经验。经验满后则黑市升为下一级",
+        "limit": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\dense_0390_0272.jpg"
+        ]
+      },
+      {
+        "name": "黑市",
+        "price": "免费",
+        "effect": "黑市 / 快捷键[H] / 黑市每180秒获得1次免费刷新机会 / 黑市商店等级越高刷新出的物品越好,黑市每秒自动获得1点经验,消耗杀敌数购买商品也会获得经验,经验满后晋升为下一级",
+        "limit": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1225.jpg"
+        ]
+      },
+      {
+        "name": "黑市",
+        "price": "免费",
+        "effect": "黑市每180秒获得1次免费刷新机会 / 黑市商店等级越高刷新出的物品越好，黑市每秒自动获得1点经验，消耗杀敌数购买商品也会获得经验。经验满后则晋升为下一级",
+        "limit": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1225.jpg"
+        ]
+      },
+      {
+        "name": "黑市",
+        "price": "免费;0",
+        "effect": "黑市 / 0 / 快捷键[H] / 黑市每180秒获得1次免费刷新机会 / 黑市商店等级越高刷新出的物品越好，黑市每秒自动获得1点经验，消耗杀敌数购买商品也会获得经验，经验满后则晋升为下一级",
+        "limit": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\dense_0390_0174.jpg"
+        ]
+      }
+    ]
+  },
+  "items_catalog_20260926": {
+    "name": "道具/图纸/套装/合成配方/机制提示（录屏转录，有机制信息的，知识，不接决策）",
+    "status": "not_wired",
+    "wired_to_decision": false,
+    "source_level": "video_frames",
+    "source": "G:\\刷刷宝\\素材\\机制抽帧\\merged\\merged_catalog.jsonl（1353 条逐帧转录，2026-09-26）",
+    "method": "item/blueprint/synthesis 全收；hint 只收含机制关键词（吞噬/置入/成功率/残骸/悬赏令/套装效果/进化/合成/劫掠等）且排除纯聊天噪音；equipment 纯属性行无机制信息，本轮 0 条",
+    "counts": {
+      "items": 53,
+      "blueprints": 18,
+      "synthesis": 1,
+      "mechanism_hints": 116
+    },
+    "items": [
+      {
+        "name": "吞噬丹",
+        "text": "吞噬丹 / 5000 / 物品品质：精良 / 物品分类：消耗品 / 使用后随机吞噬1个卡牌栏中可吞噬的卡牌",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0095.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬丹",
+        "text": "5000 / 物品品质：精良 / 物品分类：消耗品 / 使用后随机吞噬1个卡牌栏中可吞噬的卡牌",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0189.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "N级悬赏令",
+        "text": "N级悬赏令 / 100 / 物品品质：优秀 / 物品分类：消耗品 / 使用后随机吞噬一个N级海盗卡，并根据吞噬卡牌稀有度获取奖励",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0170.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "黄金猿",
+        "text": "黄金猿 / 66666 / 物品品质：传说 / 物品分类：消耗品 / 使用后立即获得羁绊卡牌：黄金猿 / 在背包中出售也能卖个好价格 / 注：使用后会直接移除牌库中的海盗卡组",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0174.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "SSR级悬赏令",
+        "text": "SSR级悬赏令 / 100 / 物品品质：传说 / 物品分类：消耗品 / 使用后随机吞噬一个SSR级及以下品级的海盗卡（优先吞噬品级高的），并根据吞噬卡牌稀有度获取奖励",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0200.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "SSR级悬赏令",
+        "text": "物品品质：传说 / 物品分类：消耗品 / 使用后随机吞噬一个SSR级及以下品质的海盗卡(优先吞噬品级高的)，并根据吞噬卡牌稀有度获取奖励",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\tooltip_1196s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "技能刷新券(一)",
+        "text": "技能刷新券(一) / 效果： / 技能免费刷新次数+1 / 立即生效",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0180.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "奥术神符",
+        "text": "奥术神符 / 在接下来30秒内：技能急速+200",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\inspect_bob_progress_t0180.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "属性神符",
+        "text": "属性神符 / 在接下来45秒内：每击杀1名敌人，获得1点随机属性",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\inspect_bob_progress_t0180.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "属性神符",
+        "text": "在接下来45秒内：每击杀1名敌人，获得1点随机属性",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1050s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "SR级悬赏令",
+        "text": "SR级悬赏令 / 100 / 物品品质：史诗 / 物品分类：消耗品 / 使用后随机吞噬一个SR级及以下品级的海盗卡（优先吞噬品级高的），并根据吞噬卡牌稀有度获取奖励",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0209.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "SR级悬赏令",
+        "text": "SR级悬赏令 / 100 / 物品品质: 史诗 / 物品分类: 消耗品 / 使用后随机吞噬一个SR级及以下品级的海盗卡(优先吞噬品级高的), 并根据吞噬卡牌稀有度获取奖励",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0985.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "SR级悬赏令",
+        "text": "SR级悬赏令已放入玩家背包，按B可以打开背包",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\ep_45_1139s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "SR级悬赏令",
+        "text": "获得SR级悬赏令，物品栏已满，该物品进入临时背包",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\ep_75_2654s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "SR级悬赏令",
+        "text": "获得SR级悬赏令，物品栏已满，已放入道具存放点",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\evidence_ep_13_0204s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "蓝水晶",
+        "text": "效果： / 根据购买数量增加0.1/0.2/0.3/0.4/0.5的每秒智力",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1332.jpg"
+        ],
+        "confidence": "partial"
+      },
+      {
+        "name": "成功学(唯一)",
+        "text": "效果： / 杀敌金币+5% / 杀敌经验+5% / 杀敌加成+5% / 杀敌木材+5%",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1301.jpg"
+        ],
+        "confidence": "partial"
+      },
+      {
+        "name": "羁绊",
+        "text": "100 / 快捷键[F] / 花费木材进行一次羁绊卡牌抽取 / 集齐卡牌套装自动吞噬",
+        "frames": [
+          "G:\\测试视频+抽帧\\录屏素材\\20260823_171719_frames\\t130.png"
+        ],
+        "confidence": "partial"
+      },
+      {
+        "name": "龙魂石",
+        "text": "1000 / 获取物品",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\end_2620s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\ffmpeg_ex_2046s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "龙魂石",
+        "text": "50 / 获取物品",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\ffmpeg_ex_1364s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1400s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "龙魂石",
+        "text": "获取物品",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1310s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "龙魂石",
+        "text": "获得50个龙魂石",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\evidence_ep_59_2259s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "龙魂石",
+        "text": "获得75个龙魂石",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\evidence_ep_65_2484s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "龙魂石",
+        "text": "获得200个龙魂石",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\evidence_ep_71_2600s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "经验(小)",
+        "text": "经验+400",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1050s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "精英杀手",
+        "text": "精英伤害+20% / [1星效果] / 精英伤害+3% / 集齐[领主杀手]、[精英杀手]、[挑战杀手]获得最终伤害+8%",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1050s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "刷新券",
+        "text": "技能免费刷新次数+1 / 英雄免费刷新次数+1 / 宝物免费刷新次数+1",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1050s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "炉岩碳",
+        "text": "175 / 获取物品",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1200s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1200s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "奥术箭碎片",
+        "text": "75 / 获取物品",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1200s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1200s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "飓风碎片",
+        "text": "100 / 获取物品",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1200s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1200s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "荣誉币",
+        "text": "150 / 获取物品",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1200s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1200s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "寒冰箭碎片",
+        "text": "100 / 获取物品",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1200s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1200s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "闪电链碎片",
+        "text": "100 / 获取物品",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1200s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1200s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "陨石碎片",
+        "text": "100 / 获取物品",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1200s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1200s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "夺魂者的头饰",
+        "text": "物品品质：传说 / 物品分类：消耗品 / 使用后随机吞噬一个SSR级及以下等级的海盗卡（优先吞噬品级高的），并根据吞噬卡牌稀有度获取奖励",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1195s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "暗影长靴",
+        "text": "取得存档装备",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1195s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "合作投资(唯一)",
+        "text": "效果： / 每次黑市升级时，获得1件对应等级的商品 / 立即生效",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\dense_0390_0177.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "英雄刷新券(一)",
+        "text": "效果： / 英雄免费刷新次数+1 / 立即生效",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\dense_0390_0180.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "黑市卡(一)",
+        "text": "效果： / 黑市经验+120 / 立即生效",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\dense_0390_0183.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "杀敌投资allin(唯一)",
+        "text": "效果： / 扣除当前全部的杀敌数，随后每分钟获得扣除数值25%的杀敌数，游戏通关后不再生效 / 立即生效",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_1212.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "熔岩猎犬",
+        "text": "获取物品",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_1288.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "英雄卡",
+        "text": "5000 / 物品品质：传说 / 物品分类：消耗品 / 立即进行1次进化",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_1467.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "毁灭战舰",
+        "text": "卡牌品级：UR / 卡牌标签：海盗 / 攻击增幅+10% / [效果1] / 每击杀300名敌人：将一张随机的海盗卡置入卡牌栏 / [效果2] / 每18秒进行一次炮击，对范围内敌人造成600%攻击的[物系]?伤害 / [效果3] / 劫掠：每吞噬一张海盗卡，杀敌金币+1%，杀敌木材+1% / [效果4] / ?",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0625.jpg"
+        ],
+        "confidence": "partial"
+      },
+      {
+        "name": "大帝的黄金战甲",
+        "text": "大帝的黄金战甲",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0702.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "焚天经(唯一)",
+        "text": "效果： / 火系伤害+20% / 燃烧伤害+50% / 立即生效",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\gRY_coarse_0114.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "神赐吞骸丹",
+        "text": "神赐吞骸丹",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0973.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "神秘的奶牛赠礼",
+        "text": "打开神秘的奶牛赠礼获得了: 英雄卡x1",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1219.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "R级悬赏令",
+        "text": "获得R级悬赏令, 道具栏已满，已放入道具背包点",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\ep_38_0880s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "UR级罪恶圣令",
+        "text": "UR级罪恶圣令已放入玩家背包，按B可以打开背包",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\ep_41_0975s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "暴风城纹章盾",
+        "text": "掉落存档装备：暴风城纹章盾",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\evidence_ep_15_0215s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "魔法导师的封印",
+        "text": "掉落存档装备：魔法导师的封印",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\evidence_ep_15_0215s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "粽叶",
+        "text": "获得2个粽叶",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\evidence_ep_17_0294s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "UR级悬赏令",
+        "text": "获得UR级悬赏令 / 物品栏已满，全部放入道具存放点",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\evidence_ep_40_0965s.jpg"
+        ],
+        "confidence": "clear"
+      }
+    ],
+    "blueprints": [
+      {
+        "name": "极图纸",
+        "family": "极",
+        "text": "[效果1] / 将UR极的剩余合成卡牌加入卡池 / 激活[极]套装效果： / 将一张UR极置入卡牌栏",
+        "recipe": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\cards_1080s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0985.jpg"
+        ],
+        "confidence": "clear",
+        "note": "OMP_PIXELS; NAME_MISMATCH: 词典写法=疾 出处=game_mechanics_kb.json+$.unknown[20]; 实机5处均为木字旁极，解开unknown[20]"
+      },
+      {
+        "name": "时间宝石图纸",
+        "family": "时间宝石",
+        "text": "[效果1] / 将UR时间宝石的剩余合成卡牌加入卡池 / 激活[时间宝石]套装效果： / 将一张UR时间宝石置入卡牌栏",
+        "recipe": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\cards_1080s.jpg"
+        ],
+        "confidence": "clear",
+        "note": null
+      },
+      {
+        "name": "暗海猎手图纸",
+        "family": "暗海猎手",
+        "text": "暗海猎手图纸 / [效果1] / 将UR暗海猎手的剩余合成卡牌加入卡池 / 激活[暗海猎手]套装效果： / ?置入卡牌栏",
+        "recipe": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\tooltip_1112s.jpg"
+        ],
+        "confidence": "partial",
+        "note": null
+      },
+      {
+        "name": "暗海猎手图纸",
+        "family": "暗海猎手",
+        "text": "[效果1] / 将UR暗海猎手的剩余合成卡牌加入卡池 / 激活[暗海猎手]套装效果： / 将一张UR暗海猎手置入卡牌栏",
+        "recipe": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1090s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0987.jpg"
+        ],
+        "confidence": "clear",
+        "note": "OMP_PIXELS; 完整清晰记录暗海猎手图纸，补全catalog之前缺失的字"
+      },
+      {
+        "name": "圣剑图纸",
+        "family": "圣剑",
+        "text": "[效果1] / 将UR圣剑的剩余合成卡牌加入卡池 / 激活[圣剑]套装效果： / 将一张UR圣剑置入卡牌栏",
+        "recipe": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1090s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0998.jpg"
+        ],
+        "confidence": "clear",
+        "note": "OMP_PIXELS; 证实UR圣剑图纸为刀刀二阶段套装，需3张合成 | OMP_PIXELS; 刀刀二阶段核心UR圣剑图纸实机确证"
+      },
+      {
+        "name": "三元重戟图纸",
+        "family": "三元重戟",
+        "text": "附加? / [效果1] / ?",
+        "recipe": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1085s.jpg"
+        ],
+        "confidence": "partial",
+        "note": "OMP_PIXELS; 刀刀二阶段高阶UR图纸，文字下部被事件日志遮挡"
+      },
+      {
+        "name": "阿哈利姆神杖图纸",
+        "family": "阿哈利姆神杖",
+        "text": "[效果1] / ?",
+        "recipe": null,
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1103s.jpg"
+        ],
+        "confidence": "partial",
+        "note": "OMP_PIXELS; 刀刀UR图纸，文字被系统浮动日志遮挡"
+      },
+      {
+        "name": "阿哈利姆神杖图纸",
+        "family": "阿哈利姆神杖",
+        "text": "[效果1] / 将UR阿哈利姆神杖的剩余合成卡牌加入卡池 / 激活[阿哈利姆神杖]套装效果: / 将一张UR阿哈利姆神杖置入卡牌栏",
+        "recipe": "阿哈利姆神杖 (0/4)",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1008.jpg"
+        ],
+        "confidence": "clear",
+        "note": "OMP_PIXELS; 证实刀刀二阶段UR阿哈利姆神杖图纸(0/4)合成结构 | OMP_PIXELS; 刀刀二阶段阿哈利姆神杖图纸实机确证"
+      },
+      {
+        "name": "暗海猎手",
+        "family": "暗海猎手",
+        "text": "[效果1] / 将UR暗海猎手的剩余合成卡牌加入卡池 / 激活[暗海猎手]套装效果: / 将一张UR暗海猎手置入卡牌栏",
+        "recipe": "暗海猎手4件套→UR暗海猎手",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1105s.jpg"
+        ],
+        "confidence": "clear",
+        "note": "OMP_PIXELS; 暗海猎手套装启动卡/图纸，卡面大字名称省略，标签标暗海猎手(0/4)，开启剩余合成卡牌"
+      },
+      {
+        "name": "风之杖",
+        "family": "风之杖",
+        "text": "风系伤害+?5%) / 激活[风之杖]套装效果: / 将一张SSR风神杖的合成卡牌SR风之杖置入卡牌栏",
+        "recipe": "风之杖 (2/3)",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0972.jpg"
+        ],
+        "confidence": "partial",
+        "note": "OMP_PIXELS; 刀刀图纸部件，中央独立卡名被紫色图标遮挡"
+      },
+      {
+        "name": "散夜对剑",
+        "family": "三元重戟",
+        "text": "力量+100(+39) / 敏捷+100(+39) / 攻速+15%(+5.85%) / 普攻伤害+5%(+1.95%) / 激活[三元重戟]套装效果: / 将一张UR三元重戟置入卡牌栏",
+        "recipe": "三元重戟 (1/4)",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0985.jpg"
+        ],
+        "confidence": "clear",
+        "note": "OMP_PIXELS; 证实三元重戟配件散夜对剑SSR属性与激活效果"
+      },
+      {
+        "name": "慧夜对剑",
+        "family": "三元重戟",
+        "text": "力量+100(+39) / 智力+100(+39) / 所有伤害+5%(+1.95%) / 技能急速+10(+3) / 激活[三元重戟]套装效果: / 将一张UR三元重戟置入卡牌栏",
+        "recipe": "三元重戟 (1/4)",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0985.jpg"
+        ],
+        "confidence": "clear",
+        "note": "OMP_PIXELS; 证实三元重戟配件慧夜对剑SSR属性与激活效果"
+      },
+      {
+        "name": "永恒",
+        "family": "极",
+        "text": "智力+100(+39) / 杀敌智力+0.1(+0.03) / 激活[极]套装效果: / 将一张UR极置入卡牌栏",
+        "recipe": "极 (2/4)",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0998.jpg"
+        ],
+        "confidence": "clear",
+        "note": "OMP_PIXELS; 刀刀二阶段极图纸配件SSR永恒实机卡面"
+      },
+      {
+        "name": "恶魔刀锋",
+        "family": "圣剑",
+        "text": "攻击力+150(+58) / 攻击增幅+3%(+1.17%) / 激活[圣剑]套装效果: / 将一张UR圣剑置入卡牌栏",
+        "recipe": "圣剑 (2/3)",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1008.jpg"
+        ],
+        "confidence": "clear",
+        "note": "OMP_PIXELS; 证实刀刀二阶段套装圣剑配件SSR恶魔刀锋实机卡面"
+      },
+      {
+        "name": "阿哈利姆之杖",
+        "family": "阿哈利姆神杖",
+        "text": "力量+100(+39) / 敏捷+100(+39) / 智力+100(+39) / 所有伤害+5%(+1.95%) / 激活[阿哈利姆神杖]套装效果: / 将一张UR阿哈利姆神杖置入卡牌栏",
+        "recipe": "阿哈利姆神杖 (1/4)",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1010.jpg"
+        ],
+        "confidence": "clear",
+        "note": "OMP_PIXELS; 证实刀刀二阶段阿哈利姆神杖配件SSR阿哈利姆之杖卡面"
+      },
+      {
+        "name": "阿哈利姆斗篷",
+        "family": "阿哈利姆神杖",
+        "text": "智力+100(+39) / 智力增幅+10%(+3.9%) / 激活[阿哈利姆神杖]套装效果: / 将一张UR阿哈利姆神杖置入卡牌栏",
+        "recipe": "阿哈利姆神杖 (1/4)",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1010.jpg"
+        ],
+        "confidence": "clear",
+        "note": "OMP_PIXELS; 证实刀刀二阶段阿哈利姆神杖配件SSR阿哈利姆斗篷卡面"
+      },
+      {
+        "name": "阿哈利姆魔晶",
+        "family": "阿哈利姆神杖",
+        "text": "技能伤害+10%(+3.9%) / 魔法伤害+10%(+3.9%) / 激活[?]套装效果: / ?",
+        "recipe": "阿哈利姆神杖 (2/4)",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1020.jpg"
+        ],
+        "confidence": "partial",
+        "note": "OMP_PIXELS; 证实刀刀二阶段阿哈利姆神杖配件SSR阿哈利姆魔晶，套装正文受半透明底色重叠遮挡"
+      },
+      {
+        "name": "暗夜猎手图纸",
+        "family": "暗夜猎手",
+        "text": "[效果1] / 将UR暗夜猎手的剩余合成卡牌加入卡池 / 激活[暗夜猎手]套装效果: / 将一张UR暗夜猎手置入卡牌栏",
+        "recipe": "合成4张暗夜猎手系列卡牌置入UR暗夜猎手",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0987.jpg"
+        ],
+        "confidence": "clear",
+        "note": "OMP_PIXELS; 实机证实刀刀二阶段暗夜猎手图纸及4件套合成"
+      }
+    ],
+    "synthesis": [
+      {
+        "name": "远古王者之刃",
+        "text": "修复破败之刃, 合成了远古王者之刃",
+        "recipe": "破败之刃",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1043.jpg"
+        ],
+        "confidence": "clear"
+      }
+    ],
+    "mechanism_hints": [
+      {
+        "name": "吞食天地效果",
+        "family": "三国",
+        "text": "吞食天地效果触发：全属性增幅+1%",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\cards_0770s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "毁灭战舰劫掠",
+        "family": "海盗",
+        "text": "UR毁灭战舰技能劫掠生效：杀敌金币+1%，杀敌木材+1%",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\cards_0770s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬海盗",
+        "family": "海盗",
+        "text": "吞噬N级海盗，获得：金币+1000",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\cards_0770s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "海盗吞噬木材",
+        "family": "海盗",
+        "text": "吞噬N级海盗，获得：木材+10",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\cards_0850s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "羁绊抽取提示",
+        "family": null,
+        "text": "羁绊 / 100 / 快捷键[F] / 花费木材进行一次羁绊卡牌抽取 / 集齐卡牌套装自动吞噬",
+        "frames": [
+          "G:\\测试视频+抽帧\\录屏素材\\20260823_154236_frames\\f_56.png"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "SR级悬赏令",
+        "family": null,
+        "text": "获得SR级悬赏令，物品栏已满，已放入道具存放点。 / 获取一张：SR级悬赏令。 / 瘟疫散播效果触发，额外获取1份残骸。SR级悬赏令已放入玩家背包，按B可以打开背包。",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\cards_0610s.jpg"
+        ],
+        "confidence": "partial"
+      },
+      {
+        "name": "瘟疫散播",
+        "family": null,
+        "text": "效果触发，黑币刷新间隔降低30秒，黑市折扣道具出现概率+25%。",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\chat_0752s.jpg"
+        ],
+        "confidence": "partial"
+      },
+      {
+        "name": "瘟疫散播",
+        "family": "亡灵",
+        "text": "瘟疫散播效果触发，额外获取1份残骸",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\cards_0773s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "战神套装",
+        "family": null,
+        "text": "激活并吞噬战神套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\cards_0788s.jpg"
+        ],
+        "confidence": "partial"
+      },
+      {
+        "name": "黑市刷新",
+        "family": null,
+        "text": "双果盟友，黑市刷新间隔降低30秒，黑市折扣道具出现概率+25%",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\chat_0768s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "礼盒奖励",
+        "family": null,
+        "text": "打破礼盒，获得50杀敌数",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\cards_0758s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "黑市等级升级提示",
+        "family": null,
+        "text": "黑市等级晋升为：2级，可以刷新更高级的物品了",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0056.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "残骸消耗及卡牌替换提示",
+        "family": null,
+        "text": "已累计消耗：70份残骸",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0109.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "已吞噬",
+        "family": null,
+        "text": "快捷键[L] / 查看本局的吞噬详情",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0134.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0340.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "黑市等级",
+        "family": null,
+        "text": "黑市等级晋升为：3级，可以刷新更高级的物品了",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0175.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "英雄进化",
+        "family": null,
+        "text": "小娜迦 / R / ★★★ / 未知的进化 / ??? / 无法预知的进化内容 / 先知 / SR / ★★★",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\bob_coarse_0183.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "山岭巨人",
+        "family": null,
+        "text": "未知的进化：无法预知的进化内容",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_1467.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "潮汐猎人",
+        "family": null,
+        "text": "未知的进化：无法预知的进化内容",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_1467.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "?",
+        "family": null,
+        "text": "效果： / 随机获得400-600? / 立即生效",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0714.jpg"
+        ],
+        "confidence": "partial"
+      },
+      {
+        "name": "未知的进化",
+        "family": null,
+        "text": "电棍 / SR / ★☆☆ / 未知的进化 / ??? / 无法预知的进化内容",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0750.jpg"
+        ],
+        "confidence": "partial"
+      },
+      {
+        "name": "黑市",
+        "family": null,
+        "text": "黑市每180秒获得1次免费刷新机会 / 黑市商店等级越高刷新出的物品越好，黑市每秒自动获得1点经验，消耗杀敌数购买商品也会获得经验。经验满后则晋升为下一级。",
+        "frames": [
+          "G:/测试视频+抽帧/抽帧/macro_10ex_a/dense_gRY/gRY_1s_0947.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "宝物刷新",
+        "family": null,
+        "text": "宝物免费刷新次数+1",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\sample_0240s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\v_check_15s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "获得悬赏令",
+        "family": "海盗",
+        "text": "获得SR级悬赏令，物品栏已满，已放入道具存放点",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\cards_0773s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "获取悬赏令",
+        "family": "海盗",
+        "text": "获取一张：SR级悬赏令",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\cards_0773s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "投掷点数吞噬刀刀",
+        "family": "刀刀",
+        "text": "投掷点数是：5，立即吞噬5张刀刀系列卡牌",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\cards_1120s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "投掷点数吞噬刀刀",
+        "family": "刀刀",
+        "text": "投掷点数是: 6, 立即吞噬6张刀刀系列卡牌",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1033.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬时间宝石套装",
+        "family": "刀刀",
+        "text": "激活并吞噬时间宝石套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\cards_1120s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "双果肥友",
+        "family": "黑市",
+        "text": "双果肥友，黑市刷新间隔降低30秒，黑市折扣道具出现概率+25%",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\chat_0770s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\chat_0771s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\chat_0773s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬战术套装",
+        "family": "战术",
+        "text": "激活并吞噬战术套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\ffmpeg_ex_0310s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0058.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "回魂效果",
+        "family": "亡灵",
+        "text": "已累计消耗：75份残骸 / 回魂效果触发，全属性+25",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\bob_progress_t0360.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "累计消耗残骸",
+        "family": "亡灵",
+        "text": "已累计消耗：55份残骸",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\ffmpeg_ex_0310s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "获得R级悬赏令",
+        "family": "海盗",
+        "text": "获得R级悬赏令，物品栏已满，已放入道具存放点",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_0930s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "获取R级悬赏令",
+        "family": "海盗",
+        "text": "获取一张：R级悬赏令",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_0930s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "获取R级悬赏令",
+        "family": "海盗",
+        "text": "获取一张：R级悬赏令 / 获得R级悬赏令，已放入玩家物品栏",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0058.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "获取R级悬赏令",
+        "family": "海盗",
+        "text": "获得R级悬赏令，物品栏已满，已放入道具存放点",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0994.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "获取N级悬赏令",
+        "family": "海盗",
+        "text": "获取一张：N级悬赏令",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_0970s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "获取N级悬赏令",
+        "family": "海盗",
+        "text": "获取一张：N级悬赏令 / 获得N级悬赏令，物品栏已满，已放入道具?",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\bob_early_t0100.jpg"
+        ],
+        "confidence": "partial"
+      },
+      {
+        "name": "获取N级悬赏令",
+        "family": "海盗",
+        "text": "获得N级悬赏令，物品栏已满，已放入道具存放点",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1008.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "N级悬赏令放入背包",
+        "family": "海盗",
+        "text": "N级悬赏令已放入玩家背包，按B可以打开背包",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_0970s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬五极山套装",
+        "family": "五极山",
+        "text": "激活并吞噬五极山套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_0980s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0868.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "获得吞噬丹",
+        "family": "道具",
+        "text": "获得吞噬丹，物品栏已满，已放入道具存放点",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1280s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "获得吞噬丹",
+        "family": null,
+        "text": "获得吞噬丹，已放入玩家物品栏",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\dense_0390_0173.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "获得吞噬丹",
+        "family": null,
+        "text": "获得吞噬丹, 物品栏已满, 已放入遗弃存放点",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1225.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬丹放入背包",
+        "family": "道具",
+        "text": "吞噬丹已放入玩家背包，按B可以打开背包",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1280s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "虚空之球",
+        "family": null,
+        "text": "打开虚空之球获得了：英雄免费刷新次数+1",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1300s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "获得神赐吞噬丹",
+        "family": "道具",
+        "text": "获得神赐吞噬丹，物品栏已满，已放入道具存放点",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1310s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "神赐吞噬丹放入背包",
+        "family": "道具",
+        "text": "神赐吞噬丹已放入玩家背包，按B可以打开背包",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1310s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬五色巨龙套装",
+        "family": "龙族",
+        "text": "激活并吞噬五色巨龙套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\scan_1320s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬祝福套装",
+        "family": "祝福",
+        "text": "激活并吞噬祝福套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_0015s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0011.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "海盗吞噬杀敌数",
+        "family": "海盗",
+        "text": "吞噬N级海盗，获得：杀敌数+100",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_0655s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬力量套装",
+        "family": "力量",
+        "text": "激活并吞噬力量套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_0759s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "打破礼盒获得杀敌数",
+        "family": null,
+        "text": "打破礼盒，获得50杀敌数",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_0759s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "获得UR级悬赏令",
+        "family": null,
+        "text": "获得UR级悬赏令，物品栏已满，已放入道具暂存点",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_0763s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "获取UR级悬赏令",
+        "family": null,
+        "text": "获取一张：UR级悬赏令",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_0763s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "获取UR级悬赏令",
+        "family": "海盗",
+        "text": "获取一张：UR级悬赏令 / 获得UR级悬赏令，物品栏已满，已放入道具存放点",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0110.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬野蛮人套装",
+        "family": "野蛮人",
+        "text": "激活并吞噬野蛮人套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_0782s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬屠戮者套装",
+        "family": "屠戮者",
+        "text": "激活并吞噬屠戮者套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_0790s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬该套装",
+        "family": null,
+        "text": "激活并吞噬该套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1085s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬三元重戟套装",
+        "family": "三元重戟",
+        "text": "激活并吞噬三元重戟套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1101s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0994.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬圣剑套装",
+        "family": "圣剑",
+        "text": "激活并吞噬圣剑套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1103s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬阿哈利姆神杖套装",
+        "family": "阿哈利姆神杖",
+        "text": "激活并吞噬阿哈利姆神杖套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1113s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1033.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬阿哈利姆神杖套装",
+        "family": "刀刀",
+        "text": "激活并吞噬[阿哈利姆神杖]套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1033.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "黑市等级晋升",
+        "family": null,
+        "text": "黑市等级晋升为: 4级, 可以刷新更高级的物品了",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1114s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬毒姬",
+        "family": null,
+        "text": "吞噬N级 毒姬, 获得: 木材+10",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\t_1114s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "瘟疫散播效果",
+        "family": "亡灵",
+        "text": "瘟疫散播效果触发，额外获取1份残骸",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\toast_1105s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\toast_1106s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\toast_1107s.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\evidence_ep_18_0299s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "获取SR级悬赏令",
+        "family": "海盗",
+        "text": "获取一张：SR级悬赏令 / 获得SR级悬赏令，物品栏已满，已放入道具?",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\toast_1107s.jpg"
+        ],
+        "confidence": "partial"
+      },
+      {
+        "name": "获取SR级悬赏令",
+        "family": "海盗",
+        "text": "获得SR级悬赏令, 物品栏已满, 已放入道具暂存点",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0972.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬经济套装",
+        "family": "经济",
+        "text": "激活并吞噬经济套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\dense_0080_0045.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\dense_0047s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬SSR级海盗",
+        "family": "海盗",
+        "text": "吞噬SSR级海盗，获得：木材+30",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\bob_early_t0100.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "大胃王效果",
+        "family": null,
+        "text": "大胃王效果触发，获得：吞噬丹x1",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\bob_sample_t0030.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬挑战套装",
+        "family": "挑战",
+        "text": "激活并吞噬挑战套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\bob_sample_t0030.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "商城道具[选技达人]效果",
+        "family": null,
+        "text": "商城道具[选技达人]效果触发，获得：吞噬丹x2，木材+100",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0011.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬R级海盗",
+        "family": "海盗",
+        "text": "吞噬R级海盗，获得：金币+1500",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0029.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬SR级海盗",
+        "family": "海盗",
+        "text": "吞噬SR级海盗，获得：木材+20",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0029.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬固守套装",
+        "family": "固守",
+        "text": "激活并吞噬固守套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0058.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬暴击套装",
+        "family": "暴击",
+        "text": "激活并吞噬暴击套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0084.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬R级海盗木材15",
+        "family": "海盗",
+        "text": "吞噬R级海盗，获得：木材+15",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0084.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬大炮套装",
+        "family": "大炮",
+        "text": "激活并吞噬大炮套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0110.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "获取SSR级悬赏令存放点",
+        "family": "海盗",
+        "text": "获取一张：SSR级悬赏令 / 获得SSR级悬赏令，物品栏已满，已放入道具存放点",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_bob\\bob_1s_0163.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬术法套装",
+        "family": "术法",
+        "text": "激活并吞噬[术法]套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0800.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞食天地效果触发",
+        "family": "三国",
+        "text": "吞食天地效果触发: 全属性增幅+1%",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0807.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "获得SR级悬赏令",
+        "family": "海盗",
+        "text": "获得SR级悬赏令, 物品栏已满, 已放入道具暂存点",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0972.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬风神杖套装",
+        "family": "刀刀",
+        "text": "激活并吞噬风神杖套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0975.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬风之杖套装",
+        "family": "刀刀",
+        "text": "激活并吞噬风之杖套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0975.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬暗海猎手套装",
+        "family": "刀刀",
+        "text": "激活并吞噬暗海猎手套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0994.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "杀敌投资allin效果触发",
+        "family": "经济",
+        "text": "杀敌投资allin效果触发获得3069杀敌数",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1020.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "骰子投掷吞噬",
+        "family": "刀刀",
+        "text": "投掷点数是：6，立即吞噬6张刀刀系列卡牌",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1033.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬幽灵木材",
+        "family": "亡灵",
+        "text": "吞噬N级幽灵, 获得: 木材+10",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0972.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "瘟疫散播效果触发",
+        "family": "亡灵",
+        "text": "瘟疫散播效果触发, 额外获取1份残骸",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0973.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬勇猛杀敌数",
+        "family": null,
+        "text": "吞噬N级勇猛, 获得: 杀敌数+100",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0987.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬暗夜猎手套装",
+        "family": "刀刀",
+        "text": "激活并吞噬暗夜猎手套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_0994.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬勇者",
+        "family": null,
+        "text": "吞噬N级勇者, 获得: 木材+10",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1057.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬鬼道",
+        "family": null,
+        "text": "吞噬N级鬼道, 获得: 杀敌数+100",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1076.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬寿石",
+        "family": null,
+        "text": "吞噬N级寿石, 获得: 木材+10",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1091.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬寿蛊木材",
+        "family": null,
+        "text": "吞噬N级寿蛊, 获得: 木材+10",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1057.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬墨翟杀敌数",
+        "family": null,
+        "text": "吞噬N级墨翟，获得: 杀敌数+100",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1076.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬屠霸木材",
+        "family": null,
+        "text": "吞噬N级屠霸, 获得: 木材+10",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1090.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬青雀木材",
+        "family": null,
+        "text": "吞噬N级青雀, 获得: 木材+10",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1091.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬勇盗木材",
+        "family": null,
+        "text": "吞噬N级勇盗, 获得: 木材+10",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1112.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬悬赏令金币",
+        "family": "海盗",
+        "text": "吞噬N级悬赏令, 获得: 金币+1000",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1234.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬毒盗",
+        "family": "海盗",
+        "text": "吞噬R级毒盗，获得：金币+1500",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\gRY_sample_t0300.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬瘟疫",
+        "family": "亡灵",
+        "text": "吞噬R级瘟疫, 获得: 金币+1500",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\inspect_gRY_progress_t0300.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬N级悬赏令金币",
+        "family": "海盗",
+        "text": "吞噬N级悬赏令, 获得: 金币+1000",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_a\\dense_gRY\\gRY_1s_1234.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬藏宝图套装",
+        "family": "海盗",
+        "text": "激活并吞噬藏宝图套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\dense_0030s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "激活并吞噬成长套装",
+        "family": "成长",
+        "text": "激活并吞噬成长套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\dense_0038s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "齐天大圣套装吞噬",
+        "family": "大圣",
+        "text": "激活并吞噬齐天大圣套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\ep_41_0975s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "黑商投资技能",
+        "family": null,
+        "text": "[黑商投资]技能初级生效: 杀敌金币+1%，杀敌木材+1%",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\ep_59_2259s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "军团吞噬16张奖励",
+        "family": "军团",
+        "text": "已吞噬16张[军团]卡 获取了宝物栏",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\ep_74_2652s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "军团吞噬17张奖励",
+        "family": "军团",
+        "text": "已吞噬17张[军团]卡 获取了白金卡牌栏",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\ep_74_2652s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "军团吞噬18张奖励",
+        "family": "军团",
+        "text": "已吞噬18张[军团]卡 获取了钻石卡牌栏",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\ep_74_2652s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "已吞噬20张军团卡",
+        "family": "军团",
+        "text": "已吞噬20张军团卡",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\ep_75_2654s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "五行灵根套装吞噬",
+        "family": "修仙",
+        "text": "激活并吞噬五行灵根套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\evidence_ep_22_0467s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "吞噬海盗杀敌数",
+        "family": "海盗",
+        "text": "吞噬N级海盗，获得：杀敌数+100",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\evidence_ep_36_0825s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "杀敌投资效果",
+        "family": null,
+        "text": "杀敌投资效果触发获得1114杀敌数",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\evidence_ep_36_0825s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "三元重戟套装吞噬",
+        "family": "三元重戟",
+        "text": "激活并吞噬三元重戟套装",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\evidence_ep_45_1139s.jpg"
+        ],
+        "confidence": "clear"
+      },
+      {
+        "name": "投掷骰子吞噬刀刀",
+        "family": "刀刀",
+        "text": "投掷点数是: 4, 立即吞噬4张刀刀系列卡牌",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\evidence_ep_49_1165s.jpg"
+        ],
+        "confidence": "clear"
+      }
+    ],
+    "notable": [
+      {
+        "fact": "悬赏令吞噬范围：转录多帧见 N/SR/SSR 级悬赏令获取与使用提示",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\cards_0610s.jpg"
+        ]
+      },
+      {
+        "fact": "筑基丹：获取时判定 60% 成功吞噬进 R 筑基期 / 40% 失败回卡池，每次失败成功率 +10%",
+        "frames": [
+          "G:\\测试视频+抽帧\\录屏素材\\20260823_181553_frames\\t150.png",
+          "G:\\测试视频+抽帧\\抽帧\\macro_10ex_b\\panel_0161s.jpg"
+        ]
+      },
+      {
+        "fact": "亡灵残骸：每击杀 50 名敌人获得 1 份残骸；瘟疫散播触发额外获取 1 份残骸",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\haizeiwang_wangling_haidao_20260925\\sample_0012.jpg",
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\cards_0773s.jpg"
+        ]
+      },
+      {
+        "fact": "图纸置入：极图纸将 UR 极剩余合成卡加入卡池并置入 UR 极（实机木字旁极，非疾）",
+        "frames": [
+          "G:\\测试视频+抽帧\\抽帧\\11ex_20260926\\cards_1080s.jpg"
+        ]
+      }
+    ]
+  },
+  "card_faces_ref": {
+    "name": "羁绊卡面转录（录屏转录，知识，不接决策）",
+    "status": "not_wired",
+    "wired_to_decision": false,
+    "source_level": "video_frames",
+    "path": "docs/research/card_faces_20260926.json",
+    "counts": {
+      "bond_rows": 872,
+      "distinct_names": 409,
+      "single_group": 240,
+      "with_variants": 169,
+      "null_family_rows": 66
+    },
+    "note": "409 个同名条目：240 个单版本，169 个去成长括号后仍多版本并存（needs_verify，不挑版本）;卡族以卡面标签为准，空为 null；出处帧全在 faces[].frames / variants[].frames"
   }
 }
