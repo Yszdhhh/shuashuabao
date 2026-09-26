@@ -28,7 +28,7 @@ def test_solo_does_not_want_merchant_when_pill_and_wood_are_available():
         assert not med._solo_wants_merchant(frame)
 
 
-def test_solo_wants_merchant_only_when_pill_missing_or_wood_low():
+def test_solo_wants_merchant_when_wood_is_not_overflowing_or_emergency_pill_needed():
     med = _make_mediator()
     frame = Frame(None)
 
@@ -38,13 +38,13 @@ def test_solo_wants_merchant_only_when_pill_missing_or_wood_low():
          patch.object(med, "_inventory_has_swallow_pill", return_value=True):
         assert med._solo_wants_merchant(frame)
 
-    # A missing pill alone is enough, regardless of occupancy or wood.
+    # At overflow wood, missing pill is urgent only when the bond bar is crowded.
     med._wood_balance = 1500
     med._DEVOUR_BOND_OCCUPANCY = 8
     with patch.object(med, "_bond_bar_occupancy", return_value=3), \
          patch.object(med, "_inventory_has_swallow_pill", return_value=False), \
          patch.object(med, "_devour_hold_reason", return_value=None):
-        assert med._solo_wants_merchant(frame)
+        assert not med._solo_wants_merchant(frame)
 
     # Both needs satisfied means no merchant detour.
     with patch.object(med, "_bond_bar_occupancy", return_value=8), \
@@ -52,13 +52,13 @@ def test_solo_wants_merchant_only_when_pill_missing_or_wood_low():
          patch.object(med, "_devour_hold_reason", return_value=None):
         assert not med._solo_wants_merchant(frame)
 
-    # Unknown wood remains fail-closed when pill presence is confirmed.
+    # Unknown wood does not imply overflow or trigger a normal merchant visit.
     med._wood_balance = None
     with patch.object(med, "_bond_bar_occupancy", return_value=3), \
          patch.object(med, "_inventory_has_swallow_pill", return_value=True):
-        assert med._solo_wants_merchant(frame)
+        assert not med._solo_wants_merchant(frame)
 
-    # 5. Wood is None and bond >= 8 without pill -> wants merchant for swallow pill
+    # Emergency pill visit remains at overflow wood when occupancy reaches 8.
     med._wood_balance = None
     with patch.object(med, "_bond_bar_occupancy", return_value=8), \
          patch.object(med, "_inventory_has_swallow_pill", return_value=False), \

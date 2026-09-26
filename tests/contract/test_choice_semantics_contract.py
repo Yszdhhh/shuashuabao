@@ -123,10 +123,10 @@ class S1SkillRarityPriority(unittest.TestCase):
 
 
 class S2BondWhitelistIsHard(unittest.TestCase):
-    """S2：羁绊未勾选 = 硬禁用；必须同时封住套装与品质两条旁路。"""
+    """S2：刷新预算耗尽后可兜底拿未勾选卡，显式负面名单仍是硬禁用。"""
 
-    def test_unchecked_bond_is_never_selected_even_alone(self):
-        """三槽全是未勾选（如海盗）→ 不选，转刷新/等待/放弃。"""
+    def test_unchecked_bond_is_fallback_when_refreshes_are_exhausted(self):
+        """Owner 2026-09-26：羁绊刷新 3 次仍无目标时随便拿一张。"""
         decision = choose_action(
             _panel(
                 PANEL_BOND,
@@ -135,16 +135,15 @@ class S2BondWhitelistIsHard(unittest.TestCase):
                     _slot(1, "利刃海盗", rarity="orange"),
                     _slot(2, "白赚海盗", rarity="purple"),
                 ],
-                has_giveup=True,
+                can_refresh=False,
                 settings=PolicySettings(bond_presets=("暴击", "法术")),
             ),
-            SessionState(),
+            SessionState(refreshes=3, max_refreshes=3),
         )
-        self.assertIn(decision.action, NO_PICK_ACTIONS)
-        self.assertIsNone(decision.index)
+        self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 0))
 
     def test_hard_ban_blocks_synthesis_bypass(self):
-        """套装进度不得把白名单外的羁绊放进来（否则 ban 形同虚设）。"""
+        """显式负面名单不得被套装进度或刷新兜底绕过。"""
         decision = choose_action(_panel(
             PANEL_BOND,
             [_slot(0, "利刃海盗"), _slot(1, "海盗劫掠者")],
@@ -155,17 +154,19 @@ class S2BondWhitelistIsHard(unittest.TestCase):
                     "owned": ["海盗"],
                 }
             },
-            settings=PolicySettings(bond_presets=("暴击",)),
-        ))
+            can_refresh=False,
+            settings=PolicySettings(bond_presets=("暴击",), bond_negative_names=("海盗",)),
+        ), SessionState(refreshes=3, max_refreshes=3))
         self.assertIn(decision.action, NO_PICK_ACTIONS)
 
     def test_hard_ban_blocks_quality_bypass(self):
-        """品质降级不得把白名单外的羁绊放进来。"""
+        """品质兜底不得绕过显式负面名单。"""
         decision = choose_action(_panel(
             PANEL_BOND,
             [_slot(0, "海盗", rarity="red")],
-            settings=PolicySettings(bond_presets=("暴击",)),
-        ))
+            can_refresh=False,
+            settings=PolicySettings(bond_presets=("暴击",), bond_negative_names=("海盗",)),
+        ), SessionState(refreshes=3, max_refreshes=3))
         self.assertIn(decision.action, NO_PICK_ACTIONS)
 
     def test_whitelisted_bond_is_still_selected(self):

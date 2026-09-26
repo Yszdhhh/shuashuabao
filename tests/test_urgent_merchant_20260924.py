@@ -44,20 +44,20 @@ def _hud(med: Mediator, *, bond: int | None, pill: bool, wood: int | None):
         yield
 
 
-def test_missing_pill_is_urgent_regardless_of_bond_occupancy() -> None:
+def test_missing_pill_is_urgent_only_when_bond_bar_is_crowded() -> None:
     med = _med()
     with _hud(med, bond=8, pill=False, wood=2000):
         assert "吞噬丹" in med._urgent_merchant_reason(_hud_frame(), 100.0)
     with _hud(med, bond=8, pill=True, wood=2000):
         assert med._urgent_merchant_reason(_hud_frame(), 100.0) is None
     with _hud(med, bond=7, pill=False, wood=2000):
-        assert "没有吞噬丹" in med._urgent_merchant_reason(_hud_frame(), 100.0)
+        assert med._urgent_merchant_reason(_hud_frame(), 100.0) is None
 
 
-def test_low_wood_is_urgent_and_unknown_wood_is_not() -> None:
+def test_low_wood_uses_normal_merchant_cycle_and_unknown_is_not_urgent() -> None:
     med = _med()
     with _hud(med, bond=2, pill=True, wood=499):
-        assert "木材" in med._urgent_merchant_reason(_hud_frame(), 100.0)
+        assert med._urgent_merchant_reason(_hud_frame(), 100.0) is None
     with _hud(med, bond=2, pill=True, wood=500):
         assert med._urgent_merchant_reason(_hud_frame(), 100.0) is None
     with _hud(med, bond=None, pill=True, wood=None):
@@ -67,7 +67,7 @@ def test_low_wood_is_urgent_and_unknown_wood_is_not() -> None:
 def test_pill_missing_is_urgent_independent_of_bond_occupancy() -> None:
     med = _med()
     with _hud(med, bond=2, pill=False, wood=1500):
-        assert "没有吞噬丹" in med._urgent_merchant_reason(_hud_frame(), 100.0)
+        assert med._urgent_merchant_reason(_hud_frame(), 100.0) is None
 
 
 @pytest.mark.parametrize("blocker", ["passenger", "cooldown", "budget", "already_there", "panel_open", "disabled"])
@@ -132,7 +132,6 @@ def test_merchant_step_opens_the_shop_with_h(bond: int, wood: int, action: str) 
          patch.object(med, "_refresh_solo_signals", return_value=None), \
          patch.object(med, "_black_merchant_present", return_value=False), \
          patch.object(med, "_maybe_open_choice_panel", return_value=None), \
-         patch.object(med, "_urgent_merchant_reason", return_value=None), \
          patch.object(med, "act_key", return_value=True) as key:
         for _ in range(5):
             if med._tick_main_line(_hud_frame()) is LoopAction.Continue and key.called:

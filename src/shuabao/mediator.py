@@ -5841,16 +5841,16 @@ class Mediator:
         ) is not None
 
     def _solo_wants_merchant(self, frame: Frame) -> bool:
-        """Merchant is a quick path only when the bag lacks a devour pill or wood is low."""
+        """Visit the merchant in the normal cycle while wood is below the overflow mark."""
         if self._passenger_mode() or not getattr(self.settings, "merchant_enabled", True):
             return False
-        if not self._inventory_has_swallow_pill(frame):
-            return True
-        # 木材读数 None 时继续 fail-closed：不能假定木材充足。
         wood = getattr(self, "_wood_balance", None)
-        if wood is None or wood < self._SKILL_FIRST_WOOD:
+        if wood is not None and wood < self._SKILL_FIRST_WOOD:
             return True
-        return False
+        return (
+            not self._inventory_has_swallow_pill(frame)
+            and (self._bond_bar_occupancy(frame) or 0) >= self._DEVOUR_BOND_OCCUPANCY
+        )
 
     def _urgent_merchant_reason(self, frame: Frame, now: float) -> str | None:
         """Why solo should jump the L1 cycle to the black merchant now, if at all."""
@@ -5860,11 +5860,11 @@ class Mediator:
             return None
         if now < self._merchant_urgent_next_at or now < getattr(self, "_merchant_budget_retry_at", 0.0):
             return None
-        if not self._inventory_has_swallow_pill(frame):
+        if (
+            not self._inventory_has_swallow_pill(frame)
+            and (self._bond_bar_occupancy(frame) or 0) >= self._DEVOUR_BOND_OCCUPANCY
+        ):
             return "物品栏没有吞噬丹"
-        wood = getattr(self, "_wood_balance", None)
-        if wood is not None and wood < self._SKILL_FIRST_WOOD:
-            return f"木材 {wood} < {self._SKILL_FIRST_WOOD}"
         return None
 
     def _detour_l1_cycle(self, step: str) -> None:

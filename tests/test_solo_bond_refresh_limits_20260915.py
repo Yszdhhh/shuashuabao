@@ -20,11 +20,11 @@ def _frame() -> Frame:
     return Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=1, window_title="英雄三国KK")
 
 
-def test_bond_refresh_cap_is_two_per_panel_group() -> None:
+def test_bond_refresh_cap_is_three_per_panel_group() -> None:
     med = Mediator(Settings(), ROOT)
     anchor = MatchResult("bond_hide_btn", 0.99, 580, 552, 10, 10, 580, 552)
     med._enter_panel_episode(_frame(), anchor, "bond", opened=True)
-    assert med._choice_session.max_refreshes == 2
+    assert med._choice_session.max_refreshes == 3
 
 
 def test_bond_refresh_cost_follows_40_60_80_100_ladder() -> None:
@@ -46,7 +46,7 @@ def test_refresh_exhaustion_selects_best_readable_card_even_outside_whitelist() 
     )
     decision = choose_action(
         PanelCandidates(panel_kind=PANEL_BOND, slots=slots, can_refresh=False, settings=policy),
-        SessionState(refreshes=2, max_refreshes=2),
+        SessionState(refreshes=3, max_refreshes=3),
     )
     assert (decision.action, decision.index) == (PolicyAction.SELECT_SLOT, 3)
 
@@ -62,7 +62,7 @@ def test_growth_or_economy_beats_current_advanced_pack_when_refresh_unavailable(
             can_refresh=False,
             settings=policy,
         ),
-        SessionState(refreshes=2, max_refreshes=2),
+        SessionState(refreshes=3, max_refreshes=3),
     )
     assert (decision.action, decision.index) == (PolicyAction.SELECT_SLOT, 1)
 

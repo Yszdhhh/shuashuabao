@@ -248,6 +248,7 @@ class PolicySettings:
     min_confidence: float = 0.0
     bond_whitelist_mode: str = WHITELIST_HARD
     bond_must_take: tuple[str, ...] = DEFAULT_BOND_MUST_TAKE
+    bond_negative_names: tuple[str, ...] = ()
     treasure_negative_patterns: tuple[str, ...] = DEFAULT_NEGATIVE_PATTERNS
     treasure_negative_names: tuple[str, ...] = DEFAULT_NEGATIVE_NAMES
     treasure_allow_negative: tuple[str, ...] = ()
@@ -329,6 +330,7 @@ class PolicySettings:
         neg_names = raw.get("treasure_negative_names")
         must_take = raw.get("treasure_must_take")
         bond_must_take = raw.get("bond_must_take")
+        bond_negative_names = raw.get("bond_negative_names")
         habit_raw = raw.get("habit_name_scores") or {}
         if isinstance(habit_raw, Mapping):
             habit_scores = tuple((str(k), float(v)) for k, v in habit_raw.items())
@@ -381,6 +383,7 @@ class PolicySettings:
                 DEFAULT_BOND_MUST_TAKE
                 + tuple(str(s) for s in (bond_must_take or ()))
             )),
+            bond_negative_names=tuple(str(s) for s in (bond_negative_names or ()) if str(s).strip()),
             treasure_negative_patterns=(
                 tuple(str(s) for s in neg) if neg is not None else DEFAULT_NEGATIVE_PATTERNS
             ),
@@ -638,6 +641,7 @@ def assemble_policy_settings(
                 + tuple(str(s) for s in (getattr(settings, "bond_must_take", None) or ()))
                 + tuple(str(s) for s in (bond_cfg.get("must_take_names") or ()))
             )),
+            "bond_negative_names": bond_cfg.get("negative_names", ()),
             "treasure_negative_patterns": treasure_cfg.get("negative_patterns"),
             "treasure_negative_names": treasure_cfg.get("negative_names"),
             "treasure_must_take": treasure_cfg.get("must_take_names"),
@@ -1329,10 +1333,12 @@ def _drop_completed_bond_slots(
 
 
 def _best_available_bond_pick(cands, settings, active_adv) -> SlotCandidate | None:
-    """Pick a readable current card after bond refreshes are exhausted."""
+    """Pick a whitelisted card, then the best readable non-banned card after refreshes."""
     available = [
         slot for slot in cands.slots
-        if slot.name and str(slot.name).strip() and slot.confidence >= settings.min_confidence
+        if slot.name and str(slot.name).strip()
+        and slot.confidence >= settings.min_confidence
+        and not _is_explicit_bond_negative(slot.name, settings)
     ]
     if not available:
         return None
@@ -1352,6 +1358,10 @@ def _best_available_bond_pick(cands, settings, active_adv) -> SlotCandidate | No
         return tier, _rarity_rank(slot.rarity, settings.quality_order), int(slot.index)
 
     return min(available, key=priority)
+
+
+def _is_explicit_bond_negative(name: str | None, settings: PolicySettings) -> bool:
+    return matches_bond_preset(name, settings.bond_negative_names)
 
 
 def _bond_progress_hits(
@@ -1500,6 +1510,10 @@ def _decide_collectible(
     else:
         eligible = cands.slots
         if kind == PANEL_BOND:
+            eligible = tuple(
+                slot for slot in eligible
+                if not _is_explicit_bond_negative(slot.name, settings)
+            )
             eligible = _bond_capacity_candidates(cands, eligible, settings)
             owned_bonds = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
             # Owner 2026-09-24：高级卡组不设基础 80% / 开局时间这类硬门槛；同一时刻
@@ -1614,8 +1628,8 @@ def _decide_collectible(
         return PolicyDecision.select(preset_hit, f"{kind} 预设命中：{name} @ slot {preset_hit}")
 
     if kind == PANEL_BOND:
-        # 20260822 实机（trace 181735）：软/硬模式在预设未命中时都先尝试木材刷新，
-        # 刷完预算后软模式才回落到套装/品质，硬模式直接收口。
+        # Owner 2026-09-26：白名单未命中先刷新；预算耗尽或木材不足时允许兜底，
+        # 但显式负面名单始终由 _best_available_bond_pick 排除。
         # 老行为（软模式直接品质降级）导致羁绊整局只拿 4 张且从不刷新。
         if state.refreshes < state.max_refreshes and getattr(cands, "can_refresh", False):
             return PolicyDecision(
