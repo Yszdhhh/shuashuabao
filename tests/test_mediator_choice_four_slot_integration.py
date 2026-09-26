@@ -59,9 +59,10 @@ class TestMediatorChoiceFourSlotIntegration(unittest.TestCase):
         self.assertTrue(med._last_slots_from_template)
         med._ocr_client.shadow_predict.assert_not_called()
 
-    def test_duplicate_must_take_family_falls_back_to_ocr(self):
-        # Round 2 L1 gate: 祝福x3 are all must-take duplicates (confidence /
-        # rarity ordering hazard) -> fail-closed to OCR, never fast.
+    def test_duplicate_must_take_family_is_picked_directly(self):
+        # Owner 2026-09-26：有模板的卡族命中即点，祝福不看等级直接拿。
+        # 充分性门对重复必拿家族仍判不充分（只管非直拿的回退决策），
+        # 但直拿路径先命中，整页走模板、零 OCR。
         slots_raw = [
             {"index": i, "name": "祝福", "confidence": 0.97,
              "template_score": 0.97, "source": "template"}
@@ -80,10 +81,10 @@ class TestMediatorChoiceFourSlotIntegration(unittest.TestCase):
 
         slots = self.med._ocr_panel_slots(frame, "bond")
 
-        self.assertFalse(self.med._last_slots_from_template)
-        self.assertTrue(
-            not slots or any(slot.get("source") != "template" for slot in slots)
-        )
+        self.assertTrue(self.med._last_slots_from_template)
+        self.assertEqual(self.med._last_template_direct_pick, 0)
+        self.assertTrue(all(slot.get("source") == "template" for slot in slots))
+        self.med._ocr_client.shadow_predict.assert_not_called()
 
     def test_template_fast_path_makes_zero_ocr_calls(self):
         # Round 2: the fast path must stay IPC-free (no title OCR, no badge
@@ -105,12 +106,29 @@ class TestMediatorChoiceFourSlotIntegration(unittest.TestCase):
         self.assertEqual(len(cands), 4)
         med._ocr_client.shadow_predict.assert_not_called()
 
-    def test_incomplete_template_slots_fall_back_to_ocr(self):
+    def test_partial_template_hit_on_registered_family_is_picked_directly(self):
+        # Owner 2026-09-26：部分槽位命中已登记卡族也直接拿，不等整页认全。
         template_slots = [
-            {"index": i, "name": "祝福" if i < 3 else None,
-             "confidence": 0.95 if i < 3 else 0.0,
-             "template_score": 0.95 if i < 3 else 0.0,
+            {"index": i, "name": "祝福" if i == 2 else None,
+             "confidence": 0.95 if i == 2 else 0.0,
+             "template_score": 0.95 if i == 2 else 0.0,
              "source": "template"}
+            for i in range(4)
+        ]
+        self.med._ocr_client = MagicMock()
+
+        with patch.object(mediator_module, "match_card_slots_by_template", return_value=(4, template_slots)):
+            self.med._ocr_panel_slots(self.frame_1600, "bond")
+
+        self.assertTrue(self.med._last_slots_from_template)
+        self.assertEqual(self.med._last_template_direct_pick, 2)
+        self.med._ocr_client.shadow_predict.assert_not_called()
+
+    def test_template_slots_without_any_registered_hit_fall_back_to_ocr(self):
+        # 全没命中才走 OCR。
+        template_slots = [
+            {"index": i, "name": None, "confidence": 0.0,
+             "template_score": 0.0, "source": "template"}
             for i in range(4)
         ]
         self.med._ocr_client = MagicMock()
@@ -120,6 +138,7 @@ class TestMediatorChoiceFourSlotIntegration(unittest.TestCase):
             slots = self.med._ocr_panel_slots(self.frame_1600, "bond")
 
         self.assertFalse(self.med._last_slots_from_template)
+        self.assertIsNone(self.med._last_template_direct_pick)
         self.med._ocr_client.shadow_predict.assert_called()
         self.assertFalse(any(slot.get("source") == "template" for slot in slots))
 
