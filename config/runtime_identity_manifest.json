@@ -1,6 +1,6 @@
 {
     "schema_version": 1,
-    "candidate_sha": "c8b06bf6da329708732a663d87465c90be2995ea",
+    "candidate_sha": "a5a1f93234b3f5bc51c4b9ee406224438103b5d5",
     "anchored_at": "2026-09-26T10:42:00+08:00",
     "branch": "feat/owner-sched-decisions-20260926",
     "note": "Owner 2026-09-26 scheduler decisions: merchant gate, bond refresh fallback, mandatory blessing priority."
