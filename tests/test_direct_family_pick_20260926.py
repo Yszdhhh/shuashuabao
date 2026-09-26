@@ -157,7 +157,8 @@ def test_production_ocr_path_rechecks_policy_instead_of_trusting_direct_index() 
     )
     med._bond_cards_owned = ["祝福"] * 3
     frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=1)
-    slots = _slots("异火", "海盗")
+    # 生产槽位几何只接受真实 3/4 槽布局；用 4 槽验证最终点击映射。
+    slots = _slots("异火", "海盗", "无关", "其他")
 
     def panel_slots(_frame, _kind):
         med._last_template_direct_pick = 0
