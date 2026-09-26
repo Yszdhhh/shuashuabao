@@ -60,8 +60,10 @@ class TestLiveMediatorIntegration(unittest.TestCase):
              patch.object(self.mediator, "_bond_bar_occupancy", return_value=10):
             hit = self.mediator._ocr_reward_choice(frame, PANEL_BOND)
 
-        # In slot-capped zero free slots with only scatter cards, policy issues CLOSE (hide_fallback hit) rather than selecting a slot
-        self.assertIsNotNone(hit)
-        self.assertEqual(hit.name, "hide_fallback")
+        # Zero free slots with only scatter cards: policy refuses them (CLOSE), and
+        # since c8b06bf6 (Owner 2026-09-26) a bond CLOSE is zero-input waiting, not a hide click.
+        self.assertIsNone(hit)
+        self.assertTrue(self.mediator._choice_policy_idle)
+        self.assertIn("无安全候选", self.mediator._choice_policy_last_reason)
 if __name__ == "__main__":
     unittest.main()

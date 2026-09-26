@@ -1,4 +1,5 @@
 """Tests for bond identity membership, completion semantics, and substring isolation (2026-09-16)."""
+from dataclasses import replace
 from pathlib import Path
 import pytest
 
@@ -56,8 +57,13 @@ def test_bond_must_take_no_substring_pollution():
         can_refresh=False,
         settings=settings,
     )
+    # 刷新还有时：白赚海盗不算必拿海盗，本页无目标应刷新。
+    dec = choose_action(replace(cands, can_refresh=True), SessionState())
+    assert dec.action == PolicyAction.REFRESH
+    # 刷新用完：Owner 2026-09-26 03:33 要求兜底拿一张，但理由必须是兜底而非必拿。
     dec = choose_action(cands, SessionState())
-    assert dec.action != PolicyAction.SELECT_SLOT or dec.index != 0
+    assert dec.action == PolicyAction.SELECT_SLOT
+    assert "必拿" not in dec.reason
 
 
 def test_active_advanced_pack_only_moves_on_after_its_ex():

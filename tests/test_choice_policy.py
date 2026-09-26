@@ -1511,7 +1511,11 @@ class TestAssemblePolicySettings(unittest.TestCase):
             fetter_labels={"三国": "乱世三国"},
             policy_doc={},
         )
-        self.assertEqual(ps.bond_presets, ("乱世三国", "unknown_stem"))
+        # 标签解析：三国.png → 乱世三国；未知 stem 原样保留。
+        # Owner 2026-09-26 03:03：三国根名后紧跟四国成员（四选三由 sanguo_blocked_faction 把关）。
+        self.assertEqual(ps.bond_presets[0], "乱世三国")
+        self.assertEqual(ps.bond_presets[-1], "unknown_stem")
+        self.assertEqual(ps.bond_presets[1:4], ("魏", "曹操", "司马懿"))
 
     def test_bonds_remain_base_when_cards_are_all_advanced(self):
         ps = assemble_policy_settings(

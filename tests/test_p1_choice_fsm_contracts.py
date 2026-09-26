@@ -80,14 +80,24 @@ def test_treasure_negative_refreshes_when_button_is_verified() -> None:
     assert decision.action is PolicyAction.REFRESH
 
 
-def test_bond_slot_pressure_rejects_scatter_with_two_empty_slots() -> None:
-    decision = choose_action(PanelCandidates(
+def test_bond_slot_pressure_rejects_scatter_only_when_bar_is_nearly_full() -> None:
+    # Owner 2026-09-26 03:33：羁绊没有放弃选项，刷新用完还没目标就按优先级拿一张；
+    # 还有 2 个空位时散卡照常兜底，只剩 1 个空位时非合成散卡才被拒。
+    roomy = choose_action(PanelCandidates(
         panel_kind=PANEL_BOND,
         slots=(slot(0, "体术", rarity="red"),),
         settings=PolicySettings(),
         free_slots=2,
     ))
-    assert decision.action is PolicyAction.CLOSE
+    assert (roomy.action, roomy.index) == (PolicyAction.SELECT_SLOT, 0)
+
+    tight = choose_action(PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(slot(0, "体术", rarity="red"),),
+        settings=PolicySettings(),
+        free_slots=1,
+    ))
+    assert tight.action is PolicyAction.CLOSE
 
 def test_bond_tier_cross_beats_non_crossing_gap_reduction() -> None:
     decision = choose_action(PanelCandidates(

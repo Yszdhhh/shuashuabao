@@ -1498,6 +1498,12 @@ def _best_available_bond_pick(cands, settings, active_adv) -> SlotCandidate | No
     if not available:
         return None
 
+    # 零空位：与常规路径同口径，只拿已持有同卡的合成升级；未持有的卡没有格子可放
+    # （即使标着差一张），拿了只会进入满槽顶替。
+    if cands.free_slots is not None and cands.free_slots <= 0:
+        available = [slot for slot in available if _is_uncompleted_merge_upgrade(slot, owned)]
+        if not available:
+            return None
     # 满栏时兜底只拿能合成/差一张的卡，避免非合成卡占格导致溢出
     if cands.free_slots is not None and cands.free_slots <= 1:
         available = [
