@@ -28,6 +28,7 @@
     "_note": "看板保存后使用严格白名单：只拿用户选中的羁绊家族与卡组。Owner 2026-09-24：高级卡组不设硬门槛；同一时刻只推进一组，羁绊栏出现蓝色 EX（海盗为 UR）后解锁下一组。Owner 2026-09-25：同页只有「祝福」优先于高级卡组；高级卡组与其余基础卡（成长/经济/贪婪/挑战/属性等）同级，按现有同级排序规则决定。base_completion_ratio / advanced_unlock_s 只用于调度（木材 ≥500 时基础羁绊未成型先点 F），不再拦拿卡。",
     "base_completion_ratio": 0.8,
     "advanced_names": [
+      "海贼王",
       "刀刀",
       "幽灵系带",
       "护腕",
@@ -237,6 +238,7 @@
         "巫妖之躯"
       ],
       [
+        "海贼王",
         "见习海贼",
         "超新星",
         "七武海",
@@ -253,10 +255,9 @@
       "大乘期",
       "圣人",
       "毁灭战舰",
-      "兵主",
-      "海贼王"
+      "兵主"
     ],
-    "_ex_final_names_note": "Owner 2026-09-24：终卡（海盗为 UR）靠合成得到，不从面板拿。assemble 在装配 bond_presets 时统一剥离本名单（advanced_groups 保留终卡只为链路归属与既有契约不断）；旧 Qt 外壳另有 main_window._advanced_pack_tokens 的 banned+exclude_ex 过滤。2026-09-26 首个正式版卡组收敛补齐。",
+    "_ex_final_names_note": "Owner 2026-09-24：终卡（海盗为 UR）靠合成得到，不从面板拿；Owner 2026-09-26：海贼王家族名与终卡同名，看到就拿，不进入剥离名单。assemble 在装配 bond_presets 时统一剥离本名单（advanced_groups 保留终卡只为链路归属与既有契约不断）；旧 Qt 外壳另有 main_window._advanced_pack_tokens 的 banned+exclude_ex 过滤。2026-09-26 首个正式版卡组收敛补齐。",
     "must_take_names": [],
     "advanced_unlock_s": 480,
     "_advanced_unlock_note": "2026-09-15 起是基础卡门槛（base_completion_ratio）的时间兜底；Owner 2026-09-24 取消拿卡硬门槛后，只用来结束调度上的\"基础羁绊未成型，F 优先\"。"
