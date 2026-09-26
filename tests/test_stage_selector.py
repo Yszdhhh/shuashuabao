@@ -13,6 +13,8 @@ from shuabao.vision.capture import Frame
 from shuabao.vision.matcher import MatchResult, _load_template
 from shuabao.vision.stage_selector import (
     StageId,
+    StageRow,
+    _truncated_last_row_fallback,
     _classify_glyph,
     _classify_topbar_one,
     find_stage_in_range,
@@ -148,6 +150,67 @@ class StageSelectorTests(unittest.TestCase):
             "highlight_on_1_18_before_click_client_1600x900.png"
         )
         row = selected_stage_row(frame, IMAGES)
+        self.assertIsNotNone(row)
+        self.assertEqual(str(row.stage_id), "1-18")
+
+
+    def test_truncated_fallback_rejects_unselected_last_row(self):
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
+        gray = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2GRAY)
+        rows = [
+            StageRow("1-22", StageId(1, 22), 1080, 735),
+            StageRow("1-23", StageId(1, 23), 1080, 785),
+        ]
+        self.assertIsNone(_truncated_last_row_fallback(frame, rows, gray, 1.0))
+
+    def test_truncated_fallback_rejects_last_row_whose_ring_is_not_clipped(self):
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
+        gray = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2GRAY)
+        rows = [
+            StageRow("1-21", StageId(1, 21), 1080, 680),
+            StageRow("1-22", StageId(1, 22), 1080, 735),
+        ]
+        # Even if side evidence were bright, center 735 + ring half-height 22
+        # stays inside the 0.88h ROI (792), so this is not a truncated row.
+        with patch(
+            "shuabao.vision.stage_selector._row_border_bright_ratio",
+            return_value=0.5,
+        ):
+            self.assertIsNone(_truncated_last_row_fallback(frame, rows, gray, 1.0))
+
+    def test_two_full_ring_highlights_fail_closed_without_truncated_fallback(self):
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
+        rows = [
+            StageRow("1-22", StageId(1, 22), 1080, 735),
+            StageRow("1-23", StageId(1, 23), 1080, 785),
+        ]
+        with patch(
+            "shuabao.vision.stage_selector.visible_stage_rows",
+            return_value=rows,
+        ), patch(
+            "shuabao.vision.stage_selector._row_border_bright_ratio",
+            side_effect=[0.42, 0.31],
+        ), patch(
+            "shuabao.vision.stage_selector._truncated_last_row_fallback",
+        ) as fallback:
+            self.assertIsNone(selected_stage_row(frame, IMAGES))
+        fallback.assert_not_called()
+
+    def test_selected_truncated_stage_scales_to_1280x720(self):
+        source = self._live_20260926_truncated_frame(
+            "selected_1_23_bottom_truncated_client_1600x900.png"
+        )
+        resized = cv2.resize(source.bgr, (1280, 720), interpolation=cv2.INTER_AREA)
+        row = selected_stage_row(Frame(resized, window_title="英雄三国KK", hwnd=1000), IMAGES)
+        self.assertIsNotNone(row)
+        self.assertEqual(str(row.stage_id), "1-23")
+
+    def test_unselected_truncated_last_row_stays_unselected_at_1280x720(self):
+        source = self._live_20260926_truncated_frame(
+            "highlight_on_1_18_before_click_client_1600x900.png"
+        )
+        resized = cv2.resize(source.bgr, (1280, 720), interpolation=cv2.INTER_AREA)
+        row = selected_stage_row(Frame(resized, window_title="英雄三国KK", hwnd=1000), IMAGES)
         self.assertIsNotNone(row)
         self.assertEqual(str(row.stage_id), "1-18")
 
