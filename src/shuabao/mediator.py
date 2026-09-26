@@ -3142,7 +3142,8 @@ class Mediator:
         candidates = PanelCandidates(
             panel_kind="bond",
             slots=self._slots_to_candidates(frame, "bond", prepared),
-            set_progress=self._extract_live_set_progress(frame),
+            # 模板快路不得重新触发 OCR；完整生产路径随后会读取 set_progress 再最终授权。
+            set_progress=None,
             free_slots=self._extract_live_free_slots(frame),
             can_refresh=True,
             settings=policy,
