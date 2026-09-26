@@ -19,7 +19,7 @@
 | # | 规则 | Owner 原话时间 | 代码 | 锁定测试 | 状态 |
 |---|---|---|---|---|---|
 | 1.1 | 羁绊主路径（含吞噬丹）> 技能 > 宝物、黑商、其它；开局先花木材点羁绊 | 09-15 / 09-20 / 09-24 | `mediator._L1_CYCLE_ORDER`、`_l1_step_visit_exhausted` | 锁表「木材 <500 先技能」「木材 ≥500 先羁绊」「≥1000 羁绊压技能」 | ✅ |
-| 1.2 | 前期先把祝福拿完，再做点击进化、英雄选择、神器 | 09-26 04:59 | `mediator._blessing_set_pending`、HUD「OpenBondPanel-BlessingPriority」、`_direct_template_bond_pick` | `test_blessing_uncompleted_beats_growth_economy_and_advanced_on_same_page`（锁表文件内）+ `test_direct_family_pick_20260926` 祝福三条 | ✅（5bb5d9a 恢复） |
+| 1.2 | 前期先把祝福拿完，再做点击进化、英雄选择、神器（只抢这三件；拾取、装备、黑商、背包清理照常） | 09-26 04:59 | `mediator._blessing_set_pending`、HUD「OpenBondPanel-BlessingPriority」（守羁绊冷却、两次开面板至少隔 3 秒）、`_direct_template_bond_pick` | `test_blessing_uncompleted_beats_growth_economy_and_advanced_on_same_page` + `test_direct_family_pick_20260926` 祝福三条 + `tests/test_blessing_priority_scope_20260926.py` 五条 | ✅（5bb5d9a 恢复；范围和冷却由 #65 收窄）。临时兜底：连开 8 次没拿到新祝福就放行本局，拿到新祝福再恢复，待确认问题 1 |
 | 1.3 | 有标签模板的卡族匹配到就直接拿，不做 OCR；全没命中才走 OCR | 09-26 04:59 / 05:09 | `mediator._direct_template_bond_pick` | `test_direct_family_pick_obeys_owner_priority_and_skips_rarity_reads` | ✅ |
 | 1.4 | 祝福不看等级不看内容直接拿；从看板移除勾选项，每局默认必拿、最高 | 09-26 02:16 / 04:59 | ui-v2 `pushBondsAndAttributes` 总附祝福；`DEFAULT_BOND_MUST_TAKE` | 锁表「同页优先级」 | ✅ |
 | 1.5 | 羁绊同页：祝福 > 成长/经济 > 当前高级卡组 > 其它白名单；贪婪、固守等其余基础卡与普通卡组同级 | 09-26 02:16 | `choice_policy.choose_action` 羁绊分支 | 锁表「同页优先级」「基础羁绊同页顺序」 | ✅ |
@@ -103,7 +103,7 @@
 
 ## 待 Owner 确认
 
-1. 祝福几张算"拿完"？代码按"持有 3 张名字带祝福的卡"。刷不出第 3 张时会一直优先开羁绊面板、F 次数上限也被关掉，可能饿住进化和技能。要不要设上限？
+1. 祝福几张算"拿完"？代码按"持有 3 张名字带祝福的卡"。#65 加了临时兜底：连开 8 次羁绊面板都没拿到新祝福就本局放行。3 张祝福合成套装后卡名会变吗？要是会变，计数可能永远到不了 3。
 2. 刀刀"风神杖"和词库里的"封神杖"是不是同一张？若是"封神杖"，会和封神卡组名字冲突。
 3. 刀刀图纸（点金手、深渊之刃、随缘之刃、龙心、三元重戟、阿哈利姆神杖等）要不要拿？
 4. 英雄卡 EX 边框是什么颜色？
