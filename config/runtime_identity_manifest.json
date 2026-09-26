@@ -1,7 +1,7 @@
 {
     "schema_version": 1,
-    "candidate_sha": "465f101a92d755b6fac92bcae76a1a4588007ae1",
-    "anchored_at": "2026-09-26T10:42:00+08:00",
-    "branch": "feat/owner-sched-decisions-20260926",
-    "note": "Owner 2026-09-26 scheduler decisions: merchant gate, bond refresh fallback, mandatory blessing priority."
+    "candidate_sha": "81b8b203c0fbe715a746bb5124598bdb4cdfb89d",
+    "anchored_at": "2026-09-26T14:40:00+08:00",
+    "branch": "fix/bond-fallback-guard-20260926",
+    "note": "Owner 2026-09-26: guard bond fallback against unselected advanced packs and full-bar overflow."
 }
