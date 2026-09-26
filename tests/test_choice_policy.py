@@ -2110,8 +2110,8 @@ class TestLiveRegressions20260822(unittest.TestCase):
         self.assertEqual(d.action, PolicyAction.SELECT_SLOT)
         self.assertEqual(d.index, 0)
 
-    def test_bond_capacity_full_slots_allows_core_preset_for_replace(self):
-        """当卡槽全满（free_slots == 0）时，白名单核心预设卡（如法宝、大圣）仍允许抓取以触发顶替，不直接判空关闭。"""
+    def test_bond_capacity_full_slots_rejects_core_preset_without_immediate_merge(self):
+        """Owner 2026-09-26：10/10 不能仅因白名单核心卡而顶替；必须证明本张立即合成。"""
         ps = settings(
             bond_presets=["法宝", "齐天大圣"],
             bond_whitelist_mode="soft",
@@ -2126,8 +2126,7 @@ class TestLiveRegressions20260822(unittest.TestCase):
             free_slots=0,
         )
         d = choose_action(cands, session=SessionState(refreshes=3, max_refreshes=3))
-        self.assertEqual(d.action, PolicyAction.SELECT_SLOT)
-        self.assertEqual(d.index, 0)
+        self.assertEqual(d.action, PolicyAction.CLOSE)
 
 
 class TestTemplateFamilySufficient(unittest.TestCase):

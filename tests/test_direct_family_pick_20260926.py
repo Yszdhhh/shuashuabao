@@ -24,6 +24,7 @@ def _mediator() -> Mediator:
     med = Mediator(Settings(ocr_mode="off"), ROOT)
     med._cached_policy_settings = PolicySettings(
         bond_presets=("祝福", "成长", "经济", "海盗"),
+        bond_base_presets=("祝福", "成长", "经济"),
         bond_must_take=("祝福",),
         bond_advanced_presets=("海盗",),
         bond_advanced_groups=(("海盗",),),
