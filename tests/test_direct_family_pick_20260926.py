@@ -1,0 +1,178 @@
+from __future__ import annotations
+
+import sys
+import time
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import numpy as np
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from shuabao.choice_policy import PolicySettings
+from shuabao.loop_action import LoopAction
+from shuabao.mediator import Mediator
+from shuabao.settings import Settings
+from shuabao.vision.capture import Frame
+
+
+def _mediator() -> Mediator:
+    med = Mediator(Settings(ocr_mode="live"), ROOT)
+    med._cached_policy_settings = PolicySettings(
+        bond_presets=("祝福", "成长", "经济", "海盗"),
+        bond_must_take=("祝福",),
+        bond_advanced_presets=("海盗",),
+        bond_advanced_groups=(("海盗",),),
+        bond_negative_names=("固守",),
+    )
+    med._advanced_groups_completed = 0
+    return med
+
+
+def _slots(*names: str) -> list[dict]:
+    return [
+        {
+            "index": index,
+            "name": name,
+            "confidence": 0.91,
+            "template_score": 0.91,
+            "source": "template",
+        }
+        for index, name in enumerate(names)
+    ]
+
+
+def test_direct_family_pick_obeys_owner_priority_and_skips_rarity_reads() -> None:
+    med = _mediator()
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
+    with patch.object(med, "_read_slot_rarity_badge") as rarity:
+        assert med._direct_template_bond_pick(frame, _slots("成长", "海盗", "祝福", "经济")) == 2
+    rarity.assert_not_called()
+
+
+def test_direct_family_pick_advances_to_growth_after_three_blessings() -> None:
+    med = _mediator()
+    med._bond_cards_owned = ["祝福", "祝福", "祝福"]
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
+    assert med._blessing_set_pending() is False
+    assert med._direct_template_bond_pick(frame, _slots("海盗", "成长", "经济", "固守")) == 1
+
+
+def test_bond_visit_does_not_advance_while_blessing_set_is_incomplete() -> None:
+    med = _mediator()
+    med._l1_cycle_step = "bond"
+    med._l1_cycle_step_successes = 3
+    med._wood_balance = 0
+    assert med._l1_step_visit_exhausted(time.time() + 1) is False
+
+
+def test_growth_and_economy_use_the_saved_target_order() -> None:
+    med = _mediator()
+    med._bond_cards_owned = ["祝福"] * 3
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
+    assert med._direct_template_bond_pick(frame, _slots("经济", "成长", "海盗", "固守")) == 1
+
+
+def test_direct_family_pick_uses_rarity_only_for_same_priority_ties() -> None:
+    med = _mediator()
+    med._bond_cards_owned = ["祝福"] * 3
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
+    with patch.object(med, "_read_slot_rarity_badge", side_effect=[("R", "blue"), ("SSR", "orange")]) as rarity:
+        assert med._direct_template_bond_pick(frame, _slots("成长", "成长", "海盗", "固守")) == 1
+    assert rarity.call_count == 2
+
+
+def test_direct_family_pick_never_selects_explicitly_negative_or_unmatched_slots() -> None:
+    med = _mediator()
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
+    assert med._direct_template_bond_pick(frame, _slots("固守", "无关", "未知", "其他")) is None
+
+
+def test_direct_family_pick_accepts_a_confident_target_with_other_unrecognized_slots() -> None:
+    med = _mediator()
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
+    slots = _slots("成长", "", "", "")
+    for slot in slots[1:]:
+        slot["template_score"] = 0.0
+    assert med._direct_template_bond_pick(frame, slots) == 0
+
+
+def test_four_challenges_are_clicked_then_verified_from_one_fresh_frame() -> None:
+    med = _mediator()
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
+    controls = ("coin_challenge", "wood_challenge", "experience_challenge", "treasure_challenge")
+    hits = [
+        SimpleNamespace(x=10 + index * 40, y=10, w=20, h=20, score=0.9, name=key, center=(20 + index * 40, 20))
+        for index, key in enumerate(controls)
+    ]
+    with (
+        patch.object(med, "_passenger_mode", return_value=False),
+            patch.object(med, "_find_challenge_button", side_effect=[(hit, hit) for hit in hits] * 2),
+        patch.object(med, "_resolve_challenge_state", side_effect=[med._challenge_states[controls[0]].OFF] * 4 + [med._challenge_states[controls[0]].ON] * 4),
+        patch.object(med, "_challenge_green_count", return_value=50),
+        patch.object(med, "_capture_best", return_value=frame) as capture,
+        patch.object(med, "act_right_click", return_value=True) as click,
+    ):
+        assert med._ensure_challenge_buttons(frame) == LoopAction.Continue
+    assert click.call_count == 4
+    capture.assert_called_once()
+    assert med._challenge_done == set(controls)
+
+
+def test_four_challenge_batch_retries_still_off_wood_immediately() -> None:
+    med = _mediator()
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8))
+    controls = ("coin_challenge", "wood_challenge", "experience_challenge", "treasure_challenge")
+    hits = {
+        key: SimpleNamespace(
+            x=10 + index * 40,
+            y=10,
+            w=20,
+            h=20,
+            score=0.9,
+            name=key,
+            center=(20 + index * 40, 20),
+        )
+        for index, key in enumerate(controls)
+        }
+    find_hits = [(hits[key], hits[key]) for key in controls]
+    find_hits += [(hits[key], hits[key]) for key in controls]
+    find_hits += [(hits["wood_challenge"], hits["wood_challenge"])]
+    find_hits += [(hits[key], hits[key]) for key in controls]
+    states = [med._challenge_states[controls[0]].OFF] * 4
+    states += [
+        med._challenge_states[controls[0]].ON,
+        med._challenge_states[controls[0]].OFF,
+        med._challenge_states[controls[0]].ON,
+        med._challenge_states[controls[0]].ON,
+        med._challenge_states[controls[0]].OFF,
+    ]
+    states += [med._challenge_states[controls[0]].ON] * 4
+    with (
+        patch.object(med, "_passenger_mode", return_value=False),
+        patch.object(med, "_find_challenge_button", side_effect=find_hits),
+        patch.object(med, "_resolve_challenge_state", side_effect=states),
+        patch.object(med, "_challenge_green_count", return_value=50),
+        patch.object(med, "_capture_best", side_effect=[frame, frame]) as capture,
+        patch.object(med, "act_right_click", return_value=True) as click,
+    ):
+        assert med._ensure_challenge_buttons(frame) == LoopAction.Continue
+    assert click.call_count == 5
+    assert capture.call_count == 2
+    assert med._challenge_attempts["wood_challenge"] == 2
+    assert med._challenge_done == set(controls)
+
+
+def test_challenge_batch_gate_allows_only_challenge_inputs_from_current_evidence() -> None:
+    med = _mediator()
+    evidence = SimpleNamespace(gen=7)
+    med._evidence = evidence
+    med._tick_evidence = evidence
+    med._tick_gen = 7
+    med._tick_input_seq = 0
+    med._input_seq = 1
+    med._challenge_batch_input_active = True
+    assert med._action_gate_ok("金币Challenge-right_click") is True
+    assert med._action_gate_ok("evolve-click") is False

@@ -205,6 +205,7 @@ EX 模板（`a57d697`）：从 Owner 的卡面截图 `fixtures/ex_finals_2026081
 - 两份 solo 真机 trace 未记录海贼王槽位；同批 trace 确认槽位含原始进度文本（如“齐天大圣(0/3)”“棍法(2/3)”，OCR 输出规范家族名）。抽帧未找到清晰的独立海贼王系列标签，未新增合成或裁切模板。
 - 发布门禁本次结果：pytest 阶段 FAIL（2228 passed、1 failed、2 xfailed、16 skipped、373 subtests；pytest 生成失败详情时发生 MemoryError，退出前未输出失败 traceback）；冻结回放、模板完整性、contract 三阶段 PASS。模板资产 430 与 manifest 一致，未更新基线。单独重跑失败项 `test_real_f0245_reads_card_rarity_badge_letters_and_bands` 为 1 passed；全量 pytest/release_gate 仍需在资源稳定时重跑至 0 退出码。海贼王家族标签仍需有清晰真帧时再确认原始文字与模板需求。
 
+<<<<<<< HEAD
 ## 2026-09-26 英雄进化二选一卡死修复
 
 - Owner 截图 `G:\刷刷宝\nightwatch\hero_stuck_owner_screenshot.png` 与现场包 `solo_ingame_chain_20260926_125414_506355` 的 f0030–f0032 确认是英雄两卡面板：卡名位于顶部，卡中央显示 R/UR，左右卡框蓝/红；底部“放弃/刷新”及“英雄免费刷新次数+1”被共享按钮模板误认成技能面板。技能选择为三槽结构。回归帧取自包内原始 `f0030_state_change.png`，没有合成或裁切模板。
@@ -212,3 +213,12 @@ EX 模板（`a57d697`）：从 Owner 的卡面截图 `fixtures/ex_finals_2026081
 - L1 commit `7d834b41a0caf8de3708263b7ff627624f307a02`：feedback 检查提前到交互表面仲裁之前，等待期间发现英雄框立即转交英雄选择；英雄选择 15 秒仍未确认则经 `set_phase(ERROR)` 留 incident 并停止，不再进入 60 秒静默 COOLDOWN。无新增局内状态字段。
 - 兼容测试期望提交 `2ae40793e3dde071d058c285cbcc1108bf272bd0`；身份清单单独重钉提交 `bfb033724e884c6891db5aafe98f53f6ef051c5d`，candidate SHA 指向 L1 源码提交 `7d834b41a0caf8de3708263b7ff627624f307a02`。
 - 快速档最终组合：149 passed、232 subtests passed；`tests/test_live_harness_refresh.py` 单独 25 passed。整份 `test_live_run_205044_regressions.py` 的探索性运行另有两项羁绊白名单断言失败，与本次路径无关；进化相关用例均在最终组合中通过。没有运行全量 pytest/release_gate，也没有启动游戏。修复仍需用正式桌面构建进行真机验证，不能把离线结果视为实机通过。
+=======
+## 2026-09-26 祝福优先与挑战批量开启提速
+
+- L1：羁绊模板家族达到 0.85 即按未完成祝福、成长/经济、当前高级组、其它目标顺序直接选卡；只有最高目标家族出现多个槽位时读取稀有度徽标，否则选最左槽。没有命中目标时保留现有 OCR 与充分性回退门。
+- L1：祝福集未满时优先进入羁绊选择，且不因羁绊访问成功次数上限推进；保留面板既有硬超时及 fail-closed 行为。自动技能队列的强制上限没有修改。
+- L1：四个挑战按固定控制顺序批量右键，随后截图检查；仍为 OFF 的控制在同 tick 立即补点，最多两次重试。输入门禁只对当前 tick 同一证据帧中的挑战批量右键开放；重试仍 OFF 时记录 `challenge_toggle_unverified` incident 并停止。
+- 离线 trace 重放：现场包 1/1 面板走直拿；指定旧 trace 两包共 93 面板中 64 面板直拿；总计 65/94 覆盖，65/65 与 trace OCR 的动作槽位一致，未发现不一致。直拿耗时中位数 162.617 ms、P90 271.987 ms（包含同家族并列时徽标识别）；均未启动游戏或发送真实输入。
+- 定向选择/模板测试 `160 passed, 37 subtests passed`；本次新增用例 `10 passed`；`tests/contract` 为 `68 passed, 232 subtests passed`；身份重钉后 `tests/test_live_harness_refresh.py` 为 `23 passed`。`tests/test_live_run_205044_regressions.py` 为 `54 passed, 2 failed`：失败是 hard whitelist 场景仍被既有耗尽回退选卡，未由本次模板直拿命中；本次未扩展修复该策略行为。所有新行为仍需后续 Owner 实机验证。
+>>>>>>> perf/direct-family-pick-20260926

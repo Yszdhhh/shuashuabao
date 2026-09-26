@@ -597,6 +597,7 @@ class LiveRun205044Tests(unittest.TestCase):
         med._auto_task_done = True
         med._main_line_started_at = 0.0
         med._l1_cycle_step = "evolve"
+        med._bond_cards_owned = ["祝福", "祝福", "祝福"]
         return med
 
     def test_evolve_click_waits_for_feedback_before_advancing(self) -> None:
