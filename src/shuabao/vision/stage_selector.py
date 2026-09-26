@@ -584,14 +584,32 @@ def _truncated_last_row_fallback(
     """
     last = max(rows, key=lambda row: row.center_y)
     roi_bottom = int(frame.height * 0.88)
-    if roi_bottom - last.center_y > _TRUNCATED_LAST_ROW_EDGE_MARGIN:
+    edge_margin = max(1, int(round(_TRUNCATED_LAST_ROW_EDGE_MARGIN * scale)))
+    row_gap_min = max(1, int(round(_TRUNCATED_ROW_BELOW_MIN * scale)))
+    row_gap_max = max(row_gap_min, int(round(_TRUNCATED_ROW_BELOW_MAX * scale)))
+    if roi_bottom - last.center_y > edge_margin:
         return None
-    if any(
-        _TRUNCATED_ROW_BELOW_MIN <= other.center_y - last.center_y <= _TRUNCATED_ROW_BELOW_MAX
-        for other in rows
-        if other is not last
-    ):
+
+    # 真截断证据：按与亮边采样相同的缩放后半高，选中环框的下沿必须已经
+    # 超出列表扫描 ROI（或极端裁剪时超出帧底）。仅仅“靠近底部”不够。
+    ring_half_h = max(6, int(round(22 * scale)))
+    ring_bottom = last.center_y + ring_half_h
+    if ring_bottom <= roi_bottom and ring_bottom <= frame.height:
         return None
+
+    # 末行还必须与上一条可读行保持一个真实行距；旧实现检查“last 下方还有行”
+    # 对 max(center_y) 恒为假，无法提供任何证据。
+    previous = max(
+        (other for other in rows if other.center_y < last.center_y),
+        key=lambda row: row.center_y,
+        default=None,
+    )
+    if previous is None:
+        return None
+    row_gap = last.center_y - previous.center_y
+    if not (row_gap_min <= row_gap <= row_gap_max):
+        return None
+
     side_best = _row_border_bright_ratio(gray, last, scale, sides_only=True)
     if side_best < SELECTED_RING_RATIO:
         return None
@@ -626,6 +644,10 @@ def selected_stage_row(frame: Frame, images_dir: Path) -> StageRow | None:
     best_ratio, best_row = scored[0]
     if best_ratio >= SELECTED_RING_RATIO:
         runner_up = scored[1][0] if len(scored) > 1 else 0.0
+        # 两行整圈都达到“已高亮”阈值属于证据冲突：直接 fail-closed，
+        # 不得再让截断兜底用竖边替其中一行做决定。
+        if runner_up >= SELECTED_RING_RATIO:
+            return None
         if runner_up <= 0 or best_ratio >= runner_up * SELECTED_RING_MARGIN:
             return best_row
     # 整圈无确信高亮时，再试底部截断末行（竖边确认）；仍无证据则 None。
