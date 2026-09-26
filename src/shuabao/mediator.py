@@ -2654,6 +2654,8 @@ class Mediator:
 
     def _classify_choice_panel(self, frame: Frame) -> str | None:
         """Distinguish skill / bond / treasure choice panels by their unique buttons."""
+        if Mediator._find_evolution_choice(self, frame) is not None:
+            return None
         opened = getattr(self, "_panel_opened_by_us", None)
         if opened in ("skill", "bond"):
             return opened
@@ -5279,14 +5281,7 @@ class Mediator:
             return None
         if self._post_game_state(frame) is not None:
             return None
-        # 如果当前锚点属于明确非英雄面板（如羁绊/宝物/技能放弃等），绝非英雄进化二选一
         anc = anchor if anchor is not None else self._selection_anchor(frame)
-        if anc is not None and (
-            anc.name.startswith("bond_")
-            or anc.name.startswith("treasure_")
-            or anc.name in ("skill_giveup_btn", "skill_hide", "giveUp")
-        ):
-            return None
         # 装备十级词缀弹窗互斥：词缀弹窗绝非英雄进化二选一
         if self._find_equipment_affix_choice(frame) is not None:
             return None
@@ -5299,14 +5294,38 @@ class Mediator:
             rx1, ry1, rx2, ry2 = transform.logical_roi(x - 4, 150, x + 5, 510)
             return int((gradient[ry1:ry2, rx1:rx2] > 80).sum())
 
+        def longest_vertical_edge(x: int) -> int:
+            rx1, ry1, rx2, ry2 = transform.logical_roi(x - 4, 150, x + 5, 510)
+            rows = (gradient[ry1:ry2, rx1:rx2] > 80).any(axis=1)
+            longest = current = 0
+            for row in rows:
+                current = current + 1 if row else 0
+                longest = max(longest, current)
+            return longest
+
         scale_area = transform.scale * transform.scale
-        if not (
+        paired_card_frame = (
+            longest_vertical_edge(550) >= max(70, int(150 * transform.scale))
+            and longest_vertical_edge(784) >= max(100, int(250 * transform.scale))
+            and longest_vertical_edge(816) >= max(70, int(150 * transform.scale))
+            and longest_vertical_edge(1050) >= max(70, int(150 * transform.scale))
+            and max(longest_vertical_edge(370), longest_vertical_edge(408), longest_vertical_edge(1201))
+            < max(40, int(60 * transform.scale))
+        )
+        legacy_card_frame = (
             edge_count(816) >= max(50, int(350 * scale_area))
             and edge_count(1050) >= max(30, int(100 * scale_area))
             and edge_count(370) < max(20, int(100 * scale_area))
             and edge_count(408) < max(20, int(100 * scale_area))
             and edge_count(1201) < max(20, int(100 * scale_area))
-        ):
+        )
+        if not (paired_card_frame or legacy_card_frame):
+            return None
+        if anc is not None and (
+            anc.name.startswith("bond_")
+            or anc.name.startswith("treasure_")
+            or anc.name in ("skill_giveup_btn", "skill_hide", "giveUp")
+        ) and not paired_card_frame:
             return None
         hsv = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2HSV)
 
@@ -17131,6 +17150,8 @@ class Mediator:
         比「锁模板单独命中」或中间花屏更可信。
         """
         opened = getattr(self, "_panel_opened_by_us", None)
+        if self._find_evolution_choice(frame, anchor) is not None:
+            return "card"
         # 放弃按钮是技能面板独有（放弃/giveUp）；宝物面板绝无放弃按钮。
         if anchor.name in {"skill_giveup_btn"}:
             return "skill"
